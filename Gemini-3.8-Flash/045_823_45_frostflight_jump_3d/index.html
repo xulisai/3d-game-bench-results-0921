@@ -1,0 +1,3929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Frostflight Jump</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #020612;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      color: #e2f1ff;
+    }
+    #game-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+    #ui-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 24px 32px;
+    }
+
+    /* Top HUD */
+    .hud-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+    }
+    .game-badge {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      background: linear-gradient(90deg, #7fe7ff, #5df3a7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 2px 6px rgba(0,255,200,0.3));
+    }
+    .hill-stats {
+      font-size: 13px;
+      color: #8ed6ff;
+      letter-spacing: 1px;
+      margin-top: 4px;
+    }
+    .hud-gauges {
+      display: flex;
+      gap: 16px;
+    }
+    .hud-card {
+      background: rgba(3, 15, 38, 0.78);
+      border: 1px solid rgba(110, 205, 255, 0.28);
+      border-radius: 8px;
+      padding: 8px 16px;
+      min-width: 120px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    }
+    .hud-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #79a6d2;
+      margin-bottom: 2px;
+    }
+    .hud-val {
+      font-size: 24px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #ffffff;
+      text-shadow: 0 0 10px rgba(125, 230, 255, 0.5);
+    }
+    .hud-val small {
+      font-size: 13px;
+      font-weight: 400;
+      color: #9cd7ff;
+      margin-left: 3px;
+    }
+
+    /* Center Overlay: In-run Timing Bar */
+    #timing-bar-container {
+      position: absolute;
+      bottom: 120px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 440px;
+      background: rgba(2, 10, 28, 0.88);
+      border: 1px solid rgba(80, 210, 255, 0.4);
+      border-radius: 12px;
+      padding: 14px 20px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 6px 25px rgba(0,0,0,0.7), 0 0 15px rgba(0, 200, 255, 0.15);
+      transition: opacity 0.2s ease;
+      display: none;
+    }
+    .timing-title {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #8ed6ff;
+      margin-bottom: 8px;
+    }
+    .timing-track {
+      position: relative;
+      height: 22px;
+      background: #091a38;
+      border-radius: 11px;
+      overflow: hidden;
+      border: 1px solid #1c3b69;
+    }
+    /* Golden center sweet spot */
+    .timing-sweetspot {
+      position: absolute;
+      left: calc(50% - 28px);
+      width: 56px;
+      height: 100%;
+      background: linear-gradient(90deg, rgba(255, 215, 0, 0.2), rgba(255, 235, 120, 0.85), rgba(255, 215, 0, 0.2));
+      border-left: 1px solid #ffe866;
+      border-right: 1px solid #ffe866;
+      box-shadow: 0 0 12px rgba(255, 215, 0, 0.5);
+    }
+    .timing-marker {
+      position: absolute;
+      top: 1px;
+      left: 50%;
+      width: 6px;
+      height: 20px;
+      background: #ffffff;
+      border-radius: 3px;
+      box-shadow: 0 0 8px #ffffff, 0 0 14px #00e5ff;
+      transform: translateX(-50%);
+      transition: background 0.1s;
+    }
+    .timing-hint {
+      text-align: center;
+      font-size: 11px;
+      color: #a2c7e8;
+      margin-top: 8px;
+      letter-spacing: 0.5px;
+    }
+
+    /* Flight Status Banner & Flight Instruments (Active during Flight) */
+    #flight-status-container {
+      position: absolute;
+      bottom: 90px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 530px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .flight-instruments-row {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+      width: 100%;
+    }
+    #attack-gauge-container {
+      flex: 1;
+      background: rgba(3, 14, 34, 0.92);
+      border: 1px solid rgba(80, 210, 255, 0.4);
+      border-radius: 12px;
+      padding: 10px 18px 12px 18px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 6px 25px rgba(0,0,0,0.7), 0 0 15px rgba(0, 200, 255, 0.15);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    #altitude-tape-container {
+      width: 110px;
+      background: rgba(3, 14, 34, 0.92);
+      border: 1px solid rgba(80, 210, 255, 0.4);
+      border-radius: 12px;
+      padding: 10px 10px 12px 10px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 6px 25px rgba(0,0,0,0.7), 0 0 15px rgba(0, 200, 255, 0.15);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .alt-tape-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 94px;
+      width: 100%;
+    }
+    .alt-tape-track {
+      position: relative;
+      width: 16px;
+      height: 90px;
+      background: #091a33;
+      border: 1px solid #1e3a5f;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .alt-telemark-zone {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 24%;
+      background: rgba(16, 185, 129, 0.35);
+      border-top: 1px dashed #10b981;
+    }
+    .alt-pointer {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: #38bdf8;
+      box-shadow: 0 0 8px #38bdf8;
+      border-radius: 2px;
+      transition: top 0.03s linear;
+    }
+    .alt-tape-scale {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 90px;
+      font-size: 9px;
+      color: #94a3b8;
+      font-weight: 700;
+    }
+    .alt-readout {
+      font-size: 14px;
+      font-weight: 800;
+      color: #ffffff;
+      font-variant-numeric: tabular-nums;
+      margin-top: 2px;
+    }
+    .gauge-header {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2px;
+    }
+    .gauge-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #9cd7ff;
+    }
+    .gauge-instability-wrap {
+      width: 100%;
+      margin-top: 6px;
+    }
+    .gauge-instab-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 3px;
+    }
+    .wind-badge-calm {
+      color: #7dd3fc;
+    }
+    .wind-badge-head {
+      color: #5df3a7;
+    }
+    .wind-badge-tail {
+      color: #fca5a5;
+    }
+    .flight-pill {
+      background: rgba(3, 14, 34, 0.85);
+      border: 1px solid rgba(80, 210, 255, 0.35);
+      border-radius: 10px;
+      padding: 8px 18px;
+      backdrop-filter: blur(10px);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.6);
+    }
+    .instability-bar-bg {
+      height: 12px;
+      background: #0d1e38;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid #203f6f;
+      margin-top: 4px;
+    }
+    .instability-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #ffcc00, #ff4444);
+      border-radius: 6px;
+      transition: width 0.05s linear;
+      box-shadow: 0 0 10px rgba(255, 68, 68, 0.6);
+    }
+
+    /* Bottom Status / Instructions */
+    .hud-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .controls-hint {
+      background: rgba(3, 14, 34, 0.75);
+      border: 1px solid rgba(110, 205, 255, 0.2);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 12px;
+      color: #a4ceef;
+      backdrop-filter: blur(6px);
+      display: flex;
+      gap: 14px;
+    }
+    .controls-hint kbd {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-weight: bold;
+      color: #fff;
+    }
+
+    /* Finals Night Schedule Cards */
+    .finals-schedule-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+      text-align: left;
+    }
+    .finals-jump-card {
+      background: rgba(2, 14, 34, 0.85);
+      border: 1px solid rgba(80, 200, 255, 0.3);
+      border-radius: 10px;
+      padding: 12px 14px;
+      transition: all 0.2s ease;
+    }
+    .finals-jump-card.active {
+      border-color: #38bdf8;
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.25);
+    }
+    .finals-jump-header {
+      font-size: 10.5px;
+      text-transform: uppercase;
+      color: #7dd3fc;
+      letter-spacing: 1.2px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .finals-jump-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 2px;
+    }
+    .finals-jump-detail {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    /* Modal Screens: Ready & Result */
+    .modal-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      pointer-events: auto;
+      background: rgba(1, 6, 18, 0.68);
+      backdrop-filter: blur(6px);
+    }
+    .panel {
+      background: linear-gradient(135deg, rgba(8, 24, 52, 0.95), rgba(3, 12, 28, 0.98));
+      border: 1px solid rgba(100, 220, 255, 0.35);
+      border-radius: 16px;
+      padding: 28px 36px;
+      max-width: 580px;
+      width: 92%;
+      text-align: center;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 25px rgba(0, 225, 255, 0.15);
+      animation: fadeIn 0.25s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .panel-title {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: 2.5px;
+      margin-bottom: 4px;
+      background: linear-gradient(90deg, #99f0ff, #55ffb0);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-transform: uppercase;
+      filter: drop-shadow(0 2px 8px rgba(0,255,200,0.3));
+    }
+    .panel-subtitle {
+      font-size: 12px;
+      color: #8cc4e8;
+      letter-spacing: 1.5px;
+      margin-bottom: 18px;
+      text-transform: uppercase;
+    }
+    .panel-instructions {
+      text-align: left;
+      background: rgba(2, 12, 30, 0.7);
+      border: 1px solid rgba(80, 180, 255, 0.2);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      font-size: 12.5px;
+      line-height: 1.65;
+      color: #c5e3f7;
+    }
+    .panel-instructions strong {
+      color: #5cf1b0;
+    }
+    .key-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      margin: 0 2px;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(150, 220, 255, 0.3);
+      border-radius: 4px;
+      font-weight: 700;
+      color: #ffffff;
+      font-size: 11px;
+    }
+    .panel-action {
+      font-size: 14px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 10px 24px;
+      background: linear-gradient(90deg, #0284c7, #059669);
+      border-radius: 8px;
+      box-shadow: 0 4px 15px rgba(0, 180, 200, 0.3);
+      display: inline-block;
+      border: 1px solid rgba(255,255,255,0.3);
+      animation: pulse 1.6s infinite ease-in-out;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); filter: brightness(1); }
+      50% { transform: scale(1.03); filter: brightness(1.2); }
+    }
+
+    /* Result Scorecard Table Styles (Readable without scrolling) */
+    .scorecard-wrap {
+      margin: 14px 0 16px 0;
+      text-align: left;
+      background: rgba(2, 10, 26, 0.75);
+      border: 1px solid rgba(80, 200, 255, 0.25);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .scorecard-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 14px;
+      border-bottom: 1px solid rgba(80, 180, 255, 0.12);
+      font-size: 13px;
+    }
+    .scorecard-row:last-child {
+      border-bottom: none;
+    }
+    .scorecard-row.header-row {
+      background: rgba(14, 42, 82, 0.5);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #7dd3fc;
+      font-weight: 700;
+    }
+    .scorecard-row.judge-row {
+      font-size: 12px;
+      color: #e0f2fe;
+    }
+    .scorecard-row.judge-row:nth-child(even) {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .scorecard-row.subtotal-row {
+      background: rgba(12, 38, 70, 0.4);
+      color: #bae6fd;
+      font-weight: 600;
+    }
+    .scorecard-row.total-row {
+      background: linear-gradient(90deg, rgba(2, 132, 199, 0.25), rgba(5, 150, 105, 0.25));
+      border-top: 2px solid rgba(56, 189, 248, 0.5);
+      padding: 10px 14px;
+    }
+    .total-title {
+      font-size: 16px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      color: #ffffff;
+      text-transform: uppercase;
+    }
+    .total-value {
+      font-size: 26px;
+      font-weight: 900;
+      color: #5eead4;
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 0 12px rgba(94, 234, 212, 0.6);
+    }
+    .val-highlight {
+      font-weight: 700;
+      color: #ffffff;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Contest Standings Board Styles */
+    .standings-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11.5px;
+      text-align: left;
+    }
+    .standings-table th {
+      background: rgba(14, 42, 82, 0.7);
+      color: #7dd3fc;
+      padding: 7px 8px;
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: 0.8px;
+      border-bottom: 1px solid rgba(80, 210, 255, 0.25);
+    }
+    .standings-table td {
+      padding: 7px 8px;
+      border-bottom: 1px solid rgba(80, 210, 255, 0.1);
+      color: #e2e8f0;
+      font-variant-numeric: tabular-nums;
+    }
+    .standings-row-player {
+      background: rgba(14, 165, 233, 0.16) !important;
+      font-weight: 700;
+    }
+    .standings-rank-badge {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      line-height: 18px;
+      text-align: center;
+      border-radius: 50%;
+      font-weight: 800;
+      font-size: 10px;
+    }
+    .rank-1 { background: #fde047; color: #020617; }
+    .rank-2 { background: #cbd5e1; color: #020617; }
+    .rank-3 { background: #fb923c; color: #020617; }
+    .badge-style {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .badge-telemark {
+      background: rgba(16, 185, 129, 0.25);
+      border: 1px solid #10b981;
+      color: #6ee7b7;
+    }
+    .badge-parallel {
+      background: rgba(56, 189, 248, 0.25);
+      border: 1px solid #38bdf8;
+      color: #bae6fd;
+    }
+    .badge-fell {
+      background: rgba(245, 158, 11, 0.25);
+      border: 1px solid #f59e0b;
+      color: #fcd34d;
+    }
+    .badge-crashed {
+      background: rgba(239, 68, 68, 0.25);
+      border: 1px solid #ef4444;
+      color: #fca5a5;
+    }
+  </style>
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+</head>
+<body>
+  <div id="game-container"></div>
+  <div id="podium-banner" style="display:none; position:absolute; top:24px; left:50%; transform:translateX(-50%); background:rgba(3,14,34,0.92); border:1px solid #fde047; border-radius:12px; padding:10px 28px; text-align:center; z-index:120; box-shadow:0 0 25px rgba(253,224,71,0.35);"><div style="font-size:18px; font-weight:900; color:#fde047; letter-spacing:2px; text-transform:uppercase;">PODIUM CEREMONY</div><div style="font-size:12px; color:#cbd5e1; margin-top:2px;">Press Enter or R to Return to Ready</div></div>
+
+  <div id="ui-layer">
+    <!-- Top HUD -->
+    <div class="hud-header">
+      <div>
+        <div class="game-badge">FINALS NIGHT</div>
+        <div class="hill-stats" id="hud-hill-stats">JUMP 1 — NORMAL K90</div>
+      </div>
+      <div class="hud-gauges">
+        <div class="hud-card" id="hud-card-jump">
+          <div class="hud-label">Finals Jump</div>
+          <div class="hud-val" id="hud-jump">JUMP 1 / 2</div>
+        </div>
+        <div class="hud-card" id="hud-card-wind">
+          <div class="hud-label">Wind</div>
+          <div class="hud-val" id="hud-wind" style="font-size:18px; color:#7dd3fc;">CALM</div>
+        </div>
+        <div class="hud-card">
+          <div class="hud-label">Speed</div>
+          <div class="hud-val" id="hud-speed">3.0<small>m/s</small></div>
+        </div>
+        <div class="hud-card" id="hud-card-total">
+          <div class="hud-label">Cumulative</div>
+          <div class="hud-val" id="hud-total" style="color:#5eead4; font-size:17px;">0.0<small>pts</small></div>
+        </div>
+        <div class="hud-card" id="hud-card-theta" style="display:none;">
+          <div class="hud-label">Attack Angle θ</div>
+          <div class="hud-val" id="hud-theta">0.0<small>°</small></div>
+        </div>
+        <div class="hud-card" id="hud-card-wobbles" style="display:none;">
+          <div class="hud-label">Wobbles</div>
+          <div class="hud-val" id="hud-wobbles" style="color:#fcd34d;">0</div>
+        </div>
+        <div class="hud-card" id="hud-card-dist" style="display:none;">
+          <div class="hud-label">Distance</div>
+          <div class="hud-val" id="hud-dist">0.0<small>m</small></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Timing Bar (Active during In-run) -->
+    <div id="timing-bar-container">
+      <div class="timing-title">
+        <span>Takeoff Timing Marker</span>
+        <span id="timing-status-text" style="color:#5cf1b0;">SYNC WITH PEAK</span>
+      </div>
+      <div class="timing-track">
+        <div class="timing-sweetspot"></div>
+        <div class="timing-marker" id="timing-marker"></div>
+      </div>
+      <div class="timing-hint">Press <kbd>Space</kbd> within ±0.20s of the table end</div>
+    </div>
+
+    <!-- Flight Status Overlay (Active during Flight) -->
+    <div id="flight-status-container">
+      <div class="flight-instruments-row">
+        <!-- Attack-Angle Arc Instrument Gauge -->
+        <div id="attack-gauge-container">
+          <div class="gauge-header">
+            <span class="gauge-title">Attack-Angle &amp; Lift Instrument</span>
+            <span id="gauge-wind-tag" style="font-size:10.5px; font-weight:700; color:#7dd3fc;">CALM</span>
+          </div>
+          <svg id="attack-gauge-svg" width="220" height="114" viewBox="0 0 200 110">
+            <!-- Background track arc (0° to 40°) -->
+            <path d="M 30 90 A 70 70 0 0 1 170 90" fill="none" stroke="#0e2340" stroke-width="12" stroke-linecap="round" />
+            
+            <!-- 0° to 15°: Green zone (linear gain) -->
+            <path id="gauge-green-arc" d="M 30 90 A 70 70 0 0 1 73.2 25.3" fill="none" stroke="#22c55e" stroke-width="10" stroke-linecap="round" />
+            
+            <!-- 15° to 25°: Amber zone (plateau) -->
+            <path id="gauge-amber-arc" d="M 73.2 25.3 A 70 70 0 0 1 126.8 25.3" fill="none" stroke="#f59e0b" stroke-width="10" />
+            
+            <!-- 25° to 40°: Red zone (stall) -->
+            <path id="gauge-red-arc" d="M 126.8 25.3 A 70 70 0 0 1 170 90" fill="none" stroke="#ef4444" stroke-width="10" stroke-linecap="round" />
+            
+            <!-- Zone ticks & text labels -->
+            <text x="22" y="104" fill="#8ed6ff" font-size="10" font-weight="bold" text-anchor="middle">0°</text>
+            <text x="68" y="17" fill="#4ade80" font-size="9" font-weight="bold" text-anchor="middle">15°</text>
+            <text x="132" y="17" fill="#fcd34d" font-size="9" font-weight="bold" text-anchor="middle">25°</text>
+            <text x="178" y="104" fill="#f87171" font-size="10" font-weight="bold" text-anchor="middle">40°</text>
+            
+            <!-- Zone category labels -->
+            <text x="44" y="65" fill="#86efac" font-size="8" font-weight="bold" letter-spacing="0.5">GAIN</text>
+            <text x="100" y="44" fill="#fde047" font-size="8" font-weight="bold" letter-spacing="0.5" text-anchor="middle">PLATEAU</text>
+            <text x="140" y="65" fill="#fca5a5" font-size="8" font-weight="bold" letter-spacing="0.5">STALL</text>
+
+            <!-- Needle -->
+            <line id="gauge-needle" x1="100" y1="90" x2="42" y2="90" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" filter="drop-shadow(0 0 4px #00e5ff)" />
+            <circle cx="100" cy="90" r="5" fill="#38bdf8" />
+            <circle cx="100" cy="90" r="2" fill="#ffffff" />
+            
+            <!-- Center readout for θ -->
+            <text id="gauge-theta-val" x="100" y="82" fill="#ffffff" font-size="15" font-weight="bold" text-anchor="middle">0.0°</text>
+          </svg>
+          
+          <!-- Instability Bar: fills as instability grows and resets at start of each jump -->
+          <div class="gauge-instability-wrap">
+            <div class="gauge-instab-header">
+              <span style="font-size:10px; font-weight:700; color:#f87171; letter-spacing:1px;">STALL INSTABILITY</span>
+              <span id="instability-text" style="font-size:11px; font-weight:700; color:#ffcc00;">0.0 / 8.0</span>
+            </div>
+            <div class="instability-bar-bg" style="margin-top:2px;">
+              <div class="instability-bar-fill" id="instability-fill" style="width:0%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Altitude Tape Vertical Scale Instrument -->
+        <div id="altitude-tape-container">
+          <div style="font-size:10px; font-weight:700; color:#7dd3fc; letter-spacing:1px; text-transform:uppercase;">ALT TAPE</div>
+          <div class="alt-tape-box">
+            <div class="alt-tape-track">
+              <div class="alt-telemark-zone" title="0.20s Telemark Timing Window"></div>
+              <div class="alt-pointer" id="alt-pointer" style="top:10px;"></div>
+            </div>
+            <div class="alt-tape-scale">
+              <span>20m</span>
+              <span>15m</span>
+              <span>10m</span>
+              <span>5m</span>
+              <span style="color:#10b981;">0m</span>
+            </div>
+          </div>
+          <div class="alt-readout" id="alt-readout">0.0<small style="font-size:10px; color:#94a3b8; font-weight:400; margin-left:2px;">m</small></div>
+        </div>
+      </div>
+
+      <div class="flight-pill">
+        <span style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#9cd7ff;">Landing Style</span>
+        <span id="flight-telemark-badge" class="badge-style badge-parallel">PARALLEL (Press T within 0.20s of ground)</span>
+      </div>
+    </div>
+
+    <!-- Bottom HUD / Controls summary -->
+    <div class="hud-footer">
+      <div class="controls-hint">
+        <span><kbd>N</kbd> Start Finals</span>
+        <span><kbd>Enter</kbd> Launch Jump</span>
+        <span><kbd>S</kbd> / <kbd>↓</kbd> Tuck / Pitch</span>
+        <span><kbd>W</kbd> / <kbd>↑</kbd> Pitch</span>
+        <span><kbd>Space</kbd> Takeoff</span>
+        <span><kbd>T</kbd> Telemark (&le;0.2s)</span>
+        <span><kbd>R</kbd> Reset</span>
+      </div>
+      <div style="font-size:11px; color:#5b82a6; letter-spacing:1px; text-transform:uppercase;">
+        3D Ski Jump Simulation
+      </div>
+    </div>
+  </div>
+
+  <!-- Ready Overlay (Sole Entry: Press N to start Finals Night) -->
+  <div id="ready-modal" class="modal-overlay">
+    <div class="panel">
+      <div class="panel-title">Frostflight Jump</div>
+      <div class="panel-subtitle">FINALS NIGHT UNDER THE AURORA</div>
+
+      <div class="finals-schedule-grid">
+        <div class="finals-jump-card active" id="card-finals-j1">
+          <div class="finals-jump-header">Jump 1 of 2</div>
+          <div class="finals-jump-title" style="color:#38bdf8;">NORMAL HILL K90</div>
+          <div class="finals-jump-detail">Wind: CALM • Full 75.0m In-Run</div>
+        </div>
+
+        <div class="finals-jump-card" id="card-finals-j2">
+          <div class="finals-jump-header">Jump 2 of 2</div>
+          <div class="finals-jump-title" style="color:#a855f7;">LARGE HILL K120</div>
+          <div class="finals-jump-detail">Wind: HEADWIND 1.5 • Full 95.0m In-Run</div>
+        </div>
+      </div>
+
+      <div class="panel-instructions">
+        <p style="margin-bottom:6px;"><strong>Championship Format:</strong> Fixed two-jump competition against hardcoded rivals <strong>AI Kestrel</strong>, <strong>AI Lumen</strong>, and <strong>AI Voley</strong>.</p>
+        <p style="margin-bottom:6px;"><strong>Tie-Breaker:</strong> Higher grand total first &rarr; higher jump-2 points &rarr; ascending alphabetical name.</p>
+        <p style="margin-bottom:6px;"><strong>Reactive Aurora:</strong> Brightens for 3.0s on K-point reaches, sweeps cyan for 1.2s on telemark, dims for 2.0s on falls/crashes, and crowns in gold on 1st place!</p>
+        <p><strong>Ceremony:</strong> 3D podium ceremony in the outrun following the final standings.</p>
+      </div>
+
+      <div class="panel-action" id="ready-action-btn">Press N to start Finals Night</div>
+    </div>
+  </div>
+
+  <!-- Finals Fixed-Format Transition Panel Modal -->
+  <div id="finals-format-modal" class="modal-overlay" style="display:none;">
+    <div class="panel">
+      <div class="panel-title" id="ff-title">Finals Night Commenced</div>
+      <div class="panel-subtitle" id="ff-subtitle">JUMP 1: NORMAL HILL K90 • WIND: CALM</div>
+
+      <div class="panel-instructions" style="margin-bottom:18px;">
+        <p style="margin-bottom:6px;" id="ff-detail">Full in-run length in force. Push off at 3.0 m/s. Hold S or Down to tuck.</p>
+        <p>Press <span class="key-badge">Space</span> as skis pass table end. Press <span class="key-badge">T</span> within last 0.20s before touchdown for Telemark!</p>
+      </div>
+
+      <div class="panel-action" id="ff-action-btn">Press Enter to Launch Jump</div>
+    </div>
+  </div>
+
+  <!-- Result Scorecard Panel -->
+  <div id="result-modal" class="modal-overlay" style="display:none;">
+    <div class="panel">
+      <div class="panel-title" id="result-title">Jump Scorecard</div>
+      <div class="panel-subtitle" id="result-subtitle">Finals Night Championship Scoring</div>
+
+      <div class="scorecard-wrap">
+        <!-- Row: Distance & Distance Points -->
+        <div class="scorecard-row header-row">
+          <span>Distance &amp; Benchmark</span>
+          <span>Score</span>
+        </div>
+        <div class="scorecard-row">
+          <div>
+            <span class="val-highlight" id="res-distance" style="font-size:16px;">94.5 m</span>
+            <span style="font-size:11px; color:#7dd3fc; margin-left:6px;" id="res-status-wrap"></span>
+          </div>
+          <div style="text-align:right;">
+            <span style="font-size:11px; color:#94a3b8; margin-right:4px;" id="res-dist-formula">max(0, 60 + 1.8 × (d − 90)) =</span>
+            <span class="val-highlight" id="res-dist-points" style="color:#38bdf8;">68.1 pts</span>
+          </div>
+        </div>
+
+        <!-- Header: Judges Evaluation -->
+        <div class="scorecard-row header-row" style="margin-top:2px;">
+          <span>Three-Judge Scorecard (Base: 20 pts)</span>
+          <span>Judge Score</span>
+        </div>
+
+        <!-- Judge 1 Row -->
+        <div class="scorecard-row judge-row">
+          <div>
+            <strong>Judge 1:</strong>
+            <span style="color:#94a3b8; margin-left:6px;" id="j1-breakdown">20 - 0 (wobbles) - 0 (TELEMARK)</span>
+          </div>
+          <div class="val-highlight" id="j1-score" style="color:#fde047;">20.0 pts</div>
+        </div>
+
+        <!-- Judge 2 Row -->
+        <div class="scorecard-row judge-row">
+          <div>
+            <strong>Judge 2:</strong>
+            <span style="color:#94a3b8; margin-left:6px;" id="j2-breakdown">20 - 0 (wobbles) - 0 (TELEMARK)</span>
+          </div>
+          <div class="val-highlight" id="j2-score" style="color:#fde047;">20.0 pts</div>
+        </div>
+
+        <!-- Judge 3 Row -->
+        <div class="scorecard-row judge-row">
+          <div>
+            <strong>Judge 3:</strong>
+            <span style="color:#94a3b8; margin-left:6px;" id="j3-breakdown">20 - 0 (wobbles) - 0 (TELEMARK)</span>
+          </div>
+          <div class="val-highlight" id="j3-score" style="color:#fde047;">20.0 pts</div>
+        </div>
+
+        <!-- Subtotal: Judges' Points -->
+        <div class="scorecard-row subtotal-row">
+          <span>Judges' Total Points (Sum of 3 Judges)</span>
+          <span class="val-highlight" id="res-judges-points" style="color:#fde047;">60.0 pts</span>
+        </div>
+
+        <!-- Final Total Row -->
+        <div class="scorecard-row total-row" id="res-total-row-wrap">
+          <div class="total-title" id="res-total-title">Total Points</div>
+          <div class="total-value" id="res-total-points">128.1 pts</div>
+        </div>
+      </div>
+
+      <div class="panel-action" id="res-action-btn" style="font-size:13px; padding:9px 24px;">Press Enter to Continue • R to Reset</div>
+    </div>
+  </div>
+
+  <!-- Finals Final Standings Board -->
+  <div id="standings-modal" class="modal-overlay" style="display:none;">
+    <div class="panel" style="max-width:660px;">
+      <div class="panel-title" id="standings-title">FINALS NIGHT — FINAL STANDINGS</div>
+      <div class="panel-subtitle" id="standings-subtitle">Official Championship Results &amp; Podium Qualifiers</div>
+
+      <div class="scorecard-wrap" style="padding:4px 8px;">
+        <table class="standings-table">
+          <thead>
+            <tr>
+              <th style="width:36px; text-align:center;">Place</th>
+              <th>Competitor</th>
+              <th style="text-align:right;">Jump 1 (K90)</th>
+              <th style="text-align:right;">Jump 2 (K120)</th>
+              <th style="text-align:right;">Grand Total</th>
+            </tr>
+          </thead>
+          <tbody id="standings-tbody">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel-action" id="standings-action-btn" style="font-size:13px; padding:9px 24px;">Press Enter for Podium Ceremony • R to Reset</div>
+    </div>
+  </div>
+
+  <script>
+    /* =====================================================================
+     * FROSTFLIGHT JUMP — HIGH-FIDELITY 3D SKI JUMPING GAME (ROUND 2)
+     * Completely deterministic (NO randomness)
+     * ===================================================================== */
+
+    // Deterministic pseudo-random sequence for procedural geometry / stars / trees
+    function deterministicFloat(seed) {
+      let t = (seed + 0x6D2B79F5) | 0;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    }
+
+    /* ---------------------------------------------------------------------
+     * WebAudio API Sound Synthesizer
+     * --------------------------------------------------------------------- */
+    let audioCtx = null;
+    let windGain = null;
+    let windFilter = null;
+    let windSource = null;
+
+    function initAudio() {
+      if (audioCtx) return;
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      audioCtx = new AudioContextClass();
+
+      // Synthesize deterministic wind noise buffer
+      const bufferSize = audioCtx.sampleRate * 2;
+      const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      let b0 = 0, b1 = 0, b2 = 0;
+      for (let i = 0; i < bufferSize; i++) {
+        const white = (deterministicFloat(i * 17 + 101) * 2 - 1) * 0.35;
+        b0 = 0.99886 * b0 + white * 0.0555179;
+        b1 = 0.99332 * b1 + white * 0.0750759;
+        b2 = 0.96900 * b2 + white * 0.1538520;
+        output[i] = b0 + b1 + b2;
+      }
+
+      windSource = audioCtx.createBufferSource();
+      windSource.buffer = noiseBuffer;
+      windSource.loop = true;
+
+      windFilter = audioCtx.createBiquadFilter();
+      windFilter.type = 'lowpass';
+      windFilter.frequency.setValueAtTime(200, audioCtx.currentTime);
+
+      windGain = audioCtx.createGain();
+      windGain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+
+      windSource.connect(windFilter);
+      windFilter.connect(windGain);
+      windGain.connect(audioCtx.destination);
+      windSource.start(0);
+    }
+
+    function setWindVolume(speedRatio) {
+      if (!audioCtx || !windGain || !windFilter) return;
+      const now = audioCtx.currentTime;
+      const clamped = Math.max(0, Math.min(1.2, speedRatio));
+      const targetGain = clamped * 0.18;
+      const targetFreq = 220 + clamped * 1200;
+      windGain.gain.setTargetAtTime(targetGain, now, 0.05);
+      windFilter.frequency.setTargetAtTime(targetFreq, now, 0.05);
+    }
+
+    function playTakeoffSnap() {
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(420, now);
+      osc.frequency.exponentialRampToValueAtTime(140, now + 0.12);
+      gain.gain.setValueAtTime(0.4, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.12);
+    }
+
+    function playLandingThud() {
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(120, now);
+      osc.frequency.exponentialRampToValueAtTime(35, now + 0.25);
+      gain.gain.setValueAtTime(0.6, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.25);
+    }
+
+    function playCrashCrunch() {
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(90, now);
+      osc.frequency.exponentialRampToValueAtTime(25, now + 0.4);
+      gain.gain.setValueAtTime(0.7, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.4);
+    }
+
+    function playResultChime(clean) {
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime;
+      const notes = clean ? [523.25, 659.25, 783.99, 1046.50] : [392.00, 329.63, 261.63];
+      notes.forEach((freq, idx) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.09);
+        gain.gain.setValueAtTime(0.001, now + idx * 0.09);
+        gain.gain.linearRampToValueAtTime(0.18, now + idx * 0.09 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.09 + 0.55);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now + idx * 0.09);
+        osc.stop(now + idx * 0.09 + 0.6);
+      });
+    }
+
+    /* ---------------------------------------------------------------------
+     * Hill Geometry & Analytical Formulation (Normal Hill K90 & Large Hill K120)
+     * --------------------------------------------------------------------- */
+    let currentActiveHill = 'NORMAL K90';
+
+    function getNormalLandingHillY(x) {
+      if (x <= 20) return -0.9 * x;
+      if (x <= 80) return -18 - 0.55 * (x - 20);
+      if (x <= 120) return -51 - 0.30 * (x - 80);
+      return -63 - 0.05 * (x - 120);
+    }
+
+    function getNormalLandingHillSlope(x) {
+      if (x <= 20) return -0.9;
+      if (x <= 80) return -0.55;
+      if (x <= 120) return -0.30;
+      return -0.05;
+    }
+
+    function getLargeLandingHillY(x) {
+      if (x <= 25) return -0.95 * x;
+      if (x <= 95) return -23.75 - 0.55 * (x - 25);
+      if (x <= 150) return -62.25 - 0.30 * (x - 95);
+      return -78.75 - 0.05 * (x - 150);
+    }
+
+    function getLargeLandingHillSlope(x) {
+      if (x <= 25) return -0.95;
+      if (x <= 95) return -0.55;
+      if (x <= 150) return -0.30;
+      return -0.05;
+    }
+
+    function getLandingHillY(x, hillName) {
+      const hill = hillName || currentActiveHill;
+      return (hill === 'LARGE K120') ? getLargeLandingHillY(x) : getNormalLandingHillY(x);
+    }
+
+    function getLandingHillSlope(x, hillName) {
+      const hill = hillName || currentActiveHill;
+      return (hill === 'LARGE K120') ? getLargeLandingHillSlope(x) : getNormalLandingHillSlope(x);
+    }
+
+    const TABLE_ANGLE_RAD = 10.5 * Math.PI / 180; // 0.18325957
+
+    // In-run geometry for Normal Hill (75.0m)
+    const NORMAL_INRUN_LENGTH = 75.0;
+    const normalInrunPoints = [];
+    const NORMAL_INRUN_SAMPLES = 300;
+
+    (function generateNormalInrun() {
+      function getTrackAngle(s) {
+        if (s >= 65) return TABLE_ANGLE_RAD;
+        if (s <= 35) return 35.0 * Math.PI / 180;
+        const u = (s - 35) / (65 - 35);
+        const ease = u * u * (3 - 2 * u);
+        return (35.0 * (1 - ease) + 10.5 * ease) * Math.PI / 180;
+      }
+
+      const ds = NORMAL_INRUN_LENGTH / NORMAL_INRUN_SAMPLES;
+      let currX = 0;
+      let currY = 0;
+      const pts = [{ s: NORMAL_INRUN_LENGTH, x: 0, y: 0, angle: TABLE_ANGLE_RAD }];
+
+      for (let i = NORMAL_INRUN_SAMPLES - 1; i >= 0; i--) {
+        const sMid = (i + 0.5) * ds;
+        const ang = getTrackAngle(sMid);
+        currX -= Math.cos(ang) * ds;
+        currY += Math.sin(ang) * ds;
+        const s = i * ds;
+        pts.push({ s, x: currX, y: currY, angle: getTrackAngle(s) });
+      }
+      pts.reverse();
+      for (let i = 0; i < pts.length; i++) {
+        normalInrunPoints.push(pts[i]);
+      }
+    })();
+
+    // In-run geometry for Large Hill (95.0m)
+    const LARGE_INRUN_LENGTH = 95.0;
+    const largeInrunPoints = [];
+    const LARGE_INRUN_SAMPLES = 380;
+
+    (function generateLargeInrun() {
+      function getTrackAngle(s) {
+        if (s >= 80) return TABLE_ANGLE_RAD;
+        if (s <= 45) return 35.0 * Math.PI / 180;
+        const u = (s - 45) / (80 - 45);
+        const ease = u * u * (3 - 2 * u);
+        return (35.0 * (1 - ease) + 10.5 * ease) * Math.PI / 180;
+      }
+
+      const ds = LARGE_INRUN_LENGTH / LARGE_INRUN_SAMPLES;
+      let currX = 0;
+      let currY = 0;
+      const pts = [{ s: LARGE_INRUN_LENGTH, x: 0, y: 0, angle: TABLE_ANGLE_RAD }];
+
+      for (let i = LARGE_INRUN_SAMPLES - 1; i >= 0; i--) {
+        const sMid = (i + 0.5) * ds;
+        const ang = getTrackAngle(sMid);
+        currX -= Math.cos(ang) * ds;
+        currY += Math.sin(ang) * ds;
+        const s = i * ds;
+        pts.push({ s, x: currX, y: currY, angle: getTrackAngle(s) });
+      }
+      pts.reverse();
+      for (let i = 0; i < pts.length; i++) {
+        largeInrunPoints.push(pts[i]);
+      }
+    })();
+
+    // Default reference array for compatibility
+    const inrunPoints = normalInrunPoints;
+    const INRUN_LENGTH = NORMAL_INRUN_LENGTH;
+
+    function getInrunState(s, hillName) {
+      const hill = hillName || currentActiveHill;
+      const isLarge = (hill === 'LARGE K120');
+      const totalLen = isLarge ? LARGE_INRUN_LENGTH : NORMAL_INRUN_LENGTH;
+      const samples = isLarge ? LARGE_INRUN_SAMPLES : NORMAL_INRUN_SAMPLES;
+      const pts = isLarge ? largeInrunPoints : normalInrunPoints;
+
+      const clampedS = Math.max(0, Math.min(totalLen, s));
+      const idxFloat = (clampedS / totalLen) * samples;
+      const idx = Math.min(samples - 1, Math.floor(idxFloat));
+      const frac = idxFloat - idx;
+      const p0 = pts[idx];
+      const p1 = pts[Math.min(samples, idx + 1)];
+      return {
+        x: p0.x + (p1.x - p0.x) * frac,
+        y: p0.y + (p1.y - p0.y) * frac,
+        angle: p0.angle + (p1.angle - p0.angle) * frac
+      };
+    }
+
+    function getGateConfig(hillName, gate) {
+      const isLarge = (hillName === 'LARGE K120');
+      const fullLength = isLarge ? LARGE_INRUN_LENGTH : NORMAL_INRUN_LENGTH;
+      let offset = 0;
+      if (gate === 2) offset = 8.0;
+      else if (gate === 1) offset = 16.0;
+      const lengthInForce = fullLength - offset;
+      return { startS: offset, lengthInForce, fullLength };
+    }
+
+    // Normal Hill Marks
+    const K90_X = 75.720205;
+    const K90_Y = getNormalLandingHillY(K90_X);
+    const HS100_X = 85.093035;
+    const HS100_Y = getNormalLandingHillY(HS100_X);
+
+    // Large Hill Marks (Straight-line distance = 120.0m and 134.0m)
+    const K120_X = 101.40104;
+    const K120_Y = getLargeLandingHillY(K120_X);
+    const HS134_X = 115.26890;
+    const HS134_Y = getLargeLandingHillY(HS134_X);
+
+    /* ---------------------------------------------------------------------
+     * Three.js Scene Setup & Visual Direction
+     * --------------------------------------------------------------------- */
+    const container = document.getElementById('game-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x020817);
+    scene.fog = new THREE.FogExp2(0x040e24, 0.0035);
+
+    const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.2, 800);
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+    } catch (e) {
+      console.warn('WebGLRenderer unavailable, using headless fallback canvas', e);
+      const canvas = document.createElement('canvas');
+      canvas.width = window.innerWidth || 800;
+      canvas.height = window.innerHeight || 600;
+      container.appendChild(canvas);
+      renderer = {
+        render: function() {},
+        setSize: function() {},
+        domElement: canvas
+      };
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    const ambientLight = new THREE.AmbientLight(0x284766, 0.85);
+    scene.add(ambientLight);
+
+    const moonLight = new THREE.DirectionalLight(0xaad8ff, 1.2);
+    moonLight.position.set(40, 80, 50);
+    moonLight.castShadow = true;
+    moonLight.shadow.mapSize.width = 1024;
+    moonLight.shadow.mapSize.height = 1024;
+    moonLight.shadow.camera.near = 10;
+    moonLight.shadow.camera.far = 250;
+    moonLight.shadow.camera.left = -90;
+    moonLight.shadow.camera.right = 90;
+    moonLight.shadow.camera.top = 90;
+    moonLight.shadow.camera.bottom = -90;
+    scene.add(moonLight);
+
+    const floodPositions = [
+      { x: -50, y: 36, z: 12 },
+      { x: -10, y: 12, z: 12 },
+      { x: 30, y: -16, z: 14 },
+      { x: 75, y: -42, z: 16 },
+      { x: 110, y: -52, z: 16 },
+      { x: 150, y: -58, z: 14 }
+    ];
+    floodPositions.forEach((pos) => {
+      const flood = new THREE.SpotLight(0xc2eeff, 2.8, 85, Math.PI / 4, 0.4, 1.2);
+      flood.position.set(pos.x, pos.y + 14, pos.z);
+      flood.target.position.set(pos.x + 5, pos.y - 4, 0);
+      scene.add(flood);
+      scene.add(flood.target);
+
+      const poleGeo = new THREE.CylinderGeometry(0.2, 0.3, 16, 6);
+      const poleMat = new THREE.MeshStandardMaterial({ color: 0x334455, roughness: 0.8 });
+      const pole = new THREE.Mesh(poleGeo, poleMat);
+      pole.position.set(pos.x, pos.y + 7, pos.z);
+      scene.add(pole);
+
+      const headGeo = new THREE.BoxGeometry(1.2, 0.8, 1.6);
+      const headMat = new THREE.MeshBasicMaterial({ color: 0xe0f7ff });
+      const head = new THREE.Mesh(headGeo, headMat);
+      head.position.set(pos.x, pos.y + 15, pos.z);
+      scene.add(head);
+    });
+
+    /* ---------------------------------------------------------------------
+     * Aurora Bands & Starry Sky
+     * --------------------------------------------------------------------- */
+    const starCount = 650;
+    const starGeo = new THREE.BufferGeometry();
+    const starPositions = new Float32Array(starCount * 3);
+    const starColors = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount; i++) {
+      const u = deterministicFloat(i * 3 + 1);
+      const v = deterministicFloat(i * 3 + 2);
+      const w = deterministicFloat(i * 3 + 3);
+      const theta = u * Math.PI * 2;
+      const phi = Math.acos(2 * v - 1) * 0.5;
+      const rad = 320 + w * 60;
+      starPositions[i * 3 + 0] = rad * Math.sin(phi) * Math.cos(theta);
+      starPositions[i * 3 + 1] = Math.abs(rad * Math.cos(phi)) + 15;
+      starPositions[i * 3 + 2] = rad * Math.sin(phi) * Math.sin(theta);
+
+      const tint = deterministicFloat(i * 7 + 5);
+      starColors[i * 3 + 0] = 0.8 + tint * 0.2;
+      starColors[i * 3 + 1] = 0.9 + tint * 0.1;
+      starColors[i * 3 + 2] = 1.0;
+    }
+    starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+    starGeo.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+    const starMat = new THREE.PointsMaterial({ size: 1.8, vertexColors: true, transparent: true, opacity: 0.95 });
+    const starField = new THREE.Points(starGeo, starMat);
+    scene.add(starField);
+
+    const auroraBands = [];
+    const auroraMat = new THREE.MeshBasicMaterial({
+      color: 0x3dffaa,
+      transparent: true,
+      opacity: 0.28,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    for (let b = 0; b < 3; b++) {
+      const segs = 36;
+      const bandGeo = new THREE.PlaneGeometry(350, 45, segs, 4);
+      const bandMesh = new THREE.Mesh(bandGeo, auroraMat);
+      bandMesh.position.set(40 + b * 20, 85 + b * 12, -70 - b * 35);
+      bandMesh.rotation.x = Math.PI * 0.2;
+      bandMesh.rotation.y = -0.15 + b * 0.1;
+      scene.add(bandMesh);
+      auroraBands.push({ mesh: bandMesh, geo: bandGeo, basePos: bandGeo.attributes.position.clone(), speed: 0.6 + b * 0.3 });
+    }
+
+    (function createMountains() {
+      const mtnGeo = new THREE.BufferGeometry();
+      const mtnPts = 120;
+      const pos = [];
+      const mtnZ = -140;
+      for (let i = 0; i <= mtnPts; i++) {
+        const x = -150 + (i / mtnPts) * 450;
+        const n1 = Math.sin(i * 0.14) * 22;
+        const n2 = Math.cos(i * 0.31) * 12;
+        const n3 = Math.sin(i * 0.05) * 35;
+        const y = Math.max(10, 30 + n1 + n2 + n3);
+        pos.push(x, -60, mtnZ);
+        pos.push(x, y, mtnZ);
+      }
+      const indices = [];
+      for (let i = 0; i < mtnPts; i++) {
+        const v0 = i * 2;
+        const v1 = i * 2 + 1;
+        const v2 = (i + 1) * 2;
+        const v3 = (i + 1) * 2 + 1;
+        indices.push(v0, v1, v2);
+        indices.push(v2, v1, v3);
+      }
+      mtnGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      mtnGeo.setIndex(indices);
+      mtnGeo.computeVertexNormals();
+      const mtnMat = new THREE.MeshBasicMaterial({ color: 0x051329, fog: true });
+      const mtnMesh = new THREE.Mesh(mtnGeo, mtnMat);
+      scene.add(mtnMesh);
+    })();
+
+    /* ---------------------------------------------------------------------
+     * In-run Towers & Iced Track Geometry for Normal & Large Hills
+     * --------------------------------------------------------------------- */
+    function buildInrunTower(inrunPts, totalLen, zCenter, hillLabel) {
+      const trackWidth = 3.2;
+      const count = inrunPts.length;
+
+      const trackGeo = new THREE.BufferGeometry();
+      const verts = [];
+      const normals = [];
+      const uvs = [];
+      const indices = [];
+
+      for (let i = 0; i < count; i++) {
+        const p = inrunPts[i];
+        const nx = -Math.sin(p.angle);
+        const ny = Math.cos(p.angle);
+
+        verts.push(p.x, p.y, zCenter - trackWidth / 2);
+        verts.push(p.x, p.y, zCenter + trackWidth / 2);
+        normals.push(nx, ny, 0, nx, ny, 0);
+        uvs.push(0, p.s / totalLen, 1, p.s / totalLen);
+
+        if (i < count - 1) {
+          const v0 = i * 2;
+          const v1 = i * 2 + 1;
+          const v2 = (i + 1) * 2;
+          const v3 = (i + 1) * 2 + 1;
+          indices.push(v0, v1, v2);
+          indices.push(v2, v1, v3);
+        }
+      }
+      trackGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+      trackGeo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+      trackGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      trackGeo.setIndex(indices);
+
+      const trackMat = new THREE.MeshStandardMaterial({
+        color: 0xdbf1ff,
+        metalness: 0.25,
+        roughness: 0.15,
+        emissive: 0x0c2540
+      });
+      const trackMesh = new THREE.Mesh(trackGeo, trackMat);
+      trackMesh.receiveShadow = true;
+      scene.add(trackMesh);
+
+      const railMat = new THREE.MeshStandardMaterial({ color: 0x3d7099, metalness: 0.5, roughness: 0.4 });
+      [-trackWidth / 2 - 0.1, trackWidth / 2 + 0.1].forEach(sideZ => {
+        const railCurvePts = inrunPts.map(p => new THREE.Vector3(p.x, p.y + 0.55, zCenter + sideZ));
+        const curve = new THREE.CatmullRomCurve3(railCurvePts);
+        const railGeo = new THREE.TubeGeometry(curve, 100, 0.08, 6, false);
+        const railMesh = new THREE.Mesh(railGeo, railMat);
+        scene.add(railMesh);
+      });
+
+      const trussMat = new THREE.MeshStandardMaterial({ color: 0x1e3654, metalness: 0.6, roughness: 0.5 });
+      for (let s = 5; s < totalLen - 4; s += 10) {
+        const idxFloat = (s / totalLen) * (inrunPts.length - 1);
+        const st = inrunPts[Math.floor(idxFloat)];
+        const pillarH = st.y - (-22);
+        if (pillarH > 1) {
+          const colGeo = new THREE.BoxGeometry(0.8, pillarH, trackWidth + 1.2);
+          const colMesh = new THREE.Mesh(colGeo, trussMat);
+          colMesh.position.set(st.x, st.y - pillarH / 2, zCenter);
+          colMesh.castShadow = true;
+          colMesh.receiveShadow = true;
+          scene.add(colMesh);
+        }
+      }
+
+      // Top Gate Structure
+      const topSt = inrunPts[0];
+      const gateGeo = new THREE.BoxGeometry(3.5, 3.2, 4.6);
+      const gateMat = new THREE.MeshStandardMaterial({ color: 0x1b3b60, roughness: 0.7 });
+      const gate = new THREE.Mesh(gateGeo, gateMat);
+      gate.position.set(topSt.x - 1.2, topSt.y + 1.6, zCenter);
+      scene.add(gate);
+
+      // Gate markers (Gate 1, 2, 3) along the track
+      [
+        { g: 3, offset: 0 },
+        { g: 2, offset: 8.0 },
+        { g: 1, offset: 16.0 }
+      ].forEach(gm => {
+        const idxFloat = (gm.offset / totalLen) * (inrunPts.length - 1);
+        const st = inrunPts[Math.floor(idxFloat)];
+        const barGeo = new THREE.BoxGeometry(0.25, 0.55, trackWidth + 0.6);
+        const barMat = new THREE.MeshBasicMaterial({ color: gm.g === 3 ? 0x5df3a7 : (gm.g === 2 ? 0x38bdf8 : 0xfde047) });
+        const bar = new THREE.Mesh(barGeo, barMat);
+        bar.position.set(st.x, st.y + 0.35, zCenter);
+        scene.add(bar);
+      });
+    }
+
+    buildInrunTower(normalInrunPoints, NORMAL_INRUN_LENGTH, 0, 'NORMAL K90');
+    buildInrunTower(largeInrunPoints, LARGE_INRUN_LENGTH, -36, 'LARGE K120');
+
+    /* ---------------------------------------------------------------------
+     * Landing Hill & Outrun Polyline Terrain (Normal & Large Hills)
+     * --------------------------------------------------------------------- */
+    function buildLandingHillMesh(hillYFunc, hillSlopeFunc, zCenter) {
+      const hillWidth = 26;
+      const xStart = 0;
+      const xEnd = 240;
+      const steps = 160;
+      const dx = (xEnd - xStart) / steps;
+
+      const hillGeo = new THREE.BufferGeometry();
+      const verts = [];
+      const normals = [];
+      const uvs = [];
+      const indices = [];
+
+      for (let i = 0; i <= steps; i++) {
+        const x = xStart + i * dx;
+        const y = hillYFunc(x);
+        const slope = hillSlopeFunc(x);
+        const angle = Math.atan(slope);
+        const nx = -Math.sin(angle);
+        const ny = Math.cos(angle);
+
+        verts.push(x, y, zCenter - hillWidth / 2);
+        verts.push(x, y, zCenter + hillWidth / 2);
+        normals.push(nx, ny, 0, nx, ny, 0);
+        uvs.push(0, (x / xEnd) * 10, 1, (x / xEnd) * 10);
+
+        if (i < steps) {
+          const v0 = i * 2;
+          const v1 = i * 2 + 1;
+          const v2 = (i + 1) * 2;
+          const v3 = (i + 1) * 2 + 1;
+          indices.push(v0, v1, v2);
+          indices.push(v2, v1, v3);
+        }
+      }
+
+      hillGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+      hillGeo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+      hillGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      hillGeo.setIndex(indices);
+
+      const snowMat = new THREE.MeshStandardMaterial({
+        color: 0xebf5ff,
+        roughness: 0.75,
+        metalness: 0.05
+      });
+      const hillMesh = new THREE.Mesh(hillGeo, snowMat);
+      hillMesh.receiveShadow = true;
+      scene.add(hillMesh);
+    }
+
+    buildLandingHillMesh(getNormalLandingHillY, getNormalLandingHillSlope, 0);
+    buildLandingHillMesh(getLargeLandingHillY, getLargeLandingHillSlope, -36);
+
+    // Wide arena base ground covering both hills
+    (function createGroundBase() {
+      const baseGeo = new THREE.BoxGeometry(320, 4, 90);
+      const baseMat = new THREE.MeshStandardMaterial({ color: 0x091c33, roughness: 0.9 });
+      const ground = new THREE.Mesh(baseGeo, baseMat);
+      ground.position.set(100, -70, -18);
+      scene.add(ground);
+    })();
+
+    /* ---------------------------------------------------------------------
+     * The Judges' Booth Beside the Landing Zone
+     * 3 lit judge windows beside the hill
+     * --------------------------------------------------------------------- */
+    (function buildJudgesBooth() {
+      const boothGroup = new THREE.Group();
+      const xBooth = 68;
+      const yBooth = getNormalLandingHillY(xBooth) + 1.5;
+      const zBooth = 18.5; // beside the normal landing hill
+
+      // Base support pillars
+      const pillarMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 });
+      for (let px = -2; px <= 2; px += 4) {
+        for (let pz = -1.5; pz <= 1.5; pz += 3) {
+          const pilGeo = new THREE.CylinderGeometry(0.18, 0.22, 6, 6);
+          const pil = new THREE.Mesh(pilGeo, pillarMat);
+          pil.position.set(px, 3, pz);
+          boothGroup.add(pil);
+        }
+      }
+
+      // Booth Cabin Body
+      const cabinGeo = new THREE.BoxGeometry(6.4, 3.4, 4.0);
+      const cabinMat = new THREE.MeshStandardMaterial({ color: 0x0f2744, metalness: 0.2, roughness: 0.5 });
+      const cabin = new THREE.Mesh(cabinGeo, cabinMat);
+      cabin.position.set(0, 7.5, 0);
+      boothGroup.add(cabin);
+
+      // Overhanging roof
+      const roofGeo = new THREE.BoxGeometry(7.0, 0.4, 4.6);
+      const roofMat = new THREE.MeshStandardMaterial({ color: 0x1e3a5f, roughness: 0.3 });
+      const roof = new THREE.Mesh(roofGeo, roofMat);
+      roof.position.set(0, 9.3, 0);
+      boothGroup.add(roof);
+
+      // Three lit judge windows facing the hill (towards z = 0)
+      const winGeo = new THREE.PlaneGeometry(1.4, 1.6);
+      const winMat = new THREE.MeshBasicMaterial({ color: 0xffea75, side: THREE.DoubleSide });
+      const frameMat = new THREE.MeshStandardMaterial({ color: 0x071526 });
+
+      [-1.8, 0, 1.8].forEach((wx, idx) => {
+        const win = new THREE.Mesh(winGeo, winMat);
+        win.position.set(wx, 7.5, -2.02);
+        boothGroup.add(win);
+
+        // Window border frame
+        const wfGeo = new THREE.BoxGeometry(1.55, 1.75, 0.08);
+        const wf = new THREE.Mesh(wfGeo, frameMat);
+        wf.position.set(wx, 7.5, -2.04);
+        boothGroup.add(wf);
+      });
+
+      // Warm interior light casting onto window sill
+      const cabinLight = new THREE.PointLight(0xffdf66, 1.8, 14);
+      cabinLight.position.set(0, 7.5, -1.0);
+      boothGroup.add(cabinLight);
+
+      // Booth Sign "JUDGES TOWER"
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#061a33';
+      ctx.fillRect(0, 0, 256, 64);
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(4, 4, 248, 56);
+      ctx.fillStyle = '#e0f2fe';
+      ctx.font = 'bold 32px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('JUDGES TOWER', 128, 32);
+
+      const signTex = new THREE.CanvasTexture(canvas);
+      const signGeo = new THREE.PlaneGeometry(3.6, 0.9);
+      const signMat = new THREE.MeshBasicMaterial({ map: signTex });
+      const sign = new THREE.Mesh(signGeo, signMat);
+      sign.position.set(0, 9.9, -1.8);
+      boothGroup.add(sign);
+
+      boothGroup.position.set(xBooth, yBooth, zBooth);
+      scene.add(boothGroup);
+    })();
+
+    /* ---------------------------------------------------------------------
+     * K90 / HS100 & K120 / HS134 Lines & Lit Boards
+     * --------------------------------------------------------------------- */
+    function createDistanceLine(x, y, zCenter, colorHex, labelText, boardSide, slopeFunc) {
+      const hillWidth = 25.8;
+      const lineGeo = new THREE.PlaneGeometry(hillWidth, 0.45);
+      const lineMat = new THREE.MeshBasicMaterial({ color: colorHex, side: THREE.DoubleSide });
+      const lineMesh = new THREE.Mesh(lineGeo, lineMat);
+      lineMesh.rotation.y = Math.PI / 2;
+      lineMesh.rotation.x = Math.atan(slopeFunc(x));
+      lineMesh.position.set(x, y + 0.06, zCenter);
+      scene.add(lineMesh);
+
+      const boardGroup = new THREE.Group();
+      const frameGeo = new THREE.BoxGeometry(0.3, 1.4, 2.6);
+      const frameMat = new THREE.MeshStandardMaterial({ color: 0x112233 });
+      const frame = new THREE.Mesh(frameGeo, frameMat);
+      boardGroup.add(frame);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#0a192f';
+      ctx.fillRect(0, 0, 256, 128);
+      ctx.strokeStyle = (colorHex === 0xff2a2a || colorHex === 0xff2222) ? '#ff4444' : '#22d3ee';
+      ctx.lineWidth = 8;
+      ctx.strokeRect(6, 6, 244, 116);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 54px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(labelText, 128, 64);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      const faceGeo = new THREE.PlaneGeometry(2.4, 1.2);
+      const faceMat = new THREE.MeshBasicMaterial({ map: texture });
+      const face1 = new THREE.Mesh(faceGeo, faceMat);
+      face1.position.x = 0.16;
+      face1.rotation.y = Math.PI / 2;
+      boardGroup.add(face1);
+
+      const face2 = new THREE.Mesh(faceGeo, faceMat);
+      face2.position.x = -0.16;
+      face2.rotation.y = -Math.PI / 2;
+      boardGroup.add(face2);
+
+      // Lit lamp on top of scoreboard
+      const lamp = new THREE.PointLight(colorHex, 1.2, 8);
+      lamp.position.set(0, 1.2, 0);
+      boardGroup.add(lamp);
+
+      boardGroup.position.set(x, y + 1.2, zCenter + boardSide * (hillWidth / 2 + 1.8));
+      scene.add(boardGroup);
+    }
+
+    // Normal Hill Marks (K90 & HS100 at z=0)
+    createDistanceLine(K90_X, K90_Y, 0, 0xff2a2a, "K90", 1, getNormalLandingHillSlope);
+    createDistanceLine(K90_X, K90_Y, 0, 0xff2a2a, "K90", -1, getNormalLandingHillSlope);
+    createDistanceLine(HS100_X, HS100_Y, 0, 0x00d4ff, "HS100", 1, getNormalLandingHillSlope);
+    createDistanceLine(HS100_X, HS100_Y, 0, 0x00d4ff, "HS100", -1, getNormalLandingHillSlope);
+
+    // Large Hill Marks (K120 & HS134 at z=-36)
+    createDistanceLine(K120_X, K120_Y, -36, 0xff2a2a, "K120", 1, getLargeLandingHillSlope);
+    createDistanceLine(K120_X, K120_Y, -36, 0xff2a2a, "K120", -1, getLargeLandingHillSlope);
+    createDistanceLine(HS134_X, HS134_Y, -36, 0x00d4ff, "HS134", 1, getLargeLandingHillSlope);
+    createDistanceLine(HS134_X, HS134_Y, -36, 0x00d4ff, "HS134", -1, getLargeLandingHillSlope);
+
+    [60, 70, 80, 110].forEach(dTarget => {
+      let targetX = 50;
+      for (let testX = 10; testX < 140; testX += 0.2) {
+        const testY = getLandingHillY(testX);
+        if (Math.hypot(testX, testY) >= dTarget) {
+          targetX = testX;
+          break;
+        }
+      }
+      const targetY = getLandingHillY(targetX);
+      const lineGeo = new THREE.PlaneGeometry(25.8, 0.15);
+      const lineMat = new THREE.MeshBasicMaterial({ color: 0x64748b, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+      const lineMesh = new THREE.Mesh(lineGeo, lineMat);
+      lineMesh.rotation.y = Math.PI / 2;
+      lineMesh.rotation.x = Math.atan(getLandingHillSlope(targetX));
+      lineMesh.position.set(targetX, targetY + 0.04, 0);
+      scene.add(lineMesh);
+    });
+
+    /* ---------------------------------------------------------------------
+     * Pine Trees Lining the Hill & Outrun
+     * --------------------------------------------------------------------- */
+    (function createPineForest() {
+      const pineGeoCone = new THREE.ConeGeometry(1.6, 3.8, 6);
+      const pineMatNeedles = new THREE.MeshStandardMaterial({ color: 0x123624, roughness: 0.8 });
+      const snowGeoCone = new THREE.ConeGeometry(1.2, 1.8, 6);
+      const snowMatCap = new THREE.MeshStandardMaterial({ color: 0xe8f4ff, roughness: 0.6 });
+      const trunkGeo = new THREE.CylinderGeometry(0.25, 0.35, 1.8, 5);
+      const trunkMat = new THREE.MeshStandardMaterial({ color: 0x24160c });
+
+      const treeTemplate = new THREE.Group();
+      const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+      trunk.position.y = 0.9;
+      treeTemplate.add(trunk);
+      const needles = new THREE.Mesh(pineGeoCone, pineMatNeedles);
+      needles.position.y = 3.2;
+      treeTemplate.add(needles);
+      const snowCap = new THREE.Mesh(snowGeoCone, snowMatCap);
+      snowCap.position.y = 4.2;
+      treeTemplate.add(snowCap);
+
+      const treeCount = 65;
+      for (let i = 0; i < treeCount; i++) {
+        const side = i % 2 === 0 ? 1 : -1;
+        const x = -30 + i * 4.2;
+        const zDist = 16 + deterministicFloat(i * 9 + 3) * 14;
+        const z = side * zDist;
+        let y = -65;
+        if (x < 0) {
+          y = -10 + deterministicFloat(i * 5) * 5;
+        } else {
+          y = getLandingHillY(x) - 0.5;
+        }
+
+        const treeInstance = treeTemplate.clone();
+        const scale = 0.85 + deterministicFloat(i * 11) * 0.45;
+        treeInstance.scale.set(scale, scale, scale);
+        treeInstance.position.set(x, y, z);
+        treeInstance.rotation.y = deterministicFloat(i * 13) * Math.PI * 2;
+        scene.add(treeInstance);
+      }
+    })();
+
+    // Outrun Finish Arch
+    (function buildFinishArch() {
+      const archGroup = new THREE.Group();
+      const archMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.3, roughness: 0.4 });
+      const postGeo = new THREE.CylinderGeometry(0.35, 0.35, 9, 8);
+      const post1 = new THREE.Mesh(postGeo, archMat);
+      post1.position.set(0, 4.5, -13);
+      archGroup.add(post1);
+      const post2 = new THREE.Mesh(postGeo, archMat);
+      post2.position.set(0, 4.5, 13);
+      archGroup.add(post2);
+
+      const beamGeo = new THREE.BoxGeometry(0.8, 1.4, 26.6);
+      const beam = new THREE.Mesh(beamGeo, archMat);
+      beam.position.set(0, 9, 0);
+      archGroup.add(beam);
+
+      const yArch = getLandingHillY(165);
+      archGroup.position.set(165, yArch, 0);
+      scene.add(archGroup);
+    })();
+
+    // Animated Fluttering Flags
+    const flags = [];
+    (function createFlutterFlags() {
+      const flagMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide });
+      for (let i = 0; i < 18; i++) {
+        const x = 5 + i * 11;
+        const y = getLandingHillY(x);
+        const poleGeo = new THREE.CylinderGeometry(0.04, 0.04, 3, 5);
+        const poleMat = new THREE.MeshBasicMaterial({ color: 0xcccccc });
+        const pole = new THREE.Mesh(poleGeo, poleMat);
+        pole.position.set(x, y + 1.5, 13.5);
+        scene.add(pole);
+
+        const flagGeo = new THREE.PlaneGeometry(1.2, 0.7, 6, 2);
+        const flag = new THREE.Mesh(flagGeo, flagMat);
+        flag.position.set(x + 0.6, y + 2.5, 13.5);
+        scene.add(flag);
+        flags.push({ mesh: flag, geo: flagGeo, basePos: flagGeo.attributes.position.clone(), phase: i * 0.4 });
+      }
+    })();
+
+    // Deterministic Falling Snow Particles
+    const snowCount = 450;
+    const snowGeo = new THREE.BufferGeometry();
+    const snowPos = new Float32Array(snowCount * 3);
+    for (let i = 0; i < snowCount; i++) {
+      snowPos[i * 3 + 0] = -50 + deterministicFloat(i * 4 + 1) * 250;
+      snowPos[i * 3 + 1] = -50 + deterministicFloat(i * 4 + 2) * 90;
+      snowPos[i * 3 + 2] = -25 + deterministicFloat(i * 4 + 3) * 50;
+    }
+    snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
+    const snowParticleMat = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.45,
+      transparent: true,
+      opacity: 0.75
+    });
+    const snowParticles = new THREE.Points(snowGeo, snowParticleMat);
+    scene.add(snowParticles);
+
+    /* ---------------------------------------------------------------------
+     * Windsock 3D Model by the Hill
+     * Positioned beside the takeoff table / upper landing zone (readable camera view)
+     * --------------------------------------------------------------------- */
+    const windsockGroup = new THREE.Group();
+    const windsockPivot = new THREE.Group();
+    (function createWindsock() {
+      const wsX = 4.0;
+      const wsY = getLandingHillY(wsX);
+      const wsZ = 12.0;
+
+      // Base mount
+      const baseGeo = new THREE.CylinderGeometry(0.3, 0.45, 0.4, 8);
+      const baseMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+      const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+      baseMesh.position.set(0, 0.2, 0);
+      windsockGroup.add(baseMesh);
+
+      // Mast pole (height 4.5m)
+      const poleGeo = new THREE.CylinderGeometry(0.06, 0.08, 4.5, 8);
+      const poleMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.6, roughness: 0.3 });
+      const poleMesh = new THREE.Mesh(poleGeo, poleMat);
+      poleMesh.position.set(0, 2.45, 0);
+      windsockGroup.add(poleMesh);
+
+      // Top swivel bracket ring
+      const ringGeo = new THREE.TorusGeometry(0.28, 0.03, 6, 12);
+      const ringMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.8, roughness: 0.2 });
+      const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+      ringMesh.rotation.x = Math.PI / 2;
+      ringMesh.position.set(0, 4.65, 0);
+      windsockGroup.add(ringMesh);
+
+      // Swivel pivot group (rotates according to wind)
+      windsockPivot.position.set(0, 4.65, 0);
+      windsockGroup.add(windsockPivot);
+
+      // Cloth conical sock in 4 alternating colored segments (Red / White)
+      const redMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.6, side: THREE.DoubleSide });
+      const whiteMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5, side: THREE.DoubleSide });
+
+      const segLengths = 0.45;
+      const radii = [0.28, 0.23, 0.18, 0.13, 0.08];
+      for (let s = 0; s < 4; s++) {
+        const segGeo = new THREE.CylinderGeometry(radii[s + 1], radii[s], segLengths, 10, 1, true);
+        const segMat = (s % 2 === 0) ? redMat : whiteMat;
+        const segMesh = new THREE.Mesh(segGeo, segMat);
+        // Default orientation is Y-axis; rotate so it extends along +X
+        segMesh.rotation.z = -Math.PI / 2;
+        segMesh.position.set((s + 0.5) * segLengths, 0, 0);
+        windsockPivot.add(segMesh);
+      }
+
+      // Lit night spotlight illuminating the windsock
+      const wsLight = new THREE.PointLight(0xffffff, 1.4, 10);
+      wsLight.position.set(0, 4.8, 0.8);
+      windsockGroup.add(wsLight);
+
+      windsockGroup.position.set(wsX, wsY, wsZ);
+      scene.add(windsockGroup);
+    })();
+
+    /* ---------------------------------------------------------------------
+     * Deterministic Landing Snow Spray System
+     * Erupts on touchdown (sized with impact speed) and trails through crash tumble
+     * --------------------------------------------------------------------- */
+    const SPRAY_COUNT = 160;
+    const sprayGeo = new THREE.BufferGeometry();
+    const sprayPos = new Float32Array(SPRAY_COUNT * 3);
+    const sprayColors = new Float32Array(SPRAY_COUNT * 3);
+    const spraySizes = new Float32Array(SPRAY_COUNT);
+    const sprayParticles = [];
+
+    for (let i = 0; i < SPRAY_COUNT; i++) {
+      sprayPos[i * 3 + 0] = 0;
+      sprayPos[i * 3 + 1] = -500; // inactive below scene
+      sprayPos[i * 3 + 2] = 0;
+      sprayColors[i * 3 + 0] = 0.95;
+      sprayColors[i * 3 + 1] = 0.98;
+      sprayColors[i * 3 + 2] = 1.0;
+      spraySizes[i] = 1.5;
+      sprayParticles.push({
+        active: false,
+        x: 0, y: -500, z: 0,
+        vx: 0, vy: 0, vz: 0,
+        life: 0, maxLife: 1.0, size: 1.5
+      });
+    }
+    sprayGeo.setAttribute('position', new THREE.BufferAttribute(sprayPos, 3));
+    sprayGeo.setAttribute('color', new THREE.BufferAttribute(sprayColors, 3));
+    const sprayParticleMat = new THREE.PointsMaterial({
+      size: 1.8,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const sprayMesh = new THREE.Points(sprayGeo, sprayParticleMat);
+    scene.add(sprayMesh);
+
+    let spraySeedCounter = 5000;
+    function deterministicSprayRand() {
+      spraySeedCounter = (spraySeedCounter + 1) | 0;
+      return deterministicFloat(spraySeedCounter);
+    }
+
+    function resetSprayParticles() {
+      for (let i = 0; i < SPRAY_COUNT; i++) {
+        sprayParticles[i].active = false;
+        sprayGeo.attributes.position.setY(i, -500);
+      }
+      sprayGeo.attributes.position.needsUpdate = true;
+    }
+
+    function triggerTouchdownSpray(touchX, touchY, touchZ, impactSpeed) {
+      const zBase = (typeof touchZ === 'number') ? touchZ : ((typeof GameState !== 'undefined' && GameState.hillName === 'LARGE K120') ? -36 : 0);
+      const speed = (typeof impactSpeed === 'number') ? impactSpeed : (typeof touchZ === 'number' ? touchZ : 20.0);
+      // Sized with impact speed: large spray for fast hard landings, small puff for slow ones
+      const speedNorm = Math.max(0.2, Math.min(1.8, speed / 20.0));
+      const burstCount = Math.floor(35 + speedNorm * 50);
+      let spawned = 0;
+      for (let i = 0; i < SPRAY_COUNT && spawned < burstCount; i++) {
+        const p = sprayParticles[i];
+        if (!p.active) {
+          p.active = true;
+          p.x = touchX + (deterministicSprayRand() - 0.5) * 0.4;
+          p.y = touchY + 0.08;
+          p.z = zBase + (deterministicSprayRand() - 0.5) * 1.4;
+
+          const spreadAng = (0.15 + deterministicSprayRand() * 0.5) * Math.PI;
+          const mag = (4.0 + deterministicSprayRand() * 12.0) * speedNorm;
+          p.vx = Math.cos(spreadAng) * mag * 0.6 + (deterministicSprayRand() * 2 - 1);
+          p.vy = Math.sin(spreadAng) * mag;
+          p.vz = (deterministicSprayRand() - 0.5) * mag * 0.8;
+
+          p.maxLife = 0.45 + deterministicSprayRand() * 0.5 * speedNorm;
+          p.life = p.maxLife;
+          spawned++;
+        }
+      }
+    }
+
+    let tumbleSprayTimer = 0;
+    function emitTumbleSpray(dt, centerZ) {
+      const zBase = (typeof centerZ === 'number') ? centerZ : ((typeof GameState !== 'undefined' && GameState.hillName === 'LARGE K120') ? -36 : 0);
+      tumbleSprayTimer += dt;
+      if (tumbleSprayTimer >= 0.035 && Math.abs(GameState.speed) > 1.0) {
+        tumbleSprayTimer = 0;
+        let spawned = 0;
+        for (let i = 0; i < SPRAY_COUNT && spawned < 2; i++) {
+          const p = sprayParticles[i];
+          if (!p.active) {
+            p.active = true;
+            p.x = GameState.x + (deterministicSprayRand() - 0.5) * 0.5;
+            p.y = GameState.y + 0.1;
+            p.z = zBase + (deterministicSprayRand() - 0.5) * 1.2;
+            p.vx = -1.2 - deterministicSprayRand() * 4.0;
+            p.vy = 1.5 + deterministicSprayRand() * 4.0;
+            p.vz = (deterministicSprayRand() - 0.5) * 3.0;
+            p.maxLife = 0.35 + deterministicSprayRand() * 0.45;
+            p.life = p.maxLife;
+            spawned++;
+          }
+        }
+      }
+    }
+
+    /* ---------------------------------------------------------------------
+     * Skier Character Model (Fully Articulated Hierarchy)
+     * Distinct readable poses:
+     * - Crouch tuck on in-run
+     * - Upright standing
+     * - Forward-leaning flight pose following θ (with ski flutter during wobble)
+     * - Split-stance TELEMARK landing
+     * - Together-stance PARALLEL landing
+     * - Tumbling ragdoll on crash
+     * --------------------------------------------------------------------- */
+    const skierRoot = new THREE.Group();
+    scene.add(skierRoot);
+
+    const suitMat = new THREE.MeshStandardMaterial({ color: 0x0ea5e9, roughness: 0.5 });
+    const bibMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xf6d1ab, roughness: 0.7 });
+    const helmetMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.3, metalness: 0.4 });
+    const goggleMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+    const skiMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.3, metalness: 0.2 });
+
+    const bodyGroup = new THREE.Group();
+    skierRoot.add(bodyGroup);
+
+    const pelvisGeo = new THREE.BoxGeometry(0.38, 0.22, 0.28);
+    const pelvis = new THREE.Mesh(pelvisGeo, suitMat);
+    pelvis.position.y = 0.85;
+    bodyGroup.add(pelvis);
+
+    const torsoPivot = new THREE.Group();
+    torsoPivot.position.set(0, 0.1, 0);
+    pelvis.add(torsoPivot);
+
+    const torsoGeo = new THREE.BoxGeometry(0.42, 0.55, 0.26);
+    const torso = new THREE.Mesh(torsoGeo, suitMat);
+    torso.position.y = 0.28;
+    torsoPivot.add(torso);
+
+    const bibGeo = new THREE.BoxGeometry(0.44, 0.38, 0.28);
+    const bib = new THREE.Mesh(bibGeo, bibMat);
+    bib.position.y = 0.28;
+    torsoPivot.add(bib);
+
+    const headPivot = new THREE.Group();
+    headPivot.position.set(0, 0.58, 0);
+    torsoPivot.add(headPivot);
+
+    const headGeo = new THREE.SphereGeometry(0.18, 12, 10);
+    const head = new THREE.Mesh(headGeo, skinMat);
+    headPivot.add(head);
+
+    const helmetGeo = new THREE.SphereGeometry(0.20, 12, 10);
+    const helmet = new THREE.Mesh(helmetGeo, helmetMat);
+    headPivot.add(helmet);
+
+    const goggleGeo = new THREE.BoxGeometry(0.24, 0.10, 0.14);
+    const goggle = new THREE.Mesh(goggleGeo, goggleMat);
+    goggle.position.set(0.12, 0.02, 0);
+    headPivot.add(goggle);
+
+    function buildArm(isRight) {
+      const zOffset = isRight ? 0.26 : -0.26;
+      const shoulderPivot = new THREE.Group();
+      shoulderPivot.position.set(0, 0.48, zOffset);
+      torsoPivot.add(shoulderPivot);
+
+      const upperArmGeo = new THREE.CylinderGeometry(0.06, 0.05, 0.32, 6);
+      const upperArm = new THREE.Mesh(upperArmGeo, suitMat);
+      upperArm.position.y = -0.16;
+      shoulderPivot.add(upperArm);
+
+      const elbowPivot = new THREE.Group();
+      elbowPivot.position.set(0, -0.32, 0);
+      shoulderPivot.add(elbowPivot);
+
+      const forearmGeo = new THREE.CylinderGeometry(0.05, 0.045, 0.30, 6);
+      const forearm = new THREE.Mesh(forearmGeo, suitMat);
+      forearm.position.y = -0.15;
+      elbowPivot.add(forearm);
+
+      return { shoulder: shoulderPivot, elbow: elbowPivot };
+    }
+    const leftArm = buildArm(false);
+    const rightArm = buildArm(true);
+
+    function buildLeg(isRight) {
+      const zOffset = isRight ? 0.14 : -0.14;
+      const hipPivot = new THREE.Group();
+      hipPivot.position.set(0, -0.1, zOffset);
+      pelvis.add(hipPivot);
+
+      const thighGeo = new THREE.CylinderGeometry(0.08, 0.065, 0.42, 6);
+      const thigh = new THREE.Mesh(thighGeo, suitMat);
+      thigh.position.y = -0.21;
+      hipPivot.add(thigh);
+
+      const kneePivot = new THREE.Group();
+      kneePivot.position.set(0, -0.42, 0);
+      hipPivot.add(kneePivot);
+
+      const shinGeo = new THREE.CylinderGeometry(0.065, 0.055, 0.42, 6);
+      const shin = new THREE.Mesh(shinGeo, suitMat);
+      shin.position.y = -0.21;
+      kneePivot.add(shin);
+
+      const bootGeo = new THREE.BoxGeometry(0.24, 0.12, 0.12);
+      const boot = new THREE.Mesh(bootGeo, helmetMat);
+      boot.position.set(0.05, -0.44, 0);
+      kneePivot.add(boot);
+
+      return { hip: hipPivot, knee: kneePivot };
+    }
+    const leftLeg = buildLeg(false);
+    const rightLeg = buildLeg(true);
+
+    const leftSki = new THREE.Group();
+    const rightSki = new THREE.Group();
+    skierRoot.add(leftSki);
+    skierRoot.add(rightSki);
+
+    function createSkiMesh() {
+      const g = new THREE.Group();
+      const bladeGeo = new THREE.BoxGeometry(2.5, 0.03, 0.14);
+      const blade = new THREE.Mesh(bladeGeo, skiMat);
+      blade.castShadow = true;
+      g.add(blade);
+      const tipGeo = new THREE.BoxGeometry(0.28, 0.03, 0.14);
+      const tip = new THREE.Mesh(tipGeo, skiMat);
+      tip.position.set(1.3, 0.06, 0);
+      tip.rotation.z = Math.PI * 0.16;
+      g.add(tip);
+      return g;
+    }
+    const leftSkiMesh = createSkiMesh();
+    const rightSkiMesh = createSkiMesh();
+    leftSki.add(leftSkiMesh);
+    rightSki.add(rightSkiMesh);
+
+    /* ---------------------------------------------------------------------
+     * Skier Pose Management
+     * Distinct poses: 'tuck', 'upright', 'flight', 'telemark', 'parallel', 'ragdoll'
+     * --------------------------------------------------------------------- */
+    function setSkierPose(poseType, params) {
+      if (poseType === 'tuck') {
+        bodyGroup.position.set(0, -0.28, 0);
+        bodyGroup.rotation.set(0, 0, 0);
+        pelvis.rotation.set(0, 0, 0);
+        torsoPivot.rotation.set(0, 0, -1.05);
+        headPivot.rotation.set(0, 0, 0.7);
+
+        leftArm.shoulder.rotation.set(0.2, 0, 1.4);
+        leftArm.elbow.rotation.set(0, 0, 0.2);
+        rightArm.shoulder.rotation.set(-0.2, 0, 1.4);
+        rightArm.elbow.rotation.set(0, 0, 0.2);
+
+        leftLeg.hip.rotation.set(0, 0, 1.15);
+        leftLeg.knee.rotation.set(0, 0, -2.15);
+        rightLeg.hip.rotation.set(0, 0, 1.15);
+        rightLeg.knee.rotation.set(0, 0, -2.15);
+
+        leftSki.position.set(0, 0.04, -0.22);
+        rightSki.position.set(0, 0.04, 0.22);
+        leftSki.rotation.set(0, 0, 0);
+        rightSki.rotation.set(0, 0, 0);
+      } else if (poseType === 'upright') {
+        bodyGroup.position.set(0, 0, 0);
+        bodyGroup.rotation.set(0, 0, 0);
+        pelvis.rotation.set(0, 0, 0);
+        torsoPivot.rotation.set(0, 0, -0.15);
+        headPivot.rotation.set(0, 0, 0.05);
+
+        leftArm.shoulder.rotation.set(0, 0, 0.2);
+        leftArm.elbow.rotation.set(0, 0, 0.3);
+        rightArm.shoulder.rotation.set(0, 0, 0.2);
+        rightArm.elbow.rotation.set(0, 0, 0.3);
+
+        leftLeg.hip.rotation.set(0, 0, 0.25);
+        leftLeg.knee.rotation.set(0, 0, -0.5);
+        rightLeg.hip.rotation.set(0, 0, 0.25);
+        rightLeg.knee.rotation.set(0, 0, -0.5);
+
+        leftSki.position.set(0, 0.04, -0.22);
+        rightSki.position.set(0, 0.04, 0.22);
+        leftSki.rotation.set(0, 0, 0);
+        rightSki.rotation.set(0, 0, 0);
+      } else if (poseType === 'flight') {
+        const thetaDeg = params ? params.theta : 0;
+        const thetaRad = thetaDeg * Math.PI / 180;
+        const isFlutter = params && params.flutter;
+        const flutterOffset = isFlutter ? Math.sin(GameState.jumpClock * 80) * 0.14 : 0;
+
+        bodyGroup.position.set(0, -0.1, 0);
+        const forwardLean = 0.55 + (thetaDeg / 40) * 0.45;
+        torsoPivot.rotation.set(0, 0, -forwardLean + flutterOffset * 0.3);
+        headPivot.rotation.set(0, 0, forwardLean * 0.7);
+
+        leftArm.shoulder.rotation.set(0.35, -0.2, 1.25);
+        leftArm.elbow.rotation.set(0, 0, 0.15);
+        rightArm.shoulder.rotation.set(-0.35, 0.2, 1.25);
+        rightArm.elbow.rotation.set(0, 0, 0.15);
+
+        leftLeg.hip.rotation.set(0, 0, 0.35);
+        leftLeg.knee.rotation.set(0, 0, -0.4);
+        rightLeg.hip.rotation.set(0, 0, 0.35);
+        rightLeg.knee.rotation.set(0, 0, -0.4);
+
+        const vAngle = 0.16;
+        leftSki.position.set(0, 0.04, -0.28);
+        rightSki.position.set(0, 0.04, 0.28);
+        leftSki.rotation.set(-0.1 + flutterOffset, vAngle + flutterOffset * 0.5, thetaRad + flutterOffset);
+        rightSki.rotation.set(0.1 - flutterOffset, -vAngle - flutterOffset * 0.5, thetaRad - flutterOffset);
+      } else if (poseType === 'telemark') {
+        // TELEMARK: Clearly split stance — one leg visibly forward, the other back, arms spread wide
+        bodyGroup.position.set(0, -0.28, 0);
+        bodyGroup.rotation.set(0, 0, 0);
+        pelvis.rotation.set(0, 0, 0);
+        torsoPivot.rotation.set(0, 0, -0.25);
+        headPivot.rotation.set(0, 0, 0.2);
+
+        // Arms spread wide horizontally for maximum telemark balance
+        leftArm.shoulder.rotation.set(0, 0, -1.45);
+        leftArm.elbow.rotation.set(0, 0, 0.2);
+        rightArm.shoulder.rotation.set(0, 0, -1.45);
+        rightArm.elbow.rotation.set(0, 0, 0.2);
+
+        // Left leg lunged forward deeply
+        leftLeg.hip.rotation.set(0, 0, 0.85);
+        leftLeg.knee.rotation.set(0, 0, -1.55);
+
+        // Right leg trailing far back, knee bent low
+        rightLeg.hip.rotation.set(0, 0, -0.45);
+        rightLeg.knee.rotation.set(0, 0, -1.15);
+
+        // Skis staggered: left ski forward, right ski trailing back
+        leftSki.position.set(0.42, 0.04, -0.24);
+        rightSki.position.set(-0.35, 0.04, 0.24);
+        leftSki.rotation.set(0, 0, 0);
+        rightSki.rotation.set(0, 0, 0);
+      } else if (poseType === 'parallel') {
+        // PARALLEL: Clean landing with skis and legs together
+        bodyGroup.position.set(0, -0.18, 0);
+        bodyGroup.rotation.set(0, 0, 0);
+        pelvis.rotation.set(0, 0, 0);
+        torsoPivot.rotation.set(0, 0, -0.38);
+        headPivot.rotation.set(0, 0, 0.2);
+
+        // Arms spread wide horizontally for balance
+        leftArm.shoulder.rotation.set(0, 0, -1.35);
+        leftArm.elbow.rotation.set(0, 0, 0.35);
+        rightArm.shoulder.rotation.set(0, 0, -1.35);
+        rightArm.elbow.rotation.set(0, 0, 0.35);
+
+        // Symmetrical bent knees
+        leftLeg.hip.rotation.set(0, 0, 0.55);
+        leftLeg.knee.rotation.set(0, 0, -1.05);
+        rightLeg.hip.rotation.set(0, 0, 0.55);
+        rightLeg.knee.rotation.set(0, 0, -1.05);
+
+        // Skis together
+        leftSki.position.set(0, 0.04, -0.22);
+        rightSki.position.set(0, 0.04, 0.22);
+        leftSki.rotation.set(0, 0, 0);
+        rightSki.rotation.set(0, 0, 0);
+      } else if (poseType === 'ragdoll') {
+        const spin = (params && params.spin) ? params.spin : 0;
+        bodyGroup.position.set(0, 0.2, 0);
+        bodyGroup.rotation.set(spin * 2.5, spin * 1.8, spin * 3.2);
+
+        torsoPivot.rotation.set(Math.sin(spin * 4) * 0.8, 0, Math.cos(spin * 3) * 0.9);
+        headPivot.rotation.set(Math.sin(spin * 5) * 0.6, 0, 0);
+
+        leftArm.shoulder.rotation.set(Math.cos(spin * 4), 0, Math.sin(spin * 4));
+        rightArm.shoulder.rotation.set(-Math.cos(spin * 4), 0, -Math.sin(spin * 4));
+        leftLeg.hip.rotation.set(Math.sin(spin * 3), 0, Math.cos(spin * 3));
+        rightLeg.hip.rotation.set(-Math.sin(spin * 3), 0, -Math.cos(spin * 3));
+
+        leftSki.position.set(Math.sin(spin * 2) * 0.8, 0.4, -0.5);
+        rightSki.position.set(Math.cos(spin * 2) * 0.8, 0.6, 0.5);
+        leftSki.rotation.set(spin * 2, spin * 3, spin * 1.5);
+        rightSki.rotation.set(-spin * 2, -spin * 1.5, spin * 3);
+      }
+    }
+
+    /* ---------------------------------------------------------------------
+     * Game Physics & State Management
+     * Timestep: fixed 1/120s
+     * --------------------------------------------------------------------- */
+    const PHYSICS_DT = 1 / 120; // 0.00833333 s
+
+    // Fixed wind rotation cycling: 1 CALM, 2 HEADWIND 1.5, 3 TAILWIND 1.0, 4 CALM, ...
+    const WIND_CONDITIONS = [
+      { name: 'CALM', lift: 0.0, drag: 0.0, label: 'CALM' },
+      { name: 'HEADWIND 1.5', lift: 0.45, drag: 0.10, label: 'HEADWIND 1.5' },
+      { name: 'TAILWIND 1.0', lift: -0.45, drag: -0.10, label: 'TAILWIND 1.0' }
+    ];
+
+    // Fixed contest winds per jump slot: jump 1 CALM, jump 2 HEADWIND 1.5, jump 3 TAILWIND 1.0
+    const CONTEST_WINDS = [
+      { name: 'CALM', lift: 0.0, drag: 0.0, label: 'CALM' },
+      { name: 'HEADWIND 1.5', lift: 0.45, drag: 0.10, label: 'HEADWIND 1.5' },
+      { name: 'TAILWIND 1.0', lift: -0.45, drag: -0.10, label: 'TAILWIND 1.0' }
+    ];
+
+    // Hardcoded published rivals verbatim from competition specification
+    const RIVALS = {
+      kestrel: {
+        name: 'AI KESTREL',
+        jumps: [
+          { dist: 95.0, distPts: 69.0, judgePts: 57.0, total: 126.0 },
+          { dist: 98.0, distPts: 74.4, judgePts: 60.0, total: 134.4 },
+          { dist: 96.0, distPts: 70.8, judgePts: 57.0, total: 127.8 }
+        ],
+        grandTotal: 388.2
+      },
+      voley: {
+        name: 'AI VOLEY',
+        jumps: [
+          { dist: 92.0, distPts: 63.6, judgePts: 54.0, total: 117.6 },
+          { dist: 93.5, distPts: 66.3, judgePts: 57.0, total: 123.3 },
+          { dist: 95.5, distPts: 69.9, judgePts: 60.0, total: 129.9 }
+        ],
+        grandTotal: 370.8
+      }
+    };
+
+    function getWindForJump(n) {
+      const idx = ((n - 1) % 3 + 3) % 3;
+      return WIND_CONDITIONS[idx];
+    }
+
+    let sessionJumpCount = 1;
+
+    const GameState = {
+      phase: 'READY',
+      jumpClock: 0,
+      inrunS: 0,
+      speed: 3.0,
+      theta: 0,
+      instability: 0,
+
+      // C4 Hill, Gate, Mode
+      hillName: 'NORMAL K90', // 'NORMAL K90' or 'LARGE K120'
+      gate: 3,                // 1, 2, or 3
+      inrunLengthInForce: 75.0,
+      training: false,        // boolean (false: competition, true: training)
+
+      // C5 Contest State
+      isContest: false,
+      contestJumpIndex: 1, // 1, 2, or 3
+      contestPlayerJumps: [], // array of { jumpIndex, dist, distPts, judgePts, total }
+      telemarkPressTime: null,
+      telemarkPressLeadTime: null,
+      touchdownTime: null,
+
+      // C3 Wind & Session Jump
+      jumpNumber: 1,
+      currentWind: WIND_CONDITIONS[0],
+      windCondition: 'CALM',
+      windLift: 0.0,
+      windDrag: 0.0,
+
+      // In-run & Takeoff tracking
+      takeoffPressTime: null,
+      markerOffset: null,
+      multiplier: 0.40,
+      takeoffLocked: false,
+      tablePassedTime: null,
+      tableEndPassed: false,
+
+      // Flight & Wobbles
+      wobbleCount: 0,
+      inStallZone: false,
+      flutterTimer: 0,
+
+      // Telemark
+      telemarkArmed: false,
+      telemarkLanded: false,
+      landingLabel: null, // 'TELEMARK', 'PARALLEL', 'FELL', 'CRASHED'
+
+      // Trajectory
+      x: 0,
+      y: 0,
+      vx: 0,
+      vy: 0,
+
+      // Landing / Result
+      touchdownPoint: null,
+      measuredDistance: null,
+      status: null, // 'STOOD', 'FELL', 'CRASHED'
+      landingDeviation: null,
+
+      // Judge & Points Calculation
+      judgeScores: [20, 20, 20],
+      wobbleDeduction: 0,
+      landingDeduction: 0,
+      distancePoints: 0,
+      judgesPoints: 0,
+      totalPoints: 0,
+
+      crashTumbleTimer: 0,
+
+      keyTuck: false,
+      keyPitchUp: false,
+      keyPitchDown: false
+    };
+
+    function getTimeToTouchdown() {
+      if (GameState.phase !== 'FLIGHT') return Infinity;
+      let simX = GameState.x;
+      let simY = GameState.y;
+      let simVx = GameState.vx;
+      let simVy = GameState.vy;
+      let t = 0;
+      const dt = 1 / 120;
+
+      let lift = 0;
+      if (GameState.theta <= 15.0) {
+        lift = 0.16 * GameState.theta;
+      } else if (GameState.theta <= 25.0) {
+        lift = 2.4;
+      } else {
+        lift = 2.4 - 0.32 * (GameState.theta - 25.0);
+      }
+      const totalLift = lift + GameState.windLift;
+      const totalDrag = 0.25 + GameState.windDrag;
+      const ay = -9.8 + totalLift;
+      const ax = -totalDrag;
+
+      for (let step = 0; step < 360; step++) {
+        simVx += ax * dt;
+        simVy += ay * dt;
+        simX += simVx * dt;
+        simY += simVy * dt;
+        t += dt;
+        const hillY = getLandingHillY(simX, GameState.hillName);
+        if (simX >= 0 && simY <= hillY) {
+          return t;
+        }
+      }
+      return Infinity;
+    }
+
+    function updateSetupUI() {
+      currentActiveHill = GameState.hillName;
+      const isLarge = (GameState.hillName === 'LARGE K120');
+      const cfg = getGateConfig(GameState.hillName, GameState.gate);
+      GameState.inrunLengthInForce = cfg.lengthInForce;
+
+      const hillNameEl = document.getElementById('setup-hill-name');
+      if (hillNameEl) {
+        hillNameEl.textContent = GameState.hillName;
+        hillNameEl.style.color = isLarge ? '#c084fc' : '#38bdf8';
+      }
+      const hillDescEl = document.getElementById('setup-hill-desc');
+      if (hillDescEl) {
+        hillDescEl.textContent = isLarge ? 'K120 • HS134 • In-run 95.0m • Top 27.0 m/s' : 'K90 • HS100 • In-run 75.0m • Top 25.0 m/s';
+      }
+
+      const gateNameEl = document.getElementById('setup-gate-name');
+      if (gateNameEl) {
+        gateNameEl.textContent = `GATE ${GameState.gate} (${cfg.lengthInForce.toFixed(1)} m)`;
+      }
+
+      const modeNameEl = document.getElementById('setup-mode-name');
+      if (modeNameEl) {
+        if (GameState.isContest) {
+          modeNameEl.textContent = `3-JUMP CONTEST (JUMP ${GameState.contestJumpIndex}/3)`;
+          modeNameEl.style.color = '#38bdf8';
+        } else {
+          modeNameEl.textContent = GameState.training ? 'TRAINING MODE' : 'OFFICIAL COMPETITION';
+          modeNameEl.style.color = GameState.training ? '#fde047' : '#7dd3fc';
+        }
+      }
+      const modeDescEl = document.getElementById('setup-mode-desc');
+      if (modeDescEl) {
+        if (GameState.isContest) {
+          modeDescEl.textContent = `Contest against AI Kestrel & AI Voley • Slot Wind: ${GameState.windCondition}`;
+        } else {
+          modeDescEl.textContent = GameState.training ? 'Score Not Recorded • Instant Retry with Enter/R' : 'Standard Scoring & Wind Cycling (Press X for Training, C for Contest)';
+        }
+      }
+
+      const watermark = document.getElementById('training-watermark');
+      if (watermark) {
+        watermark.style.display = (GameState.training && !GameState.isContest) ? 'block' : 'none';
+      }
+
+      const hudHill = document.getElementById('hud-hill');
+      if (hudHill) {
+        hudHill.textContent = isLarge ? 'K120' : 'K90';
+        hudHill.style.color = isLarge ? '#c084fc' : '#38bdf8';
+      }
+      const hudGate = document.getElementById('hud-gate');
+      if (hudGate) hudGate.textContent = `#${GameState.gate}`;
+      const hudMode = document.getElementById('hud-mode');
+      if (hudMode) {
+        if (GameState.isContest) {
+          hudMode.textContent = `JUMP ${GameState.contestJumpIndex}/3`;
+          hudMode.style.color = '#38bdf8';
+        } else {
+          hudMode.textContent = GameState.training ? 'TRAIN' : 'COMP';
+          hudMode.style.color = GameState.training ? '#fde047' : '#9cd7ff';
+        }
+      }
+      const hudHillStats = document.getElementById('hud-hill-stats');
+      if (hudHillStats) {
+        if (GameState.isContest) {
+          hudHillStats.textContent = `CONTEST JUMP ${GameState.contestJumpIndex}/3 • ${GameState.hillName}`;
+        } else {
+          hudHillStats.textContent = isLarge ? 'LARGE HILL • K120 • HS134' : 'NORMAL HILL • K90 • HS100';
+        }
+      }
+
+      const startBtn = document.getElementById('setup-start-btn');
+      if (startBtn) {
+        if (GameState.isContest) {
+          startBtn.textContent = `Press Enter to Start Contest Jump ${GameState.contestJumpIndex}/3`;
+        } else {
+          startBtn.textContent = 'Press Enter for Single Jump • C for 3-Jump Contest';
+        }
+      }
+    }
+
+    function updateSkierToGate() {
+      const cfg = getGateConfig(GameState.hillName, GameState.gate);
+      const st0 = getInrunState(cfg.startS, GameState.hillName);
+      const activeZ = (GameState.hillName === 'LARGE K120') ? -36 : 0;
+      skierRoot.position.set(st0.x, st0.y, activeZ);
+      skierRoot.rotation.set(0, 0, -st0.angle);
+      setSkierPose('upright');
+
+      desiredCamPos.set(st0.x + 9, st0.y + 3.2, activeZ + 11);
+      cameraTarget.set(st0.x + 2, st0.y, activeZ);
+      camera.position.copy(desiredCamPos);
+      camera.lookAt(cameraTarget);
+    }
+
+    // Keyboard handlers
+    window.addEventListener('keydown', (e) => {
+      initAudio();
+
+      // Standings Modal Enter handler
+      const standingsModal = document.getElementById('standings-modal');
+      if (standingsModal && standingsModal.style.display === 'flex') {
+        if (e.key === 'Enter') {
+          handleStandingsEnter();
+          return;
+        }
+        if (e.key === 'r' || e.key === 'R') {
+          abortContestAndReset();
+          return;
+        }
+      }
+
+      // Selection Screen Setup controls (in READY state)
+      if (GameState.phase === 'READY') {
+        if (e.key === 'h' || e.key === 'H') {
+          GameState.hillName = (GameState.hillName === 'NORMAL K90') ? 'LARGE K120' : 'NORMAL K90';
+          updateSetupUI();
+          updateSkierToGate();
+          exportArenaState();
+          return;
+        }
+        if (e.key === '1') {
+          GameState.gate = 1;
+          updateSetupUI();
+          updateSkierToGate();
+          exportArenaState();
+          return;
+        }
+        if (e.key === '2') {
+          GameState.gate = 2;
+          updateSetupUI();
+          updateSkierToGate();
+          exportArenaState();
+          return;
+        }
+        if (e.key === '3') {
+          GameState.gate = 3;
+          updateSetupUI();
+          updateSkierToGate();
+          exportArenaState();
+          return;
+        }
+        if (e.key === 'c' || e.key === 'C') {
+          // Start Three-Jump Contest from selection screen
+          startContestMode();
+          return;
+        }
+        if (e.key === 'x' || e.key === 'X') {
+          // Training mode unavailable during contest
+          if (!GameState.isContest) {
+            GameState.training = !GameState.training;
+            updateSetupUI();
+            exportArenaState();
+          }
+          return;
+        }
+      }
+
+      // R Key Handler:
+      // In contest mode: "R anywhere aborts the contest and restores the exact initial state."
+      if (e.key === 'r' || e.key === 'R') {
+        if (GameState.isContest) {
+          abortContestAndReset();
+          return;
+        }
+        if (GameState.training && (GameState.phase === 'INRUN' || GameState.phase === 'FLIGHT' || GameState.phase === 'LANDED' || GameState.phase === 'CRASHED')) {
+          startJump();
+          return;
+        }
+        resetToDefaultSetup();
+        return;
+      }
+
+      // Enter Key Handler:
+      if (e.key === 'Enter') {
+        if (GameState.phase === 'READY') {
+          startJump();
+          return;
+        }
+        if (GameState.phase === 'LANDED' || GameState.phase === 'CRASHED') {
+          if (GameState.isContest) {
+            showStandingsBoard();
+          } else if (GameState.training) {
+            startJump();
+          } else {
+            returnToSelectionScreen();
+          }
+          return;
+        }
+        if (GameState.training && (GameState.phase === 'INRUN' || GameState.phase === 'FLIGHT')) {
+          startJump();
+          return;
+        }
+        return;
+      }
+
+      // Telemark timing window:
+      // "a T press only counts if it lands within the last 0.20 s before touchdown
+      // (that is, between 0.20 s before touchdown and touchdown itself).
+      // A press earlier than that flashes 'TOO EARLY' and arms nothing; a press after touchdown has no effect."
+      if (e.key === 't' || e.key === 'T') {
+        if (GameState.phase === 'FLIGHT') {
+          GameState.telemarkPressTime = GameState.jumpClock;
+          const timeToTouchdown = getTimeToTouchdown();
+          if (timeToTouchdown <= 0.20 && timeToTouchdown >= 0) {
+            GameState.telemarkArmed = true;
+            const badge = document.getElementById('flight-telemark-badge');
+            if (badge) {
+              badge.textContent = 'TELEMARK ARMED (Within 0.20s Window)';
+              badge.className = 'badge-style badge-telemark';
+            }
+          } else {
+            // Premature press (>0.20s before touchdown)
+            GameState.telemarkArmed = false;
+            const badge = document.getElementById('flight-telemark-badge');
+            if (badge) {
+              badge.textContent = 'TOO EARLY — ARMED NOTHING';
+              badge.className = 'badge-style badge-crashed';
+              setTimeout(() => {
+                if (GameState.phase === 'FLIGHT' && !GameState.telemarkArmed) {
+                  badge.textContent = 'PARALLEL (Press T within 0.20s of ground)';
+                  badge.className = 'badge-style badge-parallel';
+                }
+              }, 600);
+            }
+          }
+          exportArenaState();
+        }
+        return;
+      }
+
+      if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') {
+        GameState.keyTuck = true;
+        GameState.keyPitchDown = true;
+      }
+      if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') {
+        GameState.keyPitchUp = true;
+      }
+
+      if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        handleSpacePress();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') {
+        GameState.keyTuck = false;
+        GameState.keyPitchDown = false;
+      }
+      if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') {
+        GameState.keyPitchUp = false;
+      }
+    });
+
+    function startContestMode() {
+      GameState.isContest = true;
+      GameState.contestJumpIndex = 1;
+      GameState.contestPlayerJumps = [];
+      GameState.training = false;
+
+      // Slot 1 fixed wind is CALM
+      GameState.currentWind = CONTEST_WINDS[0];
+      GameState.windCondition = GameState.currentWind.name;
+      GameState.windLift = GameState.currentWind.lift;
+      GameState.windDrag = GameState.currentWind.drag;
+
+      updateSetupUI();
+      exportArenaState();
+    }
+
+    function abortContestAndReset() {
+      GameState.isContest = false;
+      GameState.contestJumpIndex = 1;
+      GameState.contestPlayerJumps = [];
+      const standingsModal = document.getElementById('standings-modal');
+      if (standingsModal) standingsModal.style.display = 'none';
+
+      resetToDefaultSetup();
+    }
+
+    function handleStandingsEnter() {
+      const standingsModal = document.getElementById('standings-modal');
+      if (standingsModal) standingsModal.style.display = 'none';
+
+      if (GameState.contestJumpIndex < 3) {
+        // Return to selection screen for the next contest jump
+        GameState.contestJumpIndex++;
+        // Set slot wind: jump 2 HEADWIND 1.5, jump 3 TAILWIND 1.0
+        GameState.currentWind = CONTEST_WINDS[GameState.contestJumpIndex - 1];
+        GameState.windCondition = GameState.currentWind.name;
+        GameState.windLift = GameState.currentWind.lift;
+        GameState.windDrag = GameState.currentWind.drag;
+
+        resetToReady();
+      } else {
+        // Final standings complete: return to selection screen in free jump mode
+        GameState.isContest = false;
+        resetToDefaultSetup();
+      }
+    }
+
+    function resetToDefaultSetup() {
+      sessionJumpCount = 1;
+      GameState.jumpNumber = 1;
+      GameState.hillName = 'NORMAL K90';
+      GameState.gate = 3;
+      GameState.training = false;
+      GameState.isContest = false;
+      GameState.contestJumpIndex = 1;
+      GameState.contestPlayerJumps = [];
+      GameState.telemarkPressTime = null;
+      GameState.telemarkPressLeadTime = null;
+
+      GameState.currentWind = getWindForJump(1);
+      GameState.windCondition = GameState.currentWind.name;
+      GameState.windLift = GameState.currentWind.lift;
+      GameState.windDrag = GameState.currentWind.drag;
+
+      resetToReady();
+    }
+
+    function resetToReady() {
+      spraySeedCounter = 5000;
+      resetSprayParticles();
+
+      GameState.phase = 'READY';
+      GameState.jumpClock = 0;
+      GameState.speed = 3.0;
+      GameState.theta = 0;
+      GameState.instability = 0;
+      GameState.takeoffPressTime = null;
+      GameState.markerOffset = null;
+      GameState.multiplier = 0.40;
+      GameState.takeoffLocked = false;
+      GameState.tablePassedTime = null;
+      GameState.tableEndPassed = false;
+
+      GameState.wobbleCount = 0;
+      GameState.inStallZone = false;
+      GameState.flutterTimer = 0;
+      GameState.telemarkArmed = false;
+      GameState.telemarkLanded = false;
+      GameState.landingLabel = null;
+      GameState.telemarkPressTime = null;
+      GameState.telemarkPressLeadTime = null;
+      GameState.touchdownTime = null;
+
+      const cfg = getGateConfig(GameState.hillName, GameState.gate);
+      GameState.inrunLengthInForce = cfg.lengthInForce;
+      GameState.inrunS = cfg.startS;
+
+      GameState.vx = 0;
+      GameState.vy = 0;
+      GameState.touchdownPoint = null;
+      GameState.measuredDistance = null;
+      GameState.status = null;
+      GameState.landingDeviation = null;
+
+      GameState.judgeScores = [20, 20, 20];
+      GameState.wobbleDeduction = 0;
+      GameState.landingDeduction = 0;
+      GameState.distancePoints = 0;
+      GameState.judgesPoints = 0;
+      GameState.totalPoints = 0;
+      GameState.crashTumbleTimer = 0;
+
+      updateSkierToGate();
+
+      document.getElementById('ready-modal').style.display = 'flex';
+      document.getElementById('result-modal').style.display = 'none';
+      const standingsModal = document.getElementById('standings-modal');
+      if (standingsModal) standingsModal.style.display = 'none';
+
+      document.getElementById('timing-bar-container').style.display = 'none';
+      document.getElementById('flight-status-container').style.display = 'none';
+      document.getElementById('hud-card-theta').style.display = 'none';
+      document.getElementById('hud-card-wobbles').style.display = 'none';
+      document.getElementById('hud-card-dist').style.display = 'none';
+      document.getElementById('hud-speed').innerHTML = "3.0<small>m/s</small>";
+
+      updateSetupUI();
+
+      const hudJump = document.getElementById('hud-jump');
+      if (hudJump) {
+        hudJump.textContent = GameState.isContest ? `${GameState.contestJumpIndex}/3` : `#${GameState.jumpNumber}`;
+      }
+      const hudWind = document.getElementById('hud-wind');
+      if (hudWind) {
+        hudWind.textContent = GameState.windCondition;
+        if (GameState.windCondition === 'CALM') hudWind.style.color = '#7dd3fc';
+        else if (GameState.windCondition === 'HEADWIND 1.5') hudWind.style.color = '#5df3a7';
+        else hudWind.style.color = '#fca5a5';
+      }
+      const gaugeTag = document.getElementById('gauge-wind-tag');
+      if (gaugeTag) {
+        gaugeTag.textContent = GameState.windCondition;
+        if (GameState.windCondition === 'CALM') gaugeTag.style.color = '#7dd3fc';
+        else if (GameState.windCondition === 'HEADWIND 1.5') gaugeTag.style.color = '#5df3a7';
+        else gaugeTag.style.color = '#fca5a5';
+      }
+      const instabFill = document.getElementById('instability-fill');
+      if (instabFill) instabFill.style.width = '0%';
+      const instabText = document.getElementById('instability-text');
+      if (instabText) instabText.textContent = '0.0 / 8.0';
+
+      setWindVolume(0);
+      exportArenaState();
+    }
+
+    function returnToSelectionScreen() {
+      // In normal mode: Enter on result panel returns to selection screen, keeping session jump count & wind rotation
+      sessionJumpCount++;
+      GameState.jumpNumber = sessionJumpCount;
+      GameState.currentWind = getWindForJump(GameState.jumpNumber);
+      GameState.windCondition = GameState.currentWind.name;
+      GameState.windLift = GameState.currentWind.lift;
+      GameState.windDrag = GameState.currentWind.drag;
+
+      resetToReady();
+    }
+
+    function startJump() {
+      initAudio();
+
+      if (GameState.isContest) {
+        // Contest fixed winds per slot: jump 1 CALM, jump 2 HEAD 1.5, jump 3 TAIL 1.0
+        GameState.currentWind = CONTEST_WINDS[GameState.contestJumpIndex - 1];
+      } else if (!GameState.training) {
+        // Free jump wind rotation
+        GameState.currentWind = getWindForJump(GameState.jumpNumber);
+      }
+      GameState.windCondition = GameState.currentWind.name;
+      GameState.windLift = GameState.currentWind.lift;
+      GameState.windDrag = GameState.currentWind.drag;
+
+      spraySeedCounter = 5000 + (GameState.isContest ? GameState.contestJumpIndex * 2000 : GameState.jumpNumber * 1000);
+      resetSprayParticles();
+
+      GameState.phase = 'INRUN';
+      GameState.jumpClock = 0;
+      GameState.speed = 3.0;
+
+      const cfg = getGateConfig(GameState.hillName, GameState.gate);
+      GameState.inrunLengthInForce = cfg.lengthInForce;
+      GameState.inrunS = cfg.startS;
+
+      GameState.theta = 0;
+      GameState.instability = 0;
+      GameState.takeoffPressTime = null;
+      GameState.markerOffset = null;
+      GameState.multiplier = 0.40;
+      GameState.takeoffLocked = false;
+      GameState.tablePassedTime = null;
+      GameState.tableEndPassed = false;
+
+      GameState.wobbleCount = 0;
+      GameState.inStallZone = false;
+      GameState.flutterTimer = 0;
+      GameState.telemarkArmed = false;
+      GameState.telemarkLanded = false;
+      GameState.landingLabel = null;
+      GameState.telemarkPressTime = null;
+      GameState.telemarkPressLeadTime = null;
+      GameState.touchdownTime = null;
+
+      GameState.touchdownPoint = null;
+      GameState.measuredDistance = null;
+      GameState.status = null;
+      GameState.landingDeviation = null;
+      GameState.judgeScores = [20, 20, 20];
+      GameState.wobbleDeduction = 0;
+      GameState.landingDeduction = 0;
+      GameState.distancePoints = 0;
+      GameState.judgesPoints = 0;
+      GameState.totalPoints = 0;
+      GameState.crashTumbleTimer = 0;
+
+      document.getElementById('ready-modal').style.display = 'none';
+      document.getElementById('result-modal').style.display = 'none';
+      const standingsModal = document.getElementById('standings-modal');
+      if (standingsModal) standingsModal.style.display = 'none';
+
+      document.getElementById('timing-bar-container').style.display = 'block';
+      document.getElementById('flight-status-container').style.display = 'none';
+      document.getElementById('hud-card-theta').style.display = 'none';
+      document.getElementById('hud-card-wobbles').style.display = 'none';
+      document.getElementById('hud-card-dist').style.display = 'none';
+
+      updateSetupUI();
+
+      const hudJump = document.getElementById('hud-jump');
+      if (hudJump) {
+        hudJump.textContent = GameState.isContest ? `${GameState.contestJumpIndex}/3` : `#${GameState.jumpNumber}`;
+      }
+      const hudWind = document.getElementById('hud-wind');
+      if (hudWind) {
+        hudWind.textContent = GameState.windCondition;
+        if (GameState.windCondition === 'CALM') hudWind.style.color = '#7dd3fc';
+        else if (GameState.windCondition === 'HEADWIND 1.5') hudWind.style.color = '#5df3a7';
+        else hudWind.style.color = '#fca5a5';
+      }
+      const gaugeTag = document.getElementById('gauge-wind-tag');
+      if (gaugeTag) {
+        gaugeTag.textContent = GameState.windCondition;
+        if (GameState.windCondition === 'CALM') gaugeTag.style.color = '#7dd3fc';
+        else if (GameState.windCondition === 'HEADWIND 1.5') gaugeTag.style.color = '#5df3a7';
+        else gaugeTag.style.color = '#fca5a5';
+      }
+      const instabFill = document.getElementById('instability-fill');
+      if (instabFill) instabFill.style.width = '0%';
+      const instabText = document.getElementById('instability-text');
+      if (instabText) instabText.textContent = '0.0 / 8.0';
+
+      const timingText = document.getElementById('timing-status-text');
+      if (timingText) {
+        timingText.textContent = 'SYNC WITH PEAK';
+        timingText.style.color = '#5cf1b0';
+      }
+
+      exportArenaState();
+    }
+
+    function handleSpacePress() {
+      const isLarge = (GameState.hillName === 'LARGE K120');
+      const totalLen = isLarge ? LARGE_INRUN_LENGTH : NORMAL_INRUN_LENGTH;
+
+      if (GameState.phase === 'INRUN') {
+        const distRemaining = totalLen - GameState.inrunS;
+        const timeToTable = distRemaining / Math.max(GameState.speed, 0.1);
+        if (timeToTable <= 0.20 && !GameState.takeoffLocked) {
+          lockTakeoff(GameState.jumpClock);
+        }
+      } else if (GameState.phase === 'FLIGHT') {
+        if (GameState.tablePassedTime !== null && !GameState.takeoffLocked) {
+          const elapsedSinceTable = GameState.jumpClock - GameState.tablePassedTime;
+          if (elapsedSinceTable <= 0.20) {
+            lockTakeoff(GameState.jumpClock);
+            applyRetroactiveTakeoffImpulse();
+          }
+        }
+      }
+    }
+
+    function lockTakeoff(pressTime) {
+      GameState.takeoffLocked = true;
+      GameState.takeoffPressTime = pressTime;
+
+      const k = Math.round((pressTime - 0.4) / 0.8);
+      const nearestPeak = 0.4 + 0.8 * k;
+      const o = pressTime - nearestPeak;
+      GameState.markerOffset = o;
+
+      const absO = Math.abs(o);
+      const isLarge = (GameState.hillName === 'LARGE K120');
+      const perfectWindow = isLarge ? 0.04 : 0.05;
+      const decaySpan = isLarge ? 0.16 : 0.15;
+
+      if (absO <= perfectWindow) {
+        GameState.multiplier = 1.0;
+      } else if (absO <= 0.20) {
+        GameState.multiplier = 1.0 - 0.6 * ((absO - perfectWindow) / decaySpan);
+      } else {
+        GameState.multiplier = 0.40;
+      }
+
+      playTakeoffSnap();
+
+      const timingText = document.getElementById('timing-status-text');
+      if (timingText) {
+        timingText.textContent = `LOCKED (${Math.round(GameState.multiplier * 100)}%)`;
+        timingText.style.color = GameState.multiplier >= 0.95 ? '#ffe866' : '#5df3a7';
+      }
+      exportArenaState();
+    }
+
+    function applyRetroactiveTakeoffImpulse() {
+      const dtFlight = GameState.jumpClock - GameState.tablePassedTime;
+      const baseImpulse = (GameState.hillName === 'LARGE K120') ? 3.8 : 3.5;
+      const verticalImpulse = baseImpulse * GameState.multiplier;
+      GameState.vy += verticalImpulse;
+      GameState.y += verticalImpulse * dtFlight;
+    }
+
+    /* ---------------------------------------------------------------------
+     * Physics Timestep Loop (120 Hz)
+     * --------------------------------------------------------------------- */
+    function stepPhysics() {
+      if (GameState.phase === 'READY') {
+        return;
+      }
+
+      GameState.jumpClock += PHYSICS_DT;
+
+      const isLarge = (GameState.hillName === 'LARGE K120');
+      const maxSpeed = isLarge ? 27.0 : 25.0;
+      const totalLen = isLarge ? LARGE_INRUN_LENGTH : NORMAL_INRUN_LENGTH;
+      const activeZ = isLarge ? -36 : 0;
+
+      // 1. IN-RUN STAGE
+      if (GameState.phase === 'INRUN') {
+        if (GameState.keyTuck) {
+          GameState.speed += 4.5 * PHYSICS_DT;
+        } else {
+          GameState.speed -= 6.0 * PHYSICS_DT;
+          if (GameState.speed < 0) GameState.speed = 0;
+        }
+        if (GameState.speed > maxSpeed) {
+          GameState.speed = maxSpeed;
+        }
+
+        GameState.inrunS += GameState.speed * PHYSICS_DT;
+
+        if (GameState.inrunS < totalLen) {
+          const st = getInrunState(GameState.inrunS, GameState.hillName);
+          GameState.x = st.x;
+          GameState.y = st.y;
+          skierRoot.position.set(st.x, st.y, activeZ);
+          skierRoot.rotation.set(0, 0, -st.angle);
+
+          if (GameState.keyTuck) {
+            setSkierPose('tuck');
+          } else {
+            setSkierPose('upright');
+          }
+        } else {
+          // Takeoff table end
+          GameState.phase = 'FLIGHT';
+          GameState.tableEndPassed = true;
+          GameState.tablePassedTime = GameState.jumpClock;
+          GameState.inrunS = totalLen;
+          GameState.x = 0;
+          GameState.y = 0;
+
+          GameState.vx = GameState.speed * Math.cos(-TABLE_ANGLE_RAD);
+          GameState.vy = GameState.speed * Math.sin(-TABLE_ANGLE_RAD);
+
+          if (GameState.takeoffLocked) {
+            const baseImpulse = isLarge ? 3.8 : 3.5;
+            GameState.vy += baseImpulse * GameState.multiplier;
+          }
+
+          document.getElementById('timing-bar-container').style.display = 'none';
+          document.getElementById('flight-status-container').style.display = 'flex';
+          document.getElementById('hud-card-theta').style.display = 'block';
+          document.getElementById('hud-card-wobbles').style.display = 'block';
+
+          const badge = document.getElementById('flight-telemark-badge');
+          if (badge) {
+            badge.textContent = 'PARALLEL (Press T within 0.20s of ground)';
+            badge.className = 'badge-style badge-parallel';
+          }
+
+          setSkierPose('flight', { theta: GameState.theta });
+          exportArenaState();
+        }
+      }
+
+      // 2. FLIGHT STAGE
+      else if (GameState.phase === 'FLIGHT') {
+        // Automatic takeoff if no accepted press by +0.20s after table end
+        if (!GameState.takeoffLocked && (GameState.jumpClock - GameState.tablePassedTime) >= 0.20) {
+          GameState.takeoffLocked = true;
+          GameState.takeoffPressTime = null;
+          GameState.markerOffset = null;
+          GameState.multiplier = 0.40;
+          applyRetroactiveTakeoffImpulse();
+        }
+
+        // θ adjustment at 20°/s
+        if (GameState.keyPitchUp) {
+          GameState.theta += 20.0 * PHYSICS_DT;
+        }
+        if (GameState.keyPitchDown) {
+          GameState.theta -= 20.0 * PHYSICS_DT;
+        }
+        GameState.theta = Math.max(0, Math.min(40.0, GameState.theta));
+
+        // Flight Wobble detection:
+        // Each entry of θ into stall zone (θ > 25°) counts ONE wobble
+        if (GameState.theta > 25.0) {
+          if (!GameState.inStallZone) {
+            GameState.inStallZone = true;
+            GameState.wobbleCount++;
+            GameState.flutterTimer = 0.40; // 0.4s visible ski flutter
+          }
+          // Instability accumulator
+          GameState.instability += (GameState.theta - 25.0) * 1.0 * PHYSICS_DT;
+          if (GameState.instability >= 8.0) {
+            handleMidAirCrash();
+            return;
+          }
+        } else {
+          // Exited stall zone
+          GameState.inStallZone = false;
+        }
+
+        if (GameState.flutterTimer > 0) {
+          GameState.flutterTimer -= PHYSICS_DT;
+        }
+
+        let lift = 0;
+        if (GameState.theta <= 15.0) {
+          lift = 0.16 * GameState.theta;
+        } else if (GameState.theta <= 25.0) {
+          lift = 2.4;
+        } else {
+          lift = 2.4 - 0.32 * (GameState.theta - 25.0);
+        }
+
+        // Wind corrections:
+        // HEADWIND 1.5 adds lift +0.45 m/s² and drag +0.10 m/s²;
+        // TAILWIND 1.0 adds lift -0.45 m/s² and drag -0.10 m/s²;
+        // CALM adds nothing.
+        const totalLift = lift + GameState.windLift;
+        const totalDrag = 0.25 + GameState.windDrag;
+
+        const ay = -9.8 + totalLift;
+        const ax = -totalDrag;
+
+        GameState.vx += ax * PHYSICS_DT;
+        GameState.vy += ay * PHYSICS_DT;
+        GameState.x += GameState.vx * PHYSICS_DT;
+        GameState.y += GameState.vy * PHYSICS_DT;
+        GameState.speed = Math.hypot(GameState.vx, GameState.vy);
+
+        const flightPitch = Math.atan2(GameState.vy, GameState.vx);
+        skierRoot.position.set(GameState.x, GameState.y, activeZ);
+        skierRoot.rotation.set(0, 0, flightPitch);
+        setSkierPose('flight', { theta: GameState.theta, flutter: GameState.flutterTimer > 0 });
+
+        const hillY = getLandingHillY(GameState.x, GameState.hillName);
+        if (GameState.x >= 0 && GameState.y <= hillY) {
+          handleTouchdown(hillY);
+        }
+      }
+
+      // 3. POST-LANDING / CRASH SLIDE
+      else if (GameState.phase === 'LANDED') {
+        GameState.x += GameState.vx * PHYSICS_DT;
+        const hillY = getLandingHillY(GameState.x, GameState.hillName);
+        GameState.y = hillY;
+        const slope = getLandingHillSlope(GameState.x, GameState.hillName);
+        const slopeAngle = Math.atan(slope);
+
+        GameState.vx *= Math.pow(0.985, PHYSICS_DT * 60);
+        GameState.speed = Math.abs(GameState.vx);
+
+        skierRoot.position.set(GameState.x, hillY, activeZ);
+        skierRoot.rotation.set(0, 0, slopeAngle);
+
+        if (GameState.status === 'STOOD') {
+          if (GameState.telemarkLanded) {
+            setSkierPose('telemark');
+          } else {
+            setSkierPose('parallel');
+          }
+        } else {
+          GameState.crashTumbleTimer += PHYSICS_DT;
+          setSkierPose('ragdoll', { spin: GameState.crashTumbleTimer * 8 });
+          emitTumbleSpray(PHYSICS_DT, activeZ);
+        }
+      } else if (GameState.phase === 'CRASHED') {
+        GameState.crashTumbleTimer += PHYSICS_DT;
+        GameState.x += GameState.vx * PHYSICS_DT;
+        const hillY = getLandingHillY(GameState.x, GameState.hillName);
+        GameState.y = hillY;
+        GameState.vx *= Math.pow(0.96, PHYSICS_DT * 60);
+        GameState.speed = Math.abs(GameState.vx);
+
+        skierRoot.position.set(GameState.x, hillY, activeZ);
+        setSkierPose('ragdoll', { spin: GameState.crashTumbleTimer * 12 });
+        emitTumbleSpray(PHYSICS_DT, activeZ);
+      }
+    }
+
+    function handleTouchdown(hillY) {
+      GameState.phase = 'LANDED';
+      GameState.touchdownPoint = { x: GameState.x, y: hillY };
+      GameState.touchdownTime = GameState.jumpClock;
+
+      if (GameState.telemarkPressTime !== null) {
+        GameState.telemarkPressLeadTime = Math.max(0, GameState.touchdownTime - GameState.telemarkPressTime);
+      } else {
+        GameState.telemarkPressLeadTime = null;
+      }
+
+      const activeZ = (GameState.hillName === 'LARGE K120') ? -36 : 0;
+      const phi = Math.atan2(GameState.vy, GameState.vx) * (180 / Math.PI);
+      const slope = getLandingHillSlope(GameState.x, GameState.hillName);
+      const sigma = Math.atan(slope) * (180 / Math.PI);
+      const D = Math.abs((phi + GameState.theta) - sigma);
+      GameState.landingDeviation = D;
+
+      const rawDistance = Math.hypot(GameState.x, hillY);
+
+      // Trigger deterministic landing snow spray sized with impact speed
+      triggerTouchdownSpray(GameState.x, hillY, activeZ, Math.hypot(GameState.vx, GameState.vy));
+
+      if (D > 15.0) {
+        GameState.status = 'FELL';
+        GameState.landingLabel = 'FELL';
+        GameState.telemarkLanded = false;
+        GameState.landingDeduction = 6;
+        GameState.measuredDistance = Math.floor((rawDistance * 0.8) * 2) / 2;
+        playCrashCrunch();
+        playResultChime(false);
+      } else {
+        GameState.status = 'STOOD';
+        GameState.measuredDistance = Math.floor(rawDistance * 2) / 2;
+        if (GameState.telemarkArmed) {
+          GameState.landingLabel = 'TELEMARK';
+          GameState.telemarkLanded = true;
+          GameState.landingDeduction = 0;
+          setSkierPose('telemark');
+        } else {
+          GameState.landingLabel = 'PARALLEL';
+          GameState.telemarkLanded = false;
+          GameState.landingDeduction = 2;
+          setSkierPose('parallel');
+        }
+        playLandingThud();
+        playResultChime(true);
+      }
+
+      computeScorecard();
+
+      if (GameState.isContest) {
+        GameState.contestPlayerJumps[GameState.contestJumpIndex - 1] = {
+          jumpIndex: GameState.contestJumpIndex,
+          hillName: GameState.hillName,
+          gate: GameState.gate,
+          dist: GameState.measuredDistance,
+          distPts: GameState.distancePoints,
+          judgePts: GameState.judgesPoints,
+          total: GameState.totalPoints,
+          status: GameState.status,
+          landingLabel: GameState.landingLabel
+        };
+      }
+
+      showResultScorecard();
+    }
+
+    function handleMidAirCrash() {
+      GameState.phase = 'CRASHED';
+      GameState.status = 'CRASHED';
+      GameState.landingLabel = 'CRASHED';
+      GameState.telemarkLanded = false;
+      GameState.landingDeduction = 6;
+      GameState.touchdownPoint = { x: GameState.x, y: GameState.y };
+      GameState.touchdownTime = GameState.jumpClock;
+
+      if (GameState.telemarkPressTime !== null) {
+        GameState.telemarkPressLeadTime = Math.max(0, GameState.touchdownTime - GameState.telemarkPressTime);
+      } else {
+        GameState.telemarkPressLeadTime = null;
+      }
+
+      const activeZ = (GameState.hillName === 'LARGE K120') ? -36 : 0;
+      const rawDist = Math.hypot(GameState.x, GameState.y);
+      GameState.measuredDistance = Math.floor((rawDist * 0.8) * 2) / 2;
+
+      // Deterministic spray burst at crash impact
+      triggerTouchdownSpray(GameState.x, GameState.y, activeZ, Math.hypot(GameState.vx, GameState.vy));
+
+      playCrashCrunch();
+      playResultChime(false);
+      computeScorecard();
+
+      if (GameState.isContest) {
+        // "During contest jumps: a mid-air crash scores 0 distance points for that jump (the jump row records distance 0.0),
+        // while the judges keep their partial scores max(0, 20 − wobbles − 6) each."
+        GameState.measuredDistance = 0.0;
+        GameState.distancePoints = 0.0;
+        GameState.totalPoints = GameState.judgesPoints;
+
+        GameState.contestPlayerJumps[GameState.contestJumpIndex - 1] = {
+          jumpIndex: GameState.contestJumpIndex,
+          hillName: GameState.hillName,
+          gate: GameState.gate,
+          dist: 0.0,
+          distPts: 0.0,
+          judgePts: GameState.judgesPoints,
+          total: GameState.totalPoints,
+          status: 'CRASHED',
+          landingLabel: 'CRASHED'
+        };
+      }
+
+      showResultScorecard();
+    }
+
+    /* ---------------------------------------------------------------------
+     * Three-Judge Scorecard & Points Computation
+     * --------------------------------------------------------------------- */
+    function computeScorecard() {
+      const d = GameState.measuredDistance;
+      const isLarge = (GameState.hillName === 'LARGE K120');
+      const kPoint = isLarge ? 120 : 90;
+
+      // Distance points formula: max(0, 60 + 1.8 * (d - K))
+      GameState.distancePoints = Math.max(0, 60 + 1.8 * (d - kPoint));
+      GameState.distancePoints = Math.round(GameState.distancePoints * 10) / 10;
+
+      // Deductions
+      GameState.wobbleDeduction = GameState.wobbleCount * 1;
+
+      // Each judge starts from 20 points
+      const judgeScore = Math.max(0, 20 - GameState.wobbleDeduction - GameState.landingDeduction);
+      GameState.judgeScores = [judgeScore, judgeScore, judgeScore];
+
+      // Judges' points are the sum of the three judges
+      GameState.judgesPoints = judgeScore * 3;
+      GameState.totalPoints = Math.round((GameState.distancePoints + GameState.judgesPoints) * 10) / 10;
+    }
+
+    function showResultScorecard() {
+      document.getElementById('flight-status-container').style.display = 'none';
+      document.getElementById('hud-card-dist').style.display = 'block';
+      document.getElementById('hud-dist').innerHTML = `${GameState.measuredDistance.toFixed(1)}<small>m</small>`;
+
+      const modal = document.getElementById('result-modal');
+
+      // Subtitle with Session Jump # and Wind Condition
+      const subTitleEl = document.getElementById('result-subtitle');
+      if (subTitleEl) {
+        if (GameState.isContest) {
+          subTitleEl.textContent = `3-Jump Contest (Jump ${GameState.contestJumpIndex}/3) • ${GameState.hillName} • Wind: ${GameState.windCondition}`;
+        } else if (GameState.training) {
+          subTitleEl.textContent = `Training Run • ${GameState.hillName} • Gate ${GameState.gate} • Wind: ${GameState.windCondition}`;
+        } else {
+          subTitleEl.textContent = `Official Competition Scoring • Jump #${GameState.jumpNumber} • ${GameState.hillName} • Wind: ${GameState.windCondition}`;
+        }
+      }
+
+      // Distance & Benchmark
+      document.getElementById('res-distance').textContent = `${GameState.measuredDistance.toFixed(1)} m`;
+      const statusWrap = document.getElementById('res-status-wrap');
+      let badgeClass = 'badge-telemark';
+      if (GameState.landingLabel === 'PARALLEL') badgeClass = 'badge-parallel';
+      else if (GameState.landingLabel === 'FELL') badgeClass = 'badge-fell';
+      else if (GameState.landingLabel === 'CRASHED') badgeClass = 'badge-crashed';
+      statusWrap.innerHTML = `<span class="badge-style ${badgeClass}">${GameState.landingLabel}</span>`;
+
+      const isLarge = (GameState.hillName === 'LARGE K120');
+      const kPoint = isLarge ? 120 : 90;
+      const formulaEl = document.getElementById('res-dist-formula');
+      if (formulaEl) {
+        formulaEl.textContent = `max(0, 60 + 1.8 × (d − ${kPoint})) =`;
+      }
+      document.getElementById('res-dist-points').textContent = `${GameState.distancePoints.toFixed(1)} pts`;
+
+      // 3 Judges Breakdown
+      const wobText = `${GameState.wobbleCount} (wobbles)`;
+      const landText = `${GameState.landingDeduction} (${GameState.landingLabel})`;
+      const arithmetic = `20 - ${wobText} - ${landText} =`;
+      const jScoreText = `${GameState.judgeScores[0].toFixed(1)} pts`;
+
+      document.getElementById('j1-breakdown').textContent = arithmetic;
+      document.getElementById('j1-score').textContent = jScoreText;
+      document.getElementById('j2-breakdown').textContent = arithmetic;
+      document.getElementById('j2-score').textContent = jScoreText;
+      document.getElementById('j3-breakdown').textContent = arithmetic;
+      document.getElementById('j3-score').textContent = jScoreText;
+
+      // Judges Total
+      document.getElementById('res-judges-points').textContent = `${GameState.judgesPoints.toFixed(1)} pts`;
+
+      // Final Total Row: In training mode replaced with "TRAINING RUN"
+      const totalRowWrap = document.getElementById('res-total-row-wrap');
+      if (totalRowWrap) {
+        if (GameState.training) {
+          totalRowWrap.innerHTML = `<div style="width:100%; text-align:center; font-size:20px; font-weight:900; letter-spacing:2.5px; color:#fde047;">TRAINING RUN</div>`;
+        } else {
+          totalRowWrap.innerHTML = `<div class="total-title" id="res-total-title">Total Points</div><div class="total-value" id="res-total-points">${GameState.totalPoints.toFixed(1)} pts</div>`;
+        }
+      }
+
+      const actBtn = document.getElementById('res-action-btn');
+      if (actBtn) {
+        if (GameState.isContest) {
+          actBtn.textContent = 'Press Enter for Contest Standings • R to Abort Contest';
+        } else if (GameState.training) {
+          actBtn.textContent = 'Press Enter or R to Retry Training Run';
+        } else {
+          actBtn.textContent = 'Press Enter for Selection Screen • R to Reset';
+        }
+      }
+
+      modal.style.display = 'flex';
+      exportArenaState();
+    }
+
+    function getStandingsData() {
+      const jIdx = GameState.contestJumpIndex; // 1, 2, or 3
+      let playerCum = 0;
+      for (let i = 0; i < GameState.contestPlayerJumps.length; i++) {
+        if (GameState.contestPlayerJumps[i]) {
+          playerCum += GameState.contestPlayerJumps[i].total;
+        }
+      }
+      playerCum = Math.round(playerCum * 10) / 10;
+
+      let kestrelCum = 0;
+      let voleyCum = 0;
+      for (let i = 0; i < jIdx; i++) {
+        kestrelCum += RIVALS.kestrel.jumps[i].total;
+        voleyCum += RIVALS.voley.jumps[i].total;
+      }
+      kestrelCum = Math.round(kestrelCum * 10) / 10;
+      voleyCum = Math.round(voleyCum * 10) / 10;
+
+      const list = [
+        { name: 'YOU (Player)', isPlayer: true, cumTotal: playerCum, lastJump: GameState.contestPlayerJumps[jIdx - 1] },
+        { name: 'AI KESTREL', isPlayer: false, cumTotal: kestrelCum, lastJump: RIVALS.kestrel.jumps[jIdx - 1] },
+        { name: 'AI VOLEY', isPlayer: false, cumTotal: voleyCum, lastJump: RIVALS.voley.jumps[jIdx - 1] }
+      ];
+
+      // Sort by cumulative total descending
+      list.sort((a, b) => b.cumTotal - a.cumTotal);
+      list.forEach((item, idx) => {
+        item.rank = idx + 1;
+      });
+      return list;
+    }
+
+    function showStandingsBoard() {
+      document.getElementById('result-modal').style.display = 'none';
+      const standingsModal = document.getElementById('standings-modal');
+      const tbody = document.getElementById('standings-tbody');
+      const titleEl = document.getElementById('standings-title');
+      const subtitleEl = document.getElementById('standings-subtitle');
+      const actionBtn = document.getElementById('standings-action-btn');
+
+      const jIdx = GameState.contestJumpIndex;
+      const isFinal = (jIdx >= 3);
+
+      if (isFinal) {
+        titleEl.textContent = 'Final Tournament Standings';
+        subtitleEl.textContent = 'Three-Jump Contest • Final Results & Podium Places 1 / 2 / 3';
+        actionBtn.textContent = 'Press Enter to Return to Selection Screen • R to Reset';
+      } else {
+        titleEl.textContent = `Tournament Standings (Jump ${jIdx}/3)`;
+        subtitleEl.textContent = `Cumulative Leaderboard after Jump ${jIdx} of 3`;
+        actionBtn.textContent = `Press Enter for Jump ${jIdx + 1}/3 Setup • R to Abort Contest`;
+      }
+
+      const list = getStandingsData();
+      let html = '';
+      list.forEach(c => {
+        const rowClass = c.isPlayer ? 'standings-row-player' : '';
+        const rankClass = `rank-${c.rank}`;
+        const d = c.lastJump ? c.lastJump.dist.toFixed(1) + 'm' : '—';
+        const dp = c.lastJump ? c.lastJump.distPts.toFixed(1) : '—';
+        const jp = c.lastJump ? c.lastJump.judgePts.toFixed(1) : '—';
+        const jt = c.lastJump ? c.lastJump.total.toFixed(1) : '—';
+        html += `<tr class="${rowClass}">
+          <td style="text-align:center;"><span class="standings-rank-badge ${rankClass}">${c.rank}</span></td>
+          <td style="font-weight:700;">${c.name}</td>
+          <td style="text-align:right;">${d}</td>
+          <td style="text-align:right;">${dp}</td>
+          <td style="text-align:right;">${jp}</td>
+          <td style="text-align:right; font-weight:700; color:#38bdf8;">${jt}</td>
+          <td style="text-align:right; font-weight:800; color:#5eead4; font-size:13px;">${c.cumTotal.toFixed(1)}</td>
+        </tr>`;
+      });
+      tbody.innerHTML = html;
+
+      standingsModal.style.display = 'flex';
+      exportArenaState();
+    }
+
+    /* ---------------------------------------------------------------------
+     * Camera Management
+     * Smooth side-follow camera that tracks skier and holds final framing.
+     * --------------------------------------------------------------------- */
+    const cameraTarget = new THREE.Vector3();
+    const desiredCamPos = new THREE.Vector3();
+    let cameraFrozen = false;
+
+    function updateCamera(delta) {
+      const isLarge = (GameState.hillName === 'LARGE K120');
+      const activeZ = isLarge ? -36 : 0;
+
+      if (GameState.phase === 'READY') {
+        const cfg = getGateConfig(GameState.hillName, GameState.gate);
+        const st0 = getInrunState(cfg.startS, GameState.hillName);
+        desiredCamPos.set(st0.x + 9, st0.y + 3.2, activeZ + 11);
+        cameraTarget.set(st0.x + 2, st0.y, activeZ);
+      } else if (GameState.phase === 'INRUN') {
+        desiredCamPos.set(GameState.x + 8.5, GameState.y + 4.2, activeZ + 13);
+        cameraTarget.set(GameState.x + 4.0, GameState.y - 0.5, activeZ);
+      } else if (GameState.phase === 'FLIGHT') {
+        desiredCamPos.set(GameState.x + 10.0, GameState.y + 5.5, activeZ + 17.5);
+        cameraTarget.set(GameState.x + 6.0, GameState.y - 2.0, activeZ);
+      } else if (GameState.phase === 'LANDED' || GameState.phase === 'CRASHED') {
+        if (!cameraFrozen) {
+          desiredCamPos.set(GameState.x + 10.0, GameState.y + 5.0, activeZ + 16);
+          cameraTarget.set(GameState.x + 4.0, GameState.y, activeZ);
+          cameraFrozen = true;
+        }
+      }
+
+      if (GameState.phase !== 'LANDED' && GameState.phase !== 'CRASHED') {
+        cameraFrozen = false;
+      }
+
+      const smoothFactor = cameraFrozen ? 0.05 : 0.08;
+      camera.position.lerp(desiredCamPos, smoothFactor);
+      camera.lookAt(cameraTarget);
+    }
+
+    /* ---------------------------------------------------------------------
+     * UI & HUD Rendering Loop
+     * --------------------------------------------------------------------- */
+    function updateHUD() {
+      document.getElementById('hud-speed').innerHTML = `${GameState.speed.toFixed(1)}<small>m/s</small>`;
+
+      // HUD Jump & Wind row updates
+      const hudJump = document.getElementById('hud-jump');
+      if (hudJump) {
+        hudJump.textContent = GameState.isContest ? `${GameState.contestJumpIndex}/3` : `#${GameState.jumpNumber}`;
+      }
+      const hudWind = document.getElementById('hud-wind');
+      if (hudWind) {
+        hudWind.textContent = GameState.windCondition;
+        if (GameState.windCondition === 'CALM') hudWind.style.color = '#7dd3fc';
+        else if (GameState.windCondition === 'HEADWIND 1.5') hudWind.style.color = '#5df3a7';
+        else hudWind.style.color = '#fca5a5';
+      }
+
+      // Altitude tape live calculation
+      const currentHillY = getLandingHillY(GameState.x, GameState.hillName);
+      let altitude = 0;
+      if (GameState.phase === 'FLIGHT') {
+        altitude = Math.max(0, GameState.y - currentHillY);
+      } else if (GameState.phase === 'READY' || GameState.phase === 'INRUN') {
+        altitude = Math.max(0, GameState.y - currentHillY);
+      } else {
+        altitude = 0.0;
+      }
+
+      const altReadout = document.getElementById('alt-readout');
+      if (altReadout) {
+        altReadout.innerHTML = `${altitude.toFixed(1)}<small style="font-size:10px; color:#94a3b8; font-weight:400; margin-left:2px;">m</small>`;
+      }
+      const altPointer = document.getElementById('alt-pointer');
+      if (altPointer) {
+        const altFrac = Math.max(0, Math.min(1.0, altitude / 20.0));
+        const topPx = (1.0 - altFrac) * 86;
+        altPointer.style.top = `${topPx.toFixed(1)}px`;
+      }
+
+      if (GameState.phase === 'FLIGHT') {
+        document.getElementById('hud-theta').innerHTML = `${GameState.theta.toFixed(1)}<small>°</small>`;
+        document.getElementById('hud-wobbles').textContent = GameState.wobbleCount;
+
+        // Attack-Angle live needle tracking
+        const needleEl = document.getElementById('gauge-needle');
+        if (needleEl) {
+          const u = Math.max(0, Math.min(1.0, GameState.theta / 40.0));
+          const nx = 100 - 58 * Math.cos(u * Math.PI);
+          const ny = 90 - 58 * Math.sin(u * Math.PI);
+          needleEl.setAttribute('x2', nx.toFixed(1));
+          needleEl.setAttribute('y2', ny.toFixed(1));
+        }
+
+        const gaugeTheta = document.getElementById('gauge-theta-val');
+        if (gaugeTheta) {
+          gaugeTheta.textContent = `${GameState.theta.toFixed(1)}°`;
+        }
+
+        const gaugeTag = document.getElementById('gauge-wind-tag');
+        if (gaugeTag) {
+          gaugeTag.textContent = GameState.windCondition;
+          if (GameState.windCondition === 'CALM') gaugeTag.style.color = '#7dd3fc';
+          else if (GameState.windCondition === 'HEADWIND 1.5') gaugeTag.style.color = '#5df3a7';
+          else gaugeTag.style.color = '#fca5a5';
+        }
+
+        // Instability accumulator bar
+        const instabFill = document.getElementById('instability-fill');
+        if (instabFill) {
+          const pct = Math.min(100, (GameState.instability / 8.0) * 100);
+          instabFill.style.width = `${pct}%`;
+        }
+        const instabText = document.getElementById('instability-text');
+        if (instabText) {
+          instabText.textContent = `${GameState.instability.toFixed(1)} / 8.0`;
+        }
+      }
+
+      if (GameState.phase === 'INRUN') {
+        const t = GameState.jumpClock;
+        const u = (t / 0.8) % 1.0;
+        const val = 1.0 - 2.0 * Math.abs(2.0 * u - 1.0);
+        const pct = 50 + val * 40;
+        const markerEl = document.getElementById('timing-marker');
+        if (markerEl) {
+          markerEl.style.left = `${pct}%`;
+          const isLarge = (GameState.hillName === 'LARGE K120');
+          const perfectFrac = isLarge ? 0.10 : 0.125;
+          if (Math.abs(val - 1.0) <= perfectFrac) {
+            markerEl.style.background = '#ffe866';
+            markerEl.style.boxShadow = '0 0 12px #ffe866';
+          } else {
+            markerEl.style.background = '#ffffff';
+            markerEl.style.boxShadow = '0 0 8px #ffffff';
+          }
+        }
+      }
+
+      // Contest HUD extra information
+      if (GameState.isContest) {
+        const standingsList = getStandingsData();
+        const playerItem = standingsList.find(s => s.isPlayer) || { rank: 1, cumTotal: 0 };
+        const hudHillStats = document.getElementById('hud-hill-stats');
+        if (hudHillStats) {
+          hudHillStats.textContent = `CONTEST JUMP ${GameState.contestJumpIndex}/3 • RANK: ${playerItem.rank} • TOTAL: ${playerItem.cumTotal.toFixed(1)} PTS`;
+        }
+      }
+    }
+
+    /* ---------------------------------------------------------------------
+     * Windsock Animation
+     * Dynamically orients windsock based on current wind condition
+     * --------------------------------------------------------------------- */
+    function updateWindsock(time) {
+      if (!windsockPivot) return;
+      const wind = GameState.currentWind;
+      if (!wind || wind.name === 'CALM') {
+        const droop = -Math.PI * 0.42 + Math.sin(time * 1.5) * 0.04;
+        windsockPivot.rotation.set(0, Math.sin(time * 0.8) * 0.15, droop);
+      } else if (wind.name === 'HEADWIND 1.5') {
+        const flutter = Math.sin(time * 14) * 0.07;
+        const droop = 0.04 + Math.sin(time * 7) * 0.03;
+        windsockPivot.rotation.set(Math.sin(time * 9) * 0.05, 0, Math.PI - droop + flutter);
+      } else if (wind.name === 'TAILWIND 1.0') {
+        const flutter = Math.sin(time * 11) * 0.06;
+        const droop = -0.12 + Math.sin(time * 6) * 0.04;
+        windsockPivot.rotation.set(Math.sin(time * 8) * 0.05, 0, droop + flutter);
+      }
+    }
+
+    /* ---------------------------------------------------------------------
+     * Read-Only State Export (window.__arena_state)
+     * All properties required by C1, C2, C3, C4, and C5
+     * --------------------------------------------------------------------- */
+    function exportArenaState() {
+      const standingsList = GameState.isContest ? getStandingsData() : null;
+
+      const stateSnapshot = {
+        // C1 properties
+        phase: GameState.phase.toLowerCase(),
+        jump_clock: GameState.jumpClock,
+        jumpClock: GameState.jumpClock,
+        "jump clock": GameState.jumpClock,
+
+        speed: GameState.speed,
+
+        theta: GameState.theta,
+        "θ": GameState.theta,
+
+        instability: GameState.instability,
+
+        takeoff_press_time: GameState.takeoffPressTime,
+        takeoffPressTime: GameState.takeoffPressTime,
+        "takeoff press time": GameState.takeoffPressTime,
+
+        marker_offset: GameState.markerOffset,
+        markerOffset: GameState.markerOffset,
+        "marker offset o": GameState.markerOffset,
+        o: GameState.markerOffset,
+
+        multiplier: GameState.multiplier,
+
+        touchdown_point: GameState.touchdownPoint,
+        touchdownPoint: GameState.touchdownPoint,
+        "touchdown point": GameState.touchdownPoint,
+
+        measured_distance: GameState.measuredDistance,
+        measuredDistance: GameState.measuredDistance,
+        "measured distance": GameState.measuredDistance,
+
+        status: GameState.status,
+
+        // C2 additions: Wobbles, Telemark, Judges, Points
+        wobble_count: GameState.wobbleCount,
+        wobbleCount: GameState.wobbleCount,
+        "wobble count": GameState.wobbleCount,
+        wobbles: GameState.wobbleCount,
+
+        telemark_armed: GameState.telemarkArmed,
+        telemarkArmed: GameState.telemarkArmed,
+        "telemark armed": GameState.telemarkArmed,
+
+        telemark_landed: GameState.telemarkLanded,
+        telemarkLanded: GameState.telemarkLanded,
+        "telemark landed": GameState.telemarkLanded,
+
+        landing_label: GameState.landingLabel,
+        landingLabel: GameState.landingLabel,
+        landing_style: GameState.landingLabel,
+        landingStyle: GameState.landingLabel,
+
+        judge_scores: GameState.judgeScores,
+        judgeScores: GameState.judgeScores,
+        judges: [
+          { name: "Judge 1", score: GameState.judgeScores[0], deductions: { wobbles: GameState.wobbleDeduction, landing: GameState.landingDeduction } },
+          { name: "Judge 2", score: GameState.judgeScores[1], deductions: { wobbles: GameState.wobbleDeduction, landing: GameState.landingDeduction } },
+          { name: "Judge 3", score: GameState.judgeScores[2], deductions: { wobbles: GameState.wobbleDeduction, landing: GameState.landingDeduction } }
+        ],
+        judge_1_score: GameState.judgeScores[0],
+        judge_2_score: GameState.judgeScores[1],
+        judge_3_score: GameState.judgeScores[2],
+        wobble_deduction: GameState.wobbleDeduction,
+        landing_deduction: GameState.landingDeduction,
+
+        distance_points: GameState.distancePoints,
+        distancePoints: GameState.distancePoints,
+        "distance points": GameState.distancePoints,
+
+        judges_points: GameState.judgesPoints,
+        judgesPoints: GameState.judgesPoints,
+        "judges points": GameState.judgesPoints,
+
+        total_points: GameState.totalPoints,
+        totalPoints: GameState.totalPoints,
+        "total points": GameState.totalPoints,
+
+        // C3 additions: Session Jump, Wind, Wind Corrections
+        jump_number: GameState.jumpNumber,
+        jumpNumber: GameState.jumpNumber,
+        "jump number": GameState.jumpNumber,
+
+        wind_condition: GameState.windCondition,
+        windCondition: GameState.windCondition,
+        "wind condition": GameState.windCondition,
+
+        wind_lift: GameState.windLift,
+        windLift: GameState.windLift,
+        "wind lift": GameState.windLift,
+
+        wind_drag: GameState.windDrag,
+        windDrag: GameState.windDrag,
+        "wind drag": GameState.windDrag,
+
+        // C4 additions: Hill Name, Gate, In-run Length in force, Training flag
+        hill_name: GameState.hillName,
+        hillName: GameState.hillName,
+        "hill name": GameState.hillName,
+        hill: GameState.hillName,
+
+        gate: GameState.gate,
+
+        in_run_length: GameState.inrunLengthInForce,
+        inrun_length: GameState.inrunLengthInForce,
+        inrunLength: GameState.inrunLengthInForce,
+        "in-run length in force": GameState.inrunLengthInForce,
+        "in-run length": GameState.inrunLengthInForce,
+
+        training: GameState.training,
+        is_training: GameState.training,
+        "training flag": GameState.training,
+        training_mode: GameState.training,
+
+        // C5 additions: Telemark press lead time, contest state, standings
+        telemark_press_lead_time: GameState.telemarkPressLeadTime,
+        telemarkPressLeadTime: GameState.telemarkPressLeadTime,
+        "telemark press lead time": GameState.telemarkPressLeadTime,
+
+        contest_state: GameState.isContest ? {
+          active: true,
+          jump_index: GameState.contestJumpIndex,
+          jumpIndex: GameState.contestJumpIndex,
+          per_jump_rows: GameState.contestPlayerJumps,
+          perJumpRows: GameState.contestPlayerJumps,
+          cumulative_totals: {
+            player: (standingsList && standingsList.find(s => s.isPlayer)) ? standingsList.find(s => s.isPlayer).cumTotal : 0,
+            kestrel: (standingsList && standingsList.find(s => s.name === 'AI KESTREL')) ? standingsList.find(s => s.name === 'AI KESTREL').cumTotal : 0,
+            voley: (standingsList && standingsList.find(s => s.name === 'AI VOLEY')) ? standingsList.find(s => s.name === 'AI VOLEY').cumTotal : 0
+          },
+          standings: standingsList
+        } : null,
+        contestState: GameState.isContest ? {
+          active: true,
+          jump_index: GameState.contestJumpIndex,
+          jumpIndex: GameState.contestJumpIndex,
+          per_jump_rows: GameState.contestPlayerJumps,
+          standings: standingsList
+        } : null,
+        "contest state": GameState.isContest ? {
+          active: true,
+          jump_index: GameState.contestJumpIndex,
+          standings: standingsList
+        } : null,
+
+        standings: standingsList
+      };
+
+      try {
+        window.__arena_state = Object.freeze(stateSnapshot);
+      } catch (e) {
+        window.__arena_state = stateSnapshot;
+      }
+    }
+
+    /* ---------------------------------------------------------------------
+     * Main Animation & Render Loop
+     * --------------------------------------------------------------------- */
+    let lastTime = performance.now();
+    let physicsAccumulator = 0;
+
+    function animate(currentTime) {
+      requestAnimationFrame(animate);
+
+      const delta = Math.min(0.1, (currentTime - lastTime) / 1000);
+      lastTime = currentTime;
+
+      // 1. Aurora slow drift
+      auroraBands.forEach((b) => {
+        const pos = b.geo.attributes.position;
+        const base = b.basePos;
+        const t = currentTime * 0.001 * b.speed;
+        for (let j = 0; j < pos.count; j++) {
+          const x = base.getX(j);
+          const y = base.getY(j);
+          const z = base.getZ(j);
+          pos.setZ(j, z + Math.sin(x * 0.04 + t) * 4.5);
+          pos.setY(j, y + Math.cos(x * 0.03 + t * 0.7) * 2.5);
+        }
+        pos.needsUpdate = true;
+      });
+
+      // 2. Flags flutter
+      flags.forEach((f) => {
+        const pos = f.geo.attributes.position;
+        const base = f.basePos;
+        const t = currentTime * 0.008 + f.phase;
+        for (let j = 0; j < pos.count; j++) {
+          const x = base.getX(j);
+          if (x > 0.1) {
+            pos.setZ(j, Math.sin(x * 5 + t) * 0.15 * (x / 1.2));
+          }
+        }
+        pos.needsUpdate = true;
+      });
+
+      // 3. Falling snow drift
+      const snowPositions = snowGeo.attributes.position;
+      for (let i = 0; i < snowCount; i++) {
+        let sy = snowPositions.getY(i) - delta * 4.5;
+        let sx = snowPositions.getX(i) + delta * 2.0;
+        if (sy < -65) sy = 35;
+        if (sx > 220) sx = -50;
+        snowPositions.setY(i, sy);
+        snowPositions.setX(i, sx);
+      }
+      snowPositions.needsUpdate = true;
+
+      // 4. Windsock orientation & dynamic flutter
+      updateWindsock(currentTime * 0.001);
+
+      // 5. Landing Snow Spray particles physics & drift
+      const sprayPositions = sprayGeo.attributes.position;
+      const sprayColorsAttr = sprayGeo.attributes.color;
+      for (let i = 0; i < SPRAY_COUNT; i++) {
+        const p = sprayParticles[i];
+        if (p.active) {
+          p.life -= delta;
+          if (p.life <= 0) {
+            p.active = false;
+            sprayPositions.setY(i, -500);
+            continue;
+          }
+          p.vy -= 9.8 * delta;
+          p.x += p.vx * delta;
+          p.y += p.vy * delta;
+          p.z += p.vz * delta;
+
+          const hillY = getLandingHillY(p.x);
+          if (p.y <= hillY) {
+            p.y = hillY + 0.04;
+            p.vy = 0;
+            p.vx *= 0.75;
+            p.vz *= 0.75;
+          }
+
+          sprayPositions.setXYZ(i, p.x, p.y, p.z);
+          const alpha = Math.max(0, p.life / p.maxLife);
+          sprayColorsAttr.setXYZ(i, 0.9 * alpha, 0.96 * alpha, 1.0 * alpha);
+        } else {
+          sprayPositions.setY(i, -500);
+        }
+      }
+      sprayPositions.needsUpdate = true;
+      sprayColorsAttr.needsUpdate = true;
+
+      // Fixed physics stepping
+      physicsAccumulator += delta;
+      while (physicsAccumulator >= PHYSICS_DT) {
+        stepPhysics();
+        physicsAccumulator -= PHYSICS_DT;
+      }
+
+      setWindVolume(GameState.speed / 25.0);
+      updateCamera(delta);
+      updateHUD();
+      exportArenaState();
+
+      renderer.render(scene, camera);
+    }
+
+    // Initialize in Ready state
+    resetToReady();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

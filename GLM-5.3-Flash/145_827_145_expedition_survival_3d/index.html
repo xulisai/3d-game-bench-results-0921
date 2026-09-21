@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Expedition Survival</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #141c12; }
+  body { font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; color: #f0eee2; -webkit-user-select: none; user-select: none; }
+  canvas { display: block; }
+  .hidden { display: none !important; }
+
+  #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 4;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(8,16,8,0.38) 100%); }
+
+  #hud { position: fixed; top: 16px; left: 16px; z-index: 5; }
+  #hud .stats { background: rgba(10,18,10,0.62); border: 1px solid rgba(255,255,255,0.25); border-radius: 10px;
+    padding: 10px 16px; font-size: 17px; line-height: 1.65; min-width: 250px; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
+  #hud b { color: #ffe08a; font-weight: 700; }
+  #warn-row { color: #ff9a6a; font-weight: 700; }
+
+  #controls-hint { position: fixed; right: 16px; bottom: 14px; z-index: 5; font-size: 13px; color: rgba(255,255,255,0.9);
+    background: rgba(10,18,10,0.55); border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; padding: 6px 12px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8); }
+
+  #msg { position: fixed; top: 16%; left: 50%; transform: translateX(-50%); z-index: 20; font-size: 26px; font-weight: 800;
+    letter-spacing: 1px; color: #ffd76a; text-shadow: 0 2px 8px rgba(0,0,0,0.9), 0 0 26px rgba(255,180,40,0.35);
+    opacity: 0; transition: opacity 0.15s ease; pointer-events: none; white-space: nowrap; }
+
+  #hint { position: fixed; bottom: 13%; left: 50%; transform: translateX(-50%); z-index: 6; font-size: 18px;
+    background: rgba(10,18,10,0.68); border: 1px solid rgba(255,255,255,0.28); border-radius: 10px; padding: 8px 18px;
+    opacity: 0; transition: opacity 0.15s; pointer-events: none; }
+
+  .overlay { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at center, rgba(6,12,6,0.22), rgba(6,12,6,0.55)); }
+  .panel { background: rgba(12,20,12,0.88); border: 1px solid rgba(255,255,255,0.22); border-radius: 16px;
+    padding: 28px 42px; text-align: center; box-shadow: 0 12px 48px rgba(0,0,0,0.55); max-width: 720px; }
+
+  .title { margin: 0; font-size: 46px; letter-spacing: 4px; color: #f3ecd2; text-shadow: 0 3px 10px rgba(0,0,0,0.7); }
+  .subtitle { margin-top: 8px; font-size: 15px; color: #b6c4a4; letter-spacing: 1px; }
+  .objective { margin: 18px 0 2px; font-size: 18px; color: #ffe9ad; }
+  .carryover { margin-top: 4px; font-size: 15px; color: #ccd6b4; }
+  .controls { display: flex; gap: 22px; justify-content: center; margin: 18px 0 4px; font-size: 15px; color: #e6e6d2; flex-wrap: wrap; }
+  .controls div { display: flex; align-items: center; gap: 7px; }
+  kbd { display: inline-block; min-width: 27px; padding: 2px 8px; background: #26321f; border: 1px solid #5c6e4c;
+    border-bottom-width: 3px; border-radius: 6px; font-family: inherit; font-size: 13px; font-weight: 700;
+    color: #ffe9ad; text-align: center; }
+  .start-line { margin-top: 20px; font-size: 18px; color: #fff; }
+  .btn { margin-top: 16px; font-family: inherit; font-size: 16px; font-weight: 700; letter-spacing: 1px; color: #1c2614;
+    background: #d9c07a; border: none; border-bottom: 3px solid #a88f4e; border-radius: 8px; padding: 10px 26px; cursor: pointer; }
+  .btn:hover { background: #e6d190; }
+  .pulse { animation: pulse 1.5s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  #end-heading { margin: 0 0 14px; font-size: 26px; letter-spacing: 2px; color: #ffe9ad; text-shadow: 0 2px 8px rgba(0,0,0,0.6); }
+  #end-sub { margin: -6px 0 12px; font-size: 14px; color: #b6c4a4; }
+  #end-stats { font-size: 19px; line-height: 1.9; color: #f0eee2; }
+  #end-score { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.18); font-size: 15px;
+    line-height: 1.8; color: #bec9a4; }
+  #end-score .score-total { font-size: 20px; color: #fff; font-weight: 700; margin-top: 4px; }
+  .grade-line { margin-top: 10px; font-size: 18px; color: #e6e6d2; }
+  .grade { font-size: 58px; font-weight: 800; vertical-align: middle; margin-left: 10px; text-shadow: 0 3px 12px rgba(0,0,0,0.6); }
+</style>
+</head>
+<body>
+  <div id="vignette"></div>
+
+  <div id="hud" class="hidden">
+    <div class="stats">
+      <div>Food: <b id="hud-food">20</b></div>
+      <div>Time: <b id="hud-time">120</b> s</div>
+      <div id="warn-row" class="hidden">WARNING: Low food. Sanctum may be unreachable.</div>
+    </div>
+  </div>
+
+  <div id="controls-hint" class="hidden">R — restart leg&nbsp;&nbsp;·&nbsp;&nbsp;C — reset expedition</div>
+  <div id="msg"></div>
+  <div id="hint">Press <kbd>E</kbd></div>
+
+  <div id="title-screen" class="overlay">
+    <div class="panel">
+      <h1 class="title">EXPEDITION SURVIVAL</h1>
+      <div class="subtitle">Leg 5 — Temple of the Ancients · The final leg</div>
+      <div class="objective">Leg 5: Reach the temple. Claim your destiny.</div>
+      <div class="carryover">Supplies carried over: <span id="title-food">20</span> food.</div>
+      <div class="controls">
+        <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</div>
+        <div><kbd>E</kbd> Interact</div>
+        <div><kbd>Enter</kbd> Start</div>
+      </div>
+      <div class="start-line pulse">Press <kbd>Enter</kbd> to begin</div>
+      <button id="btn-start" class="btn" type="button">START EXPEDITION</button>
+    </div>
+  </div>
+
+  <div id="end-screen" class="overlay hidden">
+    <div class="panel">
+      <h2 id="end-heading">EXPEDITION COMPLETE</h2>
+      <div id="end-sub"></div>
+      <div id="end-stats"></div>
+      <div id="end-score"></div>
+      <div class="grade-line">Grade <span id="end-grade" class="grade">S</span></div>
+      <div class="restart pulse" style="margin-top:14px;">Press <kbd>C</kbd> to reset the entire expedition and try again.</div>
+      <button id="btn-reset" class="btn" type="button">RESET EXPEDITION (C)</button>
+    </div>
+  </div>
+
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+  <script>
+  (function () {
+  'use strict';
+
+  if (typeof THREE === 'undefined') {
+    var t0 = document.getElementById('title-screen');
+    if (t0) t0.innerHTML = '<div class="panel"><h1 class="title">EXPEDITION SURVIVAL</h1><p>Failed to load Three.js from ./assets/_shared/three/build/three.min.js</p></div>';
+    return;
+  }
+
+  /* ---------------- helpers ---------------- */
+  function mulberry32(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  var rng = mulberry32(717171);
+  function lerpAngle(a, b, t) {
+    var d = (b - a) % (Math.PI * 2);
+    if (d > Math.PI) d -= Math.PI * 2;
+    if (d < -Math.PI) d += Math.PI * 2;
+    return a + d * t;
+  }
+  function fmt(v) { return Number.isInteger(v) ? String(v) : v.toFixed(1); }
+  function polyDist(px, pz, pts) {
+    var m = 1e9;
+    for (var i = 0; i < pts.length - 1; i++) {
+      var ax = pts[i][0], az = pts[i][1], bx = pts[i + 1][0], bz = pts[i + 1][1];
+      var dx = bx - ax, dz = bz - az;
+      var L2 = dx * dx + dz * dz;
+      var t = ((px - ax) * dx + (pz - az) * dz) / L2;
+      t = Math.max(0, Math.min(1, t));
+      m = Math.min(m, Math.hypot(px - (ax + dx * t), pz - (az + dz * t)));
+    }
+    return m;
+  }
+
+  /* ---------------- constants & state ---------------- */
+  var START = { x: 10, z: 50 };
+  var DOOR = { x: 90, z: 50 };        // Inner Sanctum trigger
+  var CHEST = { x: 85, z: 45 };       // Exterior treasure trigger
+  var SANCTUM_COST = 5;
+  var TIME_LIMIT = 120;
+  var PLAYER_SPEED = 4;
+  var VINE_SPEED = 2;                 // inside overgrowth
+  var PLAYER_R = 0.42;
+  var FOOD_KEY = 'expedition_food';
+  var PATH = [[10, 50], [30, 55], [45, 45], [60, 55], [75, 50], [88, 50]];
+  var OVERGROWTH = [
+    { x: 40, z: 35, r: 5 },
+    { x: 60, z: 65, r: 5 }
+  ];
+  var COLUMN_DEFS = [
+    { x: 30, z: 55, rot: 0.7 },
+    { x: 50, z: 45, rot: -0.5 },
+    { x: 70, z: 60, rot: 1.2 }
+  ];
+  var RUBBLE_DEFS = [
+    { x: 45, z: 50 },
+    { x: 65, z: 50 }
+  ];
+  var STATUE = { x: 50, z: 70 };
+  var BOUND = { minX: 0.6, maxX: 99.4, minZ: 0.6, maxZ: 99.4 };
+
+  function loadFood() {
+    try {
+      var raw = localStorage.getItem(FOOD_KEY);
+      if (raw !== null) {
+        var v = JSON.parse(raw);
+        if (typeof v === 'number' && isFinite(v)) return v;
+      }
+    } catch (e) {}
+    try { localStorage.setItem(FOOD_KEY, JSON.stringify(20)); } catch (e) {}
+    return 20;
+  }
+
+  var phase = 'title';   // title | playing | complete_sanctum | complete_exterior | failed
+  var food = loadFood();
+  var legStartFood = food;
+  var timeRemaining = TIME_LIMIT;
+  var doorOpened = false;
+  var chestOpened = false;
+  var doorAnim = 0;
+  var chestOpenT = 0;
+  var msgTimer = 0;
+  var elapsed = 0;
+  function saveFood() { try { localStorage.setItem(FOOD_KEY, JSON.stringify(food)); } catch (e) {} }
+
+  /* ---------------- renderer / scene ---------------- */
+  var renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  if (THREE.ACESFilmicToneMapping !== undefined) {
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+  }
+  if ('outputColorSpace' in renderer && THREE.SRGBColorSpace !== undefined) {
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+  } else if (THREE.sRGBEncoding !== undefined) {
+    renderer.outputEncoding = THREE.sRGBEncoding;
+  }
+  document.body.appendChild(renderer.domElement);
+
+  var scene = new THREE.Scene();
+  var SKY = 0x9cc4a8;
+  scene.background = new THREE.Color(SKY);
+  scene.fog = new THREE.Fog(0xa8c4a0, 40, 220);
+
+  var camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 500);
+  camera.position.set(START.x - 10, 6, START.z);
+
+  var hemi = new THREE.HemisphereLight(0xd8e8b8, 0x3f5232, 0.95);
+  scene.add(hemi);
+  var sun = new THREE.DirectionalLight(0xffeec0, 2.8);
+  sun.position.set(60, 70, 20);
+  sun.target.position.set(50, 0, 50);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.near = 5;
+  sun.shadow.camera.far = 300;
+  sun.shadow.camera.left = -90;
+  sun.shadow.camera.right = 90;
+  sun.shadow.camera.top = 70;
+  sun.shadow.camera.bottom = -70;
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.5;
+  sun.shadow.camera.updateProjectionMatrix();
+  scene.add(sun);
+  scene.add(sun.target);
+
+  /* ---------------- shared materials / geometries ---------------- */
+  function makeStoneTexture(base, dark) {
+    var c = document.createElement('canvas');
+    c.width = 256; c.height = 256;
+    var g = c.getContext('2d');
+    g.fillStyle = base;
+    g.fillRect(0, 0, 256, 256);
+    for (var i = 0; i < 60; i++) {
+      g.fillStyle = 'rgba(0,0,0,0.10)';
+      g.fillRect(rng() * 256, rng() * 256, 4 + rng() * 20, 2 + rng() * 6);
+      g.fillStyle = 'rgba(255,255,255,0.06)';
+      g.fillRect(rng() * 256, rng() * 256, 3 + rng() * 14, 2 + rng() * 4);
+    }
+    // carved relief bands
+    for (var b = 0; b < 5; b++) {
+      var y = 20 + b * 46;
+      g.strokeStyle = dark;
+      g.lineWidth = 4;
+      g.strokeRect(10, y, 236, 26);
+      for (var k = 0; k < 9; k++) {
+        g.fillStyle = dark;
+        g.fillRect(18 + k * 26, y + 6, 12, 14);
+      }
+    }
+    // moss patches
+    for (var m = 0; m < 26; m++) {
+      g.fillStyle = 'rgba(70,110,50,0.30)';
+      g.beginPath();
+      g.arc(rng() * 256, rng() * 256, 4 + rng() * 12, 0, Math.PI * 2);
+      g.fill();
+    }
+    var tex = new THREE.CanvasTexture(c);
+    if ('colorSpace' in tex && THREE.SRGBColorSpace !== undefined) tex.colorSpace = THREE.SRGBColorSpace;
+    else if (THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
+    return tex;
+  }
+  function makeRuneTexture() {
+    var c = document.createElement('canvas');
+    c.width = 256; c.height = 512;
+    var g = c.getContext('2d');
+    g.fillStyle = '#241f18';
+    g.fillRect(0, 0, 256, 512);
+    g.strokeStyle = '#e8b83a';
+    g.fillStyle = '#e8b83a';
+    g.lineWidth = 5;
+    for (var row = 0; row < 8; row++) {
+      var y = 40 + row * 58;
+      g.beginPath(); g.moveTo(30, y); g.lineTo(226, y); g.stroke();
+      for (var k = 0; k < 5; k++) {
+        var gx = 48 + k * 42;
+        var kind = (row + k) % 3;
+        if (kind === 0) {
+          g.beginPath(); g.moveTo(gx, y - 16); g.lineTo(gx + 12, y + 16); g.lineTo(gx + 24, y - 16); g.stroke();
+        } else if (kind === 1) {
+          g.beginPath(); g.arc(gx + 10, y, 11, 0, Math.PI * 2); g.stroke();
+        } else {
+          g.fillRect(gx + 4, y - 13, 14, 26);
+        }
+        g.beginPath(); g.arc(gx + 34, y, 3.4, 0, Math.PI * 2); g.fill();
+      }
+    }
+    var tex = new THREE.CanvasTexture(c);
+    if ('colorSpace' in tex && THREE.SRGBColorSpace !== undefined) tex.colorSpace = THREE.SRGBColorSpace;
+    else if (THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
+    return tex;
+  }
+
+  var MAT = {
+    ground:     null,
+    stone:      new THREE.MeshStandardMaterial({ color: 0x8a8578, roughness: 1 }),
+    stoneDark:  new THREE.MeshStandardMaterial({ color: 0x6e6a5e, roughness: 1, flatShading: true }),
+    relief:     new THREE.MeshStandardMaterial({ map: makeStoneTexture('#9a9484', '#5e5a4e'), roughness: 1 }),
+    stoneMossy: new THREE.MeshStandardMaterial({ map: makeStoneTexture('#8a8578', '#565246'), roughness: 1 }),
+    doorStone:  new THREE.MeshStandardMaterial({ color: 0x4a4038, roughness: 0.85 }),
+    rune:       null, // built below
+    metal:      new THREE.MeshStandardMaterial({ color: 0x5a5f66, roughness: 0.5, metalness: 0.6 }),
+    gold:       new THREE.MeshStandardMaterial({ color: 0xd4a017, emissive: new THREE.Color(0xa87f10), emissiveIntensity: 0.7, roughness: 0.4, metalness: 0.5 }),
+    vine:       new THREE.MeshStandardMaterial({ color: 0x3e6b2e, roughness: 1 }),
+    moss:       new THREE.MeshStandardMaterial({ color: 0x4c7a38, roughness: 1 }),
+    fern:       new THREE.MeshStandardMaterial({ color: 0x3f6e34, roughness: 1 }),
+    overgrowth: new THREE.MeshStandardMaterial({ color: 0x35502c, roughness: 1 }),
+    trunk:      new THREE.MeshStandardMaterial({ color: 0x5d4a38, roughness: 1 }),
+    leafA:      new THREE.MeshStandardMaterial({ color: 0x3e6b35, roughness: 1 }),
+    leafB:      new THREE.MeshStandardMaterial({ color: 0x4d7d3f, roughness: 1 }),
+    canopy:     new THREE.MeshStandardMaterial({ color: 0x2f5230, roughness: 1 }),
+    woodDark:   new THREE.MeshStandardMaterial({ color: 0x55402a, roughness: 1 }),
+    interior:   new THREE.MeshStandardMaterial({ color: 0x14100c, roughness: 1 }),
+    idol:       new THREE.MeshStandardMaterial({ color: 0xd4a017, emissive: new THREE.Color(0xc09010), emissiveIntensity: 1.2, roughness: 0.35, metalness: 0.5 })
+  };
+  var runeTex = makeRuneTexture();
+  MAT.rune = new THREE.MeshStandardMaterial({
+    color: 0x5a5044, map: runeTex, emissive: new THREE.Color(0xffdf80),
+    emissiveMap: runeTex, emissiveIntensity: 0.8, roughness: 0.8
+  });
+  var GEO = {
+    boulder:   new THREE.IcosahedronGeometry(1, 0),
+    shard:     new THREE.IcosahedronGeometry(0.55, 0),
+    drum:      new THREE.CylinderGeometry(0.5, 0.5, 1.1, 10),
+    column:    new THREE.CylinderGeometry(0.5, 0.55, 3.6, 12),
+    ring:      new THREE.TorusGeometry(0.53, 0.06, 6, 16),
+    slab:      new THREE.BoxGeometry(1, 1, 1),
+    fern:      new THREE.ConeGeometry(0.075, 0.85, 5),
+    treeTrunk: new THREE.CylinderGeometry(0.20, 0.34, 2.8, 7),
+    blobBig:   new THREE.SphereGeometry(1.55, 10, 8),
+    blobMid:   new THREE.SphereGeometry(1.0, 9, 7),
+    blobSm:    new THREE.SphereGeometry(0.9, 9, 7),
+    canopyBlob:new THREE.SphereGeometry(1, 10, 8),
+    vineTube:  new THREE.CylinderGeometry(0.035, 0.02, 1, 5),
+    chestBody: new THREE.BoxGeometry(1.1, 0.7, 0.8),
+    chestLid:  new THREE.BoxGeometry(1.16, 0.16, 0.86),
+    chestBand: new THREE.BoxGeometry(1.16, 0.1, 0.86),
+    latch:     new THREE.BoxGeometry(0.14, 0.2, 0.06),
+    altarBase: new THREE.BoxGeometry(1.2, 0.8, 0.8),
+    altarTop:  new THREE.BoxGeometry(1.4, 0.16, 1.0),
+    marker:    new THREE.BoxGeometry(1.1, 1.7, 0.3),
+    torch:     new THREE.CylinderGeometry(0.06, 0.09, 0.5, 7)
+  };
+  GEO.fern.translate(0, 0.42, 0);
+
+  var colliders = [];        // { x, z, r }
+  var boxes = [];            // { x0, x1, z0, z1, y1, door? } — blocks player + camera
+  var canopyBlockers = [];   // { x, z, r, y0, y1 }
+
+  /* ---------------- jungle ground ---------------- */
+  function makeGroundTexture() {
+    var w = 1280, h = 1280;   // 12.8 px per world unit
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    var g = c.getContext('2d');
+    var u = w / 100, v = h / 100;   // canvas x = world x, canvas y = world z
+    g.fillStyle = '#5d7a4a';
+    g.fillRect(0, 0, w, h);
+    function dot(wx, wz, r, color, alpha) {
+      g.globalAlpha = alpha;
+      g.fillStyle = color;
+      g.beginPath();
+      g.arc(wx * u, wz * v, Math.max(1, r * u), 0, Math.PI * 2);
+      g.fill();
+      g.globalAlpha = 1;
+    }
+    // moss mottling
+    var cols = ['#527140', '#678a50', '#4a6839', '#6f9156', '#57744a', '#48663c'];
+    for (var i = 0; i < 2200; i++) {
+      dot(rng() * 100, rng() * 100, 0.15 + rng() * 0.55, cols[(rng() * cols.length) | 0], 0.18);
+    }
+    // winding temple trail
+    for (var pi = 0; pi < PATH.length - 1; pi++) {
+      var ax = PATH[pi][0], az = PATH[pi][1], bx = PATH[pi + 1][0], bz = PATH[pi + 1][1];
+      var L = Math.hypot(bx - ax, bz - az);
+      var n = Math.ceil(L / 0.8);
+      for (var s = 0; s <= n; s++) {
+        var t = s / n;
+        dot(ax + (bx - ax) * t + (rng() - 0.5), az + (bz - az) * t + (rng() - 0.5), 0.45 + rng() * 0.3, '#8a8578', 0.45);
+      }
+    }
+    // paved area before the temple
+    for (var pv = 0; pv < 420; pv++) {
+      var pa = rng() * Math.PI * 2, pr = Math.sqrt(rng()) * 8;
+      dot(87 + Math.cos(pa) * pr, 50 + Math.sin(pa) * pr * 0.9, 0.35 + rng() * 0.5, rng() < 0.7 ? '#8a8578' : '#77725f', 0.5);
+    }
+    // overgrowth halos
+    for (var oi = 0; oi < OVERGROWTH.length; oi++) {
+      for (var oj = 0; oj < 130; oj++) {
+        var oa = rng() * Math.PI * 2, or2 = Math.sqrt(rng()) * OVERGROWTH[oi].r;
+        dot(OVERGROWTH[oi].x + Math.cos(oa) * or2, OVERGROWTH[oi].z + Math.sin(oa) * or2, 0.35 + rng() * 0.6, '#35502c', 0.5);
+      }
+    }
+    // clearing at the start
+    for (var e = 0; e < 110; e++) {
+      var ea = rng() * Math.PI * 2, er = Math.sqrt(rng()) * 3;
+      dot(START.x + Math.cos(ea) * er, START.z + Math.sin(ea) * er, 0.3 + rng() * 0.4, '#6f8a58', 0.4);
+    }
+    // fine grain
+    for (var q = 0; q < 3400; q++) {
+      dot(rng() * 100, rng() * 100, 0.03 + rng() * 0.06, rng() < 0.5 ? '#6f9156' : '#3e5a34', 0.22);
+    }
+    var tex = new THREE.CanvasTexture(c);
+    if ('colorSpace' in tex && THREE.SRGBColorSpace !== undefined) tex.colorSpace = THREE.SRGBColorSpace;
+    else if (THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
+    try { tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); } catch (e) {}
+    return tex;
+  }
+
+  var ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(100, 100),
+    new THREE.MeshStandardMaterial({ map: makeGroundTexture(), roughness: 0.95, metalness: 0 })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.set(50, 0, 50);
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  var base = new THREE.Mesh(
+    new THREE.PlaneGeometry(700, 700),
+    new THREE.MeshStandardMaterial({ color: 0x54703f, roughness: 0.95 })
+  );
+  base.rotation.x = -Math.PI / 2;
+  base.position.set(50, -0.04, 50);
+  scene.add(base);
+
+  /* ---------------- temple facade, Boss Door and interior ---------------- */
+  // wing walls (relief-carved on the inner face facing the approach)
+  var wingGeoW = new THREE.BoxGeometry(4.2, 9, 17);
+  var wingW = new THREE.Mesh(wingGeoW, [MAT.relief, MAT.stoneMossy, MAT.stoneDark, MAT.stoneDark, MAT.relief, MAT.relief]);
+  wingW.position.set(91.9, 4.45, 38.5);
+  wingW.castShadow = true;
+  wingW.receiveShadow = true;
+  scene.add(wingW);
+  var wingE = new THREE.Mesh(wingGeoW, [MAT.relief, MAT.stoneMossy, MAT.stoneDark, MAT.stoneDark, MAT.relief, MAT.relief]);
+  wingE.position.set(91.9, 4.45, 61.5);
+  wingE.castShadow = true;
+  wingE.receiveShadow = true;
+  scene.add(wingE);
+  boxes.push({ x0: 89.8, x1: 94, z0: 30, z1: 47, y1: 9 });
+  boxes.push({ x0: 89.8, x1: 94, z0: 53, z1: 70, y1: 9 });
+
+  // lintel above the doorway
+  var lintel = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.2, 6.4), MAT.stoneMossy);
+  lintel.position.set(90.6, 7.9, 50);
+  lintel.castShadow = true;
+  scene.add(lintel);
+
+  // carved columns flanking the door
+  for (var ci = 0; ci < 2; ci++) {
+    var cz = 47.6 + ci * 4.8;
+    var col = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.62, 6.8, 12), MAT.stoneMossy);
+    col.position.set(89.2, 3.4, cz);
+    col.castShadow = true;
+    scene.add(col);
+    for (var cr = 0; cr < 3; cr++) {
+      var ring = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.07, 6, 16), MAT.stoneDark);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(89.2, 1.4 + cr * 1.8, cz);
+      scene.add(ring);
+    }
+    colliders.push({ x: 89.2, z: cz, r: 0.7 });
+    canopyBlockers.push({ x: 89.2, z: cz, r: 0.9, y0: 0, y1: 6.8 });
+  }
+  // unlit torch sconces beside the door
+  for (var ti = 0; ti < 2; ti++) {
+    var torch = new THREE.Mesh(GEO.torch, MAT.woodDark);
+    torch.position.set(89.75, 3.2, 48.4 + ti * 3.2);
+    torch.rotation.x = 0.35;
+    scene.add(torch);
+  }
+
+  // the Boss Door: two rune-carved slabs
+  var slabGeo = new THREE.BoxGeometry(0.6, 6.5, 3.02);
+  var slabMats = [MAT.doorStone, MAT.rune, MAT.doorStone, MAT.doorStone, MAT.rune, MAT.rune];
+  var slabL = new THREE.Mesh(slabGeo, slabMats);
+  slabL.position.set(90.5, 3.25, 48.49);
+  var slabR = new THREE.Mesh(slabGeo, slabMats);
+  slabR.position.set(90.5, 3.25, 51.51);
+  slabL.castShadow = true;
+  slabR.castShadow = true;
+  scene.add(slabL);
+  scene.add(slabR);
+  boxes.push({ x0: 89.8, x1: 91.4, z0: 47, z1: 53, y1: 9, door: true });
+
+  // dark interior chamber beyond the door
+  var chamber = new THREE.Mesh(new THREE.BoxGeometry(7, 7, 6.4), MAT.interior);
+  chamber.position.set(94.8, 3.4, 50);
+  scene.add(chamber);
+  var idolPedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 1.1, 8), MAT.stoneDark);
+  idolPedestal.position.set(95.5, 0.55, 50);
+  scene.add(idolPedestal);
+  var idol = new THREE.Mesh(new THREE.SphereGeometry(0.32, 10, 8), MAT.idol);
+  idol.position.set(95.5, 1.35, 50);
+  scene.add(idol);
+  var idolLight = new THREE.PointLight(0xffc84a, 10, 9, 2);
+  idolLight.position.set(94.6, 2.2, 50);
+  scene.add(idolLight);
+
+  /* ---------------- exterior treasure chest ---------------- */
+  var chest = new THREE.Group();
+  chest.position.set(CHEST.x, 0, CHEST.z);
+  chest.rotation.y = -0.5;
+  var cBody = new THREE.Mesh(GEO.chestBody, MAT.stoneMossy);
+  cBody.position.y = 0.35;
+  cBody.castShadow = true;
+  chest.add(cBody);
+  var cBand1 = new THREE.Mesh(GEO.chestBand, MAT.metal);
+  cBand1.position.y = 0.18;
+  chest.add(cBand1);
+  var cBand2 = new THREE.Mesh(GEO.chestBand, MAT.metal);
+  cBand2.position.y = 0.52;
+  chest.add(cBand2);
+  var cLatch = new THREE.Mesh(GEO.latch, MAT.gold);
+  cLatch.position.set(0, 0.66, 0.42);
+  chest.add(cLatch);
+  var chestLidPivot = new THREE.Group();
+  chestLidPivot.position.set(0, 0.7, -0.4);
+  var cLid = new THREE.Mesh(GEO.chestLid, MAT.stoneMossy);
+  cLid.position.set(0, 0.08, 0.4);
+  cLid.castShadow = true;
+  chestLidPivot.add(cLid);
+  var cLidBand = new THREE.Mesh(GEO.chestBand, MAT.metal);
+  cLidBand.position.set(0, 0.08, 0.4);
+  chestLidPivot.add(cLidBand);
+  chest.add(chestLidPivot);
+  scene.add(chest);
+  colliders.push({ x: CHEST.x, z: CHEST.z, r: 0.7 });
+
+  /* ---------------- fallen columns ---------------- */
+  for (var fi = 0; fi < COLUMN_DEFS.length; fi++) {
+    var fd = COLUMN_DEFS[fi];
+    var fg = new THREE.Group();
+    fg.position.set(fd.x, 0, fd.z);
+    fg.rotation.y = fd.rot;
+    var colBody = new THREE.Mesh(GEO.column, MAT.stoneMossy);
+    colBody.rotation.z = Math.PI / 2;
+    colBody.position.y = 0.5;
+    colBody.castShadow = true;
+    fg.add(colBody);
+    for (var fr2 = 0; fr2 < 3; fr2++) {
+      var cring = new THREE.Mesh(GEO.ring, MAT.stoneDark);
+      cring.rotation.x = Math.PI / 2;
+      cring.position.set(-1.1 + fr2 * 1.1, 0.5, 0);
+      fg.add(cring);
+    }
+    for (var fm = 0; fm < 3; fm++) {
+      var mossP = new THREE.Mesh(GEO.blobSm, MAT.moss);
+      mossP.scale.set(0.42, 0.16, 0.34);
+      mossP.position.set(-1.1 + fm * 1.1, 0.92, (fm % 2 ? 0.14 : -0.12));
+      fg.add(mossP);
+    }
+    var drum = new THREE.Mesh(GEO.drum, MAT.stoneMossy);
+    drum.position.set(2.2, 0.5, 0.4);
+    drum.rotation.y = 0.5;
+    drum.castShadow = true;
+    fg.add(drum);
+    scene.add(fg);
+    colliders.push({ x: fd.x - 1.1, z: fd.z, r: 0.68 });
+    colliders.push({ x: fd.x + 0.3, z: fd.z, r: 0.68 });
+    colliders.push({ x: fd.x + 1.7, z: fd.z, r: 0.6 });
+  }
+
+  /* ---------------- rubble piles ---------------- */
+  for (var ri = 0; ri < RUBBLE_DEFS.length; ri++) {
+    var rd = RUBBLE_DEFS[ri];
+    var rg = new THREE.Group();
+    rg.position.set(rd.x, 0, rd.z);
+    var nR = 7 + ((rng() * 3) | 0);
+    for (var rs = 0; rs < nR; rs++) {
+      var rMesh = new THREE.Mesh(GEO.boulder, rng() < 0.5 ? MAT.stoneMossy : MAT.stoneDark);
+      var rS = 0.3 + rng() * 0.5;
+      rMesh.scale.set(rS, rS * 0.8, rS * 0.9);
+      var ra = rng() * Math.PI * 2;
+      var rr2 = Math.sqrt(rng()) * 1.4;
+      rMesh.position.set(Math.cos(ra) * rr2, rS * 0.4, Math.sin(ra) * rr2);
+      rMesh.rotation.set(rng() * 3, rng() * 3, rng() * 3);
+      rMesh.castShadow = true;
+      rg.add(rMesh);
+    }
+    scene.add(rg);
+    colliders.push({ x: rd.x, z: rd.z, r: 1.1 });
+  }
+
+  /* ---------------- ancient statue (landmark) ---------------- */
+  var statue = new THREE.Group();
+  statue.position.set(STATUE.x, 0, STATUE.z);
+  var sBase = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.6, 2.4), MAT.stoneMossy);
+  sBase.position.y = 0.3;
+  statue.add(sBase);
+  var sPlinth = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.0, 1.5), MAT.stone);
+  sPlinth.position.y = 1.1;
+  statue.add(sPlinth);
+  var sTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.62, 1.7, 9), MAT.stoneMossy);
+  sTorso.position.y = 2.45;
+  sTorso.castShadow = true;
+  statue.add(sTorso);
+  var sShoulders = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.35, 0.7), MAT.stone);
+  sShoulders.position.y = 3.15;
+  statue.add(sShoulders);
+  var sHead = new THREE.Mesh(new THREE.SphereGeometry(0.4, 10, 8), MAT.stoneMossy);
+  sHead.position.y = 3.7;
+  sHead.castShadow = true;
+  statue.add(sHead);
+  var sCrown = new THREE.Mesh(new THREE.ConeGeometry(0.44, 0.6, 8), MAT.stoneDark);
+  sCrown.position.y = 4.2;
+  statue.add(sCrown);
+  for (var sm = 0; sm < 4; sm++) {
+    var sMoss = new THREE.Mesh(GEO.blobSm, MAT.moss);
+    sMoss.scale.set(0.4, 0.18, 0.4);
+    sMoss.position.set((rng() - 0.5) * 1.4, 0.62 + rng() * 2.2, (rng() - 0.5) * 1.0);
+    statue.add(sMoss);
+  }
+  statue.traverse(function (o) { if (o.isMesh) o.castShadow = true; });
+  scene.add(statue);
+  colliders.push({ x: STATUE.x, z: STATUE.z, r: 1.5 });
+  canopyBlockers.push({ x: STATUE.x, z: STATUE.z, r: 1.9, y0: 0, y1: 4.6 });
+
+  /* ---------------- overgrowth zones ---------------- */
+  for (var og = 0; og < OVERGROWTH.length; og++) {
+    var od = OVERGROWTH[og];
+    var oDisc = new THREE.Mesh(new THREE.CircleGeometry(1, 30), MAT.overgrowth);
+    oDisc.scale.setScalar(od.r);
+    oDisc.rotation.x = -Math.PI / 2;
+    oDisc.position.set(od.x, 0.03, od.z);
+    oDisc.receiveShadow = true;
+    scene.add(oDisc);
+    for (var vf = 0; vf < 4; vf++) {
+      var fernG = new THREE.Group();
+      fernG.position.set(od.x + (rng() - 0.5) * od.r * 1.2, 0, od.z + (rng() - 0.5) * od.r * 1.2);
+      var fn = 4 + ((rng() * 3) | 0);
+      for (var fk = 0; fk < fn; fk++) {
+        var fa = (fk / fn) * Math.PI * 2;
+        var fern = new THREE.Mesh(GEO.fern, MAT.fern);
+        fern.position.set(Math.cos(fa) * 0.2, 0, Math.sin(fa) * 0.2);
+        fern.rotation.z = -Math.cos(fa) * 0.8;
+        fern.rotation.x = Math.sin(fa) * 0.8;
+        fernG.add(fern);
+      }
+      scene.add(fernG);
+    }
+    for (var va = 0; va < 3; va++) {
+      var arch = new THREE.Mesh(new THREE.TorusGeometry(0.8 + rng() * 0.5, 0.045, 5, 14, Math.PI), MAT.vine);
+      arch.position.set(od.x + (rng() - 0.5) * od.r, 0, od.z + (rng() - 0.5) * od.r);
+      arch.rotation.y = rng() * Math.PI * 2;
+      arch.castShadow = true;
+      scene.add(arch);
+    }
+  }
+
+  /* ---------------- stone altars ---------------- */
+  var ALTARS = [{ x: 25, z: 42 }, { x: 58, z: 38 }, { x: 38, z: 68 }];
+  for (var ai = 0; ai < ALTARS.length; ai++) {
+    var ad = ALTARS[ai];
+    var ag = new THREE.Group();
+    ag.position.set(ad.x, 0, ad.z);
+    ag.rotation.y = rng() * Math.PI;
+    var aBase = new THREE.Mesh(GEO.altarBase, MAT.stoneMossy);
+    aBase.position.y = 0.4;
+    aBase.castShadow = true;
+    ag.add(aBase);
+    var aTop = new THREE.Mesh(GEO.altarTop, MAT.stoneDark);
+    aTop.position.y = 0.88;
+    aTop.rotation.z = (rng() - 0.5) * 0.16;
+    ag.add(aTop);
+    scene.add(ag);
+    colliders.push({ x: ad.x, z: ad.z, r: 0.75 });
+  }
+
+  /* ---------------- stone marker at the start ---------------- */
+  function markerMaterial(text) {
+    var c = document.createElement('canvas');
+    c.width = 512; c.height = 128;
+    var g = c.getContext('2d');
+    g.fillStyle = '#8a8578';
+    g.fillRect(0, 0, 512, 128);
+    g.strokeStyle = '#565246';
+    g.lineWidth = 10;
+    g.strokeRect(6, 6, 500, 116);
+    g.font = 'bold 50px Georgia, serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillStyle = '#3e3a30';
+    g.fillText(text, 256, 66);
+    for (var m2 = 0; m2 < 24; m2++) {
+      g.fillStyle = 'rgba(70,110,50,0.35)';
+      g.beginPath();
+      g.arc(rng() * 512, rng() * 128, 3 + rng() * 9, 0, Math.PI * 2);
+      g.fill();
+    }
+    var tex = new THREE.CanvasTexture(c);
+    if ('colorSpace' in tex && THREE.SRGBColorSpace !== undefined) tex.colorSpace = THREE.SRGBColorSpace;
+    else if (THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
+    return new THREE.MeshStandardMaterial({ map: tex, roughness: 1 });
+  }
+  var marker = new THREE.Mesh(GEO.marker, [MAT.stoneMossy, MAT.stoneMossy, MAT.stoneMossy, MAT.stoneMossy, markerMaterial('TEMPLE GROUNDS'), markerMaterial('TEMPLE GROUNDS')]);
+  marker.position.set(8.5, 0.85, 47.6);
+  marker.rotation.y = Math.atan2(START.x - 8.5, START.z - 47.6);
+  marker.castShadow = true;
+  scene.add(marker);
+  colliders.push({ x: 8.5, z: 47.6, r: 0.45 });
+
+  /* ---------------- jungle trees, canopy, hanging vines ---------------- */
+  var treePts = [];
+  var tries = 0;
+  while (treePts.length < 26 && tries < 6000) {
+    tries++;
+    var tx = 2 + rng() * 78, tz = 2 + rng() * 96;
+    if (tx > 82) continue;                       // keep the temple approach open
+    if (polyDist(tx, tz, PATH) < 3.5) continue;
+    if (Math.hypot(tx - START.x, tz - START.z) < 3.5) continue;
+    if (Math.hypot(tx - STATUE.x, tz - STATUE.z) < 3.5) continue;
+    if (Math.hypot(tx - CHEST.x, tz - CHEST.z) < 3) continue;
+    var skip = false;
+    for (var og2 = 0; og2 < OVERGROWTH.length; og2++) {
+      if (Math.hypot(tx - OVERGROWTH[og2].x, tz - OVERGROWTH[og2].z) < OVERGROWTH[og2].r + 1.5) { skip = true; break; }
+    }
+    if (!skip) {
+      for (var ci2 = 0; ci2 < colliders.length; ci2++) {
+        var cc2 = colliders[ci2];
+        if (Math.hypot(tx - cc2.x, tz - cc2.z) < cc2.r + 2) { skip = true; break; }
+      }
+    }
+    if (!skip) {
+      for (var ti2 = 0; ti2 < treePts.length; ti2++) {
+        if (Math.hypot(tx - treePts[ti2].x, tz - treePts[ti2].z) < 3.2) { skip = true; break; }
+      }
+    }
+    if (skip) continue;
+    treePts.push({ x: tx, z: tz, s: 0.9 + rng() * 0.6, rot: rng() * Math.PI * 2, v: (rng() * 2) | 0 });
+  }
+  var leafMats2 = [MAT.leafA, MAT.leafB];
+  for (var wi2 = 0; wi2 < treePts.length; wi2++) {
+    var tp = treePts[wi2];
+    var tg = new THREE.Group();
+    tg.position.set(tp.x, 0, tp.z);
+    tg.rotation.y = tp.rot;
+    tg.scale.setScalar(tp.s);
+    var trunk = new THREE.Mesh(GEO.treeTrunk, MAT.trunk);
+    trunk.position.y = 1.4;
+    tg.add(trunk);
+    var lm2 = leafMats2[tp.v];
+    var b1 = new THREE.Mesh(GEO.blobBig, lm2); b1.position.set(0, 3.55, 0); b1.scale.y = 0.92;
+    var b2 = new THREE.Mesh(GEO.blobMid, lm2); b2.position.set(0.95, 3.0, 0.35);
+    var b3 = new THREE.Mesh(GEO.blobSm, lm2); b3.position.set(-0.8, 3.1, -0.5);
+    tg.add(b1); tg.add(b2); tg.add(b3);
+    // hanging vine strands
+    for (var hv = 0; hv < 2; hv++) {
+      var vine = new THREE.Mesh(GEO.vineTube, MAT.vine);
+      vine.scale.y = 1.6 + rng() * 1.4;
+      vine.position.set((rng() - 0.5) * 1.6, 3.4 - vine.scale.y / 2, (rng() - 0.5) * 1.6);
+      tg.add(vine);
+    }
+    tg.traverse(function (o) { if (o.isMesh) o.castShadow = true; });
+    scene.add(tg);
+    colliders.push({ x: tp.x, z: tp.z, r: 0.5 * tp.s + 0.2 });
+    canopyBlockers.push({ x: tp.x, z: tp.z, r: 1.9 * tp.s, y0: 2.3 * tp.s, y1: 5.3 * tp.s });
+  }
+  // dense canopy blobs overhead for filtered light
+  for (var cb2 = 0; cb2 < 4; cb2++) {
+    var canopy = new THREE.Mesh(GEO.canopyBlob, MAT.canopy);
+    canopy.scale.set(9 + rng() * 4, 2.4 + rng(), 9 + rng() * 4);
+    canopy.position.set(18 + rng() * 52, 14 + rng() * 3, 18 + rng() * 64);
+    scene.add(canopy);
+  }
+
+  /* ---------------- explorer ---------------- */
+  var explorer = new THREE.Group();
+  function boxMesh(w, h, d, mat) { return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); }
+  function cylMesh(rt, rb, h, seg, mat) { return new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat); }
+  var MATskin = new THREE.MeshStandardMaterial({ color: 0xe6b487, roughness: 0.9 });
+  var MATshirt = new THREE.MeshStandardMaterial({ color: 0xcd9a55, roughness: 1 });
+  var MATpants = new THREE.MeshStandardMaterial({ color: 0x5d4a33, roughness: 1 });
+  var MATboots = new THREE.MeshStandardMaterial({ color: 0x3c2d20, roughness: 1 });
+  var MAThat = new THREE.MeshStandardMaterial({ color: 0x7a5c39, roughness: 1 });
+  var MATpack = new THREE.MeshStandardMaterial({ color: 0x7c5230, roughness: 1 });
+  var MATbedroll = new THREE.MeshStandardMaterial({ color: 0x9c8558, roughness: 1 });
+
+  var legL = new THREE.Group();
+  legL.position.set(-0.14, 0.84, 0);
+  var legLm = cylMesh(0.105, 0.115, 0.74, 8, MATpants);
+  legLm.geometry.translate(0, -0.37, 0);
+  legL.add(legLm);
+  var bootL = boxMesh(0.17, 0.13, 0.27, MATboots);
+  bootL.position.set(0, -0.75, 0.035);
+  legL.add(bootL);
+  var legR = new THREE.Group();
+  legR.position.set(0.14, 0.84, 0);
+  var legRm = cylMesh(0.105, 0.115, 0.74, 8, MATpants);
+  legRm.geometry.translate(0, -0.37, 0);
+  legR.add(legRm);
+  var bootR = boxMesh(0.17, 0.13, 0.27, MATboots);
+  bootR.position.set(0, -0.75, 0.035);
+  legR.add(bootR);
+
+  var hips = boxMesh(0.42, 0.2, 0.29, MATpants);
+  hips.position.y = 0.86;
+  var torso = boxMesh(0.54, 0.62, 0.30, MATshirt);
+  torso.position.y = 1.16;
+
+  var armL = new THREE.Group();
+  armL.position.set(-0.36, 1.42, 0);
+  var armLm = cylMesh(0.08, 0.085, 0.6, 8, MATshirt);
+  armLm.geometry.translate(0, -0.30, 0);
+  armL.add(armLm);
+  var handL = new THREE.Mesh(new THREE.SphereGeometry(0.085, 7, 6), MATskin);
+  handL.position.set(0, -0.62, 0);
+  armL.add(handL);
+  var armR = new THREE.Group();
+  armR.position.set(0.36, 1.42, 0);
+  var armRm = cylMesh(0.08, 0.085, 0.6, 8, MATshirt);
+  armRm.geometry.translate(0, -0.30, 0);
+  armR.add(armRm);
+  var handR = new THREE.Mesh(new THREE.SphereGeometry(0.085, 7, 6), MATskin);
+  handR.position.set(0, -0.62, 0);
+  armR.add(handR);
+
+  var head = new THREE.Mesh(new THREE.SphereGeometry(0.20, 12, 10), MATskin);
+  head.position.y = 1.68;
+  var hatBrim = cylMesh(0.30, 0.30, 0.045, 12, MAThat);
+  hatBrim.position.y = 1.80;
+  var hatCrown = cylMesh(0.16, 0.19, 0.17, 10, MAThat);
+  hatCrown.position.y = 1.90;
+
+  var pack = new THREE.Group();
+  pack.position.set(0, 1.16, -0.27);
+  var packMain = boxMesh(0.38, 0.48, 0.22, MATpack);
+  packMain.position.set(0, -0.02, -0.03);
+  pack.add(packMain);
+  var packLid = boxMesh(0.36, 0.16, 0.24, MAT.woodDark);
+  packLid.position.set(0, 0.24, -0.04);
+  pack.add(packLid);
+  var roll = cylMesh(0.09, 0.09, 0.42, 8, MATbedroll);
+  roll.rotation.z = Math.PI / 2;
+  roll.position.set(0, 0.34, -0.02);
+  pack.add(roll);
+
+  explorer.add(legL); explorer.add(legR);
+  explorer.add(hips); explorer.add(torso);
+  explorer.add(armL); explorer.add(armR);
+  explorer.add(head); explorer.add(hatBrim); explorer.add(hatCrown);
+  explorer.add(pack);
+  explorer.traverse(function (o) { if (o.isMesh) o.castShadow = true; });
+  scene.add(explorer);
+
+  var pos = { x: START.x, z: START.z };
+  var vel = { x: 0, z: 0 };
+  var targetFacing = Math.PI / 2;
+  var walkPhase = 0;
+  var moveAmt = 0;
+  explorer.position.set(pos.x, 0, pos.z);
+  explorer.rotation.y = targetFacing;
+
+  /* ---------------- input ---------------- */
+  var keys = {};
+  window.addEventListener('keydown', function (e) {
+    keys[e.code] = true;
+    if (e.repeat) return;
+    if (e.code === 'Enter') {
+      if (phase === 'title') startLeg();
+    } else if (e.code === 'KeyR') {
+      if (phase === 'playing' || phase === 'complete_sanctum' || phase === 'complete_exterior' || phase === 'failed') restartLeg();
+    } else if (e.code === 'KeyC') {
+      resetExpedition();
+    } else if (e.code === 'KeyE') {
+      tryInteract();
+    }
+  });
+  window.addEventListener('keyup', function (e) { keys[e.code] = false; });
+  window.addEventListener('blur', function () { for (var k in keys) keys[k] = false; });
+
+  /* ---------------- UI refs ---------------- */
+  var hudEl = document.getElementById('hud');
+  var hudFood = document.getElementById('hud-food');
+  var hudTime = document.getElementById('hud-time');
+  var warnRow = document.getElementById('warn-row');
+  var msgEl = document.getElementById('msg');
+  var hintEl = document.getElementById('hint');
+  var titleEl = document.getElementById('title-screen');
+  var titleFood = document.getElementById('title-food');
+  var endEl = document.getElementById('end-screen');
+  var endHeading = document.getElementById('end-heading');
+  var endSub = document.getElementById('end-sub');
+  var endStats = document.getElementById('end-stats');
+  var endScore = document.getElementById('end-score');
+  var endGrade = document.getElementById('end-grade');
+  var controlsHint = document.getElementById('controls-hint');
+  titleFood.textContent = fmt(food);
+
+  function showMsg(text, dur) {
+    msgEl.textContent = text;
+    msgEl.style.opacity = 1;
+    msgTimer = dur;
+  }
+
+  /* ---------------- game flow ---------------- */
+  function resetLegState() {
+    timeRemaining = TIME_LIMIT;
+    doorOpened = false;
+    chestOpened = false;
+    doorAnim = 0;
+    chestOpenT = 0;
+    slabL.position.z = 48.49;
+    slabR.position.z = 51.51;
+    chestLidPivot.rotation.x = 0;
+    pos.x = START.x; pos.z = START.z;
+    vel.x = 0; vel.z = 0;
+    targetFacing = Math.PI / 2;
+    walkPhase = 0; moveAmt = 0;
+    explorer.position.set(pos.x, 0, pos.z);
+    explorer.rotation.y = targetFacing;
+    camPos.set(pos.x - 10, 6, pos.z);
+    lookCur.set(pos.x, 1.4, pos.z);
+    camT = 1;
+  }
+  function startLeg() {
+    legStartFood = food;
+    restartLeg();
+  }
+  function restartLeg() {
+    food = legStartFood;
+    saveFood();
+    resetLegState();
+    endEl.classList.add('hidden');
+    titleEl.classList.add('hidden');
+    hudEl.classList.remove('hidden');
+    controlsHint.classList.remove('hidden');
+    phase = 'playing';
+  }
+  function resetExpedition() {
+    try { localStorage.removeItem(FOOD_KEY); } catch (e) {}
+    food = 20;
+    saveFood();
+    legStartFood = food;
+    resetLegState();
+    endEl.classList.add('hidden');
+    titleEl.classList.remove('hidden');
+    hudEl.classList.add('hidden');
+    controlsHint.classList.add('hidden');
+    titleFood.textContent = fmt(food);
+    phase = 'title';
+    showMsg('Expedition reset.', 2);
+  }
+  function tryInteract() {
+    if (phase !== 'playing') return;
+    if (Math.hypot(pos.x - DOOR.x, pos.z - DOOR.z) < 3) {
+      if (food >= SANCTUM_COST) {
+        doorOpened = true;
+        food -= SANCTUM_COST;
+        saveFood();
+        phase = 'complete_sanctum';
+        showMsg('The Inner Sanctum opens. The ultimate treasure is yours.', 2.2);
+        showEnd('sanctum');
+      } else {
+        showMsg('Insufficient supplies. The Inner Sanctum remains sealed.', 1.8);
+      }
+      return;
+    }
+    if (Math.hypot(pos.x - CHEST.x, pos.z - CHEST.z) < 3) {
+      chestOpened = true;
+      phase = 'complete_exterior';
+      showMsg('You claim the exterior treasure and depart.', 2.2);
+      showEnd('exterior');
+    }
+  }
+  function timeUp() {
+    phase = 'failed';
+    showEnd('failed');
+  }
+  function gradeFor(score, sanctum) {
+    if (!sanctum) return score >= 500 ? 'B' : 'C';
+    return score >= 1000 ? 'S' : score >= 800 ? 'A' : score >= 500 ? 'B' : 'C';
+  }
+  function computeScore() {
+    var t = Math.max(0, timeRemaining);
+    var base = Math.round(food * 50);
+    if (phase === 'complete_sanctum') {
+      var s1 = base + 500 + Math.floor(t) * 3;
+      return { score: s1, grade: gradeFor(s1, true) };
+    }
+    if (phase === 'complete_exterior') {
+      var s2 = Math.max(0, base - 300 + Math.floor(t) * 3);
+      return { score: s2, grade: gradeFor(s2, false) };
+    }
+    if (phase === 'failed') {
+      var s3 = Math.max(0, base - 300);
+      return { score: s3, grade: gradeFor(s3, false) };
+    }
+    // live preview of the best available outcome
+    var s0 = food >= SANCTUM_COST ? base + 500 + Math.floor(t) * 3 : Math.max(0, base - 300 + Math.floor(t) * 3);
+    return { score: s0, grade: null };
+  }
+  function showEnd(kind) {
+    var t = Math.max(0, timeRemaining);
+    var info = computeScore();
+    if (kind === 'sanctum') {
+      endHeading.textContent = 'EXPEDITION COMPLETE: ULTIMATE TREASURE CLAIMED';
+      endSub.textContent = 'The Inner Sanctum yields its secret. The expedition is complete.';
+      endStats.innerHTML =
+        '<div>Food consumed (Sanctum): ' + SANCTUM_COST + '</div>' +
+        '<div>Remaining food: ' + fmt(food) + '</div>';
+      endScore.innerHTML =
+        '<div>Food ' + fmt(food) + ' × 50 = ' + Math.round(food * 50) + '</div>' +
+        '<div>Sanctum bonus = +500</div>' +
+        '<div>Time ' + Math.floor(t) + ' s × 3 = ' + (Math.floor(t) * 3) + '</div>' +
+        '<div class="score-total">Final score: ' + info.score + '</div>';
+    } else if (kind === 'exterior') {
+      endHeading.textContent = 'EXPEDITION COMPLETE: EXTERIOR TREASURE (FALLBACK)';
+      endSub.textContent = 'A lesser treasure — the Sanctum remains sealed forever.';
+      endStats.innerHTML =
+        '<div>Food consumed: 0</div>' +
+        '<div>Remaining food: ' + fmt(food) + '</div>';
+      endScore.innerHTML =
+        '<div>Food ' + fmt(food) + ' × 50 = ' + Math.round(food * 50) + '</div>' +
+        '<div>Fallback penalty = −300</div>' +
+        '<div>Time ' + Math.floor(t) + ' s × 3 = ' + (Math.floor(t) * 3) + '</div>' +
+        '<div class="score-total">Final score: ' + info.score + '</div>';
+    } else {
+      endHeading.textContent = 'TIME EXPIRED';
+      endSub.textContent = 'The temple claims another explorer.';
+      endStats.innerHTML =
+        '<div>Food consumed: 0</div>' +
+        '<div>Remaining food: ' + fmt(food) + '</div>';
+      endScore.innerHTML =
+        '<div>Food ' + fmt(food) + ' × 50 = ' + Math.round(food * 50) + '</div>' +
+        '<div>Fallback penalty = −300</div>' +
+        '<div class="score-total">Final score: ' + info.score + '</div>';
+    }
+    endGrade.textContent = info.grade;
+    endGrade.style.color = info.grade === 'S' ? '#ffd75e' : info.grade === 'A' ? '#8ee06a' : info.grade === 'B' ? '#6ab4ff' : '#cfd4c8';
+    endEl.classList.remove('hidden');
+  }
+
+  document.getElementById('btn-start').addEventListener('click', function () {
+    this.blur();
+    if (phase === 'title') startLeg();
+  });
+  document.getElementById('btn-reset').addEventListener('click', function () {
+    this.blur();
+    resetExpedition();
+  });
+
+  /* ---------------- movement / collision ---------------- */
+  function inVines(x, z) {
+    for (var i = 0; i < OVERGROWTH.length; i++) {
+      var c = OVERGROWTH[i];
+      if (Math.hypot(x - c.x, z - c.z) < c.r) return true;
+    }
+    return false;
+  }
+  function collideAndClamp() {
+    for (var pass = 0; pass < 2; pass++) {
+      for (var i = 0; i < colliders.length; i++) {
+        var c = colliders[i];
+        var dx = pos.x - c.x, dz = pos.z - c.z;
+        var rr = c.r + PLAYER_R;
+        var d2 = dx * dx + dz * dz;
+        if (d2 < rr * rr) {
+          var d = Math.sqrt(d2) || 1e-4;
+          var p = (rr - d) / d;
+          pos.x += dx * p;
+          pos.z += dz * p;
+        }
+      }
+      for (var b = 0; b < boxes.length; b++) {
+        var bx = boxes[b];
+        if (bx.door && doorOpened) continue;
+        var nx = Math.max(bx.x0, Math.min(pos.x, bx.x1));
+        var nz = Math.max(bx.z0, Math.min(pos.z, bx.z1));
+        var ddx = pos.x - nx, ddz = pos.z - nz;
+        var dd2 = ddx * ddx + ddz * ddz;
+        if (dd2 > 1e-9) {
+          if (dd2 < PLAYER_R * PLAYER_R) {
+            var dd = Math.sqrt(dd2);
+            var pp = (PLAYER_R - dd) / dd;
+            pos.x += ddx * pp;
+            pos.z += ddz * pp;
+          }
+        } else {
+          var pxl = pos.x - bx.x0, pxr = bx.x1 - pos.x;
+          var pzl = pos.z - bx.z0, pzr = bx.z1 - pos.z;
+          var m = Math.min(pxl, pxr, pzl, pzr);
+          if (m === pxl) pos.x = bx.x0 - PLAYER_R;
+          else if (m === pxr) pos.x = bx.x1 + PLAYER_R;
+          else if (m === pzl) pos.z = bx.z0 - PLAYER_R;
+          else pos.z = bx.z1 + PLAYER_R;
+        }
+      }
+    }
+    if (pos.x < BOUND.minX) pos.x = BOUND.minX;
+    if (pos.x > BOUND.maxX) pos.x = BOUND.maxX;
+    if (pos.z < BOUND.minZ) pos.z = BOUND.minZ;
+    if (pos.z > BOUND.maxZ) pos.z = BOUND.maxZ;
+  }
+
+  /* ---------------- camera ---------------- */
+  var camPos = new THREE.Vector3(START.x - 10, 6, START.z);
+  var lookCur = new THREE.Vector3(START.x, 1.4, START.z);
+  var camT = 1;
+  var desired = new THREE.Vector3();
+  var camGoal = new THREE.Vector3();
+  var lookDes = new THREE.Vector3();
+  camera.position.copy(camPos);
+
+  function cameraFreeT(ax, ay, az, bx, by, bz) {
+    var best = 1;
+    for (var i = 0; i < canopyBlockers.length; i++) {
+      var c = canopyBlockers[i];
+      for (var s = 1; s <= 22; s++) {
+        var t = s / 22;
+        var px = ax + (bx - ax) * t;
+        var py = ay + (by - ay) * t;
+        var pz = az + (bz - az) * t;
+        if (py > c.y0 - 0.25 && py < c.y1 + 0.25) {
+          var dx = px - c.x, dz = pz - c.z;
+          var rr = c.r + 0.35;
+          if (dx * dx + dz * dz < rr * rr) {
+            var tb = Math.max(0.12, (s - 1) / 22);
+            if (tb < best) best = tb;
+            break;
+          }
+        }
+      }
+    }
+    for (var b2 = 0; b2 < boxes.length; b2++) {
+      var bb = boxes[b2];
+      if (bb.door && doorOpened) continue;
+      for (var s3 = 1; s3 <= 22; s3++) {
+        var t3 = s3 / 22;
+        var qx = ax + (bx - ax) * t3;
+        var qy = ay + (by - ay) * t3;
+        var qz = az + (bz - az) * t3;
+        if (qy < bb.y1 + 0.3 && qx > bb.x0 - 0.3 && qx < bb.x1 + 0.3 && qz > bb.z0 - 0.3 && qz < bb.z1 + 0.3) {
+          var tb2 = Math.max(0.04, (s3 - 1) / 22);
+          if (tb2 < best) best = tb2;
+          break;
+        }
+      }
+    }
+    return best;
+  }
+
+  /* ---------------- main loop ---------------- */
+  function update(dt) {
+    elapsed += dt;
+
+    // ambient animations (deterministic, time-based)
+    MAT.rune.emissiveIntensity = 0.6 + 0.35 * Math.sin(elapsed * 2.2);
+    MAT.idol.emissiveIntensity = 1.0 + 0.35 * Math.sin(elapsed * 3.4);
+    if (doorOpened && doorAnim < 1) {
+      doorAnim = Math.min(1, doorAnim + dt / 1.4);
+      var eo = 1 - (1 - doorAnim) * (1 - doorAnim);
+      slabL.position.z = 48.49 - 1.9 * eo;
+      slabR.position.z = 51.51 + 1.9 * eo;
+    }
+    if (chestOpened && chestOpenT < 1) {
+      chestOpenT = Math.min(1, chestOpenT + dt / 0.4);
+      var ec = 1 - (1 - chestOpenT) * (1 - chestOpenT);
+      chestLidPivot.rotation.x = -1.7 * ec;
+    }
+
+    var moved = false;
+    var sp = 0;
+    if (phase === 'playing') {
+      // camera-relative movement axes
+      var fx = 1, fz = 0;
+      var dvx = lookCur.x - camPos.x, dvz = lookCur.z - camPos.z;
+      var dl = Math.hypot(dvx, dvz);
+      if (dl > 0.001) { fx = dvx / dl; fz = dvz / dl; }
+      var rxv = -fz, rzv = fx;
+
+      var ix = 0, iz = 0;
+      if (keys.KeyW || keys.ArrowUp) iz += 1;
+      if (keys.KeyS || keys.ArrowDown) iz -= 1;
+      if (keys.KeyD || keys.ArrowRight) ix += 1;
+      if (keys.KeyA || keys.ArrowLeft) ix -= 1;
+
+      var dxm = fx * iz + rxv * ix;
+      var dzm = fz * iz + rzv * ix;
+      var ml = Math.hypot(dxm, dzm);
+      var dirx = ml > 0.0001 ? dxm / ml : 0;
+      var dirz = ml > 0.0001 ? dzm / ml : 0;
+
+      var inOvergrowth = inVines(pos.x, pos.z);
+      var maxSp = inOvergrowth ? VINE_SPEED : PLAYER_SPEED;
+      var rate = inOvergrowth ? 8 : 14;
+      var k = 1 - Math.exp(-rate * dt);
+      vel.x += (dirx * maxSp - vel.x) * k;
+      vel.z += (dirz * maxSp - vel.z) * k;
+      pos.x += vel.x * dt;
+      pos.z += vel.z * dt;
+      moved = ml > 0.0001;
+      collideAndClamp();
+
+      sp = Math.hypot(vel.x, vel.z);
+      if (sp > 0.4) targetFacing = Math.atan2(vel.x, vel.z);
+
+      // interaction hints
+      var nearDoor = Math.hypot(pos.x - DOOR.x, pos.z - DOOR.z) < 3;
+      var nearChest = Math.hypot(pos.x - CHEST.x, pos.z - CHEST.z) < 3;
+      if (nearDoor) {
+        hintEl.innerHTML = food >= SANCTUM_COST
+          ? 'Press <kbd>E</kbd> to open the Inner Sanctum'
+          : 'The Inner Sanctum requires 5 food';
+        hintEl.style.opacity = 1;
+      } else if (nearChest) {
+        hintEl.innerHTML = 'Press <kbd>E</kbd> to open the treasure chest';
+        hintEl.style.opacity = 1;
+      } else {
+        hintEl.style.opacity = 0;
+      }
+
+      timeRemaining -= dt;
+      if (timeRemaining <= 0) {
+        timeRemaining = 0;
+        timeUp();
+      }
+    } else {
+      hintEl.style.opacity = 0;
+    }
+
+    // walk cycle (settles when stationary)
+    moveAmt += ((moved ? 1 : 0) - moveAmt) * (1 - Math.exp(-8 * dt));
+    if (moved) walkPhase += dt * 9 * Math.min(1.4, sp / 4);
+    var sw = Math.sin(walkPhase);
+    legL.rotation.x = sw * 0.62 * moveAmt;
+    legR.rotation.x = -sw * 0.62 * moveAmt;
+    armL.rotation.x = -sw * 0.45 * moveAmt;
+    armR.rotation.x = sw * 0.45 * moveAmt;
+    pack.rotation.y = Math.sin(walkPhase) * 0.09 * moveAmt;
+    pack.position.y = 1.16 + Math.abs(Math.cos(walkPhase)) * 0.03 * moveAmt;
+    explorer.position.set(pos.x, Math.abs(Math.sin(walkPhase)) * 0.05 * moveAmt, pos.z);
+    explorer.rotation.y = lerpAngle(explorer.rotation.y, targetFacing, 1 - Math.exp(-10 * dt));
+
+    // damped follow camera with obstruction pull-in
+    desired.set(pos.x - 10, 6, pos.z);
+    var tFree = cameraFreeT(pos.x, 1.6, pos.z, desired.x, desired.y, desired.z);
+    if (tFree < camT) {
+      camT += (Math.max(tFree, 0.04) - camT) * (1 - Math.exp(-10 * dt));
+    } else {
+      camT += (1 - camT) * (1 - Math.exp(-2.2 * dt));
+    }
+    camGoal.set(pos.x, 1.6, pos.z).lerp(desired, camT);
+    if (camGoal.y < 1.1) camGoal.y = 1.1;
+    camPos.lerp(camGoal, 1 - Math.exp(-5 * dt));
+    camera.position.copy(camPos);
+    lookDes.set(pos.x + 1.8, 1.5, pos.z);
+    lookCur.lerp(lookDes, 1 - Math.exp(-6 * dt));
+    camera.lookAt(lookCur);
+
+    // HUD (this leg has no destination readout — navigate by landmarks)
+    hudFood.textContent = fmt(food);
+    hudTime.textContent = Math.ceil(Math.max(0, timeRemaining));
+    if (food < SANCTUM_COST && phase !== 'title') warnRow.classList.remove('hidden');
+    else warnRow.classList.add('hidden');
+
+    if (msgTimer > 0) {
+      msgTimer -= dt;
+      if (msgTimer <= 0) msgEl.style.opacity = 0;
+    }
+
+    // live state export
+    var info = computeScore();
+    window.__arena_state = {
+      phase: phase,
+      currentLeg: 5,
+      foodRemaining: food,
+      timeRemaining: timeRemaining,
+      doorOpened: doorOpened,
+      chestOpened: chestOpened,
+      canOpenDoor: food >= SANCTUM_COST,
+      explorerPosition: { x: pos.x, y: explorer.position.y, z: pos.z },
+      score: info.score,
+      grade: (phase === 'complete_sanctum' || phase === 'complete_exterior' || phase === 'failed') ? info.grade : null
+    };
+  }
+
+  var last = performance.now();
+  function tick(now) {
+    requestAnimationFrame(tick);
+    var dt = Math.min((now - last) / 1000, 0.05);
+    last = now;
+    update(dt);
+    renderer.render(scene, camera);
+  }
+  requestAnimationFrame(tick);
+
+  window.addEventListener('resize', function () {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+  })();
+  </script>
+</body>
+</html>

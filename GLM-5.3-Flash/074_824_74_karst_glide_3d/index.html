@@ -1,0 +1,2668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KARST GLIDE</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0d1220; }
+  body { font-family: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif; color: #f4ead8; }
+  #app { position: fixed; inset: 0; }
+  #app canvas { display: block; }
+  .hidden { display: none !important; }
+  #vignette {
+    position: fixed; inset: 0; z-index: 5; pointer-events: none;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(8,10,26,0.42) 100%);
+  }
+  #hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; }
+  #panel {
+    position: absolute; top: 16px; left: 16px;
+    background: rgba(12,16,26,0.58); border: 1px solid rgba(255,207,122,0.35);
+    border-radius: 12px; padding: 10px 14px 12px; min-width: 168px;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    backdrop-filter: blur(4px);
+  }
+  #panel .brand { font-size: 11px; letter-spacing: 0.34em; color: #ffcf7a; margin-bottom: 8px; font-weight: 700; }
+  #panel .row { display: flex; justify-content: space-between; gap: 16px; font-size: 13px; line-height: 1.65; }
+  #panel .row .k { color: rgba(244,234,216,0.62); }
+  #panel .row .v b { font-weight: 600; color: #ffffff; }
+  #padNav {
+    position: absolute; top: 16px; right: 16px; text-align: center;
+    background: rgba(12,16,26,0.58); border: 1px solid rgba(255,207,122,0.35);
+    border-radius: 12px; padding: 10px 14px; width: 86px;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    backdrop-filter: blur(4px);
+  }
+  #padArrow { font-size: 26px; color: #ffcf7a; display: inline-block; transition: transform 0.08s linear; }
+  #padDist { font-size: 13px; color: #ffffff; margin-top: 2px; }
+  #padNav .lab { font-size: 10px; letter-spacing: 0.3em; color: rgba(244,234,216,0.6); margin-top: 2px; }
+  #stallWarn {
+    display: none; position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+    font-size: 26px; font-weight: 800; letter-spacing: 0.28em; color: #ff5d5d;
+    text-shadow: 0 0 18px rgba(255,60,60,0.8);
+  }
+  #stallWarn.on { display: block; animation: blink 0.55s steps(2, start) infinite, shudder 0.14s infinite; }
+  #thermalWarn {
+    display: none; position: absolute; top: 58px; left: 50%; transform: translateX(-50%);
+    font-size: 18px; font-weight: 800; letter-spacing: 0.28em; color: #ffd873;
+    text-shadow: 0 0 18px rgba(255,216,115,0.8);
+  }
+  #thermalWarn.on { display: block; animation: pulse 1.2s ease-in-out infinite; }
+  #courseBanner {
+    position: fixed; top: 13%; left: 0; right: 0; z-index: 15; text-align: center;
+    pointer-events: none; opacity: 0; transition: opacity 0.55s ease;
+  }
+  #courseBanner.show { opacity: 1; }
+  #cbTitle { font-size: 13px; letter-spacing: 0.42em; color: rgba(244,234,216,0.78); }
+  #cbName {
+    margin-top: 4px; font-size: 36px; font-weight: 900; letter-spacing: 0.22em; color: #ffcf7a;
+    text-shadow: 0 0 26px rgba(255,207,122,0.55);
+  }
+  @keyframes blink { 50% { opacity: 0.25; } }
+  @keyframes shudder { 0% { margin-left: -3px; } 50% { margin-left: 3px; } 100% { margin-left: -3px; } }
+  .overlay {
+    position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center;
+    pointer-events: none; background: radial-gradient(ellipse at center, rgba(10,14,28,0.18) 30%, rgba(8,10,24,0.55) 100%);
+  }
+  .card {
+    text-align: center; max-width: 820px; padding: 34px 44px 30px; border-radius: 18px;
+    background: rgba(11,15,27,0.72); border: 1px solid rgba(255,207,122,0.4);
+    box-shadow: 0 18px 70px rgba(0,0,0,0.5); backdrop-filter: blur(6px);
+  }
+  .card h1 {
+    margin: 0; font-size: clamp(44px, 8.5vw, 78px); font-weight: 900; letter-spacing: 0.16em;
+    background: linear-gradient(180deg, #ffedc4 10%, #ffcf7a 45%, #ff9a5a 90%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .card .sub { margin-top: 8px; font-size: 12px; letter-spacing: 0.32em; color: rgba(244,234,216,0.75); }
+  .ctl { margin: 24px auto 0; display: grid; grid-template-columns: auto auto; gap: 8px 18px; justify-content: center; text-align: left; }
+  .ctl b { font-family: ui-monospace, Menlo, Consolas, monospace; color: #ffcf7a; font-size: 14px; }
+  .ctl span { color: rgba(244,234,216,0.85); font-size: 14px; }
+  .goal { margin-top: 20px; font-size: 13.5px; line-height: 1.65; color: rgba(244,234,216,0.8); }
+  .goal b { color: #ffcf7a; }
+  .prompt { margin-top: 22px; font-size: 17px; font-weight: 800; letter-spacing: 0.3em; color: #ffcf7a; animation: pulse 1.6s ease-in-out infinite; text-transform: uppercase; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .grade { font-size: 62px; font-weight: 900; letter-spacing: 0.14em; }
+  .g-clean { color: #ffd873; text-shadow: 0 0 26px rgba(255,216,115,0.55); }
+  .g-hard  { color: #ff9d4d; text-shadow: 0 0 26px rgba(255,157,77,0.5); }
+  .g-miss  { color: #7fc4ff; text-shadow: 0 0 26px rgba(127,196,255,0.5); }
+  .g-crash { color: #ff5d5d; text-shadow: 0 0 26px rgba(255,93,93,0.55); }
+  .finalline { margin-top: 10px; font-size: 18px; letter-spacing: 0.18em; color: rgba(244,234,216,0.85); }
+  .finalline b { font-family: ui-monospace, Menlo, Consolas, monospace; color: #ffffff; }
+  .stats { margin-top: 10px; font-size: 14px; font-family: ui-monospace, Menlo, Consolas, monospace; color: rgba(244,234,216,0.75); }
+  #scoreSheet, #podBoard, #rkBoard, #rkStand { margin: 18px auto 0; border-collapse: collapse; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 14px; min-width: 540px; }
+  #podBoard { min-width: 620px; }
+  #rkBoard { min-width: 680px; }
+  #rkStand { min-width: 560px; }
+  #scoreSheet td, #podBoard td, #rkBoard td, #rkStand td { padding: 5px 14px; border-bottom: 1px solid rgba(255,207,122,0.14); color: rgba(244,234,216,0.85); text-align: left; }
+  #scoreSheet td:nth-child(2), #scoreSheet td:nth-child(3) { color: #ffffff; }
+  #scoreSheet td:nth-child(3) { text-align: right; }
+  #scoreSheet td:nth-child(2) { text-align: right; }
+  #scoreSheet tr.head td, #podBoard tr.head td, #rkBoard tr.head td, #rkStand tr.head td { color: #ffcf7a; font-weight: 700; letter-spacing: 0.14em; }
+  #scoreSheet tr.total td { border-bottom: none; border-top: 1px solid rgba(255,207,122,0.5); color: #ffd873; font-weight: 700; font-size: 16px; padding-top: 9px; }
+  #podBoard td:nth-child(n+3) { text-align: right; color: #ffffff; }
+  #podBoard tr.me td { color: #ffd873; font-weight: 700; }
+  #rkBoard td:nth-child(n+2), #rkStand td:nth-child(n+3) { text-align: right; color: #ffffff; }
+  #rkStand tr.me td { color: #ffd873; font-weight: 700; }
+  #rkRating { margin-top: 16px; font-size: 15px; letter-spacing: 0.34em; color: rgba(244,234,216,0.7); }
+  #rkLetter { display: block; margin-top: 2px; font-size: 88px; font-weight: 900; line-height: 1.05; }
+  #rkLetter.rk-s { color: #ffd873; text-shadow: 0 0 30px rgba(255,216,115,0.6); }
+  #rkLetter.rk-a { color: #dfe6ff; text-shadow: 0 0 26px rgba(190,205,255,0.5); }
+  #rkLetter.rk-b { color: #ffb27a; text-shadow: 0 0 24px rgba(255,178,122,0.5); }
+  #rkLetter.rk-c { color: #b9c2cf; }
+  .verdict { margin-top: 14px; font-size: 22px; font-weight: 800; letter-spacing: 0.22em; }
+  .verdict.win { color: #ffd873; text-shadow: 0 0 22px rgba(255,216,115,0.55); }
+  .verdict.lose { color: #ff8d8d; text-shadow: 0 0 22px rgba(255,141,141,0.5); }
+  .verdict.tie { color: #cfd8ff; }
+  #podRow { display: flex; justify-content: center; align-items: flex-end; gap: 16px; margin-top: 20px; }
+  .ped { width: 132px; }
+  .ped .pname {
+    font-size: 17px; font-weight: 800; letter-spacing: 0.14em; color: #ffffff;
+    opacity: 0; transform: translateY(16px); transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .ped .ptotal {
+    margin-top: 2px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; color: #ffcf7a;
+    opacity: 0; transition: opacity 0.5s ease 0.15s;
+  }
+  .ped .block {
+    margin-top: 10px; border-radius: 8px 8px 0 0;
+    background: linear-gradient(180deg, rgba(255,207,122,0.30), rgba(255,207,122,0.08));
+    border: 1px solid rgba(255,207,122,0.45); border-bottom: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 900; color: rgba(255,207,122,0.85);
+    opacity: 0; transform: translateY(34px);
+    transition: opacity 0.55s ease, transform 0.55s cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  .ped .block.h1 { height: 96px; }
+  .ped .block.h2 { height: 66px; }
+  .ped .block.h3 { height: 46px; }
+  .ped.on .pname, .ped.on .ptotal, .ped.on .block { opacity: 1; transform: none; }
+  .ped.gold .pname { color: #ffd873; }
+  .ped.silver .pname { color: #dfe6f5; }
+  .ped.bronze .pname { color: #f0b48a; }
+  #podChamp {
+    margin-top: 14px; font-size: 30px; font-weight: 900; letter-spacing: 0.2em; color: #ffd873;
+    text-shadow: 0 0 24px rgba(255,216,115,0.5); opacity: 0; transition: opacity 0.6s ease;
+  }
+  #podChamp.on { opacity: 1; }
+  #fatal {
+    position: fixed; inset: 0; z-index: 99; display: flex; align-items: center; justify-content: center;
+    color: #ff8d8d; font-size: 18px; background: #0d1220; text-align: center; padding: 30px;
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="vignette"></div>
+
+<div id="hud">
+  <div id="panel">
+    <div class="brand">KARST GLIDE</div>
+    <div class="row"><span class="k">TIME</span><span class="v"><b id="hTime">0.0</b> s</span></div>
+    <div class="row"><span class="k">SPEED</span><span class="v"><b id="hV">18.0</b> m/s</span></div>
+    <div class="row"><span class="k">ALT</span><span class="v"><b id="hAlt">601</b> m</span></div>
+    <div class="row"><span class="k">GAMMA</span><span class="v"><b id="hGamma">-15.0</b>&deg;</span></div>
+    <div class="row"><span class="k">PSI</span><span class="v"><b id="hPsi">0.0</b>&deg;</span></div>
+    <div class="row"><span class="k">PHI</span><span class="v"><b id="hPhi">0.0</b>&deg;</span></div>
+    <div class="row"><span class="k">GATES</span><span class="v"><b id="hGates">0/9</b></span></div>
+    <div class="row"><span class="k">ROCK</span><span class="v"><b id="hRock">&mdash;</b> m</span></div>
+    <div class="row"><span class="k">PROX</span><span class="v"><b id="hProx">0</b> pts</span></div>
+    <div class="row"><span class="k">TRIM</span><span class="v"><b id="hTrim">GLIDE</b></span></div>
+    <div class="row"><span class="k">WIND</span><span class="v"><b id="hWind">0, 0</b> m/s</span></div>
+    <div class="row"><span class="k">RACE</span><span class="v"><b id="hRace">&mdash;</b></span></div>
+  </div>
+  <div id="padNav">
+    <div id="padArrow">&#10148;</div>
+    <div id="padDist">1520 m</div>
+    <div class="lab">PAD</div>
+  </div>
+  <div id="stallWarn">&#9650; STALL &#9650;</div>
+  <div id="thermalWarn">&#9650; THERMAL &#9650;</div>
+</div>
+
+<div id="courseBanner"><div id="cbTitle"></div><div id="cbName"></div></div>
+
+<div id="ready" class="overlay">
+  <div class="card">
+    <h1>KARST GLIDE</h1>
+    <div class="sub">C7 &middot; WINGSUIT RACE THROUGH THE KARST RANGE AT SUNRISE</div>
+    <div class="prompt">PRESS N &mdash; THREE SUMMITS CHAMPIONSHIP</div>
+    <div class="ctl">
+      <div><b>W / S</b></div><div><span>Pitch up / down &mdash; trade height for speed</span></div>
+      <div><b>A / D</b></div><div><span>Bank left / right</span></div>
+      <div><b>T</b></div><div><span>Toggle GLIDE / DIVE trim</span></div>
+      <div><b>N</b></div><div><span>Start the Three Summits Championship (menu only)</span></div>
+      <div><b>ENTER</b></div><div><span>Score sheet: next course &middot; podium: reckoning &middot; reckoning: menu</span></div>
+      <div><b>R</b></div><div><span>Reset &mdash; back to this menu, championship cleared</span></div>
+    </div>
+    <div class="goal">
+      Press N &mdash; Three Summits Championship: three courses flown back to back &mdash;
+      <b>TIANMEN GATE</b>, then <b>EAGLE CREEK</b>, then <b>CLOUD TERRACE</b> &mdash;
+      against Kestrel flying the same physics, while LUMEN and VOLEY hold the podium times.<br>
+      Thread every gate in order, graze the karst walls for bonus points, and flare onto the landing pad.<br>
+      Crash into terrain or a pillar before the final gate and you respawn at the last passed gate
+      (or the launch platform): <b>v = 20</b>, controls frozen <b>3.0 s</b>, score <b>&minus;150</b>.<br>
+      CLEAN landing needs: pad distance &le; 7 m &middot; sink &le; 2.5 m/s &middot; gamma &ge; +5&deg;.<br>
+      After the podium the reckoning grants your rating:
+      <b>S</b> &ge; 5600 &middot; <b>A</b> &ge; 5200 &middot; <b>B</b> &ge; 4600 &middot; else <b>C</b>.
+    </div>
+  </div>
+</div>
+
+<div id="result" class="overlay hidden">
+  <div class="card">
+    <div id="resCourse" class="sub"></div>
+    <div id="resGrade" class="grade g-clean">CLEAN</div>
+    <div class="finalline">FINAL TIME <b id="resTime">0.00 s</b></div>
+    <table id="scoreSheet">
+      <tr class="head"><td></td><td>YOU</td><td>KESTREL</td></tr>
+      <tr><td>Time</td><td id="scTimeT">&mdash;</td><td id="kTimeT">&mdash;</td></tr>
+      <tr><td>Gates</td><td id="scGates">&mdash;</td><td id="kGates">&mdash;</td></tr>
+      <tr><td>Proximity</td><td id="scProxP">&mdash;</td><td id="kProxP">&mdash;</td></tr>
+      <tr><td>Landing</td><td id="scLand">&mdash;</td><td id="kLand">&mdash;</td></tr>
+      <tr><td>Precision</td><td id="scPrecP">&mdash;</td><td id="kPrecP">&mdash;</td></tr>
+      <tr><td>Crashes</td><td id="scCrash">&mdash;</td><td id="kCrash">&mdash;</td></tr>
+      <tr class="total"><td>TOTAL</td><td id="scTotal">&mdash;</td><td id="kTotal">&mdash;</td></tr>
+    </table>
+    <div id="resVerdict" class="verdict">&mdash;</div>
+    <div id="resPrompt" class="prompt">ENTER &mdash; NEXT COURSE</div>
+  </div>
+</div>
+
+<div id="podium" class="overlay hidden">
+  <div class="card">
+    <div class="sub">THREE SUMMITS CHAMPIONSHIP &middot; FINAL STANDINGS</div>
+    <div id="podChamp">CHAMPION</div>
+    <div id="podRow">
+      <div class="ped silver" id="ped2"><div class="pname">&mdash;</div><div class="ptotal">&mdash;</div><div class="block h2">2</div></div>
+      <div class="ped gold" id="ped1"><div class="pname">&mdash;</div><div class="ptotal">&mdash;</div><div class="block h1">1</div></div>
+      <div class="ped bronze" id="ped3"><div class="pname">&mdash;</div><div class="ptotal">&mdash;</div><div class="block h3">3</div></div>
+    </div>
+    <table id="podBoard"></table>
+    <div class="prompt">ENTER &mdash; RECKONING &middot; R &mdash; MENU</div>
+  </div>
+</div>
+
+<div id="reckoning" class="overlay hidden">
+  <div class="card">
+    <div class="sub">THREE SUMMITS CHAMPIONSHIP &middot; RECKONING</div>
+    <div id="rkRating">FINAL RATING<span id="rkLetter" class="rk-c">C</span></div>
+    <table id="rkBoard"></table>
+    <div class="finalline">CHAMPIONSHIP TOTAL <b id="rkTotal">&mdash;</b></div>
+    <table id="rkStand"></table>
+    <div class="prompt">ENTER &mdash; CHAMPIONSHIP MENU</div>
+  </div>
+</div>
+
+<script src="./assets/_shared/three/build/three.min.js"></script>
+<script type="module">
+let THREE = window.THREE;
+if (!THREE) {
+  try {
+    THREE = await import('./vendor/three/three.module.min.js');
+  } catch (err) {
+    const d = document.createElement('div');
+    d.id = 'fatal';
+    d.textContent = 'KARST GLIDE could not load the Three.js runtime.';
+    document.body.appendChild(d);
+    throw err;
+  }
+}
+
+// ============================== helpers =====================================
+const DEG = Math.PI / 180;
+const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
+const lerp = (a, b, k) => a + (b - a) * k;
+const damp = (cur, tgt, rate, dt) => cur + (tgt - cur) * (1 - Math.exp(-rate * dt));
+const norm180 = (d) => ((d + 180) % 360 + 360) % 360 - 180;
+
+// ============================== course definitions ==========================
+// The Three Summits championship: three hardcoded courses, always identical on
+// every reload. Course 1 (Tianmen Gate) is the original forked nine-gate run;
+// courses 2 and 3 are single-line courses that reuse every course-1 rule.
+const COURSE_DEFS = [
+  {
+    name: 'TIANMEN GATE',
+    floorY: 20,
+    launch: { x: 0, y: 620.8, z: 13.0 },           // pilot reference point on the platform edge
+    platform: { r: 13, y0: 617.5, y1: 620 },
+    spire: { rTop: 10, rBot: 24, yTop: 617.5, yBot: 20 },
+    standingStart: true,                     // pilot waits on the launch platform (course 1 only)
+    pad: { x: 0, y: 24, z: 1520, r: 7 },
+    deckY: 60,
+    // nine gate slots, taken in order; slots 5 and 6 fork into two variants each —
+    // crossing EITHER variant's ring satisfies the slot (any mix counts)
+    gates: [
+      [{ x: 0,   y: 560, z: 180 }],
+      [{ x: 45,  y: 505, z: 320 }],
+      [{ x: -50, y: 445, z: 470 }],
+      [{ x: 10,  y: 385, z: 620 }],
+      [{ x: -30, y: 350, z: 700 }, { x: 60, y: 345, z: 720 }],   // RIDGE / CLOUD
+      [{ x: -55, y: 300, z: 830 }, { x: 95, y: 290, z: 860 }],   // RIDGE / CLOUD
+      [{ x: 10,  y: 205, z: 1080 }],
+      [{ x: 55,  y: 140, z: 1250 }],
+      [{ x: 0,   y: 70,  z: 1430 }],
+    ],
+    pillars: [
+      { x: 60,  z: 200,  top: 500, r: 25 },
+      { x: -70, z: 330,  top: 480, r: 30 },
+      { x: 30,  z: 460,  top: 520, r: 22 },
+      { x: -40, z: 600,  top: 430, r: 35 },
+      { x: 90,  z: 720,  top: 460, r: 28 },
+      { x: -95, z: 850,  top: 380, r: 26 },
+      { x: 20,  z: 980,  top: 350, r: 32 },
+      { x: -60, z: 1120, top: 300, r: 24 },
+      { x: 70,  z: 1240, top: 280, r: 30 },
+      { x: -20, z: 1380, top: 220, r: 26 },
+      { x: -75, z: 700,  top: 420, r: 30 },
+      { x: -85, z: 840,  top: 360, r: 26 },
+    ],
+    thermals: [
+      { x: 30,  z: 520,  y0: 300, y1: 480, u: 5 },
+      { x: 85,  z: 760,  y0: 220, y1: 400, u: 6 },
+      { x: -40, z: 1010, y0: 150, y1: 320, u: 6 },
+      { x: 15,  z: 1300, y0: 90,  y1: 240, u: 7 },
+    ],
+    windBands: [
+      { yMin: 400, w: { x: -4, y: 0, z: -4 } },   // y > 400
+      { yMin: 250, w: { x: -7, y: 0, z: 0 } },    // 250 < y <= 400
+      { yMin: 120, w: { x: -4, y: 0, z: 4 } },    // 120 < y <= 250
+      { yMin: -1e9, w: { x: 0, y: 0, z: 0 } },    // y <= 120
+    ],
+    fork: true,
+    mistakeSlot: 4,                          // Kestrel's scripted wide turn after G5a
+    flagSpots: [
+      { x: 11, y: 20, z: 1528 },             // beside the pad: calm layer, hangs limp
+      { x: -8.5, y: 620, z: -8.5 },          // launch platform rim
+      { x: 38, y: 520, z: 466 },             // P3 top
+      { x: 100, y: 460, z: 728 },            // P5 top
+      { x: 30, y: 350, z: 990 },             // P7 top
+      { x: -12, y: 220, z: 1388 },           // P10 top
+    ],
+    groundCenterZ: 760,
+    ridgeDist: 3050,
+    deckBand: 2, highBand: 0,
+  },
+  {
+    name: 'EAGLE CREEK',
+    floorY: 20,
+    launch: { x: 0, y: 560, z: 0 },          // facing +Z, launched mid-air
+    platform: { r: 13, y0: 1e9, y1: -1e9 },  // degenerate: no takeoff platform collider
+    spire: { rTop: 10, rBot: 24, yTop: -1e9, yBot: 1e9 },
+    standingStart: false,
+    avoidRef: true,                          // Kestrel's line detours around pillar rock
+    pad: { x: 30, y: 18, z: 1380, r: 7 },    // top y=18: a creek bed sunk 2 m below the valley floor
+    padPoolR: 18,                            // recessed creek pool radius around the pad
+    deckY: 60,
+    gates: [
+      [{ x: 0,   y: 510, z: 160 }],
+      [{ x: 35,  y: 460, z: 290 }],
+      [{ x: -45, y: 410, z: 420 }],
+      [{ x: 5,   y: 355, z: 560 }],
+      [{ x: 60,  y: 300, z: 700 }],
+      [{ x: -60, y: 245, z: 850 }],
+      [{ x: 0,   y: 190, z: 1010 }],
+      [{ x: 30,  y: 90,  z: 1240 }],
+    ],
+    pillars: [
+      { x: 50,  z: 180,  top: 470, r: 24 },
+      { x: -60, z: 300,  top: 450, r: 28 },
+      { x: 20,  z: 430,  top: 480, r: 20 },
+      { x: -30, z: 560,  top: 400, r: 32 },
+      { x: 70,  z: 680,  top: 420, r: 26 },
+      { x: -80, z: 810,  top: 350, r: 24 },
+      { x: 10,  z: 950,  top: 320, r: 30 },
+      { x: -50, z: 1090, top: 260, r: 22 },
+      { x: 60,  z: 1210, top: 230, r: 26 },
+      { x: -10, z: 1300, top: 180, r: 20 },
+    ],
+    thermals: [
+      { x: 55,  z: 640, y0: 220, y1: 380, u: 6 },
+      { x: -30, z: 980, y0: 130, y1: 280, u: 6 },
+    ],
+    windBands: [
+      { yMin: 350, w: { x: 0, y: 0, z: -8 } },   // y > 350
+      { yMin: 200, w: { x: 5, y: 0, z: 0 } },    // 200 < y <= 350
+      { yMin: -1e9, w: { x: 0, y: 0, z: 0 } },   // otherwise calm
+    ],
+    fork: false,
+    mistakeSlot: null,
+    flagSpots: [
+      { x: 46, y: 20, z: 1386 },
+      { x: 58, y: 470, z: 186 },
+      { x: -22, y: 400, z: 566 },
+      { x: 18, y: 320, z: 956 },
+      { x: -2, y: 180, z: 1306 },
+    ],
+    groundCenterZ: 690,
+    ridgeDist: 2900,
+    deckBand: 1, highBand: 0,
+  },
+  {
+    name: 'CLOUD TERRACE',
+    floorY: 20,
+    launch: { x: 0, y: 500, z: 0 },          // facing +Z, launched mid-air
+    platform: { r: 13, y0: 1e9, y1: -1e9 },  // degenerate: no takeoff platform collider
+    spire: { rTop: 10, rBot: 24, yTop: -1e9, yBot: 1e9 },
+    standingStart: false,
+    avoidRef: true,                          // Kestrel's line detours around pillar rock
+    pad: { x: -20, y: 40, z: 1200, r: 7 },   // top y=40: a 20 m terrace block on the valley floor
+    deckY: 60,
+    gates: [
+      [{ x: -20, y: 455, z: 150 }],
+      [{ x: 40,  y: 410, z: 270 }],
+      [{ x: -30, y: 360, z: 410 }],
+      [{ x: -55, y: 305, z: 540 }],
+      [{ x: 25,  y: 250, z: 690 }],
+      [{ x: 50,  y: 190, z: 860 }],
+      [{ x: -10, y: 100, z: 1080 }],
+    ],
+    pillars: [
+      { x: -40, z: 170,  top: 420, r: 26 },
+      { x: 55,  z: 290,  top: 400, r: 22 },
+      { x: -15, z: 420,  top: 440, r: 30 },
+      { x: -70, z: 540,  top: 360, r: 24 },
+      { x: 40,  z: 660,  top: 380, r: 28 },
+      { x: -35, z: 800,  top: 300, r: 22 },
+      { x: 65,  z: 920,  top: 270, r: 26 },
+      { x: 0,   z: 1060, top: 220, r: 24 },
+    ],
+    thermals: [
+      { x: 30,  z: 600, y0: 180, y1: 330, u: 6 },
+      { x: -15, z: 950, y0: 90,  y1: 220, u: 7 },
+    ],
+    windBands: [
+      { yMin: 400, w: { x: 0, y: 0, z: 0 } },    // y > 400 calm
+      { yMin: 250, w: { x: -6, y: 0, z: 6 } },   // 250 < y <= 400
+      { yMin: -1e9, w: { x: 0, y: 0, z: 0 } },   // otherwise calm
+    ],
+    fork: false,
+    mistakeSlot: null,
+    flagSpots: [
+      { x: -8, y: 20, z: 1206 },
+      { x: -32, y: 420, z: 176 },
+      { x: -7, y: 440, z: 426 },
+      { x: 48, y: 380, z: 666 },
+      { x: 73, y: 270, z: 926 },
+    ],
+    groundCenterZ: 600,
+    ridgeDist: 2800,
+    deckBand: 1, highBand: 1,
+  },
+];
+
+const GATE_R_INNER = 5;
+// A gate center that would sit inside visible pillar rock (unpassable) is
+// deterministically pushed horizontally out to the gate radius clear of the
+// surface; every other gate verifies clear and is left untouched. Same result
+// every reload. Gate plane normals face away from the previous waypoint; the
+// forked course-1 slot 6 rides its own line (6a from 5a, 6b from 5b).
+function buildPlanes(def) {
+  return def.gates.map((variants, slot) => variants.map((gv, vi) => {
+    const p = { x: gv.x, y: gv.y, z: gv.z };
+    for (let pi = 0; pi < def.pillars.length; pi++) {
+      const pil = def.pillars[pi];
+      if (p.y > pil.top) continue;
+      const gdx = p.x - pil.x, gdz = p.z - pil.z;
+      const gdist = Math.hypot(gdx, gdz);
+      const minDist = pil.r + GATE_R_INNER;
+      if (gdist < minDist) {
+        const ux = gdist > 1e-6 ? gdx / gdist : 1, uz = gdist > 1e-6 ? gdz / gdist : 0;
+        p.x = pil.x + ux * minDist;
+        p.z = pil.z + uz * minDist;
+      }
+    }
+    const pg = def.gates[slot - 1];
+    const prev = slot === 0 ? def.launch : pg[Math.min(vi, pg.length - 1)];
+    const ndx = p.x - prev.x, ndy = p.y - prev.y, ndz = p.z - prev.z;
+    const nl = Math.hypot(ndx, ndy, ndz);
+    p.n = { x: ndx / nl, y: ndy / nl, z: ndz / nl };
+    p.slot = slot;
+    p.vi = vi;
+    return p;
+  }));
+}
+
+// nearest sampled point of the reference line to each gate center (deterministic)
+function gateSampleIndices(refS, planes) {
+  return planes.map((variants) => {
+    const g = variants[0];
+    let best = 0, bd = 1e9;
+    for (let i = 0; i <= REF_SAMPLES; i++) {
+      const d = (refS[i].x - g.x) ** 2 + (refS[i].z - g.z) ** 2;
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  });
+}
+
+// Deterministically bulges the coarse gate chain around pillar rock: each
+// original segment gets at most one apex, placed at a violation's own position
+// (near-gate dips swing wide early: tt = min(t, 0.8)) and pushed out on the
+// violation's side. Segment-start violations are the previous gate hugging its
+// own pillar by design; an apex there would fold the line back on itself.
+function avoidPillars(wps, def, margin) {
+  const out = [];
+  for (let i = 0; i < wps.length; i++) {
+    out.push(wps[i]);
+    if (i === wps.length - 1) break;
+    const a = wps[i], b = wps[i + 1];
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 1) continue;
+    let worst = null, worstPen = 0, worstT = 0;
+    for (let pi = 0; pi < def.pillars.length; pi++) {
+      const pil = def.pillars[pi];
+      const t = clamp(-((a.x - pil.x) * dx + (a.z - pil.z) * dz) / (len * len), 0, 1);
+      if (t < 0.2) continue;
+      const cy = a.y + (b.y - a.y) * t;
+      if (cy > pil.top + 10) continue;                 // passes safely above the rock
+      const cx = a.x + dx * t, cz = a.z + dz * t;
+      const dist = Math.hypot(cx - pil.x, cz - pil.z);
+      const need = pil.r + margin;
+      if (dist < need && need - dist > worstPen) {
+        worstPen = need - dist; worst = pil; worstT = t;
+      }
+    }
+    if (worst) {
+      const tt = Math.min(worstT, 0.8);
+      const cx = a.x + dx * tt, cz = a.z + dz * tt;
+      const px = cx - worst.x, pz = cz - worst.z;
+      const pl = Math.max(1e-6, Math.hypot(px, pz));
+      out.push({
+        x: worst.x + (px / pl) * (worst.r + margin),
+        y: a.y + (b.y - a.y) * tt,
+        z: worst.z + (pz / pl) * (worst.r + margin),
+      });
+    }
+  }
+  return out;
+}
+
+// Kestrel's reference line: a smooth Catmull-Rom spline through the launch and
+// the first gate variant's centers, ending over the pad (the RIDGE line on the
+// forked course 1; the plain gate line on courses 2 and 3).
+const REF_SAMPLES = 600;
+function crPoint(pts, u) {
+  const n = pts.length - 1;
+  const fu = clamp(u, 0, 1) * n;
+  const i = Math.min(Math.floor(fu), n - 1);
+  const t = fu - i, t2 = t * t, t3 = t2 * t;
+  const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(n, i + 2)];
+  return {
+    x: 0.5 * (2 * p1.x + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+    y: 0.5 * (2 * p1.y + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+    z: 0.5 * (2 * p1.z + (-p0.z + p2.z) * t + (2 * p0.z - 5 * p1.z + 4 * p2.z - p3.z) * t2 + (-p0.z + 3 * p1.z - 3 * p2.z + p3.z) * t3),
+  };
+}
+function buildRef(def, planes) {
+  const K0 = { x: def.launch.x - 4, y: def.launch.y, z: def.launch.z - 1 };
+  let wps;
+  if (!def.avoidRef) {
+    // course 1: the original chord-based pre-gate points (verified behavior)
+    wps = [K0];
+    for (let slot = 0; slot < planes.length; slot++) {
+      const g = planes[slot][0];
+      const prev = slot === 0 ? K0 : planes[slot - 1][0];
+      const dx = g.x - prev.x, dy = g.y - prev.y, dz = g.z - prev.z;
+      const dl = Math.hypot(dx, dy, dz);
+      const back = Math.min(55, dl * 0.4);   // pre-gate control point on the incoming chord
+      wps.push({ x: g.x - (dx / dl) * back, y: g.y - (dy / dl) * back, z: g.z - (dz / dl) * back });
+      wps.push({ x: g.x, y: g.y, z: g.z });
+    }
+    wps.push({ x: def.pad.x, y: def.pad.y + 6, z: def.pad.z });
+  } else {
+    // courses 2-3: route the coarse gate chain around rock first, then hang each
+    // pre-gate control point on the local incoming chord so every gate is met head-on
+    const coarse = [K0];
+    for (let slot = 0; slot < planes.length; slot++) {
+      const g = planes[slot][0];
+      coarse.push({ x: g.x, y: g.y, z: g.z, gate: slot });
+    }
+    coarse.push({ x: def.pad.x, y: def.pad.y + 6, z: def.pad.z });
+    const routed = avoidPillars(coarse, def, 14);
+    wps = [routed[0]];
+    for (let k = 1; k < routed.length; k++) {
+      const p = routed[k];
+      if (p.gate === undefined) { wps.push(p); continue; }
+      const prev = routed[k - 1];
+      const dx = p.x - prev.x, dy = p.y - prev.y, dz = p.z - prev.z;
+      const dl = Math.hypot(dx, dy, dz);
+      const back = Math.min(55, dl * 0.4);
+      wps.push({ x: p.x - (dx / dl) * back, y: p.y - (dy / dl) * back, z: p.z - (dz / dl) * back });
+      wps.push(p);
+    }
+  }
+  const refS = [];
+  if (!def.avoidRef) {
+    let L = 0, prev = crPoint(wps, 0);
+    refS.push({ x: prev.x, y: prev.y, z: prev.z });
+    const refC = [0];
+    for (let i = 1; i <= REF_SAMPLES; i++) {
+      const p = crPoint(wps, i / REF_SAMPLES);
+      L += Math.hypot(p.x - prev.x, p.y - prev.y, p.z - prev.z);
+      refS.push({ x: p.x, y: p.y, z: p.z }); refC.push(L);
+      prev = p;
+    }
+    return { refS, refC, refLen: L, gateSamp: gateSampleIndices(refS, planes) };
+  }
+  // avoid courses: sample first, guarantee rock clearance on the tracked
+  // samples, then measure the arc table from the final geometry
+  for (let i = 0; i <= REF_SAMPLES; i++) {
+    const p = crPoint(wps, i / REF_SAMPLES);
+    refS.push({ x: p.x, y: p.y, z: p.z });
+  }
+  for (let pass = 0; pass < 2; pass++) {
+    let moved = false;
+    for (let i = 0; i <= REF_SAMPLES; i++) {
+      const p = refS[i];
+      let onGate = false;
+      for (let gi = 0; gi < planes.length; gi++) {
+        const g = planes[gi][0];
+        if ((p.x - g.x) ** 2 + (p.z - g.z) ** 2 < 16) { onGate = true; break; }
+      }
+      if (onGate) continue;                          // the ring center stays exact
+      for (let pi = 0; pi < def.pillars.length; pi++) {
+        const pil = def.pillars[pi];
+        if (p.y > pil.top + 6) continue;
+        const dx = p.x - pil.x, dz = p.z - pil.z;
+        const dist = Math.hypot(dx, dz);
+        const need = pil.r + 7;
+        if (dist < need) {
+          const k = need / Math.max(dist, 1e-6);
+          p.x = pil.x + dx * k; p.z = pil.z + dz * k;
+          moved = true;
+        }
+      }
+    }
+    if (!moved) break;
+  }
+  const refC = [0];
+  let L = 0, prev = refS[0];
+  for (let i = 1; i <= REF_SAMPLES; i++) {
+    const p = refS[i];
+    L += Math.hypot(p.x - prev.x, p.y - prev.y, p.z - prev.z);
+    refC.push(L);
+    prev = p;
+  }
+  return { refS, refC, refLen: L, gateSamp: gateSampleIndices(refS, planes) };
+}
+
+const COURSES = COURSE_DEFS.map((def) => {
+  const planes = buildPlanes(def);
+  const ref = buildRef(def, planes);
+  // a ring within 6 m of a pillar face (below its top) is a hug gate: its final
+  // approach inevitably grazes the rock, so the ring lock skips the path check
+  const gateHug = planes.map((variants) => {
+    const g = variants[0];
+    for (const pil of def.pillars) {
+      if (g.y > pil.top + 6) continue;
+      if (Math.hypot(g.x - pil.x, g.z - pil.z) < pil.r + 6) return true;
+    }
+    return false;
+  });
+  return Object.assign({}, def, {
+    planes, refS: ref.refS, refC: ref.refC, refLen: ref.refLen, gateSamp: ref.gateSamp, gateHug,
+    world: null,   // filled in once textures exist
+  });
+});
+let CUR = COURSES[0];
+
+function spireR(y, sp) {
+  return sp.rBot + (sp.rTop - sp.rBot) * clamp((y - sp.yBot) / (sp.yTop - sp.yBot), 0, 1);
+}
+function windAt(y) {
+  const bands = CUR.windBands;
+  for (let i = 0; i < bands.length; i++) {
+    if (y > bands[i].yMin) return i;
+  }
+  return bands.length - 1;
+}
+
+// ============================== renderer / scene ============================
+const app = document.getElementById('app');
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+} catch (err) {
+  const d = document.createElement('div');
+  d.id = 'fatal';
+  d.textContent = 'KARST GLIDE needs WebGL, which this browser could not provide.';
+  document.body.appendChild(d);
+  throw err;
+}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xf2cfae, 700, 3800);
+const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.5, 12000);
+
+// ============================== sky, sun, lights ============================
+const sunDir = new THREE.Vector3(-1050, 620, 2200).normalize();
+const sky = new THREE.Mesh(
+  new THREE.SphereGeometry(5200, 32, 16),
+  new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    fog: false,
+    uniforms: { uSunDir: { value: sunDir } },
+    vertexShader: `
+      varying vec3 vDir;
+      void main() {
+        vDir = position;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: `
+      varying vec3 vDir;
+      uniform vec3 uSunDir;
+      void main() {
+        vec3 d = normalize(vDir);
+        float h = d.y;
+        vec3 zen = vec3(0.33, 0.52, 0.78);
+        vec3 mid = vec3(0.93, 0.71, 0.66);
+        vec3 hor = vec3(1.00, 0.83, 0.60);
+        vec3 low = vec3(0.80, 0.71, 0.72);
+        vec3 col = h > 0.0
+          ? mix(mix(hor, mid, smoothstep(0.0, 0.18, h)), zen, smoothstep(0.12, 0.65, h))
+          : mix(hor, low, smoothstep(0.0, -0.25, h));
+        float s = max(dot(d, uSunDir), 0.0);
+        col += vec3(1.0, 0.88, 0.62) * pow(s, 600.0) * 1.3;
+        col += vec3(1.0, 0.76, 0.46) * pow(s, 18.0) * 0.38;
+        col += vec3(1.0, 0.66, 0.36) * pow(s, 3.5) * 0.14;
+        gl_FragColor = vec4(col, 1.0);
+      }`,
+  })
+);
+scene.add(sky);
+
+scene.add(new THREE.HemisphereLight(0xbdd2f0, 0x7d7468, 0.95));
+scene.add(new THREE.AmbientLight(0x6b6258, 0.45));
+const sun = new THREE.DirectionalLight(0xffd7a0, 1.7);
+sun.position.set(-1050, 620, 2200);
+sun.target.position.set(0, 200, 700);
+scene.add(sun.target);
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+sun.shadow.camera.left = -1000;
+sun.shadow.camera.right = 1000;
+sun.shadow.camera.top = 1000;
+sun.shadow.camera.bottom = -1000;
+sun.shadow.camera.near = 300;
+sun.shadow.camera.far = 6500;
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.6;
+sun.shadow.camera.updateProjectionMatrix();
+scene.add(sun);
+
+// ============================== procedural textures =========================
+function makeRockCanvas() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const g = c.getContext('2d');
+  const img = g.createImageData(256, 256);
+  for (let y = 0; y < 256; y++) {
+    for (let x = 0; x < 256; x++) {
+      const u = x / 256, w = y / 256;
+      let n = Math.sin(w * 47.0 + Math.sin(u * Math.PI * 4) * 1.4) * 0.5 + 0.5;
+      n = n * 0.6 + (Math.sin(u * 23 + w * 61) * 0.5 + 0.5) * 0.25 + 0.15;
+      let shade = 0.62 + 0.22 * Math.sin(w * 24 + 1.3) + (n - 0.5) * 0.5;
+      let r = 150 * shade + 18, gg = 132 * shade + 16, b = 116 * shade + 22;
+      if (Math.sin(u * 3.1 + w * 8.7) > 0.55) { gg += 14; b += 4; } // faint mossy tint bands
+      const i = (y * 256 + x) * 4;
+      img.data[i] = clamp(r, 0, 255); img.data[i + 1] = clamp(gg, 0, 255);
+      img.data[i + 2] = clamp(b, 0, 255); img.data[i + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}
+function makeGroundCanvas() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 512;
+  const g = c.getContext('2d');
+  const img = g.createImageData(512, 512);
+  for (let y = 0; y < 512; y++) {
+    for (let x = 0; x < 512; x++) {
+      const u = x / 512, w = y / 512;
+      let n = Math.sin(u * 31 + Math.sin(w * 21) * 2) * 0.5 + 0.5;
+      n = n * 0.55 + (Math.sin(w * 17 + u * 5 + 2.2) * 0.5 + 0.5) * 0.45;
+      const mist = Math.sin(u * 7.3 + w * 9.1 + 0.8) * 0.5 + 0.5;
+      let r = 70 + n * 46 + mist * 26;
+      let gg = 112 + n * 34 + mist * 26;
+      let b = 100 + n * 30 + mist * 30;
+      const i = (y * 512 + x) * 4;
+      img.data[i] = clamp(r, 0, 255); img.data[i + 1] = clamp(gg, 0, 255);
+      img.data[i + 2] = clamp(b, 0, 255); img.data[i + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}
+const rockTex = new THREE.CanvasTexture(makeRockCanvas());
+rockTex.wrapS = rockTex.wrapT = THREE.RepeatWrapping;
+rockTex.repeat.set(3, 2);
+const groundTex = new THREE.CanvasTexture(makeGroundCanvas());
+groundTex.wrapS = groundTex.wrapT = THREE.RepeatWrapping;
+groundTex.repeat.set(12, 12);
+if (renderer.capabilities && renderer.capabilities.getMaxAnisotropy) {
+  const an = renderer.capabilities.getMaxAnisotropy();
+  rockTex.anisotropy = an; groundTex.anisotropy = an;
+}
+
+// ============================== world geometry ==============================
+const pillarTints = [0xffffff, 0xf3e8db, 0xe9ddcd, 0xf7efe3];
+const gateRingGeo = new THREE.TorusGeometry(5.5, 0.5, 10, 40);   // inner opening = 5 m
+const gateBeamGeo = new THREE.CylinderGeometry(1.4, 1.4, 170, 12, 1, true);
+const puffGeo = new THREE.SphereGeometry(1, 10, 8);
+const puffMat = new THREE.MeshLambertMaterial({
+  color: 0xffffff, emissive: 0x8a93b8, transparent: true, opacity: 0.92, depthWrite: false,
+});
+const ridgeGeo = new THREE.ConeGeometry(1, 1, 24);
+const ridgeMat = new THREE.MeshLambertMaterial({ color: 0x46567e });
+const flagPoleGeo = new THREE.CylinderGeometry(0.06, 0.09, 4.2, 8);
+const flagPoleMat = new THREE.MeshLambertMaterial({ color: 0x8a8177 });
+const flagClothGeo = new THREE.PlaneGeometry(1.7, 0.9, 4, 2);
+const flagClothMat = new THREE.MeshLambertMaterial({ color: 0xff6a3d, side: THREE.DoubleSide });
+
+// builds the full static world of one course into its own group; all three
+// groups live in the scene and only the active course's group is visible
+function buildCourseWorld(def, planes) {
+  const g = new THREE.Group();
+  const floorY = def.floorY;
+
+  // valley floor; Eagle Creek's pad sits in a 2 m recessed creek pool
+  if (def.padPoolR) {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(def.padPoolR, 4500, 96, 1),
+      new THREE.MeshLambertMaterial({ map: groundTex })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(0, floorY, def.groundCenterZ);
+    ring.receiveShadow = true;
+    g.add(ring);
+    const bed = new THREE.Mesh(
+      new THREE.CircleGeometry(def.padPoolR, 48),
+      new THREE.MeshLambertMaterial({ map: groundTex, color: 0x9a948a })
+    );
+    bed.rotation.x = -Math.PI / 2;
+    bed.position.set(def.pad.x, def.pad.y, def.pad.z);
+    bed.receiveShadow = true;
+    g.add(bed);
+    const wall = new THREE.Mesh(
+      new THREE.CylinderGeometry(def.padPoolR, def.padPoolR, floorY - def.pad.y, 48, 1, true),
+      new THREE.MeshLambertMaterial({ map: rockTex, side: THREE.DoubleSide })
+    );
+    wall.position.set(def.pad.x, def.pad.y + (floorY - def.pad.y) / 2, def.pad.z);
+    g.add(wall);
+  } else {
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(9000, 9000),
+      new THREE.MeshLambertMaterial({ map: groundTex })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.set(0, floorY, def.groundCenterZ);
+    ground.receiveShadow = true;
+    g.add(ground);
+  }
+
+  // karst pillars
+  for (let i = 0; i < def.pillars.length; i++) {
+    const p = def.pillars[i];
+    const h = p.top - floorY;
+    const mat = new THREE.MeshLambertMaterial({ map: rockTex, color: pillarTints[i % pillarTints.length] });
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(p.r, p.r, h, 40), mat);
+    m.position.set(p.x, floorY + h / 2, p.z);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    g.add(m);
+  }
+
+  // launch spire + platform (Tianmen Gate only; courses 2-3 launch mid-air)
+  if (def.standingStart) {
+    const spH = def.spire.yTop - def.spire.yBot;
+    const spire = new THREE.Mesh(
+      new THREE.CylinderGeometry(def.spire.rTop, def.spire.rBot, spH, 48),
+      new THREE.MeshLambertMaterial({ map: rockTex, color: 0xf3e8db })
+    );
+    spire.position.set(0, def.spire.yBot + spH / 2, 0);
+    spire.castShadow = true;
+    spire.receiveShadow = true;
+    g.add(spire);
+
+    const platform = new THREE.Mesh(
+      new THREE.CylinderGeometry(def.platform.r, def.platform.r, def.platform.y1 - def.platform.y0, 48),
+      new THREE.MeshLambertMaterial({ color: 0xcfc6b4 })
+    );
+    platform.position.set(0, (def.platform.y0 + def.platform.y1) / 2, 0);
+    platform.castShadow = true;
+    platform.receiveShadow = true;
+    g.add(platform);
+
+    const rim = new THREE.Mesh(
+      new THREE.TorusGeometry(def.platform.r - 0.4, 0.22, 8, 64),
+      new THREE.MeshBasicMaterial({ color: 0xffd27a })
+    );
+    rim.rotation.x = -Math.PI / 2;
+    rim.position.set(0, def.platform.y1 + 0.15, 0);
+    g.add(rim);
+
+    const marker = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.4, 2.4),
+      new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.85 })
+    );
+    marker.rotation.x = -Math.PI / 2;
+    marker.position.set(0, def.platform.y1 + 0.06, 7.5);
+    g.add(marker);
+  }
+
+  // landing pad (a raised block, or a marked circle on Eagle Creek's pool bed)
+  if (def.pad.y > floorY) {
+    const padBlock = new THREE.Mesh(
+      new THREE.CylinderGeometry(def.pad.r, def.pad.r, def.pad.y - floorY, 48),
+      new THREE.MeshLambertMaterial({ color: 0xd9d2c4 })
+    );
+    padBlock.position.set(def.pad.x, def.pad.y - (def.pad.y - floorY) / 2, def.pad.z);
+    padBlock.receiveShadow = true;
+    padBlock.castShadow = true;
+    g.add(padBlock);
+  }
+  const padTop = new THREE.Mesh(
+    new THREE.CircleGeometry(def.pad.r - 0.12, 48),
+    new THREE.MeshLambertMaterial({ color: 0xece5d3, emissive: 0x3a3222 })
+  );
+  padTop.rotation.x = -Math.PI / 2;
+  padTop.position.set(def.pad.x, def.pad.y + 0.03, def.pad.z);
+  padTop.receiveShadow = true;
+  g.add(padTop);
+
+  const padRing = new THREE.Mesh(
+    new THREE.TorusGeometry(def.pad.r - 0.22, 0.3, 10, 64),
+    new THREE.MeshBasicMaterial({ color: 0xffd27a })
+  );
+  padRing.rotation.x = -Math.PI / 2;
+  padRing.position.set(def.pad.x, def.pad.y + 0.35, def.pad.z);
+  g.add(padRing);
+
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.6, 3.6, 380, 16, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: 0xffca70, transparent: true, opacity: 0.10,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false,
+    })
+  );
+  beam.position.set(def.pad.x, def.pad.y + 190, def.pad.z);
+  g.add(beam);
+
+  const padLight = new THREE.PointLight(0xffcf7a, 1.1, 180);
+  padLight.position.set(def.pad.x, def.pad.y + 10, def.pad.z);
+  g.add(padLight);
+
+  // cloud deck at deckY, with a clear cylinder of radius 120 around the pad
+  const deckMat = new THREE.MeshLambertMaterial({
+    color: 0xf6f4ef, emissive: 0x6a7590, transparent: true, opacity: 0.86,
+    side: THREE.DoubleSide, depthWrite: false,
+  });
+  const deck = new THREE.Mesh(new THREE.RingGeometry(120, 3600, 96, 1), deckMat);
+  deck.rotation.x = -Math.PI / 2;
+  deck.position.set(def.pad.x, def.deckY, def.pad.z);
+  g.add(deck);
+
+  const deck2 = new THREE.Mesh(
+    new THREE.RingGeometry(160, 3600, 96, 1),
+    new THREE.MeshLambertMaterial({
+      color: 0xeef1f8, emissive: 0x6a7590, transparent: true, opacity: 0.4,
+      side: THREE.DoubleSide, depthWrite: false,
+    })
+  );
+  deck2.rotation.x = -Math.PI / 2;
+  deck2.position.set(def.pad.x, def.deckY - 12, def.pad.z);
+  g.add(deck2);
+
+  // fluffy cloud puffs riding the deck (pure decoration, never collides)
+  const deckPuffs = [];
+  for (let i = 0; i < 44; i++) {
+    const a = i * 2.399963;
+    const rad = 300 + ((i * 197) % 2700);
+    const cx = Math.sin(a) * rad;
+    const cz = def.groundCenterZ + Math.cos(a) * rad * 0.92;
+    if (Math.hypot(cx - def.pad.x, cz - def.pad.z) < 150) continue; // keep the pad cylinder clear
+    const cg = new THREE.Group();
+    const n = 3 + (i % 2);
+    for (let j = 0; j < n; j++) {
+      const s = new THREE.Mesh(puffGeo, puffMat);
+      const sc = 7 + ((i * 13 + j * 29) % 11);
+      s.scale.set(sc * 1.7, sc * 0.55, sc * 1.25);
+      s.position.set((j - (n - 1) / 2) * sc * 1.1 + Math.sin(i + j) * 2, ((j % 2) - 0.5) * sc * 0.3, Math.cos(i * 1.7 + j) * 3);
+      cg.add(s);
+    }
+    cg.position.set(cx, def.deckY - 4 + (i % 5) * 2.6, cz);
+    g.add(cg);
+    deckPuffs.push(cg);
+  }
+
+  // high cloud wisps riding the top wind band (above every pillar top)
+  const highPuffs = [];
+  for (let i = 0; i < 14; i++) {
+    const m = new THREE.Mesh(puffGeo, puffMat);
+    const hs = 12 + (i * 7) % 14;
+    m.scale.set(hs * 1.8, hs * 0.5, hs * 1.3);
+    m.position.set(Math.sin(i * 1.7 + 0.4) * 1800, 540 + (i * 13) % 60, def.groundCenterZ - 60 + Math.cos(i * 2.3) * 1600);
+    g.add(m);
+    highPuffs.push(m);
+  }
+
+  // low mist patches in the valley
+  const mistMat = new THREE.MeshLambertMaterial({
+    color: 0xdfe8f2, emissive: 0x55606e, transparent: true, opacity: 0.16, depthWrite: false,
+  });
+  for (let i = 0; i < 14; i++) {
+    const mx = Math.sin(i * 1.93) * 420;
+    const mz = def.groundCenterZ - 640 + ((i * 173) % 1350);
+    const ms = 40 + ((i * 61) % 90);
+    const m = new THREE.Mesh(puffGeo, mistMat);
+    m.scale.set(ms, ms * 0.18, ms * 0.7);
+    m.position.set(mx, floorY + 4 + (i % 3) * 5, mz);
+    g.add(m);
+  }
+
+  // distant ridge silhouettes (also colliders, so no visible rock can be flown through)
+  const ridges = [];
+  for (let i = 0; i < 15; i++) {
+    const a = i * (Math.PI * 2 / 15) + 0.35;
+    const dist = def.ridgeDist + (i % 3) * 190;
+    const x = Math.cos(a) * dist;
+    const z = def.groundCenterZ + Math.sin(a) * dist;
+    const h = 300 + (i * 97) % 260;
+    const r = 380 + (i * 131) % 300;
+    ridges.push({ x, z, r, h });
+    const m = new THREE.Mesh(ridgeGeo, ridgeMat);
+    m.scale.set(r, h, r);
+    m.position.set(x, floorY + h / 2, z);
+    g.add(m);
+  }
+
+  // wind flags: cloth streams with the local band's wind, hangs in the calm layer
+  const flags = [];
+  for (let i = 0; i < def.flagSpots.length; i++) {
+    const s = def.flagSpots[i];
+    const grp = new THREE.Group();
+    grp.position.set(s.x, s.y, s.z);
+    const pole = new THREE.Mesh(flagPoleGeo, flagPoleMat);
+    pole.position.y = 2.1;
+    grp.add(pole);
+    const pivot = new THREE.Group();
+    pivot.position.y = 4.0;
+    const cloth = new THREE.Mesh(flagClothGeo, flagClothMat);
+    cloth.position.set(0.85, -0.33, 0);
+    pivot.add(cloth);
+    grp.add(pivot);
+    g.add(grp);
+    flags.push({ pivot, y: s.y, ph: i * 1.7 });
+  }
+
+  // gates: rings + beacon beams, per course
+  for (let s = 0; s < planes.length; s++) {
+    for (let vi = 0; vi < planes[s].length; vi++) {
+      const gt = planes[s][vi];
+      const grp = new THREE.Group();
+      grp.position.set(gt.x, gt.y, gt.z);
+      grp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(gt.n.x, gt.n.y, gt.n.z));
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0x7fc4ff, transparent: true, opacity: 0.6, depthWrite: false });
+      const ring = new THREE.Mesh(gateRingGeo, ringMat);
+      grp.add(ring);
+      const beamMat = new THREE.MeshBasicMaterial({
+        color: 0xffd27a, transparent: true, opacity: 0,
+        blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false,
+      });
+      const gbeam = new THREE.Mesh(gateBeamGeo, beamMat);
+      gbeam.rotation.x = Math.PI / 2;              // cylinder axis along the gate normal
+      grp.add(gbeam);
+      g.add(grp);
+      gt.obj = { ring, ringMat, beam: gbeam, beamMat };
+    }
+  }
+
+  // thermals: circling birds + rising motes
+  const thermalVis = [];
+  const birdWingGeo = new THREE.PlaneGeometry(0.95, 0.3);
+  const birdMat = new THREE.MeshBasicMaterial({ color: 0x2b3242, side: THREE.DoubleSide });
+  for (let k = 0; k < def.thermals.length; k++) {
+    const th = def.thermals[k];
+    const bandH = th.y1 - th.y0;
+    const birds = [];
+    for (let i = 0; i < 6; i++) {
+      const grp = new THREE.Group();
+      const wl = new THREE.Group();
+      const wlm = new THREE.Mesh(birdWingGeo, birdMat);
+      wlm.rotation.x = -Math.PI / 2;
+      wlm.position.x = -0.5;
+      wl.add(wlm);
+      const wr = new THREE.Group();
+      const wrm = new THREE.Mesh(birdWingGeo, birdMat);
+      wrm.rotation.x = -Math.PI / 2;
+      wrm.position.x = 0.5;
+      wr.add(wrm);
+      grp.add(wl); grp.add(wr);
+      grp.scale.setScalar(1.4);
+      g.add(grp);
+      birds.push({
+        grp, wl, wr,
+        a0: i * (Math.PI * 2 / 6) + k * 0.7,
+        w: 0.45 + ((k * 7 + i * 3) % 5) * 0.07,
+        r: 4.5 + ((k * 11 + i * 5) % 6),
+        y: th.y0 + 10 + ((k * 13 + i * 29) % Math.max(1, bandH - 20)),
+        flap: 5.5 + (i % 3) * 1.6,
+        ph: i * 1.31 + k * 2.2,
+      });
+    }
+    const NP = 56;
+    const pos = new Float32Array(NP * 3);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    const pts = new THREE.Points(geo, new THREE.PointsMaterial({
+      color: 0xffe2b8, size: 1.3, transparent: true, opacity: 0.55,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    }));
+    pts.frustumCulled = false;
+    g.add(pts);
+    const seeds = [];
+    for (let i = 0; i < NP; i++) {
+      seeds.push({
+        a: i * 2.399963 + k,
+        r: 2.5 + ((i * 17 + k * 7) % 75) / 10,
+        sp: 1.6 + ((i * 5 + k * 3) % 24) / 10,
+        ph: ((i * 31 + k * 11) % 100) / 100 * bandH,
+        sw: 0.15 + ((i * 3 + k) % 10) / 40,
+      });
+    }
+    thermalVis.push({ th, bandH, birds, pts, pos, seeds });
+  }
+
+  scene.add(g);
+  return { group: g, flags, deckPuffs, highPuffs, thermalVis, ridges };
+}
+for (let i = 0; i < COURSES.length; i++) {
+  COURSES[i].world = buildCourseWorld(COURSES[i], COURSES[i].planes);
+}
+function setCourse(i) {
+  CUR = COURSES[i];
+  for (let k = 0; k < COURSES.length; k++) COURSES[k].world.group.visible = (k === i);
+}
+
+// the deck's cloud lumps slide with their course's band so the sea of clouds
+// visibly reads the breeze; the calm layer applies to the pilot only
+const PUFF_DRIFT = 4;      // visual amplification so the drift reads at distance
+const PUFF_WRAP = 2600;    // wrap box half-size around the pad
+function updatePuffDrift(dt) {
+  const wd = CUR.windBands[CUR.deckBand].w;
+  const wh = CUR.windBands[CUR.highBand].w;
+  const W = CUR.world;
+  for (let i = 0; i < W.deckPuffs.length; i++) {
+    const g = W.deckPuffs[i];
+    g.position.x += wd.x * PUFF_DRIFT * dt;
+    g.position.z += wd.z * PUFF_DRIFT * dt;
+    if (g.position.x - CUR.pad.x > PUFF_WRAP) g.position.x -= PUFF_WRAP * 2;
+    else if (g.position.x - CUR.pad.x < -PUFF_WRAP) g.position.x += PUFF_WRAP * 2;
+    if (g.position.z - CUR.pad.z > PUFF_WRAP) g.position.z -= PUFF_WRAP * 2;
+    else if (g.position.z - CUR.pad.z < -PUFF_WRAP) g.position.z += PUFF_WRAP * 2;
+  }
+  for (let i = 0; i < W.highPuffs.length; i++) {
+    const m = W.highPuffs[i];
+    m.position.x += wh.x * PUFF_DRIFT * dt;
+    m.position.z += wh.z * PUFF_DRIFT * dt;
+    if (m.position.x - CUR.pad.x > PUFF_WRAP) m.position.x -= PUFF_WRAP * 2;
+    else if (m.position.x - CUR.pad.x < -PUFF_WRAP) m.position.x += PUFF_WRAP * 2;
+    if (m.position.z - CUR.pad.z > PUFF_WRAP) m.position.z -= PUFF_WRAP * 2;
+    else if (m.position.z - CUR.pad.z < -PUFF_WRAP) m.position.z += PUFF_WRAP * 2;
+  }
+}
+
+function updateFlags() {
+  const flags = CUR.world.flags;
+  for (let i = 0; i < flags.length; i++) {
+    const f = flags[i];
+    const wv = CUR.windBands[windAt(f.y)].w;
+    const mag = Math.hypot(wv.x, wv.z);
+    const sf = clamp(mag / 3, 0, 1);
+    f.pivot.rotation.y = Math.atan2(-wv.z, wv.x) + Math.sin(elapsed * (5 + mag) + f.ph) * 0.12 * sf;
+    f.pivot.rotation.z = -(1 - sf) * 1.25;
+    f.pivot.rotation.x = Math.sin(elapsed * (6.5 + mag * 1.7) + f.ph) * 0.07 * sf;
+  }
+}
+
+function refreshGateVisuals() {
+  const planes = CUR.planes;
+  for (let s = 0; s < planes.length; s++) {
+    for (let vi = 0; vi < planes[s].length; vi++) {
+      const o = planes[s][vi].obj;
+      o.ring.scale.set(1, 1, 1);
+      if (s < nextGate) { o.ringMat.color.setHex(0x58d68d); o.ringMat.opacity = 0.28; o.beamMat.opacity = 0; }
+      else if (s === nextGate) { o.ringMat.color.setHex(0xffd27a); o.ringMat.opacity = 0.95; o.beamMat.opacity = 0.13; }
+      else { o.ringMat.color.setHex(0x7fc4ff); o.ringMat.opacity = 0.6; o.beamMat.opacity = 0; }
+    }
+  }
+}
+
+function updateGatePulse() {
+  const planes = CUR.planes;
+  if (nextGate < planes.length) {
+    for (let vi = 0; vi < planes[nextGate].length; vi++) {
+      const o = planes[nextGate][vi].obj;
+      const s = 1 + 0.05 * Math.sin(elapsed * 3.2);
+      o.ring.scale.set(s, s, s);
+      o.beamMat.opacity = 0.10 + 0.05 * (0.5 + 0.5 * Math.sin(elapsed * 3.2));
+    }
+  }
+}
+
+function updateThermalVisuals() {
+  const tvs = CUR.world.thermalVis;
+  for (let k = 0; k < tvs.length; k++) {
+    const tv = tvs[k];
+    const th = tv.th;
+    for (let i = 0; i < tv.birds.length; i++) {
+      const b = tv.birds[i];
+      const a = b.a0 + elapsed * b.w;
+      b.grp.position.set(
+        th.x + Math.cos(a) * b.r,
+        b.y + Math.sin(elapsed * 0.31 + b.ph) * 2.2,
+        th.z + Math.sin(a) * b.r
+      );
+      b.grp.rotation.y = -a;
+      const flap = Math.sin(elapsed * b.flap + b.ph) * 0.65;
+      b.wl.rotation.z = -flap;
+      b.wr.rotation.z = flap;
+    }
+    const arr = tv.pos;
+    for (let i = 0; i < tv.seeds.length; i++) {
+      const s = tv.seeds[i];
+      const a = s.a + elapsed * s.sw;
+      arr[i * 3] = th.x + Math.cos(a) * s.r;
+      arr[i * 3 + 1] = th.y0 + ((s.ph + elapsed * s.sp) % tv.bandH);
+      arr[i * 3 + 2] = th.z + Math.sin(a) * s.r;
+    }
+    tv.pts.geometry.attributes.position.needsUpdate = true;
+  }
+}
+
+// ============================== the pilot ===================================
+const membranes = []; // { mesh, base, w }
+function buildPilot(pal, memList) {
+  const root = new THREE.Group();
+  root.rotation.order = 'YXZ';
+  const body = new THREE.Group();
+  root.add(body);
+
+  const suitMat = new THREE.MeshLambertMaterial({ color: pal.suit });
+  const suitDark = new THREE.MeshLambertMaterial({ color: pal.suitDark });
+  const memMat = new THREE.MeshLambertMaterial({ color: pal.mem, side: THREE.DoubleSide, transparent: true, opacity: 0.94 });
+  const helmetMat = new THREE.MeshLambertMaterial({ color: pal.helmet });
+  const visorMat = new THREE.MeshLambertMaterial({ color: pal.visor });
+  const skinMat = new THREE.MeshLambertMaterial({ color: pal.skin });
+
+  function box(w, h, d, mat, x, y, z, parent) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    (parent || body).add(m);
+    return m;
+  }
+
+  // torso, pack, head — model faces +Z while prone, belly down
+  box(0.34, 0.20, 0.56, suitMat, 0, 0.06, 0.02);
+  box(0.26, 0.11, 0.30, suitDark, 0, 0.19, -0.10);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 12), helmetMat);
+  head.position.set(0, 0.16, 0.38);
+  head.castShadow = true;
+  body.add(head);
+  box(0.15, 0.055, 0.04, visorMat, 0, 0.165, 0.50);
+
+  // arm groups: geometry along local +X; left group is yawed by PI
+  function arm(side) {
+    const g = new THREE.Group();
+    g.position.set(side * 0.19, 0.14, 0.18);
+    if (side < 0) g.rotation.y = Math.PI;
+    box(0.55, 0.09, 0.11, suitMat, 0.30, 0, -0.02, g);
+    box(0.10, 0.07, 0.13, skinMat, 0.60, 0, -0.04, g);
+    const geo = new THREE.PlaneGeometry(0.82, 0.55, 6, 3);
+    const m = new THREE.Mesh(geo, memMat);
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(0.46, -0.05, -0.10);
+    g.add(m);
+    memList.push({ mesh: m, base: Float32Array.from(geo.attributes.position.array), w: 0.82 });
+    body.add(g);
+    return g;
+  }
+  const armR = arm(1), armL = arm(-1);
+
+  // legs along local -Z
+  function leg(side) {
+    const g = new THREE.Group();
+    g.position.set(side * 0.09, 0.10, -0.26);
+    box(0.11, 0.10, 0.50, suitMat, 0, 0, -0.26, g);
+    box(0.11, 0.06, 0.14, suitDark, 0, 0.01, -0.54, g);
+    body.add(g);
+    return g;
+  }
+  const legR = leg(1), legL = leg(-1);
+
+  // leg-wing membrane between the legs
+  const tailGeo = new THREE.PlaneGeometry(0.34, 0.62, 4, 4);
+  const tail = new THREE.Mesh(tailGeo, memMat);
+  tail.rotation.x = -Math.PI / 2;
+  tail.position.set(0, 0.02, -0.50);
+  tail.castShadow = true;
+  body.add(tail);
+  memList.push({ mesh: tail, base: Float32Array.from(tailGeo.attributes.position.array), w: 0.34 });
+
+  scene.add(root);
+  return { root, body, armR, armL, legR, legL };
+}
+const PLAYER_PAL = { suit: 0xff6a3d, suitDark: 0xd84f28, mem: 0xff8c5a, helmet: 0xf2efe6, visor: 0x2a2f38, skin: 0xd9a06b };
+const KESTREL_PAL = { suit: 0x2fd6ff, suitDark: 0x1f9dc4, mem: 0x9fe8ff, helmet: 0x272b33, visor: 0x10131a, skin: 0xd9a06b };
+const pilot = buildPilot(PLAYER_PAL, membranes);
+const kestrelMembranes = [];
+const kestrelVis = buildPilot(KESTREL_PAL, kestrelMembranes);
+
+// ============================== audio (all synthesized) =====================
+let AC = null, master = null, windGain = null, windLP = null, rattleGain = null, noiseBuf = null, windSrc = null;
+function initAudio() {
+  if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+  if (!Ctor) return;
+  AC = new Ctor();
+  master = AC.createGain();
+  master.gain.value = 0.5;
+  master.connect(AC.destination);
+  const len = Math.floor(AC.sampleRate * 2);
+  noiseBuf = AC.createBuffer(1, len, AC.sampleRate);
+  const d = noiseBuf.getChannelData(0);
+  for (let i = 0; i < len; i++) {                       // deterministic hash noise, same every run
+    const s = Math.sin(i * 12.9898) * 43758.5453;
+    d[i] = (s - Math.floor(s)) * 2 - 1;
+  }
+  const src = AC.createBufferSource();
+  src.buffer = noiseBuf;
+  src.loop = true;
+  windSrc = src;
+  windLP = AC.createBiquadFilter();
+  windLP.type = 'lowpass';
+  windLP.frequency.value = 300;
+  windLP.Q.value = 0.7;
+  windGain = AC.createGain();
+  windGain.gain.value = 0;
+  src.connect(windLP); windLP.connect(windGain); windGain.connect(master);
+  src.start();
+  const ro = AC.createOscillator(); ro.type = 'square'; ro.frequency.value = 26;
+  const ro2 = AC.createOscillator(); ro2.type = 'sawtooth'; ro2.frequency.value = 41;
+  rattleGain = AC.createGain();
+  rattleGain.gain.value = 0;
+  ro.connect(rattleGain); ro2.connect(rattleGain); rattleGain.connect(master);
+  ro.start(); ro2.start();
+}
+function burst(dur, f0, f1, vol, type) {
+  if (!AC) return;
+  const t0 = AC.currentTime;
+  const s = AC.createBufferSource(); s.buffer = noiseBuf;
+  const f = AC.createBiquadFilter(); f.type = type || 'lowpass';
+  f.frequency.setValueAtTime(f0, t0);
+  f.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t0 + dur);
+  const g = AC.createGain();
+  g.gain.setValueAtTime(vol, t0);
+  g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+  s.connect(f); f.connect(g); g.connect(master);
+  s.start(); s.stop(t0 + dur + 0.05);
+}
+function tone(freq, dur, vol, when, type) {
+  if (!AC) return;
+  const t0 = AC.currentTime + (when || 0);
+  const o = AC.createOscillator(); o.type = type || 'sine'; o.frequency.value = freq;
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol, t0 + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+  o.connect(g); g.connect(master);
+  o.start(t0); o.stop(t0 + dur + 0.05);
+}
+function sndThud() {
+  if (!AC) return;
+  const t0 = AC.currentTime;
+  const o = AC.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(110, t0);
+  o.frequency.exponentialRampToValueAtTime(38, t0 + 0.22);
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.5, t0);
+  g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.25);
+  o.connect(g); g.connect(master);
+  o.start(t0); o.stop(t0 + 0.3);
+  burst(0.15, 500, 120, 0.25);
+}
+function sndCrash() {
+  if (!AC) return;
+  sndThud();
+  burst(0.55, 1400, 90, 0.5);
+  burst(0.3, 300, 60, 0.4);
+  tone(70, 0.4, 0.4, 0, 'triangle');
+}
+function sndChime(grade) {
+  if (grade === 'CLEAN') { tone(523.25, 0.5, 0.2); tone(659.25, 0.5, 0.2, 0.12); tone(783.99, 0.7, 0.2, 0.24); tone(1046.5, 0.9, 0.16, 0.36); }
+  else if (grade === 'HARD') { tone(392, 0.4, 0.18); tone(493.88, 0.6, 0.18, 0.14); }
+  else if (grade === 'MISS') { tone(440, 0.35, 0.15); tone(415.3, 0.5, 0.13, 0.16); }
+  else { tone(196, 0.6, 0.18, 0, 'triangle'); tone(155.56, 0.8, 0.16, 0.18, 'triangle'); }
+}
+function sndWhoosh() { burst(0.7, 250, 1400, 0.16, 'bandpass'); }
+function sndGate() { tone(880, 0.12, 0.12); tone(1174.66, 0.16, 0.10, 0.07); }
+function updateAudio(dt) {
+  if (!AC) return;
+  const flying = phase === 'FLYING';
+  const wT = flying ? Math.min(1, Math.pow(v / 55, 1.4)) * 0.42 : 0;
+  windGain.gain.value += (wT - windGain.gain.value) * Math.min(1, dt * 8);
+  windLP.frequency.value = 200 + v * 32;
+  if (windSrc) windSrc.playbackRate.value = 1 + 0.35 * trimBlend;   // wind pitch rises in DIVE
+  rattleGain.gain.value = (flying && stallOn) ? 0.10 : 0;
+}
+
+// ============================== game state ==================================
+let phase = 'MENU';                                     // MENU | FLYING | RESULT | PODIUM | RECKONING
+const P = { x: 0, y: 0, z: 0 };
+let v = 18, gamma = -15, psi = 0, phi = 0;              // v m/s, angles in degrees (psi radians)
+let t = 0, vy = 0, vh = 0, acc = 0;
+let stallOn = false;
+let landingGrade = null, contact = null, resultTime = 0;
+let elapsed = 0, flutterPhase = 0, bodyPitchSm = -90;
+const skid = { dx: 0, dz: 0, dist: 0 };
+const pose = { armYaw: 14, armDih: 8, legSpread: 3, legLift: 0, pitch: 0 };
+let gatesPassed = 0, nextGate = 0;                      // gate progress, strictly in order
+let proxPts = 0, dRock = null;                          // rock-proximity bonus
+let trimTarget = 0, trimBlend = 0;                      // 0 = GLIDE, 1 = DIVE
+let curU = 0;                                           // current thermal upwash (m/s)
+let stepWind = { x: 0, y: 0, z: 0 };                    // wind vector used by the current step
+let gateTimes = [];                                     // player's clock at each gate pass
+let playerFork = [null, null];                          // RIDGE(0)/CLOUD(1) variant taken per fork slot
+
+// checkpoint respawn: crashing before the final gate never ends the run — the
+// pilot reappears at the last passed gate (or the launch platform), frozen for
+// 3.0 s while the clock keeps running, and the run score takes a -150 penalty.
+// All values hardcoded, identical on every reload.
+const RESPAWN_V = 20, RESPAWN_GAMMA = -10, RESPAWN_FREEZE_S = 3.0, RESPAWN_PENALTY = 150;
+let crashes = 0, crashPen = 0, freezeT = 0;             // crash count, score penalty, control freeze left
+let respawnPt = { x: 0, y: 0, z: 0, psi: 0, kind: 'PLATFORM' };   // checkpoint in use
+
+// championship state: three courses back to back, standings over four names
+const RIVAL_TOTALS = {
+  LUMEN: [1620, 1555, 1680],
+  VOLEY: [1475, 1505, 1420],
+};
+function freshChamp() {
+  return {
+    courseIdx: 0,
+    totals: {
+      YOU: [null, null, null],
+      KESTREL: [null, null, null],
+      LUMEN: RIVAL_TOTALS.LUMEN.slice(),
+      VOLEY: RIVAL_TOTALS.VOLEY.slice(),
+    },
+    rows: { YOU: [null, null, null] },      // per-course reckoning detail for YOU
+    crashes: [null, null, null],            // per-course crash counts for YOU
+    standings: [],
+    rating: null,
+    done: false,
+  };
+}
+let champ = freshChamp();
+function computeStandings(tot) {
+  const rows = ['YOU', 'KESTREL', 'LUMEN', 'VOLEY'].map((n) => {
+    const c = tot[n];
+    const tv = (c[0] == null ? 0 : c[0]) + (c[1] == null ? 0 : c[1]) + (c[2] == null ? 0 : c[2]);
+    return { name: n, c1: c[0], c2: c[1], c3: c[2], total: tv, c3key: c[2] == null ? -1 : c[2] };
+  });
+  rows.sort((a, b) => (b.total - a.total) || (b.c3key - a.c3key) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  for (let i = 0; i < rows.length; i++) rows[i].rank = i + 1;
+  return rows;
+}
+
+// ============================== input =======================================
+const keys = { w: false, s: false, a: false, d: false };
+const ZERO_KEYS = { w: false, s: false, a: false, d: false };     // used while respawn-frozen
+window.addEventListener('keydown', (e) => {
+  const c = e.code;
+  if (c === 'KeyW' || c === 'ArrowUp') { keys.w = true; e.preventDefault(); }
+  else if (c === 'KeyS' || c === 'ArrowDown') { keys.s = true; e.preventDefault(); }
+  else if (c === 'KeyA' || c === 'ArrowLeft') { keys.a = true; e.preventDefault(); }
+  else if (c === 'KeyD' || c === 'ArrowRight') { keys.d = true; e.preventDefault(); }
+  else if (c === 'KeyN') { if (!e.repeat) onN(); }
+  else if (c === 'Enter' || c === 'NumpadEnter') { if (!e.repeat) onEnter(); }
+  else if (c === 'KeyR') { if (!e.repeat) toMenu(); }
+  else if (c === 'KeyT') { if (!e.repeat) toggleTrim(); }
+});
+window.addEventListener('keyup', (e) => {
+  const c = e.code;
+  if (c === 'KeyW' || c === 'ArrowUp') keys.w = false;
+  else if (c === 'KeyS' || c === 'ArrowDown') keys.s = false;
+  else if (c === 'KeyA' || c === 'ArrowLeft') keys.a = false;
+  else if (c === 'KeyD' || c === 'ArrowRight') keys.d = false;
+});
+window.addEventListener('blur', () => { keys.w = keys.s = keys.a = keys.d = false; });
+
+function onN() {
+  if (phase === 'MENU') startChampionship();       // the menu's N is the only way to fly
+}
+function onEnter() {
+  if (phase === 'RESULT') nextCourse();
+  else if (phase === 'PODIUM') showReckoning();
+  else if (phase === 'RECKONING') toMenu();
+}
+function toggleTrim() {
+  if (phase === 'FLYING' && freezeT > 0) return;    // controls frozen after a respawn
+  trimTarget = trimTarget === 1 ? 0 : 1;
+  if (phase !== 'FLYING') trimBlend = trimTarget;      // on the ground the swap is instant
+  tone(660, 0.08, 0.09);
+}
+
+// ============================== flow ========================================
+const el = {};
+['hTime', 'hV', 'hAlt', 'hGamma', 'hPsi', 'hPhi', 'hGates', 'hRock', 'hProx', 'hTrim', 'hWind', 'hRace',
+ 'padArrow', 'padDist', 'stallWarn', 'thermalWarn', 'ready', 'result', 'resGrade', 'resTime', 'resCourse',
+ 'resPrompt', 'scTimeT', 'kTimeT', 'scGates', 'kGates', 'scProxP', 'kProxP', 'scLand', 'kLand',
+ 'scPrecP', 'kPrecP', 'scCrash', 'kCrash', 'scTotal', 'kTotal', 'resVerdict', 'podium', 'podChamp', 'ped1', 'ped2', 'ped3',
+ 'podBoard', 'courseBanner', 'cbTitle', 'cbName', 'reckoning', 'rkBoard', 'rkStand', 'rkTotal', 'rkLetter'].forEach((id) => {
+  el[id] = document.getElementById(id);
+});
+const readyEl = el.ready, resultEl = el.result, podiumEl = el.podium, bannerEl = el.courseBanner;
+const reckoningEl = el.reckoning;
+const resGrade = el.resGrade, resTime = el.resTime;
+let bannerT = null;
+
+function resetRunState() {
+  t = 0; acc = 0;
+  P.x = CUR.launch.x; P.y = CUR.launch.y; P.z = CUR.launch.z;
+  v = 18; gamma = -15; psi = 0; phi = 0; vy = 0; vh = 0;
+  stallOn = false; landingGrade = null; contact = null; resultTime = 0;
+  gatesPassed = 0; nextGate = 0; proxPts = 0; dRock = null; curU = 0;
+  gateTimes = new Array(CUR.planes.length).fill(null);
+  playerFork = [null, null];
+  trimTarget = 0; trimBlend = 0;
+  stepWind = { x: 0, y: 0, z: 0 };
+  skid.dx = 0; skid.dz = 0; skid.dist = 0;
+  bodyPitchSm = 0;
+  crashes = 0; crashPen = 0; freezeT = 0;
+  respawnPt = { x: CUR.launch.x, y: CUR.launch.y, z: CUR.launch.z, psi: 0, kind: 'PLATFORM' };
+}
+
+function startChampionship() {
+  champ = freshChamp();
+  startCourse(0);
+}
+
+function startCourse(i) {
+  champ.courseIdx = i;
+  setCourse(i);
+  phase = 'FLYING';
+  resetRunState();
+  resetKestrel();
+  refreshGateVisuals();
+  initAudio();
+  sndWhoosh();
+  camPos.set(CUR.launch.x, CUR.launch.y + 3.6, CUR.launch.z - 12);
+  camLook.set(CUR.launch.x, CUR.launch.y + 0.8, CUR.launch.z + 7);
+  readyEl.classList.add('hidden');
+  resultEl.classList.add('hidden');
+  podiumEl.classList.add('hidden');
+  el.cbTitle.textContent = 'COURSE ' + (i + 1) + ' / ' + COURSES.length;
+  el.cbName.textContent = CUR.name;
+  bannerEl.classList.add('show');
+  bannerT = 0;
+}
+
+function nextCourse() {
+  if (champ.courseIdx < COURSES.length - 1) startCourse(champ.courseIdx + 1);
+  else showPodium();
+}
+
+const POD_TIMES = [0.9, 2.1, 3.3];                     // 3rd, 2nd, 1st — raised in order
+let podiumT = 0, podDone = [false, false, false];
+function setPed(ped, row) {
+  ped.querySelector('.pname').textContent = row.name;
+  ped.querySelector('.ptotal').textContent = fmtPts(row.total) + ' PTS';
+}
+function showPodium() {
+  champ.done = true;
+  champ.standings = computeStandings(champ.totals);
+  const top3 = champ.standings.slice(0, 3);
+  setPed(el.ped1, top3[0]);
+  setPed(el.ped2, top3[1]);
+  setPed(el.ped3, top3[2]);
+  el.podChamp.textContent = 'CHAMPION \u00b7 ' + top3[0].name;
+  const nil = (x) => (x == null ? '\u2014' : fmtPts(x));
+  let html = '<tr class="head"><td>#</td><td>NAME</td><td>TIANMEN</td><td>EAGLE</td><td>CLOUD</td><td>TOTAL</td></tr>';
+  for (let i = 0; i < champ.standings.length; i++) {
+    const r = champ.standings[i];
+    html += '<tr' + (r.name === 'YOU' ? ' class="me"' : '') + '><td>' + r.rank + '</td><td>' + r.name + '</td><td>'
+      + nil(r.c1) + '</td><td>' + nil(r.c2) + '</td><td>' + nil(r.c3) + '</td><td>' + nil(r.total) + '</td></tr>';
+  }
+  el.podBoard.innerHTML = html;
+  podDone = [false, false, false];
+  podiumT = 0;
+  el.ped1.classList.remove('on'); el.ped2.classList.remove('on'); el.ped3.classList.remove('on');
+  el.podChamp.classList.remove('on');
+  resultEl.classList.add('hidden');
+  readyEl.classList.add('hidden');
+  podiumEl.classList.remove('hidden');
+  phase = 'PODIUM';
+}
+
+// final rating from the championship total, thresholds hardcoded
+function ratingOf(total) {
+  return total >= 5600 ? 'S' : total >= 5200 ? 'A' : total >= 4600 ? 'B' : 'C';
+}
+const RK_COURSE_SHORT = ['TIANMEN', 'EAGLE', 'CLOUD'];
+function showReckoning() {
+  let html = '<tr class="head"><td>COURSE</td><td>TIME</td><td>GATES</td><td>PROX</td><td>LANDING</td><td>CRASHES</td><td>TOTAL</td></tr>';
+  for (let i = 0; i < COURSES.length; i++) {
+    const r = champ.rows.YOU[i];
+    html += '<tr><td>' + RK_COURSE_SHORT[i] + '</td><td>' + (r ? r.t.toFixed(2) + ' s' : '\u2014') + '</td><td>'
+      + (r ? r.gates + '/' + r.gatesTotal : '\u2014') + '</td><td>' + (r ? fmtPts(r.prox) : '\u2014') + '</td><td>'
+      + (r ? r.grade : '\u2014') + '</td><td>' + (r ? r.crashes : '\u2014') + '</td><td>'
+      + (r ? fmtPts(r.total) : '\u2014') + '</td></tr>';
+  }
+  el.rkBoard.innerHTML = html;
+  const you = champ.totals.YOU;
+  const tot = (you[0] == null ? 0 : you[0]) + (you[1] == null ? 0 : you[1]) + (you[2] == null ? 0 : you[2]);
+  champ.rating = ratingOf(tot);
+  el.rkTotal.textContent = fmtPts(tot) + ' PTS';
+  el.rkLetter.textContent = champ.rating;
+  el.rkLetter.className = 'rk-' + champ.rating.toLowerCase();
+  const nil = (x) => (x == null ? '\u2014' : fmtPts(x));
+  let sh = '<tr class="head"><td>#</td><td>NAME</td><td>TIANMEN</td><td>EAGLE</td><td>CLOUD</td><td>TOTAL</td></tr>';
+  for (let i = 0; i < champ.standings.length; i++) {
+    const r = champ.standings[i];
+    sh += '<tr' + (r.name === 'YOU' ? ' class="me"' : '') + '><td>' + r.rank + '</td><td>' + r.name + '</td><td>'
+      + nil(r.c1) + '</td><td>' + nil(r.c2) + '</td><td>' + nil(r.c3) + '</td><td>' + nil(r.total) + '</td></tr>';
+  }
+  el.rkStand.innerHTML = sh;
+  resultEl.classList.add('hidden');
+  podiumEl.classList.add('hidden');
+  reckoningEl.classList.remove('hidden');
+  phase = 'RECKONING';
+  tone(523.25, 0.4, 0.18); tone(659.25, 0.5, 0.18, 0.16); tone(783.99, 0.8, 0.18, 0.32);
+}
+
+function toMenu() {
+  champ = freshChamp();
+  setCourse(0);
+  phase = 'MENU';
+  resetRunState();
+  resetKestrel();
+  refreshGateVisuals();
+  resultEl.classList.add('hidden');
+  podiumEl.classList.add('hidden');
+  reckoningEl.classList.add('hidden');
+  readyEl.classList.remove('hidden');
+  if (AC) { windGain.gain.value = 0; rattleGain.gain.value = 0; }
+}
+
+// ============================== physics =====================================
+// flight model constants
+const DT = 1 / 120;
+const CFG = {
+  pitchRate: 30, pitchMin: -60, pitchMax: 25, stallPitch: 25,
+  bankRate: 90, bankMax: 60, bankReturn: 45,
+  turnK: 9.8, turnMax: 75, dragBank: 0.08,
+  sink0: 2.0, sinkK: 8, sinkV: 40,
+};
+// two trims; a transition blends every value below linearly over 0.8 s
+const TRIMS = {
+  GLIDE: { nodes: [[-60, 55], [-30, 38], [0, 22], [25, 14]], tau: 1.2, stallV: 14, unstallV: 17 },
+  DIVE:  { nodes: [[-60, 68], [-30, 48], [0, 28], [25, 17]], tau: 0.9, stallV: 17, unstallV: 20 },
+};
+const TRIM_BLEND_S = 0.8;
+function vEqNodes(nodes, g) {
+  if (g <= nodes[0][0]) return nodes[0][1];
+  for (let i = 0; i < nodes.length - 1; i++) {
+    const g0 = nodes[i][0], v0 = nodes[i][1];
+    const g1 = nodes[i + 1][0], v1 = nodes[i + 1][1];
+    if (g <= g1) return v0 + (v1 - v0) * (g - g0) / (g1 - g0);
+  }
+  return nodes[nodes.length - 1][1];
+}
+const THERMAL_R = 15;
+
+// shared flight core: one fixed-dt step for any flier (player and Kestrel alike)
+function flierCore(f, dt) {
+  if (f.trimBlend !== f.trimTarget) {
+    f.trimBlend = clamp(f.trimBlend + (f.trimTarget === 1 ? dt : -dt) / TRIM_BLEND_S, 0, 1);
+  }
+  // stall hysteresis with thresholds blended between trims
+  const stallV = TRIMS.GLIDE.stallV + (TRIMS.DIVE.stallV - TRIMS.GLIDE.stallV) * f.trimBlend;
+  const unstallV = TRIMS.GLIDE.unstallV + (TRIMS.DIVE.unstallV - TRIMS.GLIDE.unstallV) * f.trimBlend;
+  if (!f.stallOn && f.v < stallV) f.stallOn = true;
+  else if (f.stallOn && f.v >= unstallV) f.stallOn = false;
+
+  if (f.stallOn) {
+    f.gamma -= CFG.stallPitch * dt;                     // W/S have no effect while stalled
+  } else {
+    if (f.input.w) f.gamma += CFG.pitchRate * dt;
+    if (f.input.s) f.gamma -= CFG.pitchRate * dt;
+  }
+  f.gamma = clamp(f.gamma, CFG.pitchMin, CFG.pitchMax);
+
+  if (f.input.a) f.phi -= CFG.bankRate * dt;
+  if (f.input.d) f.phi += CFG.bankRate * dt;
+  if (!f.input.a && !f.input.d) {
+    if (f.phi > 0) f.phi = Math.max(0, f.phi - CFG.bankReturn * dt);
+    else f.phi = Math.min(0, f.phi + CFG.bankReturn * dt);
+  }
+  f.phi = clamp(f.phi, -CFG.bankMax, CFG.bankMax);
+
+  const psiRate = clamp(CFG.turnK * Math.tan(f.phi * DEG) / Math.max(f.v, 10),
+    -CFG.turnMax * DEG, CFG.turnMax * DEG);
+  f.psi += psiRate * dt;
+
+  const veqG = vEqNodes(TRIMS.GLIDE.nodes, f.gamma);
+  const veqD = vEqNodes(TRIMS.DIVE.nodes, f.gamma);
+  const veq = veqG + (veqD - veqG) * f.trimBlend;
+  const tau = TRIMS.GLIDE.tau + (TRIMS.DIVE.tau - TRIMS.GLIDE.tau) * f.trimBlend;
+  let dv = (veq - f.v) / tau;
+  if (Math.abs(f.phi) > 30) dv -= CFG.dragBank * f.v;
+  f.v = Math.max(0, f.v + dv * dt);
+
+  const sink = CFG.sink0 + CFG.sinkK * Math.pow(f.v / CFG.sinkV, 2);
+  f.u = thermalUpwashAt(f.P.x, f.P.y, f.P.z);
+  f.vy = f.v * Math.sin(f.gamma * DEG) - sink + f.u;
+  f.vh = f.v * Math.cos(f.gamma * DEG);
+
+  // wind is ground-drift only: air-relative velocity plus the band's wind vector
+  f.stepWind = CUR.windBands[windAt(f.P.y)].w;
+  f.P.x += (f.vh * Math.sin(f.psi) + f.stepWind.x) * dt;
+  f.P.z += (f.vh * Math.cos(f.psi) + f.stepWind.z) * dt;
+  f.P.y += (f.vy + f.stepWind.y) * dt;
+  f.t += dt;
+}
+
+function stepPhysics(dt) {
+  if (freezeT > 0) freezeT = Math.max(0, freezeT - dt);   // respawn freeze ticks with the run clock
+  const f = { P, input: freezeT > 0 ? ZERO_KEYS : keys, trimBlend, trimTarget, v, gamma, psi, phi, t, vy, vh, stallOn };
+  flierCore(f, dt);
+  trimBlend = f.trimBlend; trimTarget = f.trimTarget;
+  v = f.v; gamma = f.gamma; psi = f.psi; phi = f.phi; t = f.t;
+  vy = f.vy; vh = f.vh; stallOn = f.stallOn;
+  curU = f.u; stepWind = f.stepWind;
+  updateProximity(dt);
+  updateGates(dt);
+  checkContacts();
+}
+
+// upwash applies only inside a thermal's column AND altitude band; at most one
+function thermalUpwashAt(x, y, z) {
+  const ths = CUR.thermals;
+  for (let i = 0; i < ths.length; i++) {
+    const th = ths[i];
+    if (y >= th.y0 && y <= th.y1) {
+      const dx = x - th.x, dz = z - th.z;
+      if (dx * dx + dz * dz <= THERMAL_R * THERMAL_R) return th.u;
+    }
+  }
+  return 0;
+}
+
+// rock-proximity bonus: close to pillar rock only — never to ground or pad
+function accumulateProximityF(f, dt) {
+  let dr = 1e9;
+  const pillars = CUR.pillars;
+  for (let i = 0; i < pillars.length; i++) {
+    const p = pillars[i];
+    if (f.P.y <= p.top) {
+      const d = Math.hypot(f.P.x - p.x, f.P.z - p.z) - p.r;
+      if (d < dr) dr = d;
+    }
+  }
+  f.dRock = dr < 1e8 ? dr : null;
+  if (f.dRock !== null && f.dRock < 7) {
+    f.proxPts = Math.min(300, f.proxPts + (7 - f.dRock) / 7 * 12 * dt);
+  }
+}
+function updateProximity(dt) {
+  const f = { P, proxPts, dRock };
+  accumulateProximityF(f, dt);
+  proxPts = f.proxPts; dRock = f.dRock;
+}
+
+// gates count strictly in order; a forked slot passes on either variant ring;
+// crossing a later gate early is ignored, no penalty
+function advanceGates(f, dt) {
+  const planes = CUR.planes;
+  const px0 = f.P.x - (f.vh * Math.sin(f.psi) + f.stepWind.x) * dt;
+  const py0 = f.P.y - (f.vy + f.stepWind.y) * dt;
+  const pz0 = f.P.z - (f.vh * Math.cos(f.psi) + f.stepWind.z) * dt;
+  for (let slot = f.nextGate; slot < planes.length; slot++) {
+    let hit = false;
+    for (let vi = 0; vi < planes[slot].length; vi++) {
+      const g = planes[slot][vi];
+      const s0 = (px0 - g.x) * g.n.x + (py0 - g.y) * g.n.y + (pz0 - g.z) * g.n.z;
+      const s1 = (f.P.x - g.x) * g.n.x + (f.P.y - g.y) * g.n.y + (f.P.z - g.z) * g.n.z;
+      if (((s0 < 0 && s1 >= 0) || (s0 > 0 && s1 <= 0)) && slot === f.nextGate) {
+        const fk = Math.abs(s0) / (Math.abs(s0) + Math.abs(s1) + 1e-12);
+        const cx = px0 + (f.P.x - px0) * fk;
+        const cy = py0 + (f.P.y - py0) * fk;
+        const cz = pz0 + (f.P.z - pz0) * fk;
+          if (Math.hypot(cx - g.x, cy - g.y, cz - g.z) <= GATE_R_INNER + 1e-9) {
+          f.gatesPassed++;
+          f.nextGate++;
+          f.gateTimes[f.gatesPassed - 1] = f.t;
+          if (planes[slot].length > 1) f.fork[slot - 4] = vi;   // course-1 fork slots 5/6
+          if (f.onGate) f.onGate(slot, vi);
+          hit = true;
+          break;
+        }
+      }
+    }
+    if (!hit) break;
+  }
+}
+function updateGates(dt) {
+  const f = { P, vy, vh, psi, stepWind, t, nextGate, gatesPassed, gateTimes, fork: playerFork,
+    onGate: function (slot, vi) {
+      sndGate(); refreshGateVisuals();
+      setCheckpoint(slot, vi);          // crashing before the final gate respawns here
+    } };
+  advanceGates(f, dt);
+  nextGate = f.nextGate; gatesPassed = f.gatesPassed;
+}
+
+// the respawn checkpoint: the center of the last passed gate (this variant's
+// ring) with the heading along that gate's normal — the direction from the
+// previous waypoint to the gate
+function setCheckpoint(slot, vi) {
+  const g = CUR.planes[slot][vi];
+  respawnPt = { x: g.x, y: g.y, z: g.z, psi: Math.atan2(g.n.x, g.n.z), kind: 'GATE' };
+}
+
+function findContact(Q) {
+  const pad = CUR.pad, floorY = CUR.floorY;
+  const dPad = Math.hypot(Q.x - pad.x, Q.z - pad.z);
+  // ground: the pad's top inside its radius (Eagle Creek's pool widens the
+  // recessed zone), otherwise the valley floor
+  const zoneR = (pad.y < floorY ? CUR.padPoolR : pad.r);
+  if (dPad <= zoneR + 1e-9) {
+    if (Q.y <= pad.y) return { surface: dPad <= pad.r + 1e-9 ? 'pad' : 'floor', dPad, groundY: pad.y };
+  } else if (Q.y <= floorY) {
+    return { surface: 'floor', dPad, groundY: floorY };
+  }
+  const pillars = CUR.pillars;
+  for (let i = 0; i < pillars.length; i++) {
+    const p = pillars[i];
+    if (Q.y <= p.top) {
+      const dx = Q.x - p.x, dz = Q.z - p.z;
+      if (dx * dx + dz * dz <= p.r * p.r) return { surface: 'pillar', dPad, groundY: floorY };
+    }
+  }
+  const d0 = Math.hypot(Q.x, Q.z);
+  if (Q.y >= CUR.platform.y0 && Q.y <= CUR.platform.y1 && d0 <= CUR.platform.r + 1e-9) {
+    return { surface: 'pillar', dPad, groundY: floorY };
+  }
+  if (Q.y >= CUR.spire.yBot && Q.y <= CUR.spire.yTop && d0 <= spireR(Q.y, CUR.spire) + 1e-9) {
+    return { surface: 'pillar', dPad, groundY: floorY };
+  }
+  // Cloud Terrace's 20 m pad block is solid from the side as well
+  if (pad.y - floorY > 8 && Q.y > floorY && Q.y <= pad.y && dPad <= pad.r + 0.6) {
+    return { surface: 'pillar', dPad, groundY: floorY };
+  }
+  const ridges = CUR.world.ridges;
+  for (let i = 0; i < ridges.length; i++) {
+    const g = ridges[i];
+    const hAbove = Q.y - floorY;
+    if (hAbove > 0 && hAbove <= g.h) {
+      const dx = Q.x - g.x, dz = Q.z - g.z;
+      const rr = g.r * (1 - hAbove / g.h);
+      if (dx * dx + dz * dz <= rr * rr) return { surface: 'terrain', dPad, groundY: floorY };
+    }
+  }
+  return null;
+}
+function checkContacts() {
+  const c = findContact(P);
+  if (!c) return;
+  // C7: before the final gate, terrain/pillar contact respawns at the last
+  // checkpoint instead of ending the run; pad touchdowns always end the
+  // course, so a respawn can never erase a landing
+  if (c.surface !== 'pad' && gatesPassed < CUR.gates.length) doRespawn();
+  else endRun(c.surface, c.dPad, c.groundY);
+}
+
+function doRespawn() {
+  crashes += 1;
+  crashPen += RESPAWN_PENALTY;
+  P.x = respawnPt.x; P.y = respawnPt.y; P.z = respawnPt.z;
+  v = RESPAWN_V; gamma = RESPAWN_GAMMA; psi = respawnPt.psi; phi = 0;
+  vy = v * Math.sin(gamma * DEG); vh = v * Math.cos(gamma * DEG);
+  stallOn = false; curU = 0;
+  trimTarget = 0; trimBlend = 0;                     // back on GLIDE trim for the restart
+  skid.dx = 0; skid.dz = 0; skid.dist = 0;
+  freezeT = RESPAWN_FREEZE_S;                        // controls frozen, clock keeps running
+  bodyPitchSm = RESPAWN_GAMMA;
+  camPos.set(P.x - Math.sin(psi) * 12, P.y + 3.6, P.z - Math.cos(psi) * 12);
+  camLook.set(P.x + Math.sin(psi) * 7, P.y + 0.8, P.z + Math.cos(psi) * 7);
+  sndCrash();
+  tone(261.63, 0.3, 0.16, 0.14); tone(329.63, 0.4, 0.16, 0.32);
+  el.cbTitle.textContent = 'CHECKPOINT RESPAWN';
+  el.cbName.textContent = 'SCORE \u2212' + RESPAWN_PENALTY + ' \u00b7 CONTROLS FROZEN '
+    + RESPAWN_FREEZE_S.toFixed(1) + ' s';
+  bannerEl.classList.add('show');
+  bannerT = 0;
+}
+
+function gradeLanding(surface, dPad, iVy, iG) {
+  if (surface === 'pillar' || surface === 'terrain') return 'CRASH';
+  if (dPad <= CUR.pad.r + 1e-9 && Math.abs(iVy) <= 5 + 1e-9) {
+    return (Math.abs(iVy) <= 2.5 + 1e-9 && iG >= 5 - 1e-9) ? 'CLEAN' : 'HARD';
+  }
+  if (Math.abs(iVy) <= 5 + 1e-9) return 'MISS';
+  return 'CRASH';
+}
+function endRun(surface, dPad, groundY) {
+  const iVy = vy, iG = gamma;
+  const grade = gradeLanding(surface, dPad, iVy, iG);
+  landingGrade = grade;
+  const restY = surface === 'pad' ? CUR.pad.y
+    : (surface === 'pillar' ? Math.max(CUR.floorY, P.y) : (groundY != null ? groundY : CUR.floorY));
+  contact = {
+    surface,
+    point: { x: P.x, y: surface === 'pillar' ? P.y : Math.min(P.y, restY), z: P.z },
+    dPad, iVy, iG, restY,
+  };
+  skid.dx = Math.sin(psi);
+  skid.dz = Math.cos(psi);
+  skid.dist = surface === 'pillar' ? 0 : Math.min(3.5, Math.max(vh, 0) * 0.10);
+  phase = 'RESULT';
+  resultTime = 0;
+  acc = 0;
+  curU = 0;
+  if (grade === 'CRASH') sndCrash();
+  else { sndThud(); sndChime(grade); }
+  finishKestrel();
+  // championship bookkeeping: this course's TOTALs are now final for YOU and Kestrel
+  const sc = computeScore();
+  const ks = kestrelScore();
+  champ.totals.YOU[champ.courseIdx] = sc.total;
+  champ.totals.KESTREL[champ.courseIdx] = ks.total;
+  champ.rows.YOU[champ.courseIdx] = {
+    t, gates: gatesPassed, gatesTotal: CUR.planes.length,
+    prox: sc.proxPts, grade, crashes, total: sc.total,
+  };
+  champ.crashes[champ.courseIdx] = crashes;
+  champ.standings = computeStandings(champ.totals);
+  resGrade.textContent = grade;
+  resGrade.className = 'grade g-' + grade.toLowerCase();
+  resTime.textContent = t.toFixed(2) + ' s';
+  el.resCourse.textContent = CUR.name + ' \u00b7 COURSE ' + (champ.courseIdx + 1) + ' / ' + COURSES.length;
+  el.scTimeT.textContent = t.toFixed(2) + ' s \u00b7 ' + fmtPts(sc.timePts);
+  el.kTimeT.textContent = kestrel.t.toFixed(2) + ' s \u00b7 ' + fmtPts(ks.timePts);
+  el.scGates.textContent = gatesPassed + '/' + CUR.planes.length + ' \u00b7 ' + fmtPts(sc.gatePts);
+  el.kGates.textContent = kestrel.gatesPassed + '/' + CUR.planes.length + ' \u00b7 ' + fmtPts(ks.gatePts);
+  el.scProxP.textContent = fmtPts(sc.proxPts);
+  el.kProxP.textContent = fmtPts(ks.proxPts);
+  el.scLand.textContent = grade + ' \u00b7 ' + (sc.landPts > 0 ? '+' + sc.landPts : '0');
+  el.kLand.textContent = kestrel.landingGrade + ' \u00b7 ' + (ks.landPts > 0 ? '+' + ks.landPts : '0');
+  el.scPrecP.textContent = grade === 'CLEAN' ? '+' + fmtPts(sc.precPts) + ' (d ' + dPad.toFixed(1) + ' m)' : '0';
+  el.kPrecP.textContent = (kestrel.landingGrade === 'CLEAN')
+    ? '+' + fmtPts(ks.precPts) + ' (d ' + kestrel.contact.dPad.toFixed(1) + ' m)' : '0';
+  el.scCrash.textContent = crashes > 0 ? crashes + ' \u00d7 \u2212' + RESPAWN_PENALTY : '0';
+  el.kCrash.textContent = '0';                      // Kestrel never respawn-crashes
+  el.scTotal.textContent = fmtPts(sc.total);
+  el.kTotal.textContent = fmtPts(ks.total);
+  let verdict, vc;
+  if (sc.total > ks.total) { verdict = 'YOU WIN'; vc = 'win'; }
+  else if (sc.total < ks.total) { verdict = 'KESTREL WINS'; vc = 'lose'; }
+  else if (t < kestrel.t) { verdict = 'YOU WIN \u00b7 TIEBREAK ON TIME'; vc = 'win'; }
+  else if (t > kestrel.t) { verdict = 'KESTREL WINS \u00b7 TIEBREAK ON TIME'; vc = 'lose'; }
+  else { verdict = 'DEAD HEAT'; vc = 'tie'; }
+  el.resVerdict.textContent = verdict;
+  el.resVerdict.className = 'verdict ' + vc;
+  el.resPrompt.textContent = (champ.courseIdx < COURSES.length - 1)
+    ? 'ENTER \u2014 NEXT COURSE \u00b7 R \u2014 MENU'
+    : 'ENTER \u2014 PODIUM \u00b7 R \u2014 MENU';
+  resultEl.classList.remove('hidden');
+}
+
+// ============================== Kestrel, the AI rival =======================
+// Kestrel flies every course for real under the same physics core: 2.0 s late
+// launch, the RIDGE reference line and one scripted wide-turn mistake on
+// course 1 only, clean pursuit flights on courses 2-3, and always a latched
+// flare that touches the pad at -4.2 m/s (HARD). No rubber-banding: the
+// controller only ever follows its reference line.
+const kestrel = {
+  phase: 'WAIT',            // WAIT | FLYING | RESULT
+  startDelay: 2.0,
+  P: { x: 0, y: 0, z: 0 },
+  v: 18, gamma: -15, psi: 0, phi: 0, t: 0, vy: 0, vh: 0, u: 0,
+  stallOn: false, trimTarget: 1, trimBlend: 1,   // Kestrel flies DIVE, GLIDE for the flare
+  input: { w: false, s: false, a: false, d: false },
+  gatesPassed: 0, nextGate: 0, proxPts: 0, dRock: null,
+  fork: [null, null], gateTimes: [],
+  landingGrade: null, contact: null,
+  mistakeT: 0, acc: 0, stepWind: { x: 0, y: 0, z: 0 }, uIdxF: 0, uIdx: 0, uArc: 0, flare: false,
+  onGate: function (slot) {
+    if (CUR.mistakeSlot === slot) kestrel.mistakeT = 2.0;   // scripted wide turn (course 1 only)
+    if (slot === CUR.planes.length - 1) kestrel.trimTarget = 0;   // blend to GLIDE for the flare
+  },
+};
+function resetKestrel() {
+  const c = CUR;
+  kestrel.phase = 'WAIT';
+  kestrel.startDelay = 2.0;
+  kestrel.P = { x: c.launch.x - 4, y: c.launch.y, z: c.launch.z - 1 };
+  kestrel.v = 18; kestrel.gamma = -15; kestrel.psi = 0; kestrel.phi = 0;
+  kestrel.t = 0; kestrel.vy = 0; kestrel.vh = 0; kestrel.u = 0;
+  kestrel.stallOn = false; kestrel.trimTarget = 1; kestrel.trimBlend = 1;
+  kestrel.gatesPassed = 0; kestrel.nextGate = 0; kestrel.proxPts = 0; kestrel.dRock = null;
+  kestrel.fork = [null, null];
+  kestrel.gateTimes = new Array(c.planes.length).fill(null);
+  kestrel.landingGrade = null; kestrel.contact = null;
+  kestrel.mistakeT = 0; kestrel.acc = 0; kestrel.stepWind = { x: 0, y: 0, z: 0 };
+  kestrel.uIdxF = 0; kestrel.uIdx = 0; kestrel.uArc = 0; kestrel.flare = false;
+}
+// true when the straight path p -> ring center g clears every pillar's rock by
+// 2.5 m (a locked pursuit may not straight-cut a detour; hug gates skip this)
+function pathClearOfLine(p, g, c) {
+  const dx = g.x - p.x, dz = g.z - p.z;
+  const len = Math.hypot(dx, dz);
+  if (len < 1) return true;
+  for (let pi = 0; pi < c.pillars.length; pi++) {
+    const pil = c.pillars[pi];
+    const t = clamp(((pil.x - p.x) * dx + (pil.z - p.z) * dz) / (len * len), 0, 1);
+    const cy = p.y + (g.y - p.y) * t;
+    if (cy > pil.top + 6) continue;
+    const cx = p.x + dx * t, cz = p.z + dz * t;
+    if (Math.hypot(cx - pil.x, cz - pil.z) < pil.r + 2.5) return false;
+  }
+  return true;
+}
+function kestrelAI() {
+  const K = kestrel, inp = K.input;
+  // projection advances with the aircraft's ground pace along the curve tangent,
+  // then re-anchors on the snapped sample: the projection always tracks the
+  // flier's true closest point on the line
+  const spacing = CUR.refLen / REF_SAMPLES;
+  const vxg = K.vh * Math.sin(K.psi) + K.stepWind.x;
+  const vyg = K.vy + K.stepWind.y;
+  const vzg = K.vh * Math.cos(K.psi) + K.stepWind.z;
+  const iF = CUR.avoidRef ? K.uIdx : Math.floor(K.uIdxF);
+  const iC2 = Math.min(REF_SAMPLES, iF + 1);
+  let ttx = CUR.refS[iC2].x - CUR.refS[iF].x, tty = CUR.refS[iC2].y - CUR.refS[iF].y, ttz = CUR.refS[iC2].z - CUR.refS[iF].z;
+  const tln = Math.max(0.0001, Math.hypot(ttx, tty, ttz));
+  ttx /= tln; tty /= tln; ttz /= tln;
+  const sRate = clamp(vxg * ttx + vyg * tty + vzg * ttz, 4, 32);
+  if (CUR.avoidRef) {
+    K.uArc = clamp(K.uArc + sRate * DT, 0, CUR.refLen);
+    let bi = K.uIdx;
+    if (CUR.refC[bi] < K.uArc) { while (bi < REF_SAMPLES && CUR.refC[bi + 1] < K.uArc) bi++; }
+    else { while (bi > 0 && CUR.refC[bi] > K.uArc) bi--; }
+    let best = bi, bd = 1e9;
+    for (let i = Math.max(0, best - 12); i <= Math.min(REF_SAMPLES, best + 12); i++) {
+      const d = (CUR.refS[i].x - K.P.x) ** 2 + (CUR.refS[i].z - K.P.z) ** 2;
+      if (d < bd) { bd = d; best = i; }
+    }
+    K.uIdx = best;
+    K.uArc = CUR.refC[best];
+  } else {
+    K.uIdxF = clamp(K.uIdxF + (sRate * DT) / spacing, 0, REF_SAMPLES);
+    let best = Math.round(K.uIdxF), bd = 1e9;
+    for (let i = Math.max(0, best - 10); i <= Math.min(REF_SAMPLES, best + 10); i++) {
+      const d = (CUR.refS[i].x - K.P.x) ** 2 + (CUR.refS[i].z - K.P.z) ** 2;
+      if (d < bd) { bd = d; best = i; }
+    }
+    K.uIdx = best;
+  }
+  const Rnow = CUR.refS[K.uIdx];
+  const base = CUR.refC[K.uIdx];
+  // the tightest 30 m-window bend within ~270 m of arc ahead drives the speed;
+  // the aim distance stays fixed so corners are anticipated, not cut
+  let radiusFar = 1e9;
+  if (CUR.avoidRef) {
+    let iA = K.uIdx;
+    while (iA < REF_SAMPLES && CUR.refC[iA] < base + 30) iA++;
+    for (let w = 0; w < 8 && iA < REF_SAMPLES; w++) {
+      let iB = iA;
+      while (iB < REF_SAMPLES && CUR.refC[iB] < CUR.refC[iA] + 30) iB++;
+      const a = CUR.refS[iA], b = CUR.refS[iB];
+      const h1 = Math.atan2(CUR.refS[Math.min(REF_SAMPLES, iA + 2)].x - a.x, CUR.refS[Math.min(REF_SAMPLES, iA + 2)].z - a.z);
+      const h2 = Math.atan2(b.x - CUR.refS[Math.max(0, iB - 2)].x, b.z - CUR.refS[Math.max(0, iB - 2)].z);
+      const dPsi = Math.abs(norm180((h2 - h1) / DEG)) * DEG;
+      const arc = Math.max(20, CUR.refC[iB] - CUR.refC[iA]);
+      radiusFar = Math.min(radiusFar, dPsi > 0.02 ? arc / dPsi : 1e9);
+      iA = iB;
+    }
+  }
+  let iAim = K.uIdx;
+  let gateLock = null;              // exact ring center while lining up
+  if (CUR.avoidRef) {
+    // the aim is always a point on the line (so pursuit never straight-cuts a
+    // detour), capped at the next ring so the flier hugs the line into the gate
+    // instead of starting the far turn early; the drift term pulls a wayward
+    // flier back onto the line ahead. Hug gates lock on a short final without
+    // the path check (their approach grazes the rock by design).
+    let aimArc = base + 30 + 1.5 * Math.hypot(Rnow.x - K.P.x, Rnow.z - K.P.z);
+    if (K.nextGate < CUR.planes.length) {
+      const g = CUR.planes[K.nextGate][0];
+      const gArc = CUR.refC[CUR.gateSamp[K.nextGate]];
+      const range = CUR.gateHug[K.nextGate] ? 50 : 120;
+      const clear = CUR.gateHug[K.nextGate] || pathClearOfLine(K.P, g, CUR);
+      if (gArc > base && gArc - base < range && clear) {
+        const bearing = Math.atan2(g.x - K.P.x, g.z - K.P.z) / DEG;
+        if (Math.abs(norm180(bearing - K.psi / DEG)) < 25) {
+          aimArc = Math.min(aimArc, Math.max(base + 8, gArc));
+          gateLock = g;
+        }
+      }
+    }
+    while (iAim < REF_SAMPLES && CUR.refC[iAim] < aimArc) iAim++;
+  } else {
+    while (iAim < REF_SAMPLES && CUR.refC[iAim] < base + 30) iAim++;
+  }
+  const A = gateLock || CUR.refS[iAim];
+  const dh = Math.hypot(CUR.pad.x - K.P.x, CUR.pad.z - K.P.z);
+  // horizontal pursuit of the aim point with wind feed-forward
+  const pursuitPsi = Math.atan2(A.x - K.P.x, A.z - K.P.z);
+  const airX = Math.sin(pursuitPsi) * K.v - K.stepWind.x;
+  const airZ = Math.cos(pursuitPsi) * K.v - K.stepWind.z;
+  const desiredPsi = Math.atan2(airX, airZ) / DEG;
+  const err = norm180(desiredPsi - K.psi / DEG);
+  const phiDes = Math.atan(clamp(err * DEG * 1.6 * Math.max(K.v, 15) / 9.8, -1.7, 1.7)) / DEG;
+  inp.d = K.phi < phiDes - 2;
+  inp.a = K.phi > phiDes + 2;
+  // vertical: track the projected reference altitude with descent feed-forward;
+  // staged flare holds exactly -4.2 m/s of sink onto the pad (lands HARD)
+  const sink = CFG.sink0 + CFG.sinkK * Math.pow(K.v / CFG.sinkV, 2);
+  let gDes;
+  // curvature-adaptive speed: fly the speed the line's tightest upcoming bend
+  // allows, easing into each ring
+  let targetV = 46;
+  if (CUR.avoidRef && K.nextGate < CUR.planes.length) {
+    targetV = clamp(Math.sqrt(9.8 * radiusFar), 19, 46);
+    const dGate = CUR.refC[CUR.gateSamp[K.nextGate]] - base;
+    if (dGate < 60) targetV = Math.min(targetV, 21);   // ease into the ring
+  }
+  const flareY = CUR.avoidRef ? CUR.pad.y + 6 : CUR.pad.y + 4.5;
+  const flareDh = 17;
+  if (K.nextGate >= CUR.planes.length && dh < flareDh && K.P.y < flareY) K.flare = true;
+  if (K.nextGate >= CUR.planes.length && K.flare) {
+    gDes = Math.asin(clamp((-4.2 + sink) / Math.max(K.v, 8), -0.9, 0.4)) / DEG;
+  } else {
+    const slope = (A.y - Rnow.y) / Math.max((CUR.refC[iAim] - CUR.refC[K.uIdx]) / Math.max(K.v, 12), 0.5);
+    const tgtY = CUR.avoidRef ? Math.max(CUR.pad.y + 2.5, CUR.floorY + 2.5) : CUR.pad.y + 2.5;
+    const needVy = K.nextGate >= CUR.planes.length
+      ? clamp((tgtY - K.P.y) / Math.max(dh / Math.max(K.vh, 12), 1.2), -14, 4)
+      : clamp((Rnow.y - K.P.y) / 0.9 + slope, -26, 8);
+    gDes = Math.asin(clamp((needVy + sink) / Math.max(K.v, 8), -0.92, 0.42)) / DEG;
+  }
+  if (CUR.avoidRef && K.nextGate < CUR.planes.length) {
+    gDes += clamp((K.v - targetV) * 0.35, -2, 14);
+    K.trimTarget = targetV < 32 ? 0 : 1;
+    gDes = clamp(gDes, -60, 20);
+  }
+  inp.w = K.gamma < gDes - 1.2;
+  inp.s = K.gamma > gDes + 1.2;
+}
+function kestrelStep(dt) {
+  const f = kestrel;
+  flierCore(f, dt);
+  if (f.mistakeT > 0) {                     // scripted wide turn after G5a (course 1)
+    f.phi = clamp(f.phi, -30, 30);
+    f.mistakeT -= dt;
+  }
+  accumulateProximityF(f, dt);
+  advanceGates(f, dt);
+  const c = findContact(f.P);
+  if (c) kestrelEndRun(c.surface, c.dPad);
+}
+function kestrelEndRun(surface, dPad) {
+  kestrel.landingGrade = gradeLanding(surface, dPad, kestrel.vy, kestrel.gamma);
+  const restY = surface === 'pad' ? CUR.pad.y
+    : (surface === 'pillar' ? Math.max(CUR.floorY, kestrel.P.y) : CUR.floorY);
+  kestrel.contact = {
+    surface, dPad, restY,
+    x: kestrel.P.x, y: Math.min(kestrel.P.y, restY), z: kestrel.P.z, psi: kestrel.psi,
+  };
+  kestrel.phase = 'RESULT';
+  kestrel.acc = 0;
+}
+function finishKestrel() {
+  let guard = 0;
+  while (kestrel.phase === 'FLYING' && guard < 30000) {   // deterministic fast-forward
+    kestrelAI();
+    kestrelStep(DT);
+    guard++;
+  }
+  if (kestrel.phase === 'FLYING') kestrelEndRun('floor', 9999);   // lands out
+  kestrel.acc = 0;
+}
+
+// ============================== pilot visuals ===============================
+function poseTargets() {
+  if (phase === 'MENU') return { armYaw: 14, armDih: 8, legSpread: 3, legLift: 0, pitch: 0 };
+  if (phase === 'FLYING') {
+    let tg;
+    if (gamma <= -25) tg = { armYaw: 52, armDih: 2, legSpread: 2, legLift: 0, pitch: 8 };        // straight dive
+    else if (gamma >= 8) tg = { armYaw: -16, armDih: 14, legSpread: 15, legLift: 12, pitch: -30 }; // chest-up flare
+    else tg = { armYaw: 16, armDih: 9, legSpread: 11, legLift: 0, pitch: 0 };                    // spread glide
+    if (stallOn) {                                                                                // stall buffet
+      tg.armYaw += Math.sin(elapsed * 33) * 9;
+      tg.armDih += Math.sin(elapsed * 41) * 6;
+      tg.legSpread += Math.sin(elapsed * 37) * 7;
+      tg.legLift += Math.sin(elapsed * 29) * 5;
+      tg.pitch += Math.sin(elapsed * 27) * 3;
+    }
+    return tg;
+  }
+  // RESULT / PODIUM
+  if (landingGrade === 'CLEAN') return { armYaw: 0, armDih: 75, legSpread: 4, legLift: 0, pitch: -90 };
+  if (landingGrade === 'CRASH') return { armYaw: 46, armDih: 3, legSpread: 8, legLift: 0, pitch: -20 };
+  return { armYaw: 26, armDih: 26, legSpread: 10, legLift: 0, pitch: -55 };
+}
+
+function applyArmaturePose(arm, st, tg, dt) {
+  const k = 1 - Math.exp(-10 * dt);
+  st.armYaw += (tg.armYaw - st.armYaw) * k;
+  st.armDih += (tg.armDih - st.armDih) * k;
+  st.legSpread += (tg.legSpread - st.legSpread) * k;
+  st.legLift += (tg.legLift - st.legLift) * k;
+  st.pitch += (tg.pitch - st.pitch) * k;
+  const r = DEG;
+  arm.armR.rotation.y = st.armYaw * r;
+  arm.armR.rotation.z = st.armDih * r;
+  arm.armL.rotation.y = Math.PI - st.armYaw * r;
+  arm.armL.rotation.z = st.armDih * r;
+  arm.legR.rotation.y = -st.legSpread * r;
+  arm.legL.rotation.y = st.legSpread * r;
+  arm.legR.rotation.x = st.legLift * r;
+  arm.legL.rotation.x = st.legLift * r;
+}
+function applyPose(dt) {
+  applyArmaturePose(pilot, pose, poseTargets(), dt);
+}
+
+function updateMembraneSet(list, vLocal) {
+  const amp = 0.012 + Math.min(60, vLocal) * 0.0011;    // flutter amplitude grows with airspeed
+  for (let mi = 0; mi < list.length; mi++) {
+    const m = list[mi];
+    const attr = m.mesh.geometry.attributes.position;
+    const arr = attr.array, base = m.base;
+    for (let i = 0; i < arr.length; i += 3) {
+      const bx = base[i], by = base[i + 1];
+      const span = Math.abs(bx) / (m.w * 0.5);
+      arr[i + 2] = Math.sin(bx * 7.0 + flutterPhase * 2.0 + by * 4.0) * amp * (0.2 + 0.8 * span);
+    }
+    attr.needsUpdate = true;
+  }
+}
+function updateMembranes() { updateMembraneSet(membranes, v); }
+
+function updatePilot(dt) {
+  applyPose(dt);
+  const R = pilot.root, B = pilot.body;
+  if (phase === 'MENU') {
+    R.position.set(P.x, P.y, P.z);
+    R.rotation.set(0, 0, 0);
+    B.rotation.z = 0;
+  } else if (phase === 'FLYING') {
+    R.position.set(P.x, P.y + (stallOn ? Math.sin(elapsed * 47) * 0.05 : 0), P.z);
+    R.rotation.set(-gamma * DEG, psi, -phi * DEG);
+    B.rotation.z = stallOn ? Math.sin(elapsed * 43 + 1.1) * 4 * DEG : 0;
+  } else {
+    resultTime += dt;
+    const c = contact;
+    if (!c) return;
+    const k = Math.min(1, resultTime / 0.7);
+    const skd = skid.dist * (1 - (1 - k) * (1 - k));
+    if (landingGrade === 'CRASH') {
+      const rk = Math.min(1, resultTime / 1.1);
+      const roll = (1 - Math.pow(1 - rk, 3)) * 3.0 * Math.PI;   // tumbling roll, ease-out
+      R.position.set(
+        c.point.x + skid.dx * skd,
+        Math.max(c.restY + 0.16, c.point.y - resultTime * 45),
+        c.point.z + skid.dz * skd
+      );
+      R.rotation.set(0, psi, 0);
+      B.rotation.z = roll;
+      B.rotation.x = -0.12 - 0.3 * (1 - Math.pow(1 - Math.min(1, resultTime / 0.9), 2));
+    } else {
+      const stand = landingGrade === 'CLEAN';
+      const restOff = stand ? 0.8 : 0.5;
+      R.position.set(
+        c.point.x + skid.dx * skd,
+        c.point.y + ((c.restY + restOff) - c.point.y) * k,
+        c.point.z + skid.dz * skd
+      );
+      R.rotation.set(0, psi, -phi * DEG * (1 - k));
+      B.rotation.z *= Math.max(0, 1 - 6 * dt);
+    }
+  }
+  const wantPitch = (phase === 'MENU') ? -90 + Math.sin(elapsed * 1.8) * 1.2 : pose.pitch;
+  bodyPitchSm = damp(bodyPitchSm, wantPitch, 10, dt);
+  if (!(phase !== 'FLYING' && phase !== 'MENU' && landingGrade === 'CRASH')) {
+    B.rotation.x = (phase === 'FLYING' && stallOn)
+      ? B.rotation.x + bodyPitchSm * DEG
+      : bodyPitchSm * DEG;
+  }
+  updateMembranes();
+}
+
+// ============================== Kestrel visuals =============================
+const kestrelPose = { armYaw: 14, armDih: 8, legSpread: 3, legLift: 0, pitch: 0 };
+function kestrelPoseTargets() {
+  const K = kestrel;
+  if (K.phase === 'WAIT') {
+    if (!CUR.standingStart) {          // mid-air start: holds in a spread glide, ready to launch
+      return { armYaw: 16 + Math.sin(elapsed * 1.3) * 4, armDih: 9, legSpread: 11, legLift: 0, pitch: 0 };
+    }
+    return { armYaw: 14, armDih: 8, legSpread: 3, legLift: 0, pitch: 0 };
+  }
+  if (K.phase === 'FLYING') {
+    let tg;
+    if (K.gamma <= -25) tg = { armYaw: 52, armDih: 2, legSpread: 2, legLift: 0, pitch: 8 };
+    else if (K.gamma >= 8) tg = { armYaw: -16, armDih: 14, legSpread: 15, legLift: 12, pitch: -30 };
+    else tg = { armYaw: 16, armDih: 9, legSpread: 11, legLift: 0, pitch: 0 };
+    if (K.stallOn) {
+      tg.armYaw += Math.sin(elapsed * 33 + 2) * 9;
+      tg.armDih += Math.sin(elapsed * 41 + 2) * 6;
+      tg.legSpread += Math.sin(elapsed * 37 + 2) * 7;
+      tg.legLift += Math.sin(elapsed * 29 + 2) * 5;
+      tg.pitch += Math.sin(elapsed * 27 + 2) * 3;
+    }
+    return tg;
+  }
+  if (K.landingGrade === 'CLEAN') return { armYaw: 0, armDih: 75, legSpread: 4, legLift: 0, pitch: -90 };
+  if (K.landingGrade === 'CRASH') return { armYaw: 46, armDih: 3, legSpread: 8, legLift: 0, pitch: -20 };
+  return { armYaw: 26, armDih: 26, legSpread: 10, legLift: 0, pitch: -55 };
+}
+let kestrelBodyPitch = -90;
+function updateKestrelVisuals(dt) {
+  const K = kestrel, V = kestrelVis;
+  applyArmaturePose(V, kestrelPose, kestrelPoseTargets(), dt);
+  if (K.phase === 'WAIT') {
+    V.root.position.set(K.P.x, K.P.y + (CUR.standingStart ? 0 : Math.sin(elapsed * 0.9) * 0.35), K.P.z);
+    V.root.rotation.set(0, 0, 0);
+    V.body.rotation.z = 0;
+    kestrelBodyPitch = CUR.standingStart
+      ? damp(kestrelBodyPitch, -90 + Math.sin(elapsed * 1.6 + 1.3) * 1.2, 10, dt)
+      : damp(kestrelBodyPitch, Math.sin(elapsed * 0.7) * 4, 10, dt);
+  } else if (K.phase === 'FLYING') {
+    V.root.position.set(K.P.x, K.P.y, K.P.z);
+    V.root.rotation.set(-K.gamma * DEG, K.psi, -K.phi * DEG);
+    V.body.rotation.z = K.stallOn ? Math.sin(elapsed * 43 + 2.1) * 4 * DEG : 0;
+    kestrelBodyPitch = damp(kestrelBodyPitch, kestrelPose.pitch, 10, dt);
+  } else if (K.contact) {
+    const c = K.contact;
+    V.root.position.set(c.x, c.restY + 0.5, c.z);
+    V.root.rotation.set(0, c.psi, 0);
+    V.body.rotation.z = 0;
+    kestrelBodyPitch = damp(kestrelBodyPitch, kestrelPose.pitch, 6, dt);
+  }
+  V.body.rotation.x = kestrelBodyPitch * DEG;
+  updateMembraneSet(kestrelMembranes, K.v);
+}
+
+// ============================== camera ======================================
+const camPos = new THREE.Vector3(9, 624.5, 24);
+const camLook = new THREE.Vector3(0, 621.5, 12);
+const _desired = new THREE.Vector3(), _look = new THREE.Vector3(), _back = new THREE.Vector3();
+
+function blockedCam(x, y, z) {
+  if (y < CUR.floorY + 2.2) return true;
+  const pillars = CUR.pillars;
+  for (let i = 0; i < pillars.length; i++) {
+    const p = pillars[i];
+    if (y <= p.top + 1) {
+      const dx = x - p.x, dz = z - p.z, rr = p.r + 1.1;
+      if (dx * dx + dz * dz <= rr * rr) return true;
+    }
+  }
+  const d0 = Math.sqrt(x * x + z * z);
+  if (y <= CUR.platform.y1 + 1) {
+    if (y >= CUR.platform.y0 - 1 && d0 <= CUR.platform.r + 1.2) return true;
+    if (y <= CUR.spire.yTop + 1 && y >= CUR.spire.yBot && d0 <= spireR(y, CUR.spire) + 1.2) return true;
+  }
+  return false;
+}
+function boomAdjust(desired) {
+  const dx = desired.x - P.x, dy = desired.y - P.y, dz = desired.z - P.z;
+  const fr = [1.0, 0.86, 0.72, 0.58, 0.44, 0.30];
+  for (let i = 0; i < fr.length; i++) {
+    const f = fr[i];
+    const px = P.x + dx * f, py = P.y + dy * f, pz = P.z + dz * f;
+    if (!blockedCam(px, py, pz)) { desired.set(px, py, pz); return; }
+  }
+  desired.set(P.x + dx * 0.22, Math.max(P.y + 2.0, CUR.floorY + 2.5), P.z + dz * 0.22);
+}
+
+function updateCamera(dt) {
+  if (phase === 'MENU') {
+    const a = elapsed * 0.07 + 2.3;
+    _desired.set(P.x + Math.sin(a) * 12, P.y + 2.6 + Math.sin(elapsed * 0.13) * 0.8, P.z + Math.cos(a) * 12);
+    _look.set(P.x, P.y + 0.4, P.z + 2.5);
+  } else if (phase === 'FLYING') {
+    _back.set(Math.sin(psi), 0, Math.cos(psi));
+    const dist = 11.5 + v * 0.09;
+    _desired.set(P.x - _back.x * dist, P.y + 3.4, P.z - _back.z * dist);
+    if (_desired.y < CUR.floorY + 2.5) _desired.y = CUR.floorY + 2.5;
+    boomAdjust(_desired);
+    _look.set(
+      P.x + _back.x * 7,
+      Math.max(CUR.floorY + 1.5, P.y + 1.0 + gamma * DEG * 6),
+      P.z + _back.z * 7
+    );
+  } else {
+    const a = elapsed * 0.22;
+    const c = contact ? contact.point : P;
+    const cy = Math.max(c.y, CUR.floorY);
+    _desired.set(c.x + Math.sin(a) * 15, Math.max(cy + 7, CUR.floorY + 6), c.z + Math.cos(a) * 15);
+    _look.set(c.x, cy + 1.2, c.z);
+  }
+  camPos.lerp(_desired, 1 - Math.exp(-(phase === 'FLYING' ? 6 : 2.0) * dt));
+  camLook.lerp(_look, 1 - Math.exp(-7 * dt));
+  camera.position.copy(camPos);
+  camera.up.set(0, 1, 0);
+  camera.lookAt(camLook);
+  const fovT = 60 + clamp(v, 0, 60) * 0.25;
+  camera.fov = damp(camera.fov, fovT, 3, dt);
+  camera.updateProjectionMatrix();
+}
+
+// ============================== HUD =========================================
+function updateHUD() {
+  el.hTime.textContent = t.toFixed(1);
+  el.hV.textContent = v.toFixed(1);
+  el.hAlt.textContent = Math.max(0, P.y - CUR.floorY).toFixed(0);
+  el.hGamma.textContent = gamma.toFixed(1);
+  el.hPsi.textContent = norm180(psi / DEG).toFixed(1);
+  el.hPhi.textContent = phi.toFixed(1);
+  const dPad = Math.hypot(P.x - CUR.pad.x, P.z - CUR.pad.z);
+  el.padDist.textContent = Math.round(dPad) + ' m';
+  const bearing = Math.atan2(CUR.pad.x - P.x, CUR.pad.z - P.z) / DEG;
+  const rel = norm180(bearing - psi / DEG);
+  el.padArrow.style.transform = 'rotate(' + (-90 + rel) + 'deg)';
+  el.hGates.textContent = gatesPassed + '/' + CUR.planes.length;
+  el.hRock.textContent = dRock === null ? '\u2014' : dRock.toFixed(1);
+  el.hProx.textContent = String(Math.round(proxPts));
+  el.hTrim.textContent = trimTarget === 1 ? 'DIVE' : 'GLIDE';
+  const wv = CUR.windBands[windAt(P.y)].w;
+  el.hWind.textContent = wv.x + ', ' + wv.z;
+  let raceTxt = '\u2014', raceCol = '#ffffff';
+  if (phase === 'FLYING' && kestrel.phase !== 'WAIT') {
+    let d;
+    const n = Math.min(gatesPassed, kestrel.gatesPassed);
+    if (n >= 1 && gateTimes[n - 1] != null && kestrel.gateTimes[n - 1] != null) {
+      d = gateTimes[n - 1] - (kestrel.gateTimes[n - 1] + 2.0);   // same gate count, absolute clock
+    } else {
+      d = t - (kestrel.t + 2.0);
+    }
+    if (d >= 0) { raceTxt = '+' + d.toFixed(1) + 's BEHIND'; raceCol = '#ff9d9d'; }
+    else { raceTxt = '\u2212' + Math.abs(d).toFixed(1) + 's AHEAD'; raceCol = '#9fe8b8'; }
+  } else if (phase === 'RESULT') {
+    const dTotal = computeScore().total - kestrelScore().total;
+    raceTxt = (dTotal >= 0 ? '+' : '\u2212') + Math.abs(dTotal).toFixed(0) + ' PTS';
+    raceCol = dTotal >= 0 ? '#9fe8b8' : '#ff9d9d';
+  }
+  el.hRace.textContent = raceTxt;
+  el.hRace.style.color = raceCol;
+  el.thermalWarn.classList.toggle('on', phase === 'FLYING' && curU > 0);
+  el.stallWarn.classList.toggle('on', phase === 'FLYING' && stallOn);
+}
+
+// ============================== scoring + state export ======================
+const fmtPts = (x) => {
+  const r = Math.round(x);
+  return Math.abs(x - r) < 1e-9 ? String(r) : x.toFixed(1);
+};
+
+function computeFlierScore(tt, gates, nGatesTotal, prox, grade, dPad) {
+  const timePts = Math.max(0, 2000 - 10 * tt);
+  const gatePts = -50 * (nGatesTotal - gates);
+  const landPts = grade === 'CLEAN' ? 300 : (grade === 'HARD' ? 100 : 0);
+  const precPts = grade === 'CLEAN' ? (7 - dPad) * 20 : 0;
+  const total = timePts + gatePts + prox + landPts + precPts;
+  return { timePts, gatePts, proxPts: prox, landPts, precPts, total };
+}
+function computeScore() {
+  const dPad = (landingGrade === 'CLEAN' && contact) ? contact.dPad : 0;
+  const sc = computeFlierScore(t, gatesPassed, CUR.planes.length, proxPts, landingGrade, dPad);
+  sc.total -= crashPen;                     // checkpoint-respawn penalties (−150 each)
+  return sc;
+}
+function kestrelScore() {
+  const dPad = (kestrel.landingGrade === 'CLEAN' && kestrel.contact) ? kestrel.contact.dPad : 0;
+  return computeFlierScore(kestrel.t, kestrel.gatesPassed, CUR.planes.length, kestrel.proxPts, kestrel.landingGrade, dPad);
+}
+
+function writeState() {
+  // read-only debugging snapshot; never read back by the game
+  const sc = computeScore();
+  const ks = kestrelScore();
+  const wi = windAt(P.y);
+  const wv = CUR.windBands[wi].w;
+  window.__arena_state = Object.freeze({
+    phase,
+    course: Object.freeze({
+      index: champ.courseIdx,
+      name: CUR.name,
+      gates: CUR.planes.length,
+    }),
+    t,
+    position: Object.freeze({ x: P.x, y: P.y, z: P.z }),
+    v,
+    gamma,
+    psi: psi / DEG,
+    phi,
+    vy,
+    stall: stallOn,
+    landingGrade,
+    gatesPassed,
+    nextGate,
+    dRock,
+    proxPts,
+    trim: trimTarget === 1 ? 'DIVE' : 'GLIDE',
+    trimBlend,
+    u: curU,
+    wind: Object.freeze({ x: wv.x, y: wv.y, z: wv.z }),
+    windBand: wi,
+    crashes,
+    crashPen,
+    respawnFreeze: freezeT,
+    respawnPoint: Object.freeze({
+      x: respawnPt.x, y: respawnPt.y, z: respawnPt.z,
+      psi: respawnPt.psi / DEG, kind: respawnPt.kind,
+    }),
+    score: Object.freeze({
+      timePts: sc.timePts,
+      gatesPts: sc.gatePts,
+      proximity: sc.proxPts,
+      landingPts: sc.landPts,
+      precisionPts: sc.precPts,
+      total: sc.total,
+    }),
+    fork: Object.freeze({
+      g5: CUR.fork ? (playerFork[0] === 0 ? 'RIDGE' : (playerFork[0] === 1 ? 'CLOUD' : null)) : null,
+      g6: CUR.fork ? (playerFork[1] === 0 ? 'RIDGE' : (playerFork[1] === 1 ? 'CLOUD' : null)) : null,
+    }),
+    kestrel: Object.freeze({
+      phase: kestrel.phase,
+      position: Object.freeze({ x: kestrel.P.x, y: kestrel.P.y, z: kestrel.P.z }),
+      v: kestrel.v,
+      gamma: kestrel.gamma,
+      psi: kestrel.psi / DEG,
+      phi: kestrel.phi,
+      gatesPassed: kestrel.gatesPassed,
+      score: Object.freeze({
+        timePts: ks.timePts,
+        gatesPts: ks.gatePts,
+        proximity: ks.proxPts,
+        landingPts: ks.landPts,
+        precisionPts: ks.precPts,
+        total: ks.total,
+      }),
+    }),
+    championship: Object.freeze({
+      courseIndex: champ.courseIdx,
+      done: champ.done,
+      rating: champ.rating,
+      crashes: Object.freeze(champ.crashes.slice()),
+      totals: Object.freeze({
+        YOU: Object.freeze(champ.totals.YOU.slice()),
+        KESTREL: Object.freeze(champ.totals.KESTREL.slice()),
+        LUMEN: Object.freeze(champ.totals.LUMEN.slice()),
+        VOLEY: Object.freeze(champ.totals.VOLEY.slice()),
+      }),
+      standings: Object.freeze(champ.standings.map((r) => Object.freeze({
+        rank: r.rank,
+        name: r.name,
+        courses: Object.freeze([r.c1, r.c2, r.c3]),
+        total: r.total,
+      }))),
+    }),
+  });
+}
+
+// ============================== main loop ===================================
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+let last = performance.now();
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.1, Math.max(0.0001, (now - last) / 1000));
+  last = now;
+  elapsed += dt;
+
+  if (phase === 'FLYING') {
+    acc += dt;
+    let steps = 0;
+    while (acc >= DT && steps < 24 && phase === 'FLYING') {
+      acc -= DT;
+      stepPhysics(DT);
+      steps++;
+    }
+    if (phase !== 'FLYING') acc = 0;
+    if (kestrel.phase === 'WAIT') {
+      kestrel.startDelay -= dt;
+      if (kestrel.startDelay <= 0) { kestrel.phase = 'FLYING'; kestrel.acc = 0; }
+    }
+    if (kestrel.phase === 'FLYING') {
+      kestrel.acc += dt;
+      let ks = 0;
+      while (kestrel.acc >= DT && ks < 24 && kestrel.phase === 'FLYING') {
+        kestrel.acc -= DT;
+        kestrelAI();
+        kestrelStep(DT);
+        ks++;
+      }
+      if (kestrel.phase !== 'FLYING') kestrel.acc = 0;
+    }
+  }
+
+  if (phase === 'PODIUM') {
+    podiumT += dt;
+    for (let i = 0; i < 3; i++) {
+      if (!podDone[i] && podiumT >= POD_TIMES[i]) {
+        podDone[i] = true;
+        // reveal order: 3rd, 2nd, then the champion
+        const pedE = [el.ped3, el.ped2, el.ped1][i];
+        pedE.classList.add('on');
+        if (i === 2) { el.podChamp.classList.add('on'); sndChime('CLEAN'); }
+        else tone(i === 0 ? 392 : 523.25, 0.35, 0.15);
+      }
+    }
+  }
+
+  if (bannerT !== null) {
+    bannerT += dt;
+    if (bannerT > 3.2) { bannerEl.classList.remove('show'); bannerT = null; }
+  }
+
+  flutterPhase += dt * (1.5 + v * 0.22);                // flutter rate scales with airspeed
+  updatePilot(dt);
+  updateGatePulse();
+  updateThermalVisuals();
+  updatePuffDrift(dt);
+  updateFlags();
+  updateKestrelVisuals(dt);
+  updateCamera(dt);
+  updateHUD();
+  updateAudio(dt);
+  writeState();
+  sky.position.copy(camera.position);
+  renderer.render(scene, camera);
+}
+
+toMenu();
+writeState();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

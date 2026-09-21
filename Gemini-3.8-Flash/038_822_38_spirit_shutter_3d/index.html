@@ -1,0 +1,4984 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Spirit Shutter — Glimmerwood River</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #030712;
+      font-family: 'Cinzel', 'Georgia', serif;
+      color: #e0f2fe;
+    }
+    #game-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    /* UI Overlays */
+    #ui-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    /* Top HUD */
+    .hud-bar {
+      position: absolute;
+      top: 18px;
+      left: 24px;
+      right: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 15px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.8), 0 0 12px rgba(56, 189, 248, 0.4);
+    }
+    .hud-card {
+      background: rgba(15, 23, 42, 0.7);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 8px;
+      padding: 8px 18px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    }
+    .gear-indicator {
+      display: inline-flex;
+      gap: 10px;
+      margin-left: 10px;
+    }
+    .gear-badge {
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.05);
+      color: #94a3b8;
+      font-weight: bold;
+    }
+    .gear-badge.active {
+      background: #38bdf8;
+      color: #030712;
+      border-color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
+    }
+    .hud-progress {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 320px;
+      text-align: center;
+    }
+    .progress-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      border-radius: 3px;
+      margin-top: 6px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #0284c7, #38bdf8, #a7f3d0);
+      box-shadow: 0 0 8px #38bdf8;
+      transition: width 0.1s linear;
+    }
+
+    /* Camera Viewfinder */
+    #viewfinder {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: none;
+      pointer-events: none;
+    }
+    .vf-vignette {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      box-shadow: inset 0 0 140px rgba(15, 23, 42, 0.95), inset 0 0 60px rgba(217, 119, 6, 0.25);
+    }
+    .vf-outer-frame {
+      position: absolute;
+      top: 7%;
+      left: 10%;
+      width: 80%;
+      height: 86%;
+      border: 2px solid rgba(245, 158, 11, 0.6);
+      box-shadow: 0 0 15px rgba(245, 158, 11, 0.3), inset 0 0 15px rgba(245, 158, 11, 0.2);
+    }
+    /* Corner brackets */
+    .vf-outer-frame::before {
+      content: '';
+      position: absolute;
+      top: -8px; left: -8px; right: -8px; bottom: -8px;
+      border: 4px solid transparent;
+      border-top-color: #f59e0b;
+      border-left-color: #f59e0b;
+      width: 32px; height: 32px;
+    }
+    .vf-guide-rect {
+      position: absolute;
+      top: 20%;
+      left: 20%;
+      width: 60%;
+      height: 60%;
+      border: 1px dashed rgba(56, 189, 248, 0.7);
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+    }
+    .vf-crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 24px;
+      height: 24px;
+    }
+    .vf-crosshair::before {
+      content: '';
+      position: absolute;
+      top: 11px;
+      left: 0;
+      width: 24px;
+      height: 2px;
+      background: rgba(245, 158, 11, 0.8);
+    }
+    .vf-crosshair::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 11px;
+      width: 2px;
+      height: 24px;
+      background: rgba(245, 158, 11, 0.8);
+    }
+    .vf-info {
+      position: absolute;
+      bottom: 12px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      justify-content: space-between;
+      color: #fbbf24;
+      font-size: 13px;
+      letter-spacing: 2px;
+    }
+    .vf-refusal {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #ef4444;
+      font-size: 26px;
+      letter-spacing: 3px;
+      font-weight: bold;
+      text-shadow: 0 0 15px rgba(239, 68, 68, 0.9), 0 0 30px rgba(0,0,0,0.9);
+      display: none;
+      z-index: 10;
+      text-align: center;
+      background: rgba(15, 23, 42, 0.85);
+      padding: 8px 18px;
+      border: 1px solid #ef4444;
+      border-radius: 6px;
+    }
+
+    /* Viewfinder Recharge Sweeping Arc */
+    .vf-recharge-arc-box {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 90px;
+      height: 90px;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .vf-arc-svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+    .vf-arc-bg {
+      fill: none;
+      stroke: rgba(245, 158, 11, 0.15);
+      stroke-width: 4;
+    }
+    .vf-arc-meter {
+      fill: none;
+      stroke: #f59e0b;
+      stroke-width: 4.5;
+      stroke-linecap: round;
+      stroke-dasharray: 226.19;
+      stroke-dashoffset: 0;
+      filter: drop-shadow(0 0 6px #f59e0b);
+      transition: stroke-dashoffset 0.05s linear;
+    }
+    .vf-recharge-label {
+      position: absolute;
+      bottom: -24px;
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 1.5px;
+      color: #fbbf24;
+      text-shadow: 0 0 8px rgba(0,0,0,0.9);
+      white-space: nowrap;
+    }
+
+    /* Tag Behavior Badge */
+    .anchor-tag .behavior-badge {
+      display: inline-block;
+      margin: 0 4px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+      color: #94a3b8;
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .anchor-tag .behavior-badge.gold {
+      color: #fbbf24 !important;
+      background: rgba(245, 158, 11, 0.2);
+      border: 1px solid rgba(251, 191, 36, 0.5);
+      text-shadow: 0 0 8px rgba(251, 191, 36, 0.9), 0 0 16px rgba(245, 158, 11, 0.6);
+    }
+
+    /* Zoom Lens Viewfinder & HUD Markings */
+    .vf-lens-badge {
+      position: absolute;
+      top: 14px;
+      right: 18px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid #38bdf8;
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      color: #38bdf8;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    }
+    .hud-lens-card {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .buoy-toast {
+      position: absolute;
+      top: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid #38bdf8;
+      box-shadow: 0 0 25px rgba(56, 189, 248, 0.7);
+      color: #38bdf8;
+      font-size: 13px;
+      font-weight: bold;
+      letter-spacing: 1.5px;
+      padding: 8px 22px;
+      border-radius: 6px;
+      z-index: 60;
+      pointer-events: none;
+    }
+
+    /* Viewfinder Golden Point Cross Markers */
+    .vf-golden-cross {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 5;
+    }
+    .vf-golden-cross::before, .vf-golden-cross::after {
+      content: '';
+      position: absolute;
+      background: rgba(56, 189, 248, 0.75);
+      box-shadow: 0 0 6px rgba(56, 189, 248, 0.6);
+    }
+    .vf-golden-cross::before {
+      top: 7px;
+      left: 0;
+      width: 16px;
+      height: 2px;
+    }
+    .vf-golden-cross::after {
+      top: 0;
+      left: 7px;
+      width: 2px;
+      height: 16px;
+    }
+
+    /* Bestiary Temperament Badges */
+    .bestiary-temperament {
+      font-size: 9px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      width: fit-content;
+      margin-bottom: 6px;
+    }
+    .temperament-timid {
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.5);
+      color: #fda4af;
+    }
+    .temperament-bold {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.5);
+      color: #6ee7b7;
+    }
+
+    /* Commission Styles */
+    .commission-box {
+      margin-top: 14px;
+      padding: 10px 16px;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 8px;
+      text-align: left;
+      font-size: 11px;
+      color: #cbd5e1;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .commission-title {
+      font-size: 11px;
+      font-weight: bold;
+      color: #fbbf24;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .commission-item {
+      padding: 2px 0;
+      letter-spacing: 0.5px;
+    }
+    .commission-item.done {
+      color: #34d399 !important;
+      font-weight: bold;
+    }
+    .bestiary-commission-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 6px;
+      padding: 6px 12px;
+      margin-top: 8px;
+      font-size: 11px;
+    }
+    .comm-pill {
+      background: rgba(30, 41, 59, 0.8);
+      padding: 2px 8px;
+      border-radius: 4px;
+      color: #94a3b8;
+    }
+    .comm-pill.done {
+      background: rgba(6, 78, 59, 0.5);
+      border: 1px solid #10b981;
+      color: #34d399 !important;
+      font-weight: bold;
+    }
+    .commission-fulfilled-banner {
+      font-size: 22px;
+      font-weight: 900;
+      color: #fbbf24;
+      letter-spacing: 4px;
+      text-shadow: 0 0 20px rgba(251, 191, 36, 0.9), 0 0 35px rgba(245, 158, 11, 0.7);
+      margin-bottom: 12px;
+      animation: pulseGlow 1.5s infinite alternate ease-in-out;
+    }
+
+    /* Bestiary Modal (5 Species Grid) */
+    .bestiary-box {
+      width: 96%;
+      max-width: 1240px;
+      height: 85%;
+      max-height: 720px;
+      background: radial-gradient(circle at center, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.98));
+      border: 1px solid #38bdf8;
+      border-radius: 12px;
+      box-shadow: 0 0 50px rgba(56, 189, 248, 0.25);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding: 18px;
+    }
+    .bestiary-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+    }
+    .bestiary-header h2 {
+      font-size: 20px;
+      letter-spacing: 3px;
+      color: #38bdf8;
+    }
+    .bestiary-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      padding: 14px 0 6px 0;
+      flex: 1;
+    }
+    .bestiary-card {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+    }
+    .bestiary-card-inner {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .bestiary-art-wrap {
+      width: 100%;
+      height: 100px;
+      background: radial-gradient(circle at center, rgba(30, 58, 138, 0.3), rgba(2, 6, 23, 0.7));
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 8px;
+    }
+    .species-silhouette {
+      width: 85px;
+      height: 85px;
+    }
+    .bestiary-species-name {
+      font-size: 16px;
+      letter-spacing: 1.5px;
+      font-weight: bold;
+      color: #e0f2fe;
+    }
+    .bestiary-species-lore {
+      font-size: 10px;
+      color: #94a3b8;
+      margin-bottom: 8px;
+      font-style: italic;
+    }
+    .bestiary-status-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: bold;
+      letter-spacing: 1.5px;
+      margin-bottom: 8px;
+      width: fit-content;
+    }
+    .bestiary-stat-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #cbd5e1;
+      padding: 4px 0;
+      border-top: 1px solid rgba(148, 163, 184, 0.15);
+      border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+      margin-bottom: 8px;
+    }
+    .bestiary-best-header {
+      font-size: 10px;
+      letter-spacing: 1px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .bestiary-thumbnail-frame {
+      position: relative;
+      flex: 1;
+      min-height: 85px;
+      background: #020617;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 6px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .bestiary-thumbnail-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .bestiary-no-photo {
+      color: #64748b;
+      font-size: 11px;
+      letter-spacing: 1px;
+    }
+    .bestiary-best-badge {
+      position: absolute;
+      bottom: 6px;
+      right: 6px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid #fbbf24;
+      color: #fbbf24;
+      font-weight: bold;
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.8);
+    }
+
+    /* Voyage Complete Modal */
+    .complete-box {
+      text-align: center;
+      max-width: 650px;
+      padding: 36px;
+      border: 1px solid #fbbf24;
+      border-radius: 12px;
+      background: radial-gradient(circle at center, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.98));
+      box-shadow: 0 0 50px rgba(251, 191, 36, 0.3);
+    }
+    .complete-box h1 {
+      font-size: 36px;
+      color: #fbbf24;
+      letter-spacing: 5px;
+      margin-bottom: 12px;
+    }
+    .complete-photo-wrap {
+      width: 100%;
+      max-height: 240px;
+      margin: 16px 0;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid rgba(251, 191, 36, 0.4);
+      background: #020617;
+      display: flex;
+      justify-content: center;
+    }
+    .complete-photo-wrap img {
+      max-height: 240px;
+      object-fit: contain;
+    }
+    .shutter-flash {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: white;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease-out;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+  <div id="shutter-flash" class="shutter-flash"></div>
+  <canvas id="game-canvas"></canvas>
+
+  <!-- In-game HUD -->
+  <div id="ui-layer">
+    <div id="buoy-toast" class="buoy-toast" style="display:none;">LANTERN BUOY: FILM RESTOCKED (8/8)</div>
+    <div class="hud-bar">
+      <div class="hud-card">
+        SPIRIT SHUTTER
+        <div class="gear-indicator">
+          <span class="gear-badge" id="gear-1">1: HOLD</span>
+          <span class="gear-badge" id="gear-2">2: DRIFT</span>
+          <span class="gear-badge active" id="gear-3">3: CRUISE</span>
+        </div>
+      </div>
+      <div class="hud-card hud-lens-card">
+        <span style="font-size: 10px; color: #94a3b8; letter-spacing: 1px;">LENS</span>
+        <span id="hud-lens-text" style="font-size: 13px; font-weight: bold; color: #38bdf8;">WIDE</span>
+      </div>
+
+      <div class="hud-card" style="display: flex; align-items: center; gap: 14px;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <svg viewBox="0 0 100 100" style="width: 20px; height: 20px; transform: rotate(-90deg);">
+            <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="12" />
+            <circle id="hud-arc-meter" cx="50" cy="50" r="40" fill="none" stroke="#38bdf8" stroke-width="12" stroke-linecap="round" stroke-dasharray="251.32" stroke-dashoffset="0" />
+          </svg>
+          <span id="hud-cooldown-text" style="font-size: 12px; font-weight: bold; color: #38bdf8; min-width: 48px;">READY</span>
+        </div>
+        <span>|</span>
+        <div>FILM: <span id="hud-film" style="color: #fbbf24; font-weight: bold;">8</span> / 8</div>
+        <span>|</span>
+        <div>LAST: <span id="hud-last-score" style="color: #38bdf8;">--</span></div>
+        <span>|</span>
+        <div>TOTAL: <span id="hud-total-score" style="color: #a7f3d0; font-weight: bold;">0</span></div>
+      </div>
+    </div>
+
+    <div class="hud-progress">
+      <div style="font-size: 11px; letter-spacing: 2px; color: #94a3b8;">RIVER VOYAGE PROGRESS</div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="hud-progress-fill"></div>
+      </div>
+    </div>
+
+    <!-- Camera Viewfinder Overlay -->
+    <div id="viewfinder">
+      <div class="vf-vignette"></div>
+      <div class="vf-outer-frame" id="vf-frame">
+        <div class="vf-guide-rect" id="vf-guide"></div>
+        <div class="vf-crosshair"></div>
+        <div class="vf-recharge-arc-box" id="vf-recharge-arc-box">
+          <svg class="vf-arc-svg" viewBox="0 0 100 100">
+            <circle class="vf-arc-bg" cx="50" cy="50" r="36" />
+            <circle class="vf-arc-meter" id="vf-arc-meter" cx="50" cy="50" r="36" />
+          </svg>
+          <span class="vf-recharge-label" id="vf-recharge-label"></span>
+        </div>
+        <div class="vf-lens-badge" id="vf-lens-badge">LENS: WIDE</div>
+        <!-- Golden Points of the Frame (38.2% and 61.8% on each axis) -->
+        <div class="vf-golden-cross" style="top: 38.2%; left: 38.2%;"></div>
+        <div class="vf-golden-cross" style="top: 38.2%; left: 61.8%;"></div>
+        <div class="vf-golden-cross" style="top: 61.8%; left: 38.2%;"></div>
+        <div class="vf-golden-cross" style="top: 61.8%; left: 61.8%;"></div>
+        <div class="vf-info">
+          <span>BRASS SPIRIT SHUTTER</span>
+          <span>EXPOSURES LEFT: <b id="vf-film-count">8</b></span>
+        </div>
+      </div>
+      <div class="vf-refusal" id="vf-refusal">SHUTTER EMPTY</div>
+    </div>
+
+    <!-- Container for dynamic anchor tags -->
+    <div id="anchor-tags-container"></div>
+  </div>
+
+  <!-- Ready Overlay -->
+  <div id="ready-modal" class="modal-overlay">
+    <div class="title-box">
+      <h1>SPIRIT SHUTTER</h1>
+      <h2>GLIMMERWOOD RIVER EXPEDITION</h2>
+      <div class="controls-grid">
+        <div><span class="key">1 / 2 / 3</span> : Ferry Gear (Hold / Drift / Cruise)</div>
+        <div><span class="key">Right Click (Hold)</span> : Raise Spirit Camera</div>
+        <div><span class="key">Mouse Move</span> : Aim Camera & Free-Look</div>
+        <div><span class="key">Left Click</span> : Shutter Capture (1.5s Cooldown)</div>
+        <div><span class="key">Mouse Wheel</span> : Spirit Zoom Lens (WIDE / TELE)</div>
+
+        <div><span class="key">B</span> : Spirit Bestiary & Field Guide</div>
+        <div><span class="key">Tab</span> : Photo Album & Pause</div>
+        <div><span class="key">R</span> : Reset Expedition</div>
+      </div>
+      <p style="margin-bottom: 14px; font-size: 13px; color: #cbd5e1; line-height: 1.5;">
+        Ride the mystical twilight river through the bioluminescent forest.<br>
+        Search for elusive spirits, frame them inside the viewfinder, and capture their essence.
+      </p>
+
+      <!-- The Keeper's Commission List -->
+      <div class="commission-box">
+        <div class="commission-title">THE KEEPER'S COMMISSION</div>
+        <div class="commission-item" id="ready-comm-1">□ 1. NEAR Mistdeer photo with Pose</div>
+        <div class="commission-item" id="ready-comm-2">□ 2. Brightwing photo with Facing and Center</div>
+        <div class="commission-item" id="ready-comm-3">□ 3. Gathering photo with 3+ distinct species</div>
+        <div class="commission-item" id="ready-comm-4">□ 4. Mirrorshot of Basking Glowturtle</div>
+        <div class="commission-item" id="ready-comm-5">□ 5. Duskfox photo with Composition</div>
+      </div>
+
+      <div class="start-prompt" id="btn-start" style="margin-top: 18px;">PRESS ENTER TO START</div>
+    </div>
+  </div>
+
+  <!-- Album Overlay -->
+  <div id="album-modal" class="modal-overlay hidden">
+    <div class="album-box">
+      <div class="album-header">
+        <h2>VOYAGE EXPEDITION ALBUM</h2>
+        <div style="font-size: 13px; color: #94a3b8;">Press <span style="color:#fbbf24;">TAB</span> or <span style="color:#fbbf24;">ESC</span> to Close</div>
+      </div>
+      <div class="album-body">
+        <div class="album-sidebar" id="album-thumbnails">
+          <!-- Populated dynamically -->
+        </div>
+        <div class="album-content">
+          <div class="album-preview-frame">
+            <img id="album-main-img" src="" alt="Selected Photo" style="display:none;" />
+            <div id="album-no-selection" style="color: #64748b; font-size: 14px;">No photo selected</div>
+          </div>
+          <div class="album-details" id="album-details" style="display:none;">
+            <h3 id="album-subject-title" style="color:#38bdf8; font-size: 20px; letter-spacing: 2px;">Subject</h3>
+            <p id="album-subject-sub" style="color:#94a3b8; font-size: 12px; margin-top: 4px;">Distance: --</p>
+            <table class="breakdown-table">
+              <tbody id="album-breakdown-body">
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bestiary Overlay -->
+  <div id="bestiary-modal" class="modal-overlay hidden">
+    <div class="bestiary-box">
+      <div class="bestiary-header">
+        <h2>SPIRIT KEEPER'S BESTIARY</h2>
+        <div style="font-size: 13px; color: #94a3b8;">Press <span style="color:#fbbf24;">B</span> or <span style="color:#fbbf24;">ESC</span> to Return</div>
+      </div>
+      <!-- In-voyage Keeper's Commission Strip -->
+      <div class="bestiary-commission-strip">
+        <span style="color:#fbbf24; font-weight:bold; letter-spacing:1px;">COMMISSION:</span>
+        <span class="comm-pill" id="bestiary-comm-1">1. NEAR Mistdeer Pose: <b>TODO</b></span>
+        <span class="comm-pill" id="bestiary-comm-2">2. Brightwing Facing & Center: <b>TODO</b></span>
+        <span class="comm-pill" id="bestiary-comm-3">3. 3+ Species Gathering: <b>TODO</b></span>
+        <span class="comm-pill" id="bestiary-comm-4">4. Mirrorshot: <b>TODO</b></span>
+        <span class="comm-pill" id="bestiary-comm-5">5. Duskfox Composition: <b>TODO</b></span>
+      </div>
+      <div class="bestiary-cards-grid">
+        <!-- Mistdeer Card -->
+        <div class="bestiary-card" id="bestiary-card-mistdeer">
+          <div class="bestiary-card-inner">
+            <div class="bestiary-art-wrap">
+              <svg class="species-silhouette" viewBox="0 0 100 100">
+                <path d="M50 16 C45 12 35 12 30 20 C35 24 40 26 45 29 C40 33 30 31 25 39 C32 41 40 39 48 36 C46 46 42 56 35 61 C30 66 20 69 18 85 L26 85 C28 75 35 72 40 70 L38 95 L46 95 L50 68 L60 68 L62 95 L70 95 L68 62 C75 58 82 52 82 42 C82 32 75 25 65 25 C58 25 54 28 50 32 Z" fill="#93c5fd" opacity="0.85"/>
+                <path d="M48 25 Q35 5 20 10 Q28 15 36 22 M52 25 Q65 5 80 10 Q72 15 64 22 M35 12 Q25 2 15 5 M65 12 Q75 2 85 5" fill="none" stroke="#bae6fd" stroke-width="2.5" stroke-linecap="round"/>
+                <circle cx="50" cy="45" r="4" fill="#67e8f9"/>
+              </svg>
+            </div>
+            <div class="bestiary-card-body">
+              <div class="bestiary-species-name">MISTDEER</div>
+              <div class="bestiary-species-lore">Pale Spirit of the Treeline</div>
+              <div class="bestiary-temperament temperament-timid">TIMID</div>
+              <div class="bestiary-status-badge status-unseen" id="mistdeer-status">UNSEEN</div>
+              <div class="bestiary-stat-row">
+                <span>Photos:</span>
+                <strong id="mistdeer-photo-count">0</strong>
+              </div>
+              <div class="bestiary-best-header">Best Photograph:</div>
+              <div class="bestiary-thumbnail-frame">
+                <img id="mistdeer-best-img" src="" alt="Mistdeer Best Capture" style="display: none;" />
+                <div class="bestiary-no-photo" id="mistdeer-no-photo">No capture</div>
+                <div class="bestiary-best-badge" id="mistdeer-best-badge" style="display: none;">0 pts</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Brightwing Card -->
+        <div class="bestiary-card" id="bestiary-card-brightwing">
+          <div class="bestiary-card-inner">
+            <div class="bestiary-art-wrap">
+              <svg class="species-silhouette" viewBox="0 0 100 100">
+                <path d="M45 40 Q30 20 15 25 Q25 35 38 48 Q10 40 5 52 Q22 55 35 60 Q20 70 15 80 Q32 75 42 66 L45 88 L52 88 L52 68 Q65 72 75 80 Q72 65 62 58 Q78 55 92 48 Q80 38 58 45 Q70 28 85 25 Q70 20 52 40 Z" fill="#2dd4bf" opacity="0.85"/>
+                <path d="M48 38 Q48 22 56 18 Q62 25 58 35 M56 18 L68 12 M58 26 L82 22 L58 30" fill="#fef08a" stroke="#facc15" stroke-width="1.5" stroke-linejoin="round"/>
+                <circle cx="50" cy="52" r="4" fill="#a7f3d0"/>
+              </svg>
+            </div>
+            <div class="bestiary-card-body">
+              <div class="bestiary-species-name">BRIGHTWING</div>
+              <div class="bestiary-species-lore">Radiant River Kingfisher</div>
+              <div class="bestiary-temperament temperament-timid">TIMID</div>
+              <div class="bestiary-status-badge status-unseen" id="brightwing-status">UNSEEN</div>
+              <div class="bestiary-stat-row">
+                <span>Photos:</span>
+                <strong id="brightwing-photo-count">0</strong>
+              </div>
+              <div class="bestiary-best-header">Best Photograph:</div>
+              <div class="bestiary-thumbnail-frame">
+                <img id="brightwing-best-img" src="" alt="Brightwing Best Capture" style="display: none;" />
+                <div class="bestiary-no-photo" id="brightwing-no-photo">No capture</div>
+                <div class="bestiary-best-badge" id="brightwing-best-badge" style="display: none;">0 pts</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Glowturtle Card -->
+        <div class="bestiary-card" id="bestiary-card-glowturtle">
+          <div class="bestiary-card-inner">
+            <div class="bestiary-art-wrap">
+              <svg class="species-silhouette" viewBox="0 0 100 100">
+                <ellipse cx="50" cy="52" rx="30" ry="22" fill="#0d9488" opacity="0.85"/>
+                <path d="M50 34 L58 46 L55 58 L45 58 L42 46 Z M58 46 L70 48 L72 58 L55 58 Z M42 46 L30 48 L28 58 L45 58 Z" fill="#2dd4bf" opacity="0.9" stroke="#99f6e4" stroke-width="1.5"/>
+                <ellipse cx="50" cy="24" rx="8" ry="10" fill="#14b8a6"/>
+                <path d="M26 40 Q12 32 10 44 Q20 48 28 48 M74 40 Q88 32 90 44 Q80 48 72 48" fill="#0f766e"/>
+                <path d="M30 64 Q18 68 20 76 Q28 72 34 68 M70 64 Q82 68 80 76 Q72 72 66 68" fill="#0f766e"/>
+                <circle cx="50" cy="52" r="4" fill="#a7f3d0"/>
+              </svg>
+            </div>
+            <div class="bestiary-card-body">
+              <div class="bestiary-species-name">GLOWTURTLE</div>
+              <div class="bestiary-species-lore">Lagoon Shell of Pulsing Light</div>
+              <div class="bestiary-temperament temperament-bold">BOLD</div>
+              <div class="bestiary-status-badge status-unseen" id="glowturtle-status">UNSEEN</div>
+              <div class="bestiary-stat-row">
+                <span>Photos:</span>
+                <strong id="glowturtle-photo-count">0</strong>
+              </div>
+              <div class="bestiary-best-header">Best Photograph:</div>
+              <div class="bestiary-thumbnail-frame">
+                <img id="glowturtle-best-img" src="" alt="Glowturtle Best Capture" style="display: none;" />
+                <div class="bestiary-no-photo" id="glowturtle-no-photo">No capture</div>
+                <div class="bestiary-best-badge" id="glowturtle-best-badge" style="display: none;">0 pts</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Veilheron Card -->
+        <div class="bestiary-card" id="bestiary-card-veilheron">
+          <div class="bestiary-card-inner">
+            <div class="bestiary-art-wrap">
+              <svg class="species-silhouette" viewBox="0 0 100 100">
+                <ellipse cx="48" cy="55" rx="14" ry="20" fill="#6366f1" opacity="0.85"/>
+                <path d="M46 38 Q42 22 52 14 Q54 22 50 36 Z" fill="#818cf8"/>
+                <path d="M52 14 L75 16 L52 18 Z" fill="#facc15"/>
+                <path d="M46 25 Q32 35 25 60 Q35 75 42 70 Q35 55 48 35 Z" fill="#c7d2fe" opacity="0.6"/>
+                <line x1="44" y1="75" x2="40" y2="95" stroke="#a5b4fc" stroke-width="2.5"/>
+                <line x1="52" y1="75" x2="54" y2="95" stroke="#a5b4fc" stroke-width="2.5"/>
+                <circle cx="48" cy="55" r="4" fill="#e0e7ff"/>
+              </svg>
+            </div>
+            <div class="bestiary-card-body">
+              <div class="bestiary-species-name">VEILHERON</div>
+              <div class="bestiary-species-lore">Silver Reed Sentinel</div>
+              <div class="bestiary-temperament temperament-bold">BOLD</div>
+              <div class="bestiary-status-badge status-unseen" id="veilheron-status">UNSEEN</div>
+              <div class="bestiary-stat-row">
+                <span>Photos:</span>
+                <strong id="veilheron-photo-count">0</strong>
+              </div>
+              <div class="bestiary-best-header">Best Photograph:</div>
+              <div class="bestiary-thumbnail-frame">
+                <img id="veilheron-best-img" src="" alt="Veilheron Best Capture" style="display: none;" />
+                <div class="bestiary-no-photo" id="veilheron-no-photo">No capture</div>
+                <div class="bestiary-best-badge" id="veilheron-best-badge" style="display: none;">0 pts</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Duskfox Card -->
+        <div class="bestiary-card" id="bestiary-card-duskfox">
+          <div class="bestiary-card-inner">
+            <div class="bestiary-art-wrap">
+              <svg class="species-silhouette" viewBox="0 0 100 100">
+                <ellipse cx="46" cy="56" rx="22" ry="12" fill="#18181b" opacity="0.95"/>
+                <path d="M30 52 L14 48 L28 58 Z" fill="#27272a"/>
+                <path d="M26 44 L32 26 L38 46 Z M36 44 L44 26 L48 46 Z" fill="#27272a"/>
+                <path d="M66 54 Q82 50 86 38 Q82 32 74 44 Z" fill="#27272a"/>
+                <path d="M82 40 Q88 32 92 28 Q88 24 82 34 Z" fill="#f59e0b" filter="drop-shadow(0 0 6px #f97316)"/>
+                <line x1="32" y1="66" x2="30" y2="86" stroke="#27272a" stroke-width="2.5"/>
+                <line x1="40" y1="66" x2="42" y2="86" stroke="#27272a" stroke-width="2.5"/>
+                <line x1="56" y1="66" x2="54" y2="86" stroke="#27272a" stroke-width="2.5"/>
+                <line x1="64" y1="66" x2="66" y2="86" stroke="#27272a" stroke-width="2.5"/>
+                <circle cx="20" cy="48" r="2.5" fill="#f59e0b"/>
+                <circle cx="46" cy="56" r="4" fill="#fb923c"/>
+              </svg>
+            </div>
+            <div class="bestiary-card-body">
+              <div class="bestiary-species-name">DUSKFOX</div>
+              <div class="bestiary-species-lore">Shadow Prowler of the Right Bank</div>
+              <div class="bestiary-temperament temperament-timid">TIMID</div>
+              <div class="bestiary-status-badge status-unseen" id="duskfox-status">UNSEEN</div>
+              <div class="bestiary-stat-row">
+                <span>Photos:</span>
+                <strong id="duskfox-photo-count">0</strong>
+              </div>
+              <div class="bestiary-best-header">Best Photograph:</div>
+              <div class="bestiary-thumbnail-frame">
+                <img id="duskfox-best-img" src="" alt="Duskfox Best Capture" style="display: none;" />
+                <div class="bestiary-no-photo" id="duskfox-no-photo">No capture</div>
+                <div class="bestiary-best-badge" id="duskfox-best-badge" style="display: none;">0 pts</div>
+              </div>
+            </div>
+          </div>
+        </div>      </div>
+    </div>
+  </div>
+
+  <!-- Voyage Complete Overlay -->
+  <div id="complete-modal" class="modal-overlay hidden">
+    <div class="complete-box">
+      <h1>VOYAGE COMPLETE</h1>
+      <p style="font-size: 14px; color: #94a3b8; letter-spacing: 1px;">The ferry has returned to the lantern dock.</p>
+      <div style="margin: 16px 0; font-size: 22px; color: #a7f3d0;">
+        FINAL TOTAL SCORE: <span id="complete-total-score" style="font-weight:bold; color:#fbbf24;">0</span>
+      </div>
+      <div style="font-size: 14px; letter-spacing: 1px; color: #38bdf8; margin-top: 10px;">BEST CAPTURE OF THE EXPEDITION:</div>
+      <div class="complete-photo-wrap">
+        <img id="complete-best-img" src="" alt="Best Photo" style="display:none;" />
+        <div id="complete-no-photos" style="color: #64748b; line-height: 200px;">No photographs taken</div>
+      </div>
+      <div id="complete-commission-headline" class="commission-fulfilled-banner" style="display: none;">★ COMMISSION FULFILLED ★</div>
+      <div id="complete-best-breakdown" style="font-size: 13px; color: #cbd5e1; text-align: left; max-height: 110px; overflow-y: auto; padding: 0 16px;"></div>
+      
+      <!-- Voyage Commission Summary -->
+      <div style="margin-top: 10px; padding: 8px 14px; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 6px; text-align: left;">
+        <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: bold; color: #fbbf24; letter-spacing: 1px; margin-bottom: 4px;">
+          <span>KEEPER'S COMMISSION</span>
+          <span id="complete-comm-count" style="color: #38bdf8;">0 / 5 Completed</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 10px; color: #cbd5e1;">
+          <div id="complete-comm-1">□ 1. NEAR Mistdeer with Pose</div>
+          <div id="complete-comm-2">□ 2. Brightwing Facing & Center</div>
+          <div id="complete-comm-3">□ 3. 3+ Species Gathering</div>
+          <div id="complete-comm-4">□ 4. Mirrorshot</div>
+          <div id="complete-comm-5">□ 5. Duskfox Composition</div>
+        </div>
+      </div>
+      
+      <!-- Voyage Species Best Scores -->
+      <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(148, 163, 184, 0.25);">
+        <div style="font-size: 12px; letter-spacing: 1.5px; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px;">Species Expedition Best Records</div>
+        <div style="display: flex; gap: 16px; justify-content: center;">
+          <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; padding: 6px 14px; min-width: 130px;">
+            <div style="color: #e0f2fe; font-size: 13px; font-weight: bold;">Mistdeer</div>
+            <div id="complete-score-mistdeer" style="color: #fbbf24; font-size: 15px; font-weight: bold;">None</div>
+          </div>
+          <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; padding: 6px 14px; min-width: 120px;">
+            <div style="color: #e0f2fe; font-size: 13px; font-weight: bold;">Brightwing</div>
+            <div id="complete-score-brightwing" style="color: #fbbf24; font-size: 15px; font-weight: bold;">None</div>
+          </div>
+          <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; padding: 6px 14px; min-width: 120px;">
+            <div style="color: #e0f2fe; font-size: 13px; font-weight: bold;">Glowturtle</div>
+            <div id="complete-score-glowturtle" style="color: #fbbf24; font-size: 15px; font-weight: bold;">None</div>
+          </div>
+          <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; padding: 6px 14px; min-width: 120px;">
+            <div style="color: #e0f2fe; font-size: 13px; font-weight: bold;">Veilheron</div>
+            <div id="complete-score-veilheron" style="color: #fbbf24; font-size: 15px; font-weight: bold;">None</div>
+          </div>
+          <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; padding: 6px 14px; min-width: 120px;">
+            <div style="color: #e0f2fe; font-size: 13px; font-weight: bold;">Duskfox</div>
+            <div id="complete-score-duskfox" style="color: #fbbf24; font-size: 15px; font-weight: bold;">None</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: 20px; font-size: 15px; color: #fbbf24; letter-spacing: 2px;">
+        PRESS <b style="color:white; text-decoration: underline;">R</b> TO RESET AND EMBARK AGAIN
+      </div>
+    </div>
+  </div>
+
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+  <script>
+    // Strict Determinism: Fixed-seed PRNG for Math.random to ensure Three.js internal UUIDs
+    // and any game calculations are 100% deterministic and reproducible across voyages.
+    (function() {
+      let seed = 133742;
+      Math.random = function() {
+        seed = (seed + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    })();
+
+    // Explicit deterministic world generator PRNG
+    function createPRNG(seed) {
+      let s = seed >>> 0;
+      return function() {
+        s = (s + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    const worldRng = createPRNG(9876543);
+
+    /* --- GAME CONFIGURATION & STATE --- */
+    const CIRCUIT_DURATION_CRUISE = 240.0; // Cruise takes 240 seconds for extended voyage
+    const GEARS = {
+      1: { name: 'HOLD', speedFactor: 0.0 },
+      2: { name: 'DRIFT', speedFactor: 0.25 },
+      3: { name: 'CRUISE', speedFactor: 1.0 }
+    };
+
+    const gameState = {
+      phase: 'ready', // 'ready', 'voyage', 'album', 'bestiary', 'complete'
+      progress: 0.0,  // 0.0 to 1.0
+      gear: 3,
+      film: 8,        // The Last Roll: starts with 8 exposures
+      totalScore: 0,
+      lastScore: null,
+      photos: [],     // Captured photo data objects
+      bestPhoto: null,
+      cameraRaised: false,
+      cameraRaiseT: 0.0, // 0 to 1 smooth transition
+      shutterCooldown: 0.0, // 1.5s cooldown after shot
+      targetLens: 'WIDE',   // 'WIDE' or 'TELE'
+      currentLens: 'WIDE',  // Active lens step
+      zoomT: 0.0,           // 0.0 (WIDE 55°) to 1.0 (TELE 27.5°)
+      lastPhotoComposition: false,
+      previousPhaseBeforeAlbum: 'voyage',
+      previousPhaseBeforeBestiary: 'voyage'
+    };
+
+    // The Keeper's Commission tracking
+    const commissionState = {
+      line1: false, // NEAR Mistdeer photo with Pose
+      line2: false, // Brightwing photo with Facing and Center
+      line3: false, // Gathering photo containing 3+ distinct species
+      line4: false, // Mirrorshot
+      line5: false  // Duskfox photo with Composition
+    };
+
+    // The Great Crossing finale state (anchored at 90% progress)
+    let crossingStarted = false;
+    let crossingClock = 0.0;
+    let crossingActive = false;
+
+    let buoyArmed = true;
+
+    const bestiaryState = {
+      Mistdeer: {
+        status: 'UNSEEN',
+        photoCount: 0,
+        bestPhoto: null,
+        bestScore: 0
+      },
+      Brightwing: {
+        status: 'UNSEEN',
+        photoCount: 0,
+        bestPhoto: null,
+        bestScore: 0
+      },
+      Glowturtle: {
+        status: 'UNSEEN',
+        photoCount: 0,
+        bestPhoto: null,
+        bestScore: 0
+      },
+      Veilheron: {
+        status: 'UNSEEN',
+        photoCount: 0,
+        bestPhoto: null,
+        bestScore: 0,
+        temperament: 'Bold'
+      },
+      Duskfox: {
+        status: 'UNSEEN',
+        photoCount: 0,
+        bestPhoto: null,
+        bestScore: 0,
+        temperament: 'Timid'
+      }
+    };
+    bestiaryState.Mistdeer.temperament = 'Timid';
+    bestiaryState.Brightwing.temperament = 'Timid';
+    bestiaryState.Glowturtle.temperament = 'Bold';
+
+    // Exported global state for evaluation
+    window.__arena_state = {
+      phase: gameState.phase,
+      progressFraction: gameState.progress,
+      gear: gameState.gear,
+      film: gameState.film,
+      totalScore: gameState.totalScore,
+      viewfinderFlag: gameState.cameraRaised,
+      shutterCooldownRemaining: 0.0,
+      cooldownRemaining: 0.0,
+      currentLens: 'WIDE',
+      lens: 'WIDE',
+      buoyArmed: true,
+      bestiary: {
+        Mistdeer: { status: 'UNSEEN', photoCount: 0, bestScore: 0 },
+        Brightwing: { status: 'UNSEEN', photoCount: 0, bestScore: 0 },
+        Glowturtle: { status: 'UNSEEN', photoCount: 0, bestScore: 0 },
+        Veilheron: { status: 'UNSEEN', photoCount: 0, bestScore: 0, temperament: 'Bold' },
+        Duskfox: { status: 'UNSEEN', photoCount: 0, bestScore: 0, temperament: 'Timid' }
+      },
+      bestiarySummary: [
+        { species: 'Mistdeer', status: 'UNSEEN', photoCount: 0, bestScore: 0 },
+        { species: 'Brightwing', status: 'UNSEEN', photoCount: 0, bestScore: 0 },
+        { species: 'Glowturtle', status: 'UNSEEN', photoCount: 0, bestScore: 0 },
+        { species: 'Veilheron', status: 'UNSEEN', photoCount: 0, bestScore: 0, temperament: 'Bold' },
+        { species: 'Duskfox', status: 'UNSEEN', photoCount: 0, bestScore: 0, temperament: 'Timid' }
+      ],
+      film: 8,
+      night: true,
+      nightFlag: true,
+      compositionFlag: false,
+      lastPhotoComposition: false,
+      mirrorPoolApproach: false,
+      mirrorPoolApproachFlag: false,
+      crossingActive: false,
+      crossingActiveFlag: false,
+      commission: [false, false, false, false, false],
+      commissionLines: { line1: false, line2: false, line3: false, line4: false, line5: false },
+      commissionCount: 0,
+      commissionFulfilled: false,
+      effectiveBandThresholds: {
+        Mistdeer: { near: 8, mid: 25, far: 25 },
+        Brightwing: { near: 8, mid: 25, far: 25 },
+        Glowturtle: { near: 12, mid: 25, far: 25 },
+        Veilheron: { near: 12, mid: 25, far: 25 },
+        Duskfox: { near: 8, mid: 25, far: 25 }
+      },
+      activeSpirits: []
+    };
+
+    /* --- THREE.JS SETUP --- */
+    const canvas = document.getElementById('game-canvas');
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        canvas: canvas,
+        antialias: true,
+        preserveDrawingBuffer: true, // Required for exact canvas snapshot
+        powerPreference: 'high-performance'
+      });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    } catch (e) {
+      console.warn("WebGL context not available, falling back to 2D canvas mock renderer:", e);
+      const ctx = canvas.getContext('2d');
+      renderer = {
+        domElement: canvas,
+        setSize: (w, h) => { canvas.width = w; canvas.height = h; },
+        setPixelRatio: () => {},
+        render: (sc, cm) => {
+          if (ctx) {
+            ctx.fillStyle = '#040914';
+            ctx.fillRect(0, 0, canvas.width || 800, canvas.height || 600);
+          }
+        },
+        shadowMap: {}
+      };
+      renderer.setSize(window.innerWidth || 800, window.innerHeight || 600);
+    }
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x040914);
+    scene.fog = new THREE.FogExp2(0x050e1f, 0.012);
+
+    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 800);
+
+    // Audio context dummy or visual sound feedback handled via UI
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    /* --- DEEP NIGHT ATMOSPHERE & LIGHTING --- */
+    // Darkened ambient for deep night - bioluminescence becomes the brightest thing
+    const ambientLight = new THREE.AmbientLight(0x030712, 0.22);
+    scene.add(ambientLight);
+
+    // Thin moon directional light
+    const moonLight = new THREE.DirectionalLight(0x38bdf8, 0.38);
+    moonLight.position.set(60, 100, -80);
+    moonLight.castShadow = true;
+
+// Silent shutter - no flash lights needed
+
+    // Deep Night Star Field
+    const starCount = 450;
+    const starGeo = new THREE.BufferGeometry();
+    const starPos = new Float32Array(starCount * 3);
+    const starRng = createPRNG(424242);
+    for (let i = 0; i < starCount; i++) {
+      let u = starRng();
+      let v = starRng();
+      let theta = u * 2.0 * Math.PI;
+      let phi = Math.acos(2.0 * v - 1.0);
+      let r = 380.0;
+      starPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      starPos[i * 3 + 1] = Math.max(15.0, r * Math.cos(phi)); // Keep above horizon
+      starPos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+    }
+    starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+    const starMat = new THREE.PointsMaterial({
+      color: 0xe0f2fe,
+      size: 1.8,
+      transparent: true,
+      opacity: 0.85
+    });
+    const starField = new THREE.Points(starGeo, starMat);
+    scene.add(starField);
+    moonLight.shadow.mapSize.width = 1024;
+    moonLight.shadow.mapSize.height = 1024;
+    moonLight.shadow.camera.near = 10;
+    moonLight.shadow.camera.far = 300;
+    const shadowD = 80;
+    moonLight.shadow.camera.left = -shadowD;
+    moonLight.shadow.camera.right = shadowD;
+    moonLight.shadow.camera.top = shadowD;
+    moonLight.shadow.camera.bottom = -shadowD;
+    scene.add(moonLight);
+
+    // Bioluminescent accent rim light
+    const biolumLight = new THREE.DirectionalLight(0x06b6d4, 0.35);
+    biolumLight.position.set(-80, 40, 50);
+    scene.add(biolumLight);
+
+    /* --- RIVER TRACK DEFINITION --- */
+    // Create a smooth closed spline looping through Glimmerwood
+    // Dock is at progress = 0 (and 1)
+    const trackPoints = [
+      new THREE.Vector3(0, 0, 0),        // 0: Dock (0.0)
+      new THREE.Vector3(45, 0, 30),      // 1
+      new THREE.Vector3(95, 0, 20),      // 2
+      new THREE.Vector3(120, 0, -35),    // 3
+      new THREE.Vector3(90, 0, -95),     // 4: Mistdeer 1st encounter area ~ 11%
+      new THREE.Vector3(40, 0, -125),    // 5
+      new THREE.Vector3(-30, 0, -135),   // 6
+      new THREE.Vector3(-95, 0, -100),   // 7: Brightwing 1st encounter area ~ 28%
+      new THREE.Vector3(-125, 0, -45),   // 8
+      new THREE.Vector3(-110, 0, 35),    // 9
+      new THREE.Vector3(-70, 0, 95),     // 10: Mistdeer 2nd encounter area ~ 44%
+      new THREE.Vector3(-20, 0, 75),     // 11: Twin-Bank area ~ 51%
+      new THREE.Vector3(-5, 0, 56),      // 12: Film Restock Buoy / Handoff fork ~ 56%
+      // Reach of the Moonlit Shallows:
+      new THREE.Vector3(25, 0, 85),      // 13
+      new THREE.Vector3(70, 0, 115),     // 14
+      new THREE.Vector3(120, 0, 110),    // 15: Glowturtle mid-lagoon area ~ 68%
+      new THREE.Vector3(155, 0, 70),     // 16
+      new THREE.Vector3(145, 0, 15),     // 17: Veilheron silver reeds area ~ 80%
+      new THREE.Vector3(100, 0, -25),    // 18
+      new THREE.Vector3(50, 0, -20),     // 19
+      new THREE.Vector3(15, 0, -10)      // 20: Rejoining dock
+    ];
+
+    const riverCurve = new THREE.CatmullRomCurve3(trackPoints, true, 'catmullrom', 0.2);
+
+    /* --- PROCEDURAL ENVIRONMENT GENERATION (STRICT DETERMINISTIC) --- */
+    // Riverbed & water surface
+    const waterGeo = new THREE.PlaneGeometry(500, 500, 64, 64);
+    const waterMat = new THREE.MeshStandardMaterial({
+      color: 0x05273b,
+      roughness: 0.15,
+      metalness: 0.8,
+      transparent: true,
+      opacity: 0.92,
+      emissive: 0x021624,
+      emissiveIntensity: 0.4
+    });
+    const water = new THREE.Mesh(waterGeo, waterMat);
+    water.rotation.x = -Math.PI / 2;
+    water.position.y = -0.1;
+    scene.add(water);
+
+    // Terrain ground mesh with carved river valley
+    const terrainGeo = new THREE.PlaneGeometry(450, 450, 90, 90);
+    terrainGeo.rotateX(-Math.PI / 2);
+    const posAttr = terrainGeo.attributes.position;
+    for (let i = 0; i < posAttr.count; i++) {
+      let x = posAttr.getX(i);
+      let z = posAttr.getZ(i);
+
+      // Distance to river curve
+      let minDistSq = 999999;
+      for (let t = 0; t <= 1; t += 0.02) {
+        let pt = riverCurve.getPoint(t);
+        let dSq = (x - pt.x) * (x - pt.x) + (z - pt.z) * (z - pt.z);
+        if (dSq < minDistSq) minDistSq = dSq;
+      }
+      let riverDist = Math.sqrt(minDistSq);
+
+      // Base terrain rolling hills
+      let hill = Math.sin(x * 0.03) * Math.cos(z * 0.03) * 6.0
+               + Math.sin(x * 0.07 + 1.2) * 2.5
+               + Math.cos(z * 0.06) * 3.0;
+
+      // Ridge at distance
+      let distFromCenter = Math.sqrt(x * x + z * z);
+      if (distFromCenter > 130) {
+        hill += (distFromCenter - 130) * 0.25;
+      }
+
+      // River bank carving
+      let bankW = 16.0;
+      let depth = 3.5;
+      if (riverDist < bankW) {
+        let factor = (riverDist / bankW);
+        let carved = -depth * (1.0 - factor * factor);
+        posAttr.setY(i, carved);
+      } else {
+        let blend = Math.min(1.0, (riverDist - bankW) / 12.0);
+        posAttr.setY(i, (hill + 0.5) * blend);
+      }
+    }
+    terrainGeo.computeVertexNormals();
+
+    const terrainMat = new THREE.MeshStandardMaterial({
+      color: 0x0c1b26,
+      roughness: 0.9,
+      metalness: 0.1,
+      flatShading: true
+    });
+    const terrain = new THREE.Mesh(terrainGeo, terrainMat);
+    terrain.receiveShadow = true;
+    scene.add(terrain);
+
+    // Scenery instanced assets / groups
+    const sceneryGroup = new THREE.Group();
+    scene.add(sceneryGroup);
+
+    // Helper: Tree builder (Moss-hung storybook tree)
+    function createTree(x, z, scale, rotY) {
+      const tree = new THREE.Group();
+      tree.position.set(x, 0, z);
+      tree.rotation.y = rotY;
+      tree.scale.set(scale, scale, scale);
+
+      // Trunk
+      const trunkGeo = new THREE.CylinderGeometry(0.5, 0.9, 7, 6);
+      const trunkMat = new THREE.MeshStandardMaterial({ color: 0x161c22, roughness: 0.9 });
+      const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+      trunk.position.y = 3.5;
+      trunk.castShadow = true;
+      trunk.receiveShadow = true;
+      tree.add(trunk);
+
+      // Foliage layers (glow tipped)
+      const folMat1 = new THREE.MeshStandardMaterial({
+        color: 0x092b2d,
+        roughness: 0.8,
+        emissive: 0x031818,
+        emissiveIntensity: 0.2,
+        flatShading: true
+      });
+      const folMat2 = new THREE.MeshStandardMaterial({
+        color: 0x0d3e38,
+        roughness: 0.7,
+        emissive: 0x06332c,
+        emissiveIntensity: 0.3,
+        flatShading: true
+      });
+
+      const cone1 = new THREE.Mesh(new THREE.ConeGeometry(3.5, 5.5, 6), folMat1);
+      cone1.position.y = 7.0;
+      cone1.castShadow = true;
+      tree.add(cone1);
+
+      const cone2 = new THREE.Mesh(new THREE.ConeGeometry(2.6, 4.5, 6), folMat2);
+      cone2.position.y = 9.8;
+      cone2.castShadow = true;
+      tree.add(cone2);
+
+      const cone3 = new THREE.Mesh(new THREE.ConeGeometry(1.6, 3.2, 5), folMat1);
+      cone3.position.y = 12.0;
+      cone3.castShadow = true;
+      tree.add(cone3);
+
+      return tree;
+    }
+
+    // Glowing Blue Mushrooms
+    function createMushroomCluster(x, y, z, scale) {
+      const cluster = new THREE.Group();
+      cluster.position.set(x, y, z);
+      cluster.scale.set(scale, scale, scale);
+
+      const capMat = new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        emissive: 0x0284c7,
+        emissiveIntensity: 0.9,
+        roughness: 0.3
+      });
+      const stemMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.6 });
+
+      for (let i = 0; i < 4; i++) {
+        const h = 0.5 + i * 0.2;
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, h, 6), stemMat);
+        stem.position.set((i % 2 - 0.5) * 0.4, h / 2, (Math.floor(i / 2) - 0.5) * 0.4);
+        cluster.add(stem);
+
+        const cap = new THREE.Mesh(new THREE.SphereGeometry(0.25 + i * 0.05, 8, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), capMat);
+        cap.position.set(stem.position.x, h, stem.position.z);
+        cluster.add(cap);
+      }
+
+      // Small light near mushroom cluster
+      const mLight = new THREE.PointLight(0x38bdf8, 0.4, 6);
+      mLight.position.set(0, 0.6, 0);
+      cluster.add(mLight);
+
+      return cluster;
+    }
+
+    // Reed Beds
+    function createReedCluster(x, z) {
+      const reeds = new THREE.Group();
+      reeds.position.set(x, 0, z);
+      const reedMat = new THREE.MeshStandardMaterial({ color: 0x1e3a34, roughness: 0.8 });
+      for (let i = 0; i < 7; i++) {
+        const h = 1.6 + (i * 0.25);
+        const reed = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, h, 4), reedMat);
+        reed.position.set(Math.sin(i * 1.3) * 0.6, h / 2 - 0.3, Math.cos(i * 1.3) * 0.6);
+        reed.rotation.z = Math.sin(i) * 0.12;
+        reeds.add(reed);
+      }
+      return reeds;
+    }
+
+    // Stone Spirit-Gates (Torii / Dolmen mystic arches)
+    function createSpiritGate(x, y, z, rotY) {
+      const gate = new THREE.Group();
+      gate.position.set(x, y, z);
+      gate.rotation.y = rotY;
+
+      const stoneMat = new THREE.MeshStandardMaterial({
+        color: 0x1e293b,
+        roughness: 0.9,
+        flatShading: true
+      });
+      const runeMat = new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        emissive: 0x38bdf8,
+        emissiveIntensity: 0.8
+      });
+
+      // Left pillar
+      const p1 = new THREE.Mesh(new THREE.BoxGeometry(1.6, 12, 1.6), stoneMat);
+      p1.position.set(-11, 6, 0);
+      p1.castShadow = true;
+      gate.add(p1);
+
+      // Right pillar
+      const p2 = new THREE.Mesh(new THREE.BoxGeometry(1.6, 12, 1.6), stoneMat);
+      p2.position.set(11, 6, 0);
+      p2.castShadow = true;
+      gate.add(p2);
+
+      // Top crossbeam
+      const top = new THREE.Mesh(new THREE.BoxGeometry(26, 1.8, 2.2), stoneMat);
+      top.position.set(0, 11, 0);
+      top.castShadow = true;
+      gate.add(top);
+
+      // Glowing mystic talisman in center
+      const talisman = new THREE.Mesh(new THREE.OctahedronGeometry(0.8), runeMat);
+      talisman.position.set(0, 9.2, 0);
+      gate.add(talisman);
+
+      const tLight = new THREE.PointLight(0x38bdf8, 0.7, 18);
+      tLight.position.set(0, 9.2, 0);
+      gate.add(tLight);
+
+      return gate;
+    }
+
+    // Dock at progress 0
+    function createLanternDock() {
+      const dock = new THREE.Group();
+      dock.position.set(0, 0, 0);
+
+      const woodMat = new THREE.MeshStandardMaterial({ color: 0x271e16, roughness: 0.85 });
+      const pier = new THREE.Mesh(new THREE.BoxGeometry(6, 0.6, 14), woodMat);
+      pier.position.set(-9, 0.2, 0);
+      pier.receiveShadow = true;
+      dock.add(pier);
+
+      // Dock posts & warm lanterns
+      [-5, 5].forEach(z => {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.25, 3.5, 6), woodMat);
+        post.position.set(-6.5, 1.5, z);
+        dock.add(post);
+
+        const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 8), new THREE.MeshStandardMaterial({
+          color: 0xf59e0b,
+          emissive: 0xf59e0b,
+          emissiveIntensity: 1.0
+        }));
+        lantern.position.set(-6.5, 3.2, z);
+        dock.add(lantern);
+
+        const lLight = new THREE.PointLight(0xf59e0b, 0.9, 15);
+        lLight.position.set(-6.5, 3.2, z);
+        dock.add(lLight);
+      });
+
+      return dock;
+    }
+
+    scene.add(createLanternDock());
+
+    // Place Spirit Gates along river
+    scene.add(createSpiritGate(60, 0, 27, -0.3));
+    scene.add(createSpiritGate(-60, 0, -125, 0.2));
+    scene.add(createSpiritGate(-80, 0, 80, 2.1));
+
+    /* --- MOONLIT SHALLOWS SCENERY & BUOY --- */
+    // 1. Low moon hanging over the Shallows lagoon
+    const lowMoonGroup = new THREE.Group();
+    lowMoonGroup.position.set(180, 24, 75);
+    const lowMoonGeo = new THREE.SphereGeometry(22, 32, 32);
+    const lowMoonMat = new THREE.MeshBasicMaterial({
+      color: 0xe0f2fe,
+      transparent: true,
+      opacity: 0.95
+    });
+    const lowMoonMesh = new THREE.Mesh(lowMoonGeo, lowMoonMat);
+    lowMoonGroup.add(lowMoonMesh);
+
+    // Moon halo glow
+    const haloGeo = new THREE.RingGeometry(22, 36, 32);
+    const haloMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.28,
+      side: THREE.DoubleSide
+    });
+    const moonHalo = new THREE.Mesh(haloGeo, haloMat);
+    moonHalo.lookAt(new THREE.Vector3(100, 5, 50));
+    lowMoonGroup.add(moonHalo);
+    scene.add(lowMoonGroup);
+
+    // 2. Half-sunken mossy statues in the lagoon
+    function createSunkenStatue(x, z, rotY, submergedDepth) {
+      const g = new THREE.Group();
+      g.position.set(x, -submergedDepth, z);
+      g.rotation.y = rotY;
+      const stoneMat = new THREE.MeshStandardMaterial({
+        color: 0x334155,
+        roughness: 0.9,
+        metalness: 0.1
+      });
+      const mossMat = new THREE.MeshStandardMaterial({
+        color: 0x14532d,
+        emissive: 0x064e3b,
+        emissiveIntensity: 0.3,
+        roughness: 0.8
+      });
+      // Pedestal
+      const ped = new THREE.Mesh(new THREE.BoxGeometry(3.6, 2.5, 3.6), stoneMat);
+      ped.position.y = 1.25;
+      g.add(ped);
+      // Torso / Column
+      const col = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.5, 4.8, 8), stoneMat);
+      col.position.y = 4.4;
+      g.add(col);
+      // Moss overlay
+      const moss = new THREE.Mesh(new THREE.ConeGeometry(1.6, 2.2, 6), mossMat);
+      moss.position.set(0.2, 5.2, 0.2);
+      g.add(moss);
+      // Carved spirit head
+      const head = new THREE.Mesh(new THREE.DodecahedronGeometry(1.3), stoneMat);
+      head.position.y = 7.4;
+      g.add(head);
+      return g;
+    }
+    scene.add(createSunkenStatue(110, 125, 0.4, 2.2));
+    scene.add(createSunkenStatue(135, 95, -0.6, 1.8));
+    scene.add(createSunkenStatue(148, 45, 1.2, 2.0));
+    scene.add(createSunkenStatue(95, 130, -0.3, 2.4));
+
+    // 3. Floating lily lights in the lagoon
+    const lilyGroup = new THREE.Group();
+    const lilyMat = new THREE.MeshStandardMaterial({ color: 0x065f46, roughness: 0.7 });
+    const flowerMat = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x38bdf8,
+      emissiveIntensity: 0.85
+    });
+    for (let i = 0; i < 28; i++) {
+      let t = (i / 28.0) * Math.PI * 2;
+      let r = 18.0 + (i % 7) * 5.0;
+      let lx = 120 + Math.cos(t) * r;
+      let lz = 85 + Math.sin(t) * r;
+
+      const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 0.05, 7), lilyMat);
+      pad.position.set(lx, 0.05, lz);
+      const bloom = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.6, 5), flowerMat);
+      bloom.position.set(lx, 0.35, lz);
+      bloom.rotation.x = Math.PI;
+      lilyGroup.add(pad);
+      lilyGroup.add(bloom);
+    }
+    scene.add(lilyGroup);
+
+    // 4. Silver reeds along the Shallows reach
+    const silverReedMat = new THREE.MeshStandardMaterial({
+      color: 0x94a3b8,
+      emissive: 0x38bdf8,
+      emissiveIntensity: 0.35,
+      roughness: 0.5
+    });
+    const silverReedsGroup = new THREE.Group();
+    for (let i = 0; i < 90; i++) {
+      let rx = 138 + (i % 10) * 2.2 + (i * 0.3 % 2.0);
+      let rz = 5 + Math.floor(i / 10) * 3.2;
+      let stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.08, 3.8 + (i % 3) * 0.6, 4), silverReedMat);
+      stalk.position.set(rx, 1.9, rz);
+      stalk.rotation.z = (i % 2 === 0 ? 0.08 : -0.08);
+      silverReedsGroup.add(stalk);
+    }
+    scene.add(silverReedsGroup);
+
+    // 5. Film Restock Lantern Buoy at the Shallows entrance
+    const buoyPos = new THREE.Vector3(-4.0, 0.2, 56.0);
+    const buoyGroup = new THREE.Group();
+    buoyGroup.position.copy(buoyPos);
+
+    const buoyBaseMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.6, metalness: 0.8 });
+    const buoyRing = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.35, 8, 16), buoyBaseMat);
+    buoyRing.rotation.x = Math.PI / 2;
+    buoyRing.position.y = 0.2;
+    buoyGroup.add(buoyRing);
+
+    const buoyCage = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.6, 6, 1, true), buoyBaseMat);
+    buoyCage.position.y = 1.1;
+    buoyGroup.add(buoyCage);
+
+    const buoyLanternMat = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x38bdf8,
+      emissiveIntensity: 1.0,
+      roughness: 0.2
+    });
+    const buoyGlobe = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8), buoyLanternMat);
+    buoyGlobe.position.y = 1.1;
+    buoyGroup.add(buoyGlobe);
+
+    const buoyLight = new THREE.PointLight(0x38bdf8, 1.2, 16);
+    buoyLight.position.y = 1.2;
+    buoyGroup.add(buoyLight);
+    scene.add(buoyGroup);
+
+    /* --- THE MIRROR POOL (10-unit disk with faint silver rim & 18-unit approach ring) --- */
+    const mirrorPoolPos = new THREE.Vector3(88.0, 0.02, 114.0);
+
+    // 1. Calmer disk of water (10 units across = radius 5.0)
+    const poolDiscGeo = new THREE.CircleGeometry(5.0, 48);
+    poolDiscGeo.rotateX(-Math.PI / 2);
+    const poolDiscMat = new THREE.MeshStandardMaterial({
+      color: 0x021d30,
+      roughness: 0.03,
+      metalness: 0.95,
+      transparent: true,
+      opacity: 0.96
+    });
+    const poolDisc = new THREE.Mesh(poolDiscGeo, poolDiscMat);
+    poolDisc.position.copy(mirrorPoolPos);
+    scene.add(poolDisc);
+
+    // 2. Faint silver rim around the 10-unit pool
+    const poolRimGeo = new THREE.RingGeometry(4.88, 5.12, 48);
+    poolRimGeo.rotateX(-Math.PI / 2);
+    const poolRimMat = new THREE.MeshStandardMaterial({
+      color: 0xe2e8f0,
+      emissive: 0x94a3b8,
+      emissiveIntensity: 0.85,
+      roughness: 0.3,
+      side: THREE.DoubleSide
+    });
+    const poolRim = new THREE.Mesh(poolRimGeo, poolRimMat);
+    poolRim.position.copy(mirrorPoolPos);
+    poolRim.position.y += 0.01;
+    scene.add(poolRim);
+
+    // 3. Fixed 18-unit approach ring marking
+    const approachRingGeo = new THREE.RingGeometry(17.85, 18.15, 64);
+    approachRingGeo.rotateX(-Math.PI / 2);
+    const approachRingMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.28,
+      side: THREE.DoubleSide
+    });
+    const approachRing = new THREE.Mesh(approachRingGeo, approachRingMat);
+    approachRing.position.copy(mirrorPoolPos);
+    approachRing.position.y += 0.01;
+    scene.add(approachRing);
+
+    // 4. Soft upside-down glow reflection of the turtle on the water while BASKING
+    const turtleReflectionGroup = new THREE.Group();
+    turtleReflectionGroup.position.set(88.0, -0.15, 114.0);
+    turtleReflectionGroup.scale.set(1.15, -0.45, 1.45);
+    const reflMat = new THREE.MeshBasicMaterial({
+      color: 0x2dd4bf,
+      transparent: true,
+      opacity: 0.38
+    });
+    const reflMesh = new THREE.Mesh(new THREE.SphereGeometry(1.5, 8, 6), reflMat);
+    turtleReflectionGroup.add(reflMesh);
+    turtleReflectionGroup.visible = false;
+    scene.add(turtleReflectionGroup);
+
+    function showBuoyToast() {
+      const el = document.getElementById('buoy-toast');
+      if (el) {
+        el.style.display = 'block';
+        el.style.opacity = '1';
+        setTimeout(() => {
+          el.style.opacity = '0';
+          setTimeout(() => { el.style.display = 'none'; }, 500);
+        }, 2500);
+      }
+    }
+
+    // Populate Trees, Mushrooms, Reeds deterministically along river banks
+    const treeCount = 140;
+    for (let i = 0; i < treeCount; i++) {
+      let t = (i / treeCount + worldRng() * 0.01) % 1.0;
+      let center = riverCurve.getPoint(t);
+      let tangent = riverCurve.getTangent(t);
+      let normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+      let side = (i % 2 === 0 ? 1 : -1);
+      let offsetDist = 18.0 + worldRng() * 32.0;
+      let x = center.x + normal.x * offsetDist * side + (worldRng() - 0.5) * 8.0;
+      let z = center.z + normal.z * offsetDist * side + (worldRng() - 0.5) * 8.0;
+
+      let scale = 0.8 + worldRng() * 0.7;
+      let rot = worldRng() * Math.PI * 2;
+      sceneryGroup.add(createTree(x, z, scale, rot));
+
+      if (i % 3 === 0) {
+        let mx = center.x + normal.x * (12.0 + worldRng() * 6.0) * side;
+        let mz = center.z + normal.z * (12.0 + worldRng() * 6.0) * side;
+        sceneryGroup.add(createMushroomCluster(mx, 0.1, mz, 0.8 + worldRng() * 0.4));
+      }
+      if (i % 4 === 0) {
+        let rx = center.x + normal.x * 10.5 * side;
+        let rz = center.z + normal.z * 10.5 * side;
+        sceneryGroup.add(createReedCluster(rx, rz));
+      }
+    }
+
+    // Fireflies swarm
+    const fireflyCount = 180;
+    const fireflyGeo = new THREE.BufferGeometry();
+    const fireflyPositions = new Float32Array(fireflyCount * 3);
+    const fireflyOrigins = [];
+
+    for (let i = 0; i < fireflyCount; i++) {
+      let t = (i / fireflyCount);
+      let pt = riverCurve.getPoint(t);
+      let ox = pt.x + (worldRng() - 0.5) * 35;
+      let oy = 1.0 + worldRng() * 5.0;
+      let oz = pt.z + (worldRng() - 0.5) * 35;
+      fireflyOrigins.push({ x: ox, y: oy, z: oz, speed: 0.5 + worldRng() * 1.5, offset: worldRng() * 10 });
+      fireflyPositions[i * 3] = ox;
+      fireflyPositions[i * 3 + 1] = oy;
+      fireflyPositions[i * 3 + 2] = oz;
+    }
+    fireflyGeo.setAttribute('position', new THREE.BufferAttribute(fireflyPositions, 3));
+
+    const fireflyMat = new THREE.PointsMaterial({
+      color: 0x67e8f9,
+      size: 0.8,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending
+    });
+    const fireflies = new THREE.Points(fireflyGeo, fireflyMat);
+    scene.add(fireflies);
+
+    /* --- THE FERRY MODEL & MOTION --- */
+    // Curved hull, lantern mast, stern paddle (NEVER a plain box)
+    const ferry = new THREE.Group();
+    scene.add(ferry);
+
+    // Curved Hull constructed from geometric lofts
+    const hullMat = new THREE.MeshStandardMaterial({
+      color: 0x1f2937,
+      roughness: 0.6,
+      metalness: 0.2
+    });
+    const hullTrimMat = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.4,
+      roughness: 0.3
+    });
+
+    // Hull base
+    const hullGeo = new THREE.CylinderGeometry(1.6, 1.2, 5.5, 12, 1);
+    hullGeo.rotateZ(Math.PI / 2);
+    hullGeo.scale(1.0, 0.45, 1.3);
+    const hullMesh = new THREE.Mesh(hullGeo, hullMat);
+    hullMesh.position.y = 0.4;
+    hullMesh.castShadow = true;
+    hullMesh.receiveShadow = true;
+    ferry.add(hullMesh);
+
+    // Glowing keel trim
+    const trimGeo = new THREE.TorusGeometry(2.6, 0.08, 6, 16, Math.PI);
+    trimGeo.rotateZ(Math.PI);
+    trimGeo.scale(1.0, 0.25, 0.85);
+    const trimMesh = new THREE.Mesh(trimGeo, hullTrimMat);
+    trimMesh.position.set(0, 0.4, 0);
+    ferry.add(trimMesh);
+
+    // Deck
+    const deckMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.8 });
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.15, 4.4), deckMat);
+    deck.position.set(0, 0.65, 0);
+    ferry.add(deck);
+
+    // Mast
+    const mastMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.7 });
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 3.8, 8), mastMat);
+    mast.position.set(0, 2.2, 0.8);
+    mast.castShadow = true;
+    ferry.add(mast);
+
+    // Lantern crossarm & swaying lantern
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.0, 6), mastMat);
+    arm.rotation.z = Math.PI / 2;
+    arm.position.set(0, 3.8, 0.8);
+    ferry.add(arm);
+
+    const lanternPivot = new THREE.Group();
+    lanternPivot.position.set(0.4, 3.8, 0.8);
+    ferry.add(lanternPivot);
+
+    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.6, 4), mastMat);
+    cord.position.y = -0.3;
+    lanternPivot.add(cord);
+
+    const ferryLantern = new THREE.Mesh(new THREE.OctahedronGeometry(0.3), new THREE.MeshStandardMaterial({
+      color: 0xfef08a,
+      emissive: 0xf59e0b,
+      emissiveIntensity: 1.2,
+      roughness: 0.2
+    }));
+    ferryLantern.position.y = -0.6;
+    lanternPivot.add(ferryLantern);
+
+    const ferryLight = new THREE.PointLight(0xf59e0b, 1.2, 16);
+    ferryLight.position.y = -0.6;
+    lanternPivot.add(ferryLight);
+
+    // Stern Paddle (turns only while moving)
+    const paddlePivot = new THREE.Group();
+    paddlePivot.position.set(0, 0.35, -2.8);
+    ferry.add(paddlePivot);
+
+    const paddleShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.8, 8), mastMat);
+    paddleShaft.rotation.x = Math.PI / 2;
+    paddlePivot.add(paddleShaft);
+
+    const paddleMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.5 });
+    for (let p = 0; p < 4; p++) {
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.05, 0.4), paddleMat);
+      blade.rotation.x = (p * Math.PI) / 4;
+      paddlePivot.add(blade);
+    }
+
+    // Bow Wake Ripple (cuts ripple wake that fades while holding)
+    const wakeGeo = new THREE.RingGeometry(0.3, 2.5, 16, 1, 0, Math.PI);
+    wakeGeo.rotateX(-Math.PI / 2);
+    wakeGeo.rotateY(Math.PI);
+    const wakeMat = new THREE.MeshBasicMaterial({
+      color: 0x7dd3fc,
+      transparent: true,
+      opacity: 0.6,
+      side: THREE.DoubleSide
+    });
+    const bowWake = new THREE.Mesh(wakeGeo, wakeMat);
+    bowWake.position.set(0, 0.05, 2.4);
+    bowWake.scale.set(0.8, 1, 1.2);
+    ferry.add(bowWake);
+
+    /* --- THIRD PERSON CAMERA & FREE LOOK --- */
+    const cameraRig = {
+      yaw: 0.0,
+      pitch: 0.1,
+      targetYaw: 0.0,
+      targetPitch: 0.1,
+      baseDist: 7.2,
+      baseHeight: 3.2,
+      raisedDist: 4.0,
+      raisedHeight: 2.2,
+      isRightMouseDown: false,
+      isPointerLocked: false
+    };
+
+    // Ferry secondary motion states
+    const ferryDynamics = {
+      currentSpeed: 0.0,
+      targetSpeed: 1.0,
+      lanternSwayAngle: 0.0,
+      lanternSwayVel: 0.0,
+      paddleRotation: 0.0,
+      wakeOpacity: 0.6
+    };
+
+    /* --- SPIRITS DEFINITIONS & ENCOUNTERS --- */
+    /*
+      Requirements:
+      Each species from at least 5 distinct primitives with silhouette readable from any angle (never box or sprite).
+      1) Mistdeer: pale spirit deer: body, neck and head, antlers, four legs, tail; ears flick and tail swishes.
+      2) Brightwing: river kingfisher: body, head with beak, two beating wings, tail, glowing crest; dive raises real ripple.
+
+      Encounters:
+      - Mistdeer 1 at 18%: steps from left treeline (0-3s), drinks head-down at bank (3-9s, pose window), watches ferry (9-12s), leaves by 15s.
+      - Brightwing at 45%: perches on right-bank snag (0-2s), hovers with wing-flare (2-6s, pose window), dives with splash at 6s, flies away by 10s.
+      - Mistdeer 2 at 70%: climbs into view (0-2s), stands on moonlit ridge facing river lane (2-8s, pose window), turns and leaves by 12s.
+    */
+
+    // Builder: Duskfox (Shadow-dark fox with ember-tipped tail: 5+ primitives, readable silhouette)
+    function buildDuskfox() {
+      const fox = new THREE.Group();
+
+      const shadowMat = new THREE.MeshStandardMaterial({
+        color: 0x18181b,
+        emissive: 0x09090b,
+        emissiveIntensity: 0.2,
+        roughness: 0.7,
+        metalness: 0.1
+      });
+      const chestMat = new THREE.MeshStandardMaterial({
+        color: 0x27272a,
+        roughness: 0.6
+      });
+      const emberMat = new THREE.MeshStandardMaterial({
+        color: 0xf59e0b,
+        emissive: 0xf97316,
+        emissiveIntensity: 1.6,
+        roughness: 0.2
+      });
+
+      // 1. Sleek Torso Body
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.48, 1.8, 7), shadowMat);
+      body.rotation.x = Math.PI / 2;
+      body.position.set(0, 1.2, 0);
+      fox.add(body);
+
+      // Chest / Ruff
+      const ruff = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.8, 6), chestMat);
+      ruff.position.set(0, 1.35, 0.6);
+      ruff.rotation.x = -0.5;
+      fox.add(ruff);
+
+      // 2. Neck & Head
+      const headGroup = new THREE.Group();
+      headGroup.position.set(0, 1.6, 0.8);
+      fox.add(headGroup);
+
+      const head = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.7, 6), shadowMat);
+      head.position.set(0, 0.2, 0.3);
+      head.rotation.x = 1.2;
+      headGroup.add(head);
+
+      // Snout
+      const snout = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.55, 4), shadowMat);
+      snout.position.set(0, 0.15, 0.7);
+      snout.rotation.x = Math.PI / 2;
+      headGroup.add(snout);
+
+      // Two tall pointed ears
+      const earL = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.5, 4), shadowMat);
+      earL.position.set(-0.22, 0.55, 0.1);
+      earL.rotation.z = -0.3;
+      earL.rotation.x = -0.2;
+      headGroup.add(earL);
+
+      const earR = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.5, 4), shadowMat);
+      earR.position.set(0.22, 0.55, 0.1);
+      earR.rotation.z = 0.3;
+      earR.rotation.x = -0.2;
+      headGroup.add(earR);
+
+      // 3. Four slender agile legs
+      const legPositions = [
+        { x: -0.28, z: 0.65 },
+        { x: 0.28, z: 0.65 },
+        { x: -0.3, z: -0.65 },
+        { x: 0.3, z: -0.65 }
+      ];
+      const legs = [];
+      legPositions.forEach(lp => {
+        const legPivot = new THREE.Group();
+        legPivot.position.set(lp.x, 1.1, lp.z);
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.05, 1.1, 5), shadowMat);
+        leg.position.y = -0.55;
+        legPivot.add(leg);
+        fox.add(legPivot);
+        legs.push(legPivot);
+      });
+
+      // 4. Bushy tail with glowing ember tip
+      const tailPivot = new THREE.Group();
+      tailPivot.position.set(0, 1.3, -0.9);
+      fox.add(tailPivot);
+
+      const tailBody = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.26, 1.1, 6), shadowMat);
+      tailBody.position.set(0, -0.35, -0.45);
+      tailBody.rotation.x = -0.8;
+      tailPivot.add(tailBody);
+
+      // Glowing Ember Tip
+      const emberTip = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.65, 6), emberMat);
+      emberTip.position.set(0, -0.65, -0.9);
+      emberTip.rotation.x = -0.8;
+      tailPivot.add(emberTip);
+
+      // Tail ember light
+      const emberLight = new THREE.PointLight(0xf59e0b, 1.1, 8);
+      emberLight.position.set(0, -0.65, -0.9);
+      tailPivot.add(emberLight);
+
+      // Glow Anchor at body center
+      const glowAnchor = new THREE.Group();
+      glowAnchor.position.set(0, 1.2, 0);
+      fox.add(glowAnchor);
+
+      return {
+        root: fox,
+        anchor: glowAnchor,
+        headGroup: headGroup,
+        tailPivot: tailPivot,
+        emberMat: emberMat,
+        legs: legs,
+        light: emberLight
+      };
+    }
+
+    // Builder: Glowturtle (Broad-shelled turtle with pulsing shell plates: 5+ primitives)
+    function buildGlowturtle() {
+      const turtle = new THREE.Group();
+
+      const shellBaseMat = new THREE.MeshStandardMaterial({
+        color: 0x042f2e,
+        roughness: 0.5,
+        metalness: 0.2
+      });
+      const shellPlateMat = new THREE.MeshStandardMaterial({
+        color: 0x2dd4bf,
+        emissive: 0x14b8a6,
+        emissiveIntensity: 0.7,
+        roughness: 0.3
+      });
+      const skinMat = new THREE.MeshStandardMaterial({
+        color: 0x0f766e,
+        emissive: 0x115e59,
+        emissiveIntensity: 0.3,
+        roughness: 0.6
+      });
+
+      // 1. Carapace dome (broad shell)
+      const shellBase = new THREE.Mesh(new THREE.SphereGeometry(1.6, 10, 8), shellBaseMat);
+      shellBase.scale.set(1.15, 0.45, 1.45);
+      shellBase.position.y = 0.5;
+      turtle.add(shellBase);
+
+      // 2. Five glowing carapace plates (idle pulsing light)
+      const plates = [];
+      const platePositions = [
+        { x: 0, y: 0.82, z: 0, rx: 0, ry: 0, s: 0.8 },
+        { x: 0, y: 0.78, z: 0.85, rx: 0.3, ry: 0, s: 0.6 },
+        { x: 0, y: 0.76, z: -0.85, rx: -0.3, ry: 0, s: 0.6 },
+        { x: -0.9, y: 0.68, z: 0, rx: 0, ry: 0.3, s: 0.65 },
+        { x: 0.9, y: 0.68, z: 0, rx: 0, ry: -0.3, s: 0.65 }
+      ];
+      platePositions.forEach(pp => {
+        const pMesh = new THREE.Mesh(new THREE.BoxGeometry(0.7 * pp.s, 0.12, 0.8 * pp.s), shellPlateMat);
+        pMesh.position.set(pp.x, pp.y, pp.z);
+        pMesh.rotation.set(pp.rx, pp.ry, 0);
+        turtle.add(pMesh);
+        plates.push(pMesh);
+      });
+
+      // 3. Head & neck
+      const headGroup = new THREE.Group();
+      headGroup.position.set(0, 0.45, 1.8);
+      turtle.add(headGroup);
+      const headMesh = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.9, 6), skinMat);
+      headMesh.rotation.x = Math.PI / 2;
+      headGroup.add(headMesh);
+
+      // 4. Four flippers (front paddle flippers & rear flippers)
+      const flipperFL = new THREE.Group();
+      flipperFL.position.set(-1.4, 0.4, 0.9);
+      const flMeshFL = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.08, 0.6), skinMat);
+      flMeshFL.position.set(-0.6, 0, 0.2);
+      flMeshFL.rotation.y = 0.4;
+      flipperFL.add(flMeshFL);
+      turtle.add(flipperFL);
+
+      const flipperFR = new THREE.Group();
+      flipperFR.position.set(1.4, 0.4, 0.9);
+      const flMeshFR = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.08, 0.6), skinMat);
+      flMeshFR.position.set(0.6, 0, 0.2);
+      flMeshFR.rotation.y = -0.4;
+      flipperFR.add(flMeshFR);
+      turtle.add(flipperFR);
+
+      const flipperBL = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.06, 0.5), skinMat);
+      flipperBL.position.set(-1.1, 0.35, -1.2);
+      flipperBL.rotation.y = -0.5;
+      turtle.add(flipperBL);
+
+      const flipperBR = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.06, 0.5), skinMat);
+      flipperBR.position.set(1.1, 0.35, -1.2);
+      flipperBR.rotation.y = 0.5;
+      turtle.add(flipperBR);
+
+      // 5. Tail
+      const tail = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.6, 4), skinMat);
+      tail.position.set(0, 0.35, -1.8);
+      tail.rotation.x = -Math.PI / 2;
+      turtle.add(tail);
+
+      // Glow Anchor at shell center
+      const glowAnchor = new THREE.Group();
+      glowAnchor.position.set(0, 0.6, 0);
+      turtle.add(glowAnchor);
+
+      // Aura light
+      const tLight = new THREE.PointLight(0x2dd4bf, 0.8, 8);
+      tLight.position.set(0, 0.8, 0);
+      turtle.add(tLight);
+
+      return {
+        root: turtle,
+        anchor: glowAnchor,
+        plates: plates,
+        plateMat: shellPlateMat,
+        flipperL: flipperFL,
+        flipperR: flipperFR,
+        head: headGroup,
+        light: tLight
+      };
+    }
+
+    // Builder: Veilheron (Tall wading heron trailing a translucent veil: 5+ primitives)
+    function buildVeilheron() {
+      const heron = new THREE.Group();
+
+      const bodyMat = new THREE.MeshStandardMaterial({
+        color: 0xe0e7ff,
+        emissive: 0x818cf8,
+        emissiveIntensity: 0.45,
+        roughness: 0.3
+      });
+      const legMat = new THREE.MeshStandardMaterial({ color: 0x312e81, roughness: 0.8 });
+      const beakMat = new THREE.MeshStandardMaterial({
+        color: 0xfbbf24,
+        emissive: 0xf59e0b,
+        emissiveIntensity: 0.5,
+        roughness: 0.3
+      });
+      const veilMat = new THREE.MeshStandardMaterial({
+        color: 0xc7d2fe,
+        emissive: 0xa5b4fc,
+        emissiveIntensity: 0.7,
+        transparent: true,
+        opacity: 0.65,
+        side: THREE.DoubleSide
+      });
+      const fishMat = new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        emissive: 0x38bdf8,
+        emissiveIntensity: 1.2
+      });
+
+      // 1. Body
+      const body = new THREE.Mesh(new THREE.ConeGeometry(0.48, 1.6, 7), bodyMat);
+      body.rotation.x = 1.1;
+      body.position.set(0, 2.2, 0);
+      heron.add(body);
+
+      // 2. Long neck and head with beak
+      const neckGroup = new THREE.Group();
+      neckGroup.position.set(0, 2.7, 0.6);
+      heron.add(neckGroup);
+
+      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.22, 1.8, 6), bodyMat);
+      neck.position.set(0, 0.8, 0.2);
+      neck.rotation.x = -0.3;
+      neckGroup.add(neck);
+
+      const head = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.7, 5), bodyMat);
+      head.position.set(0, 1.7, 0.4);
+      head.rotation.x = 1.3;
+      neckGroup.add(head);
+
+      const beak = new THREE.Mesh(new THREE.ConeGeometry(0.08, 1.1, 4), beakMat);
+      beak.position.set(0, 1.8, 1.1);
+      beak.rotation.x = Math.PI / 2;
+      neckGroup.add(beak);
+
+      // Glowing fish caught in beak (visible during striking)
+      const fish = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.6, 5), fishMat);
+      fish.rotation.z = Math.PI / 2;
+      fish.position.set(0, 1.75, 1.4);
+      fish.visible = false;
+      neckGroup.add(fish);
+
+      // 3. Two tall wading legs
+      const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.04, 2.2, 5), legMat);
+      legL.position.set(-0.25, 1.1, 0.05);
+      heron.add(legL);
+
+      const legR = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.04, 2.2, 5), legMat);
+      legR.position.set(0.25, 1.1, 0.05);
+      heron.add(legR);
+
+      // 4. Folded wings
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.2, 0.7), bodyMat);
+      wingL.position.set(-0.45, 2.3, -0.1);
+      wingL.rotation.x = 0.5;
+      heron.add(wingL);
+
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.2, 0.7), bodyMat);
+      wingR.position.set(0.45, 2.3, -0.1);
+      wingR.rotation.x = 0.5;
+      heron.add(wingR);
+
+      // 5. Translucent flowing veil attached to crest/neck
+      const veilGeo = new THREE.PlaneGeometry(0.7, 2.2, 4, 8);
+      const veilMesh = new THREE.Mesh(veilGeo, veilMat);
+      veilMesh.position.set(0, 0.7, -0.4);
+      veilMesh.rotation.y = Math.PI;
+      neckGroup.add(veilMesh);
+
+      // Glow Anchor at body center
+      const glowAnchor = new THREE.Group();
+      glowAnchor.position.set(0, 2.2, 0.2);
+      heron.add(glowAnchor);
+
+      const hLight = new THREE.PointLight(0x818cf8, 0.8, 8);
+      hLight.position.set(0, 2.4, 0.2);
+      heron.add(hLight);
+
+      return {
+        root: heron,
+        anchor: glowAnchor,
+        neckGroup: neckGroup,
+        veil: veilMesh,
+        fish: fish,
+        legL: legL,
+        legR: legR
+      };
+    }
+
+    // Builder: Mistdeer (pale glowing spirit deer)
+    function buildMistdeer() {
+      const deer = new THREE.Group();
+
+      const deerMat = new THREE.MeshStandardMaterial({
+        color: 0xe0f2fe,
+        emissive: 0x38bdf8,
+        emissiveIntensity: 0.45,
+        roughness: 0.4,
+        metalness: 0.1
+      });
+      const antlerMat = new THREE.MeshStandardMaterial({
+        color: 0xbae6fd,
+        emissive: 0x7dd3fc,
+        emissiveIntensity: 0.8,
+        roughness: 0.2
+      });
+
+      // 1. Body (barrel shaped)
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.85, 2.6, 8), deerMat);
+      body.rotation.x = Math.PI / 2;
+      body.position.set(0, 2.0, 0);
+      deer.add(body);
+
+      // 2. Neck and Head group
+      const neckHeadGroup = new THREE.Group();
+      neckHeadGroup.position.set(0, 2.3, 1.1);
+      deer.add(neckHeadGroup);
+
+      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.55, 1.6, 7), deerMat);
+      neck.position.set(0, 0.8, 0.3);
+      neck.rotation.x = 0.45;
+      neckHeadGroup.add(neck);
+
+      const head = new THREE.Mesh(new THREE.ConeGeometry(0.45, 1.2, 7), deerMat);
+      head.position.set(0, 1.6, 0.7);
+      head.rotation.x = 1.35;
+      neckHeadGroup.add(head);
+
+      // Ears (flicking)
+      const earLeft = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.5, 4), deerMat);
+      earLeft.position.set(-0.35, 1.8, 0.4);
+      earLeft.rotation.z = -0.6;
+      neckHeadGroup.add(earLeft);
+
+      const earRight = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.5, 4), deerMat);
+      earRight.position.set(0.35, 1.8, 0.4);
+      earRight.rotation.z = 0.6;
+      neckHeadGroup.add(earRight);
+
+      // 3. Antlers (multi-branched)
+      const antlersGroup = new THREE.Group();
+      antlersGroup.position.set(0, 1.9, 0.5);
+      [-0.4, 0.4].forEach((side, idx) => {
+        const mainBranch = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 1.4, 5), antlerMat);
+        mainBranch.position.set(side * 0.5, 0.6, -0.1);
+        mainBranch.rotation.z = -side * 0.5;
+        mainBranch.rotation.x = -0.3;
+        antlersGroup.add(mainBranch);
+
+        const subBranch = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 0.8, 4), antlerMat);
+        subBranch.position.set(side * 0.7, 0.9, 0.1);
+        subBranch.rotation.z = -side * 0.9;
+        antlersGroup.add(subBranch);
+      });
+      neckHeadGroup.add(antlersGroup);
+
+      // 4. Four Legs (front & back, animated pivots)
+      const legPositions = [
+        { x: -0.5, z: 0.9 },
+        { x: 0.5, z: 0.9 },
+        { x: -0.55, z: -0.9 },
+        { x: 0.55, z: -0.9 }
+      ];
+      const legs = [];
+      legPositions.forEach(lp => {
+        const legPivot = new THREE.Group();
+        legPivot.position.set(lp.x, 1.9, lp.z);
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.08, 1.9, 6), deerMat);
+        leg.position.y = -0.95;
+        legPivot.add(leg);
+        deer.add(legPivot);
+        legs.push(legPivot);
+      });
+
+      // 5. Tail (swishing)
+      const tailPivot = new THREE.Group();
+      tailPivot.position.set(0, 2.2, -1.3);
+      const tail = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.6, 5), deerMat);
+      tail.rotation.x = -0.8;
+      tail.position.set(0, -0.2, -0.2);
+      tailPivot.add(tail);
+      deer.add(tailPivot);
+
+      // Glow Anchor (One fixed point at body center)
+      const glowAnchor = new THREE.Group();
+      glowAnchor.position.set(0, 2.0, 0); // body center
+      deer.add(glowAnchor);
+
+      // Subtle body aura
+      const aura = new THREE.PointLight(0x7dd3fc, 0.8, 8);
+      aura.position.set(0, 2.0, 0);
+      deer.add(aura);
+
+      return {
+        root: deer,
+        neckHead: neckHeadGroup,
+        ears: [earLeft, earRight],
+        tail: tailPivot,
+        legs: legs,
+        anchor: glowAnchor
+      };
+    }
+
+    // Builder: Brightwing (River Kingfisher: body, head with beak, two beating wings, tail, glowing crest)
+    function buildBrightwing() {
+      const bird = new THREE.Group();
+
+      const bodyMat = new THREE.MeshStandardMaterial({
+        color: 0x0284c7,
+        emissive: 0x0369a1,
+        emissiveIntensity: 0.5,
+        roughness: 0.3
+      });
+      const wingMat = new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        emissive: 0x0ea5e9,
+        emissiveIntensity: 0.7,
+        roughness: 0.3,
+        side: THREE.DoubleSide
+      });
+      const crestMat = new THREE.MeshStandardMaterial({
+        color: 0xf59e0b,
+        emissive: 0xfbbf24,
+        emissiveIntensity: 1.2,
+        roughness: 0.2
+      });
+      const beakMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.7 });
+
+      // 1. Body (plump aerodynamic)
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 8), bodyMat);
+      body.scale.set(0.7, 0.8, 1.2);
+      bird.add(body);
+
+      // 2. Head with Beak
+      const headGroup = new THREE.Group();
+      headGroup.position.set(0, 0.35, 0.45);
+      bird.add(headGroup);
+
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.35, 7, 7), bodyMat);
+      headGroup.add(head);
+
+      const beak = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.9, 5), beakMat);
+      beak.rotation.x = Math.PI / 2;
+      beak.position.set(0, 0, 0.65);
+      headGroup.add(beak);
+
+      // 3. Glowing Crest
+      const crest = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.6, 4), crestMat);
+      crest.rotation.x = -0.5;
+      crest.position.set(0, 0.4, -0.1);
+      headGroup.add(crest);
+
+      // 4. Two Beating Wings
+      const wingLeftPivot = new THREE.Group();
+      wingLeftPivot.position.set(-0.35, 0.1, 0.1);
+      bird.add(wingLeftPivot);
+
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.04, 0.6), wingMat);
+      wingL.position.set(-0.6, 0, 0);
+      wingLeftPivot.add(wingL);
+
+      const wingRightPivot = new THREE.Group();
+      wingRightPivot.position.set(0.35, 0.1, 0.1);
+      bird.add(wingRightPivot);
+
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.04, 0.6), wingMat);
+      wingR.position.set(0.6, 0, 0);
+      wingRightPivot.add(wingR);
+
+      // 5. Tail fan
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, 0.7), wingMat);
+      tail.position.set(0, -0.05, -0.7);
+      bird.add(tail);
+
+      // Glow Anchor (One fixed point at body center)
+      const glowAnchor = new THREE.Group();
+      glowAnchor.position.set(0, 0, 0);
+      bird.add(glowAnchor);
+
+      // Crest pointlight
+      const bLight = new THREE.PointLight(0x38bdf8, 0.8, 7);
+      bLight.position.set(0, 0.4, 0.2);
+      bird.add(bLight);
+
+      return {
+        root: bird,
+        wingL: wingLeftPivot,
+        wingR: wingRightPivot,
+        head: headGroup,
+        anchor: glowAnchor
+      };
+    }
+
+    // Snag for Brightwing perch
+    function createPerchSnag(x, y, z) {
+      const snag = new THREE.Group();
+      snag.position.set(x, y, z);
+      const woodMat = new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.9 });
+      const branch1 = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.35, 4.2, 6), woodMat);
+      branch1.position.set(0, 2.1, 0);
+      branch1.rotation.z = 0.2;
+      snag.add(branch1);
+
+      const subBranch = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.18, 2.0, 5), woodMat);
+      subBranch.position.set(0.6, 2.8, 0);
+      subBranch.rotation.z = -0.7;
+      snag.add(subBranch);
+      return snag;
+    }
+
+    // Splash ripple effect for Brightwing dive
+    function createSplashRipple() {
+      const splash = new THREE.Group();
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0x67e8f9,
+        transparent: true,
+        opacity: 0.0,
+        side: THREE.DoubleSide
+      });
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.4, 16), ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.02;
+      splash.add(ring);
+      return { group: splash, ring: ring, mat: ringMat, life: 0 };
+    }
+
+    const splashRipple = createSplashRipple();
+    scene.add(splashRipple.group);
+
+    // Spirit Encounter instances
+    const spirit1_deer = buildMistdeer();
+    scene.add(spirit1_deer.root);
+    spirit1_deer.root.visible = false;
+
+    const snagMesh = createPerchSnag(-23.0, 0, -125.0);
+    scene.add(snagMesh);
+
+    const spirit2_bird = buildBrightwing();
+    scene.add(spirit2_bird.root);
+    spirit2_bird.root.visible = false;
+
+    const spirit3_deer = buildMistdeer();
+    scene.add(spirit3_deer.root);
+    spirit3_deer.root.visible = false;
+
+    // Twin-Bank Encounter at 82%: Mistdeer and Brightwing
+    const spirit4_deer = buildMistdeer();
+    scene.add(spirit4_deer.root);
+    spirit4_deer.root.visible = false;
+
+    const spirit4_bird = buildBrightwing();
+    scene.add(spirit4_bird.root);
+    spirit4_bird.root.visible = false;
+
+    // Skim ripple effect for Twin-Bank Brightwing skimming
+    const skimRipple = createSplashRipple();
+    scene.add(skimRipple.group);
+
+    // Round 3 Spirits: Glowturtle and Veilheron
+    const spirit_turtle = buildGlowturtle();
+    scene.add(spirit_turtle.root);
+    spirit_turtle.root.visible = false;
+
+    const spirit_heron = buildVeilheron();
+    scene.add(spirit_heron.root);
+    spirit_heron.root.visible = false;
+
+    // Round 4 Spirit: Duskfox (The Night Prowler)
+    const spirit_fox = buildDuskfox();
+    scene.add(spirit_fox.root);
+    spirit_fox.root.visible = false;
+
+    /* --- THE GREAT CROSSING FINALE SPIRITS (Anchored at 90%) --- */
+    // 1. Wedge of 5 Brightwings (V formation, leader dipping low during 6-9s LOWPASS)
+    const crossBirdLead = buildBrightwing();
+    scene.add(crossBirdLead.root);
+    crossBirdLead.root.visible = false;
+
+    const crossBirdsWing = [];
+    for (let i = 0; i < 4; i++) {
+      let b = buildBrightwing();
+      scene.add(b.root);
+      b.root.visible = false;
+      crossBirdsWing.push(b);
+    }
+
+    // 2. 3 Glowturtles surfacing in a triangle around river lane (2-16s BASKING)
+    const crossTurtles = [];
+    for (let i = 0; i < 3; i++) {
+      let t = buildGlowturtle();
+      scene.add(t.root);
+      t.root.visible = false;
+      crossTurtles.push(t);
+    }
+
+    // 3. 2 Mistdeer and 1 Duskfox silhouetted together on final ridge against moon (4-18s)
+    const crossDeer1 = buildMistdeer();
+    scene.add(crossDeer1.root);
+    crossDeer1.root.visible = false;
+
+    const crossDeer2 = buildMistdeer();
+    scene.add(crossDeer2.root);
+    crossDeer2.root.visible = false;
+
+    const crossFox = buildDuskfox();
+    scene.add(crossFox.root);
+    crossFox.root.visible = false;
+
+    // 4. Rising Lily Lights (slow sparks rising off water throughout finale)
+    const lilySparksCount = 35;
+    const lilySparksGeo = new THREE.BufferGeometry();
+    const lilySparksPos = new Float32Array(lilySparksCount * 3);
+    const sparksRng = createPRNG(909090);
+    for (let i = 0; i < lilySparksCount; i++) {
+      lilySparksPos[i * 3] = 40.0 + (sparksRng() - 0.5) * 45.0;
+      lilySparksPos[i * 3 + 1] = sparksRng() * 14.0;
+      lilySparksPos[i * 3 + 2] = -18.0 + (sparksRng() - 0.5) * 35.0;
+    }
+    lilySparksGeo.setAttribute('position', new THREE.BufferAttribute(lilySparksPos, 3));
+    const lilySparksMat = new THREE.PointsMaterial({
+      color: 0x38bdf8,
+      size: 2.2,
+      transparent: true,
+      opacity: 0.0
+    });
+    const lilySparks = new THREE.Points(lilySparksGeo, lilySparksMat);
+    scene.add(lilySparks);
+
+    /*
+      Encounter Management
+      Each encounter begins when progress FIRST reaches trigger fraction, then runs on its own fixed clock.
+      Holding lets you linger, but spirit departs when its clock runs out.
+    */
+    const encounters = [
+      {
+        id: 'deer1',
+        species: 'Mistdeer',
+        temperament: 'Timid',
+        triggerProgress: 0.11,
+        started: false,
+        fled: false,
+        fleeClock: 0.0,
+        clock: 0.0,
+        maxDuration: 15.0,
+        model: spirit1_deer,
+        behaviorName: 'WALKING',
+        fleeStartPos: new THREE.Vector3(),
+        fleeTargetPos: new THREE.Vector3(),
+        startFlee: function() { return; // Silent shutter - timid spirits never flee
+
+          if (this.fled || !this.started || this.clock >= this.maxDuration) return;
+          this.fled = true;
+          this.fleeClock = 0.0;
+          this.behaviorName = 'FLEEING';
+          this.isPoseWindow = false;
+          this.fleeStartPos.copy(this.model.root.position);
+          this.fleeTargetPos.copy(this.treelinePos).add(new THREE.Vector3(12, 0, 10));
+        },
+        baseBankPos: new THREE.Vector3(113.0, 0.3, 9.6),
+        treelinePos: new THREE.Vector3(124.0, 1.2, 15.0),
+        forwardVec: new THREE.Vector3(-0.89, 0, -0.45).normalize(),
+        update: function(dt) {
+          if (!this.started) return;
+
+          // If startled by flash, execute flee script (gone within 2s)
+          if (this.fled) {
+            this.fleeClock += dt;
+            this.behaviorName = 'FLEEING';
+            this.isPoseWindow = false;
+            if (this.fleeClock >= 2.0) {
+              this.model.root.visible = false;
+              return;
+            }
+            this.model.root.visible = true;
+            let alpha = this.fleeClock / 2.0;
+            let pos = new THREE.Vector3().lerpVectors(this.fleeStartPos, this.fleeTargetPos, alpha);
+            let dir = new THREE.Vector3().subVectors(this.fleeTargetPos, this.fleeStartPos).normalize();
+            let legSwing = Math.sin(this.fleeClock * 22.0) * 0.55;
+            this.model.legs[0].rotation.x = legSwing;
+            this.model.legs[1].rotation.x = -legSwing;
+            this.model.legs[2].rotation.x = -legSwing;
+            this.model.legs[3].rotation.x = legSwing;
+            this.model.root.position.copy(pos);
+            this.model.root.rotation.y = Math.atan2(dir.x, dir.z);
+            this.forwardVec.copy(dir);
+            return;
+          }
+
+          this.clock += dt;
+          const t = this.clock;
+          if (t >= this.maxDuration) {
+            this.model.root.visible = false;
+            return;
+          }
+          this.model.root.visible = true;
+
+          let pos = new THREE.Vector3();
+          let lookTarget = new THREE.Vector3();
+          let isPose = false;
+
+          if (t < 3.0) {
+            this.behaviorName = 'WALKING';
+            let alpha = t / 3.0;
+            pos.lerpVectors(this.treelinePos, this.baseBankPos, alpha);
+            lookTarget.subVectors(this.baseBankPos, this.treelinePos).normalize();
+            let legSwing = Math.sin(t * 8.0) * 0.4;
+            this.model.legs[0].rotation.x = legSwing;
+            this.model.legs[1].rotation.x = -legSwing;
+            this.model.legs[2].rotation.x = -legSwing;
+            this.model.legs[3].rotation.x = legSwing;
+            this.model.neckHead.rotation.x = 0.0;
+          } else if (t < 9.0) {
+            this.behaviorName = 'DRINKING';
+            isPose = true;
+            pos.copy(this.baseBankPos);
+            lookTarget.set(-0.89, 0, -0.45);
+            this.model.legs.forEach(l => l.rotation.x = 0);
+            let drinkBlend = Math.min(1.0, Math.sin((t - 3.0) / 6.0 * Math.PI));
+            this.model.neckHead.rotation.x = 0.7 * drinkBlend;
+            this.model.tail.rotation.y = Math.sin(t * 6.0) * 0.5;
+            this.model.ears[0].rotation.x = Math.sin(t * 12.0) * 0.3;
+          } else if (t < 12.0) {
+            this.behaviorName = 'WATCHING';
+            pos.copy(this.baseBankPos);
+            let dirToFerry = new THREE.Vector3().subVectors(ferry.position, pos).normalize();
+            lookTarget.copy(dirToFerry);
+            this.model.neckHead.rotation.x = -0.15;
+            this.model.tail.rotation.y = Math.sin(t * 3.0) * 0.2;
+          } else {
+            this.behaviorName = 'LEAVING';
+            let alpha = (t - 12.0) / 3.0;
+            pos.lerpVectors(this.baseBankPos, this.treelinePos, alpha);
+            lookTarget.subVectors(this.treelinePos, this.baseBankPos).normalize();
+            let legSwing = Math.sin(t * 8.0) * 0.4;
+            this.model.legs[0].rotation.x = legSwing;
+            this.model.legs[1].rotation.x = -legSwing;
+            this.model.legs[2].rotation.x = -legSwing;
+            this.model.legs[3].rotation.x = legSwing;
+            this.model.neckHead.rotation.x = 0.0;
+          }
+
+          this.model.root.position.copy(pos);
+          let facing = lookTarget.clone().setY(0).normalize();
+          if (facing.lengthSq() > 0.001) {
+            this.model.root.rotation.y = Math.atan2(facing.x, facing.z);
+            this.forwardVec.copy(facing);
+          }
+          this.isPoseWindow = isPose;
+        }
+      },
+      {
+        id: 'bird1',
+        species: 'Brightwing',
+        temperament: 'Timid',
+        triggerProgress: 0.28,
+        started: false,
+        fled: false,
+        fleeClock: 0.0,
+        clock: 0.0,
+        maxDuration: 10.0,
+        model: spirit2_bird,
+        behaviorName: 'PERCHED',
+        fleeStartPos: new THREE.Vector3(),
+        startFlee: function() { return; // Silent shutter - timid spirits never flee
+
+          if (this.fled || !this.started || this.clock >= this.maxDuration) return;
+          this.fled = true;
+          this.fleeClock = 0.0;
+          this.behaviorName = 'FLEEING';
+          this.isPoseWindow = false;
+          this.fleeStartPos.copy(this.model.root.position);
+        },
+        perchPos: new THREE.Vector3(-22.8, 3.8, -125.0),
+        hoverPos: new THREE.Vector3(-23.0, 4.2, -128.5),
+        diveWaterPos: new THREE.Vector3(-23.3, 0.1, -132.0),
+        skyEscapePos: new THREE.Vector3(-26.0, 22.0, -95.0),
+        forwardVec: new THREE.Vector3(0, 0, -1),
+        update: function(dt) {
+          if (!this.started) return;
+
+          if (this.fled) {
+            this.fleeClock += dt;
+            this.behaviorName = 'FLEEING';
+            this.isPoseWindow = false;
+            if (this.fleeClock >= 1.5) {
+              this.model.root.visible = false;
+              return;
+            }
+            this.model.root.visible = true;
+            let alpha = this.fleeClock / 1.5;
+            let pos = this.fleeStartPos.clone();
+            pos.y += alpha * 28.0;
+            pos.z += alpha * 10.0;
+            let flap = Math.sin(this.fleeClock * 36.0) * 0.9;
+            this.model.wingL.rotation.z = flap;
+            this.model.wingR.rotation.z = -flap;
+            this.model.root.position.copy(pos);
+            this.forwardVec.set(0, 1, 0.3).normalize();
+            return;
+          }
+
+          this.clock += dt;
+          const t = this.clock;
+          if (t >= this.maxDuration) {
+            this.model.root.visible = false;
+            return;
+          }
+          this.model.root.visible = true;
+
+          let pos = new THREE.Vector3();
+          let lookTarget = new THREE.Vector3();
+          let isPose = false;
+
+          if (t < 2.0) {
+            this.behaviorName = 'PERCHED';
+            pos.copy(this.perchPos);
+            lookTarget.set(0, -0.2, -1.0).normalize();
+            this.model.wingL.rotation.z = 0.1;
+            this.model.wingR.rotation.z = -0.1;
+            this.model.head.rotation.y = Math.sin(t * 4.0) * 0.3;
+          } else if (t < 6.0) {
+            this.behaviorName = 'HOVERING';
+            isPose = true;
+            let alpha = Math.min(1.0, (t - 2.0) / 1.0);
+            pos.lerpVectors(this.perchPos, this.hoverPos, alpha);
+            pos.y += Math.sin(t * 7.0) * 0.2;
+            lookTarget.set(0, -0.1, -1.0).normalize();
+            let flap = Math.sin(t * 24.0) * 0.8;
+            this.model.wingL.rotation.z = flap;
+            this.model.wingR.rotation.z = -flap;
+          } else if (t < 6.8) {
+            this.behaviorName = 'DIVING';
+            let alpha = (t - 6.0) / 0.8;
+            pos.lerpVectors(this.hoverPos, this.diveWaterPos, alpha);
+            lookTarget.subVectors(this.diveWaterPos, this.hoverPos).normalize();
+            this.model.wingL.rotation.z = 0.3;
+            this.model.wingR.rotation.z = -0.3;
+            if (t >= 6.05 && splashRipple.life <= 0) {
+              splashRipple.group.position.copy(this.diveWaterPos);
+              splashRipple.life = 1.0;
+            }
+          } else {
+            this.behaviorName = 'DEPARTING';
+            let alpha = (t - 6.8) / 3.2;
+            pos.lerpVectors(this.diveWaterPos, this.skyEscapePos, alpha);
+            lookTarget.subVectors(this.skyEscapePos, this.diveWaterPos).normalize();
+            let flap = Math.sin(t * 20.0) * 0.7;
+            this.model.wingL.rotation.z = flap;
+            this.model.wingR.rotation.z = -flap;
+          }
+
+          this.model.root.position.copy(pos);
+          let facing = lookTarget.clone().setY(0).normalize();
+          if (facing.lengthSq() > 0.001) {
+            this.model.root.rotation.y = Math.atan2(facing.x, facing.z);
+            this.forwardVec.copy(facing);
+          }
+          this.isPoseWindow = isPose;
+        }
+      },
+      {
+        id: 'deer2',
+        species: 'Mistdeer',
+        temperament: 'Timid',
+        triggerProgress: 0.44,
+        started: false,
+        fled: false,
+        fleeClock: 0.0,
+        clock: 0.0,
+        maxDuration: 12.0,
+        model: spirit3_deer,
+        behaviorName: 'ARRIVING',
+        fleeStartPos: new THREE.Vector3(),
+        fleeTargetPos: new THREE.Vector3(),
+        startFlee: function() { return; // Silent shutter - timid spirits never flee
+
+          if (this.fled || !this.started || this.clock >= this.maxDuration) return;
+          this.fled = true;
+          this.fleeClock = 0.0;
+          this.behaviorName = 'FLEEING';
+          this.isPoseWindow = false;
+          this.fleeStartPos.copy(this.model.root.position);
+          this.fleeTargetPos.copy(this.ridgeRetreatPos).add(new THREE.Vector3(-14, 0, 14));
+        },
+        ridgeClimbStart: new THREE.Vector3(-128.0, 2.0, 48.0),
+        ridgeStancePos: new THREE.Vector3(-120.0, 5.0, 45.0),
+        ridgeRetreatPos: new THREE.Vector3(-132.0, 5.8, 52.0),
+        forwardVec: new THREE.Vector3(0.46, 0, -0.89).normalize(),
+        update: function(dt) {
+          if (!this.started) return;
+
+          if (this.fled) {
+            this.fleeClock += dt;
+            this.behaviorName = 'FLEEING';
+            this.isPoseWindow = false;
+            if (this.fleeClock >= 2.0) {
+              this.model.root.visible = false;
+              return;
+            }
+            this.model.root.visible = true;
+            let alpha = this.fleeClock / 2.0;
+            let pos = new THREE.Vector3().lerpVectors(this.fleeStartPos, this.fleeTargetPos, alpha);
+            let dir = new THREE.Vector3().subVectors(this.fleeTargetPos, this.fleeStartPos).normalize();
+            let legSwing = Math.sin(this.fleeClock * 22.0) * 0.55;
+            this.model.legs[0].rotation.x = legSwing;
+            this.model.legs[1].rotation.x = -legSwing;
+            this.model.legs[2].rotation.x = -legSwing;
+            this.model.legs[3].rotation.x = legSwing;
+            this.model.root.position.copy(pos);
+            this.model.root.rotation.y = Math.atan2(dir.x, dir.z);
+            this.forwardVec.copy(dir);
+            return;
+          }
+
+          this.clock += dt;
+          const t = this.clock;
+          if (t >= this.maxDuration) {
+            this.model.root.visible = false;
+            return;
+          }
+          this.model.root.visible = true;
+
+          let pos = new THREE.Vector3();
+          let lookTarget = new THREE.Vector3();
+          let isPose = false;
+
+          if (t < 2.0) {
+            this.behaviorName = 'ARRIVING';
+            let alpha = t / 2.0;
+            pos.lerpVectors(this.ridgeClimbStart, this.ridgeStancePos, alpha);
+            lookTarget.subVectors(this.ridgeStancePos, this.ridgeClimbStart).normalize();
+            let legSwing = Math.sin(t * 7.0) * 0.35;
+            this.model.legs[0].rotation.x = legSwing;
+            this.model.legs[1].rotation.x = -legSwing;
+            this.model.legs[2].rotation.x = -legSwing;
+            this.model.legs[3].rotation.x = legSwing;
+          } else if (t < 8.0) {
+            this.behaviorName = 'VIGIL';
+            isPose = true;
+            pos.copy(this.ridgeStancePos);
+            lookTarget.set(0.89, -0.15, -0.45).normalize();
+            this.model.legs.forEach(l => l.rotation.x = 0);
+            this.model.neckHead.rotation.x = -0.2;
+            this.model.tail.rotation.y = Math.sin(t * 4.0) * 0.3;
+            this.model.ears[1].rotation.x = Math.sin(t * 10.0) * 0.25;
+          } else {
+            this.behaviorName = 'LEAVING';
+            let alpha = (t - 8.0) / 4.0;
+            pos.lerpVectors(this.ridgeStancePos, this.ridgeRetreatPos, alpha);
+            lookTarget.subVectors(this.ridgeRetreatPos, this.ridgeStancePos).normalize();
+            let legSwing = Math.sin(t * 7.0) * 0.35;
+            this.model.legs[0].rotation.x = legSwing;
+            this.model.legs[1].rotation.x = -legSwing;
+            this.model.legs[2].rotation.x = -legSwing;
+            this.model.legs[3].rotation.x = legSwing;
+            this.model.neckHead.rotation.x = 0.0;
+          }
+
+          this.model.root.position.copy(pos);
+          let facing = lookTarget.clone().setY(0).normalize();
+          if (facing.lengthSq() > 0.001) {
+            this.model.root.rotation.y = Math.atan2(facing.x, facing.z);
+            this.forwardVec.copy(facing);
+          }
+          this.isPoseWindow = isPose;
+        }
+      },
+      {
+        id: 'deer_twin',
+        species: 'Mistdeer',
+        temperament: 'Timid',
+        triggerProgress: 0.51,
+        started: false,
+        fled: false,
+        fleeClock: 0.0,
+        clock: 0.0,
+        maxDuration: 12.0,
+        model: spirit4_deer,
+        behaviorName: 'WADING',
+        fleeStartPos: new THREE.Vector3(),
+        fleeTargetPos: new THREE.Vector3(),
+        startFlee: function() { return; // Silent shutter - timid spirits never flee
+
+          if (this.fled || !this.started || this.clock >= this.maxDuration) return;
+          this.fled = true;
+          this.fleeClock = 0.0;
+          this.behaviorName = 'FLEEING';
+          this.isPoseWindow = false;
+          this.fleeStartPos.copy(this.model.root.position);
+          this.fleeTargetPos.copy(this.shorePos).add(new THREE.Vector3(-12, 0, -8));
+        },
+        shorePos: new THREE.Vector3(-44.0, 0.8, 63.0),
+        wadingPos: new THREE.Vector3(-39.6, 0.15, 71.0),
+        forwardVec: new THREE.Vector3(0.43, 0, 0.90).normalize(),
+        update: function(dt) {
+          if (!this.started) return;
+
+          if (this.fled) {
+            this.fleeClock += dt;
+            this.behaviorName = 'FLEEING';
+            this.isPoseWindow = false;
+            if (this.fleeClock >= 2.0) {
+              this.model.root.visible = false;
+              return;
+            }
+            this.model.root.visible = true;
+            let alpha = this.fleeClock / 2.0;
+            let pos = new THREE.Vector3().lerpVectors(this.fleeStartPos, this.fleeTargetPos, alpha);
+            let dir = new THREE.Vector3().subVectors(this.fleeTargetPos, this.fleeStartPos).normalize();
+            let legSwing = Math.sin(this.fleeClock * 22.0) * 0.55;
+            this.model.legs[0].rotation.x = legSwing;
+            this.model.legs[1].rotation.x = -legSwing;
+            this.model.legs[2].rotation.x = -legSwing;
+            this.model.legs[3].rotation.x = legSwing;
+            this.model.root.position.copy(pos);
+            this.model.root.rotation.y = Math.atan2(dir.x, dir.z);
+            this.forwardVec.copy(dir);
+            return;
+          }
+
+          this.clock += dt;
+          const t = this.clock;
+          if (t >= this.maxDuration) {
+            this.model.root.visible = false;
+            return;
+          }
+          this.model.root.visible = true;
+
+          let pos = new THREE.Vector3();
+          let lookTarget = new THREE.Vector3();
+          let isPose = false;
+
+          if (t < 4.0) {
+            this.behaviorName = 'WADING';
+            let alpha = t / 4.0;
+            pos.lerpVectors(this.shorePos, this.wadingPos, alpha);
+            lookTarget.subVectors(this.wadingPos, this.shorePos).normalize();
+            let legSwing = Math.sin(t * 7.5) * 0.35;
+            this.model.legs[0].rotation.x = legSwing;
+            this.model.legs[1].rotation.x = -legSwing;
+            this.model.legs[2].rotation.x = -legSwing;
+            this.model.legs[3].rotation.x = legSwing;
+            this.model.neckHead.rotation.x = 0.0;
+          } else if (t < 8.0) {
+            this.behaviorName = 'BOWING';
+            isPose = true;
+            pos.copy(this.wadingPos);
+            lookTarget.set(0.43, -0.1, 0.90).normalize();
+            this.model.legs.forEach(l => l.rotation.x = 0);
+            let bowBlend = Math.min(1.0, Math.sin((t - 4.0) / 4.0 * Math.PI));
+            this.model.neckHead.rotation.x = 0.75 * bowBlend;
+            this.model.tail.rotation.y = Math.sin(t * 5.0) * 0.4;
+            this.model.ears[0].rotation.x = Math.sin(t * 10.0) * 0.25;
+          } else if (t < 10.0) {
+            this.behaviorName = 'WADING';
+            pos.copy(this.wadingPos);
+            lookTarget.set(0.43, 0.0, 0.90).normalize();
+            this.model.legs.forEach(l => l.rotation.x = 0);
+            this.model.neckHead.rotation.x = -0.1;
+            this.model.tail.rotation.y = Math.sin(t * 3.0) * 0.2;
+          } else {
+            this.behaviorName = 'WADING';
+            let alpha = (t - 10.0) / 2.0;
+            pos.lerpVectors(this.wadingPos, this.shorePos, alpha);
+            lookTarget.subVectors(this.shorePos, this.wadingPos).normalize();
+            let legSwing = Math.sin(t * 7.5) * 0.35;
+            this.model.legs[0].rotation.x = legSwing;
+            this.model.legs[1].rotation.x = -legSwing;
+            this.model.legs[2].rotation.x = -legSwing;
+            this.model.legs[3].rotation.x = legSwing;
+            this.model.neckHead.rotation.x = 0.0;
+          }
+
+          this.model.root.position.copy(pos);
+          let facing = lookTarget.clone().setY(0).normalize();
+          if (facing.lengthSq() > 0.001) {
+            this.model.root.rotation.y = Math.atan2(facing.x, facing.z);
+            this.forwardVec.copy(facing);
+          }
+          this.isPoseWindow = isPose;
+        }
+      },
+      {
+        id: 'bird_twin',
+        species: 'Brightwing',
+        temperament: 'Timid',
+        triggerProgress: 0.51,
+        started: false,
+        fled: false,
+        fleeClock: 0.0,
+        clock: 0.0,
+        maxDuration: 12.0,
+        model: spirit4_bird,
+        behaviorName: 'CIRCLING',
+        fleeStartPos: new THREE.Vector3(),
+        startFlee: function() { return; // Silent shutter - timid spirits never flee
+
+          if (this.fled || !this.started || this.clock >= this.maxDuration) return;
+          this.fled = true;
+          this.fleeClock = 0.0;
+          this.behaviorName = 'FLEEING';
+          this.isPoseWindow = false;
+          this.fleeStartPos.copy(this.model.root.position);
+        },
+        centerPos: new THREE.Vector3(-39.6, 0.0, 71.0),
+        skyEscapePos: new THREE.Vector3(-30.0, 18.0, 85.0),
+        forwardVec: new THREE.Vector3(0, 0, 1),
+        update: function(dt) {
+          if (!this.started) return;
+
+          if (this.fled) {
+            this.fleeClock += dt;
+            this.behaviorName = 'FLEEING';
+            this.isPoseWindow = false;
+            if (this.fleeClock >= 1.5) {
+              this.model.root.visible = false;
+              return;
+            }
+            this.model.root.visible = true;
+            let alpha = this.fleeClock / 1.5;
+            let pos = this.fleeStartPos.clone();
+            pos.y += alpha * 28.0;
+            pos.x += alpha * 10.0;
+            let flap = Math.sin(this.fleeClock * 36.0) * 0.9;
+            this.model.wingL.rotation.z = flap;
+            this.model.wingR.rotation.z = -flap;
+            this.model.root.position.copy(pos);
+            this.forwardVec.set(0.3, 1, 0).normalize();
+            return;
+          }
+
+          this.clock += dt;
+          const t = this.clock;
+          if (t >= this.maxDuration) {
+            this.model.root.visible = false;
+            return;
+          }
+          this.model.root.visible = true;
+
+          let pos = new THREE.Vector3();
+          let lookTarget = new THREE.Vector3();
+          let isPose = false;
+
+          if (t < 3.0) {
+            this.behaviorName = 'CIRCLING';
+            let theta = t * 2.2;
+            let radius = 3.8;
+            pos.set(
+              this.centerPos.x + Math.cos(theta) * radius,
+              2.6 + Math.sin(t * 5.0) * 0.25,
+              this.centerPos.z + Math.sin(theta) * radius
+            );
+            lookTarget.set(-Math.sin(theta), 0.05, Math.cos(theta)).normalize();
+            let flap = Math.sin(t * 22.0) * 0.7;
+            this.model.wingL.rotation.z = flap;
+            this.model.wingR.rotation.z = -flap;
+          } else if (t < 6.0) {
+            this.behaviorName = 'SKIMMING';
+            isPose = true;
+            let theta = t * 2.5;
+            let radius = 3.6;
+            pos.set(
+              this.centerPos.x + Math.cos(theta) * radius,
+              0.38 + Math.sin(t * 8.0) * 0.06,
+              this.centerPos.z + Math.sin(theta) * radius
+            );
+            lookTarget.set(-Math.sin(theta), -0.05, Math.cos(theta)).normalize();
+
+            this.model.wingL.rotation.z = 0.55;
+            this.model.wingR.rotation.z = -0.25;
+
+            if (skimRipple.life <= 0.1) {
+              skimRipple.group.position.set(pos.x - 0.4, 0.02, pos.z);
+              skimRipple.life = 0.8;
+            }
+          } else if (t < 9.0) {
+            this.behaviorName = 'CIRCLING';
+            let theta = t * 2.2;
+            let radius = 4.2;
+            pos.set(
+              this.centerPos.x + Math.cos(theta) * radius,
+              3.0 + Math.sin(t * 5.0) * 0.3,
+              this.centerPos.z + Math.sin(theta) * radius
+            );
+            lookTarget.set(-Math.sin(theta), 0.1, Math.cos(theta)).normalize();
+            let flap = Math.sin(t * 22.0) * 0.7;
+            this.model.wingL.rotation.z = flap;
+            this.model.wingR.rotation.z = -flap;
+          } else {
+            this.behaviorName = 'CIRCLING';
+            let alpha = (t - 9.0) / 3.0;
+            let theta = 9.0 * 2.2;
+            let startFly = new THREE.Vector3(
+              this.centerPos.x + Math.cos(theta) * 4.2,
+              3.0,
+              this.centerPos.z + Math.sin(theta) * 4.2
+            );
+            pos.lerpVectors(startFly, this.skyEscapePos, alpha);
+            lookTarget.subVectors(this.skyEscapePos, startFly).normalize();
+            let flap = Math.sin(t * 22.0) * 0.7;
+            this.model.wingL.rotation.z = flap;
+            this.model.wingR.rotation.z = -flap;
+          }
+
+          this.model.root.position.copy(pos);
+          let facing = lookTarget.clone().setY(0).normalize();
+          if (facing.lengthSq() > 0.001) {
+            this.model.root.rotation.y = Math.atan2(facing.x, facing.z);
+            this.forwardVec.copy(facing);
+          }
+          this.isPoseWindow = isPose;
+        }
+      },
+      // Glowturtle in Moonlit Shallows at 68%:
+      // surfaces mid-lagoon (0–4 s: SURFACING), basks motionless with bright shell (4–14 s, pose window: BASKING), dives by 18 s (DIVING).
+      {
+        id: 'turtle_shallows',
+        species: 'Glowturtle',
+        temperament: 'Bold',
+        triggerProgress: 0.68,
+        started: false,
+        fled: false,
+        clock: 0.0,
+        maxDuration: 18.0,
+        model: spirit_turtle,
+        behaviorName: 'SURFACING',
+        deepPos: new THREE.Vector3(88.0, -3.5, 114.0),
+        surfacePos: new THREE.Vector3(88.0, 0.15, 114.0),
+        divePos: new THREE.Vector3(88.0, -4.0, 114.0),
+        forwardVec: new THREE.Vector3(-0.6, 0, -0.8).normalize(),
+        update: function(dt) {
+          if (!this.started) return;
+          this.clock += dt;
+          const t = this.clock;
+          if (t >= this.maxDuration) {
+            this.model.root.visible = false;
+            return;
+          }
+          this.model.root.visible = true;
+
+          let pos = new THREE.Vector3();
+          let isPose = false;
+
+          // Pulse shell plates
+          const pulse = (Math.sin(t * 2.5) * 0.5 + 0.5);
+          this.model.plateMat.emissiveIntensity = 0.5 + pulse * 1.0;
+          this.model.light.intensity = 0.6 + pulse * 1.2;
+
+          if (t < 4.0) {
+            // Surfaces mid-lagoon: SURFACING
+            this.behaviorName = 'SURFACING';
+            let alpha = t / 4.0;
+            pos.lerpVectors(this.deepPos, this.surfacePos, alpha);
+            let fSwing = Math.sin(t * 6.0) * 0.35;
+            this.model.flipperL.rotation.z = fSwing;
+            this.model.flipperR.rotation.z = -fSwing;
+          } else if (t < 14.0) {
+            // Basks motionless with bright glowing shell: BASKING (Pose window)
+            this.behaviorName = 'BASKING';
+            isPose = true;
+            pos.copy(this.surfacePos);
+            pos.y += Math.sin(t * 1.2) * 0.04; // Gentle water float
+            this.model.flipperL.rotation.z = 0.05;
+            this.model.flipperR.rotation.z = -0.05;
+            this.model.plateMat.emissiveIntensity = 1.2 + Math.sin(t * 3.5) * 0.6;
+            turtleReflectionGroup.visible = true;
+          } else {
+            // Dives back into depths by 18s: DIVING
+            turtleReflectionGroup.visible = false;
+            this.behaviorName = 'DIVING';
+            let alpha = (t - 14.0) / 4.0;
+            pos.lerpVectors(this.surfacePos, this.divePos, alpha);
+            let fSwing = Math.sin(t * 8.0) * 0.45;
+            this.model.flipperL.rotation.z = fSwing;
+            this.model.flipperR.rotation.z = -fSwing;
+          }
+
+          this.model.root.position.copy(pos);
+          let facing = new THREE.Vector3(-0.7, 0, -0.7).normalize();
+          this.model.root.rotation.y = Math.atan2(facing.x, facing.z);
+          this.forwardVec.copy(facing);
+          this.isPoseWindow = isPose;
+        }
+      },
+      // Veilheron at 80%:
+      // wades the silver reeds (0–6 s: WADING), strikes water and lifts glowing fish (6–8 s, pose window: STRIKING),
+      // swallows and stands (8–12 s: STANDING), flies off by 15 s.
+      {
+        id: 'heron_shallows',
+        species: 'Veilheron',
+        temperament: 'Bold',
+        triggerProgress: 0.80,
+        started: false,
+        fled: false,
+        clock: 0.0,
+        maxDuration: 15.0,
+        model: spirit_heron,
+        behaviorName: 'WADING',
+        reedStart: new THREE.Vector3(156.0, 0.15, 26.0),
+        shallowPos: new THREE.Vector3(152.0, 0.15, 18.0),
+        skyPos: new THREE.Vector3(140.0, 24.0, -35.0),
+        forwardVec: new THREE.Vector3(-0.8, 0, 0.6).normalize(),
+        update: function(dt) {
+          if (!this.started) return;
+          this.clock += dt;
+          const t = this.clock;
+          if (t >= this.maxDuration) {
+            this.model.root.visible = false;
+            return;
+          }
+          this.model.root.visible = true;
+
+          let pos = new THREE.Vector3();
+          let lookTarget = new THREE.Vector3();
+          let isPose = false;
+
+          // Veil ripples gently in the wind
+          this.model.veil.rotation.x = Math.sin(t * 3.0) * 0.25;
+          this.model.veil.rotation.z = Math.cos(t * 2.5) * 0.15;
+
+          if (t < 6.0) {
+            // Wades the silver reeds: WADING
+            this.behaviorName = 'WADING';
+            let alpha = t / 6.0;
+            pos.lerpVectors(this.reedStart, this.shallowPos, alpha);
+            lookTarget.subVectors(this.shallowPos, this.reedStart).normalize();
+            let legSwing = Math.sin(t * 4.0) * 0.35;
+            this.model.legL.rotation.x = legSwing;
+            this.model.legR.rotation.x = -legSwing;
+            this.model.neckGroup.rotation.x = 0.1;
+            this.model.fish.visible = false;
+          } else if (t < 8.0) {
+            // Strikes water and lifts glowing fish: STRIKING (Pose window)
+            this.behaviorName = 'STRIKING';
+            isPose = true;
+            pos.copy(this.shallowPos);
+            lookTarget.set(-0.8, 0, 0.6);
+            this.model.legL.rotation.x = 0;
+            this.model.legR.rotation.x = 0;
+            if (t < 6.8) {
+              // Quick strike down to water
+              this.model.neckGroup.rotation.x = 0.85;
+              this.model.fish.visible = false;
+            } else {
+              // Lift head high with glowing fish in beak!
+              this.model.neckGroup.rotation.x = -0.35;
+              this.model.fish.visible = true;
+            }
+          } else if (t < 12.0) {
+            // Swallows and stands: STANDING
+            this.behaviorName = 'STANDING';
+            pos.copy(this.shallowPos);
+            lookTarget.set(-0.7, 0, -0.7);
+            this.model.legL.rotation.x = 0;
+            this.model.legR.rotation.x = 0;
+            this.model.neckGroup.rotation.x = -0.15;
+            this.model.fish.visible = false; // Swallowed
+          } else {
+            // Flies off into night by 15s
+            this.behaviorName = 'STANDING';
+            let alpha = (t - 12.0) / 3.0;
+            pos.lerpVectors(this.shallowPos, this.skyPos, alpha);
+            lookTarget.subVectors(this.skyPos, this.shallowPos).normalize();
+            this.model.fish.visible = false;
+          }
+
+          this.model.root.position.copy(pos);
+          let facing = lookTarget.clone().setY(0).normalize();
+          if (facing.lengthSq() > 0.001) {
+            this.model.root.rotation.y = Math.atan2(facing.x, facing.z);
+            this.forwardVec.copy(facing);
+          }
+          this.isPoseWindow = isPose;
+        }
+      },
+      // The Night Prowler: Duskfox at 30% of the circuit (Right bank, Timid)
+      // trots along right bank keeping pace with cruising ferry (0–12 s: PROWLING),
+      // pauses to look across water (5–9 s: MOONGAZE, pose window), melts into dark by 14 s.
+      {
+        id: 'fox_prowler',
+        species: 'Duskfox',
+        temperament: 'Timid',
+        triggerProgress: 0.30,
+        started: false,
+        fled: false,
+        fleeClock: 0.0,
+        clock: 0.0,
+        maxDuration: 14.0,
+        model: spirit_fox,
+        behaviorName: 'PROWLING',
+        fleeStartPos: new THREE.Vector3(),
+        fleeTargetPos: new THREE.Vector3(),
+        forwardVec: new THREE.Vector3(0, 0, 1),
+        startFlee: function() { return; // Silent shutter - timid spirits never flee
+
+          if (this.fled || !this.started || this.clock >= this.maxDuration) return;
+          this.fled = true;
+          this.fleeClock = 0.0;
+          this.behaviorName = 'FLEEING';
+          this.isPoseWindow = false;
+          this.fleeStartPos.copy(this.model.root.position);
+          this.fleeTargetPos.copy(this.model.root.position).add(new THREE.Vector3(-14, 0, -20));
+        },
+        update: function(dt) {
+          if (!this.started) return;
+
+          // If startled by flash, sprints into dark treeline within 2s
+          if (this.fled) {
+            this.fleeClock += dt;
+            this.behaviorName = 'FLEEING';
+            this.isPoseWindow = false;
+            if (this.fleeClock >= 2.0) {
+              this.model.root.visible = false;
+              return;
+            }
+            this.model.root.visible = true;
+            let alpha = this.fleeClock / 2.0;
+            let pos = new THREE.Vector3().lerpVectors(this.fleeStartPos, this.fleeTargetPos, alpha);
+            let dir = new THREE.Vector3().subVectors(this.fleeTargetPos, this.fleeStartPos).normalize();
+            let legSwing = Math.sin(this.fleeClock * 24.0) * 0.6;
+            this.model.legs[0].rotation.x = legSwing;
+            this.model.legs[1].rotation.x = -legSwing;
+            this.model.legs[2].rotation.x = -legSwing;
+            this.model.legs[3].rotation.x = legSwing;
+            this.model.root.position.copy(pos);
+            this.model.root.rotation.y = Math.atan2(dir.x, dir.z);
+            this.forwardVec.copy(dir);
+            return;
+          }
+
+          this.clock += dt;
+          const t = this.clock;
+          if (t >= this.maxDuration) {
+            this.model.root.visible = false;
+            return;
+          }
+          this.model.root.visible = true;
+
+          // Right bank position keeping pace with a cruising ferry (progress 0.30 to 0.35)
+          let currentProgress = 0.30 + Math.min(1.0, t / 12.0) * 0.045;
+          let curvePt = riverCurve.getPoint(currentProgress);
+          let tan = riverCurve.getTangent(currentProgress).normalize();
+          let rightNorm = new THREE.Vector3(-tan.z, 0, tan.x).normalize();
+
+          let pos = curvePt.clone().addScaledVector(rightNorm, 12.8);
+          pos.y = 0.5; // On right bank
+
+          let lookTarget = new THREE.Vector3();
+          let isPose = false;
+
+          if (t < 5.0) {
+            // Trots along right bank: PROWLING
+            this.behaviorName = 'PROWLING';
+            lookTarget.copy(tan);
+            let legSwing = Math.sin(t * 14.0) * 0.45;
+            this.model.legs[0].rotation.x = legSwing;
+            this.model.legs[1].rotation.x = -legSwing;
+            this.model.legs[2].rotation.x = -legSwing;
+            this.model.legs[3].rotation.x = legSwing;
+            this.model.headGroup.rotation.y = Math.sin(t * 4.0) * 0.2;
+            this.model.tailPivot.rotation.y = Math.sin(t * 8.0) * 0.35;
+          } else if (t < 9.0) {
+            // Pauses to look across the water: MOONGAZE (Pose window)
+            this.behaviorName = 'MOONGAZE';
+            isPose = true;
+            lookTarget.set(-rightNorm.x, 0.1, -rightNorm.z).normalize();
+            this.model.legs.forEach(l => l.rotation.x = 0);
+            this.model.headGroup.rotation.y = 0;
+            this.model.headGroup.rotation.x = -0.2;
+            this.model.tailPivot.rotation.y = Math.sin(t * 5.0) * 0.2;
+            this.model.emberMat.emissiveIntensity = 2.2 + Math.sin(t * 8.0) * 0.6;
+          } else if (t < 12.0) {
+            // Resumes trotting along right bank: PROWLING
+            this.behaviorName = 'PROWLING';
+            lookTarget.copy(tan);
+            let legSwing = Math.sin(t * 14.0) * 0.45;
+            this.model.legs[0].rotation.x = legSwing;
+            this.model.legs[1].rotation.x = -legSwing;
+            this.model.legs[2].rotation.x = -legSwing;
+            this.model.legs[3].rotation.x = legSwing;
+            this.model.headGroup.rotation.x = 0;
+          } else {
+            // Melts into the dark by 14s
+            this.behaviorName = 'PROWLING';
+            let alpha = (t - 12.0) / 2.0;
+            pos.addScaledVector(rightNorm, alpha * 14.0);
+            lookTarget.copy(rightNorm);
+            let legSwing = Math.sin(t * 14.0) * 0.4;
+            this.model.legs[0].rotation.x = legSwing;
+            this.model.legs[1].rotation.x = -legSwing;
+            this.model.legs[2].rotation.x = -legSwing;
+            this.model.legs[3].rotation.x = legSwing;
+          }
+
+          this.model.root.position.copy(pos);
+          let facing = lookTarget.clone().setY(0).normalize();
+          if (facing.lengthSq() > 0.001) {
+            this.model.root.rotation.y = Math.atan2(facing.x, facing.z);
+            this.forwardVec.copy(facing);
+          }
+          this.isPoseWindow = isPose;
+        }
+      },
+
+      /* === THE GREAT CROSSING FORMATION ENCOUNTERS (Anchored at 90%) === */
+      // 1. Brightwing Leader (0-14s CROSSING, 6-9s LOWPASS pose window dipping low over river lane)
+      {
+        id: 'cross_lead_bird',
+        species: 'Brightwing',
+        temperament: 'Timid',
+        triggerProgress: 0.90,
+        isFormation: true,
+        started: false,
+        clock: 0.0,
+        maxDuration: 20.0,
+        model: crossBirdLead,
+        behaviorName: 'CROSSING',
+        forwardVec: new THREE.Vector3(-0.98, 0, 0.16).normalize(),
+        update: function(dt) {
+          if (!this.started || this.clock >= 20.0) {
+            this.model.root.visible = false;
+            return;
+          }
+          const t = this.clock;
+          if (t >= 14.0) {
+            this.model.root.visible = false;
+            return;
+          }
+          this.model.root.visible = true;
+
+          // Flies the river line overhead (fixed in the world laid over where cruising ferry would be)
+          let u = 0.89 + (t / 14.0) * 0.07;
+          let riverPt = riverCurve.getPoint(u);
+          let tan = riverCurve.getTangent(u).normalize();
+
+          let altitude = 6.8;
+          let isPose = false;
+          if (t >= 6.0 && t < 9.0) {
+            // Leader dips low over the river lane (LOWPASS pose window)
+            this.behaviorName = 'LOWPASS';
+            isPose = true;
+            let dipProg = Math.sin((t - 6.0) / 3.0 * Math.PI);
+            altitude = 6.8 - dipProg * 4.9; // Dips down to 1.9m right above river lane!
+          } else {
+            this.behaviorName = 'CROSSING';
+          }
+
+          let pos = riverPt.clone();
+          pos.y = altitude;
+          this.model.root.position.copy(pos);
+          this.model.root.rotation.y = Math.atan2(tan.x, tan.z);
+          this.forwardVec.copy(tan);
+
+          let flap = Math.sin(t * 26.0) * 0.75;
+          this.model.wingL.rotation.z = flap;
+          this.model.wingR.rotation.z = -flap;
+          this.isPoseWindow = isPose;
+        }
+      },
+
+      // 2. Brightwing Wing Birds (4 birds in V formation, 0-14s CROSSING)
+      ...[
+        { id: 'cross_bird_w1', offset: new THREE.Vector3(-2.2, 0.35, -2.6) },
+        { id: 'cross_bird_w2', offset: new THREE.Vector3(2.2, 0.35, -2.6) },
+        { id: 'cross_bird_w3', offset: new THREE.Vector3(-4.4, 0.7, -5.2) },
+        { id: 'cross_bird_w4', offset: new THREE.Vector3(4.4, 0.7, -5.2) }
+      ].map((cfg, idx) => ({
+        id: cfg.id,
+        species: 'Brightwing',
+        temperament: 'Timid',
+        triggerProgress: 0.90,
+        isFormation: true,
+        started: false,
+        clock: 0.0,
+        maxDuration: 20.0,
+        model: crossBirdsWing[idx],
+        behaviorName: 'CROSSING',
+        forwardVec: new THREE.Vector3(-0.98, 0, 0.16).normalize(),
+        update: function(dt) {
+          if (!this.started || this.clock >= 20.0) {
+            this.model.root.visible = false;
+            return;
+          }
+          const t = this.clock;
+          if (t >= 14.0) {
+            this.model.root.visible = false;
+            return;
+          }
+          this.model.root.visible = true;
+          this.behaviorName = 'CROSSING';
+          this.isPoseWindow = false;
+
+          let u = 0.89 + (t / 14.0) * 0.07;
+          let riverPt = riverCurve.getPoint(u);
+          let tan = riverCurve.getTangent(u).normalize();
+          let right = new THREE.Vector3(-tan.z, 0, tan.x).normalize();
+
+          let pos = riverPt.clone();
+          pos.addScaledVector(right, cfg.offset.x);
+          pos.addScaledVector(tan, cfg.offset.z);
+          pos.y = 7.0 + cfg.offset.y;
+
+          this.model.root.position.copy(pos);
+          this.model.root.rotation.y = Math.atan2(tan.x, tan.z);
+          this.forwardVec.copy(tan);
+
+          let flap = Math.sin((t + idx * 0.4) * 25.0) * 0.7;
+          this.model.wingL.rotation.z = flap;
+          this.model.wingR.rotation.z = -flap;
+        }
+      })),
+
+      // 3. 3 Glowturtles surfacing in a triangle around river lane (2-16s BASKING pose window)
+      ...[
+        { id: 'cross_turtle_1', pos: new THREE.Vector3(44.0, 0.15, -11.0) }, // Left of river lane
+        { id: 'cross_turtle_2', pos: new THREE.Vector3(46.0, 0.15, -28.0) }, // Right of river lane
+        { id: 'cross_turtle_3', pos: new THREE.Vector3(26.0, 0.15, -16.0) }  // Forward river lane
+      ].map((cfg, idx) => ({
+        id: cfg.id,
+        species: 'Glowturtle',
+        temperament: 'Bold',
+        triggerProgress: 0.90,
+        isFormation: true,
+        started: false,
+        clock: 0.0,
+        maxDuration: 20.0,
+        model: crossTurtles[idx],
+        behaviorName: 'BASKING',
+        forwardVec: new THREE.Vector3(0.3, 0, -0.9).normalize(),
+        update: function(dt) {
+          if (!this.started || this.clock >= 20.0) {
+            this.model.root.visible = false;
+            return;
+          }
+          const t = this.clock;
+          if (t < 2.0) {
+            // Surfacing
+            this.model.root.visible = true;
+            this.behaviorName = 'SURFACING';
+            this.isPoseWindow = false;
+            let alpha = t / 2.0;
+            let p = cfg.pos.clone();
+            p.y = -2.5 + alpha * 2.65;
+            this.model.root.position.copy(p);
+          } else if (t < 16.0) {
+            // 2-16s BASKING, their normal pose window
+            this.model.root.visible = true;
+            this.behaviorName = 'BASKING';
+            this.isPoseWindow = true;
+            let p = cfg.pos.clone();
+            p.y += Math.sin((t + idx) * 1.5) * 0.04;
+            this.model.root.position.copy(p);
+            this.model.plateMat.emissiveIntensity = 1.3 + Math.sin(t * 3.0) * 0.5;
+          } else {
+            // Despawn / Submerge by 20s
+            let alpha = (t - 16.0) / 4.0;
+            let p = cfg.pos.clone();
+            p.y = 0.15 - alpha * 3.0;
+            this.model.root.position.copy(p);
+            this.behaviorName = 'DIVING';
+            this.isPoseWindow = false;
+          }
+        }
+      })),
+
+      // 4. 2 Mistdeer and 1 Duskfox silhouetted together on final ridge against moon (4-18s)
+      {
+        id: 'cross_deer_1',
+        species: 'Mistdeer',
+        temperament: 'Timid',
+        triggerProgress: 0.90,
+        isFormation: true,
+        started: false,
+        clock: 0.0,
+        maxDuration: 20.0,
+        model: crossDeer1,
+        behaviorName: 'VIGIL',
+        ridgePos: new THREE.Vector3(34.0, 4.3, -2.5),
+        forwardVec: new THREE.Vector3(-0.3, 0, -0.95).normalize(),
+        update: function(dt) {
+          if (!this.started || this.clock >= 20.0) {
+            this.model.root.visible = false;
+            return;
+          }
+          const t = this.clock;
+          if (t < 4.0) {
+            this.model.root.visible = true;
+            this.behaviorName = 'ARRIVING';
+            this.isPoseWindow = false;
+            let alpha = t / 4.0;
+            this.model.root.position.lerpVectors(this.ridgePos.clone().add(new THREE.Vector3(0,0,8)), this.ridgePos, alpha);
+          } else if (t < 18.0) {
+            // 4-18s VIGIL pose window
+            this.model.root.visible = true;
+            this.behaviorName = 'VIGIL';
+            this.isPoseWindow = true;
+            this.model.root.position.copy(this.ridgePos);
+            this.model.neckHead.rotation.x = -0.15;
+            this.model.tail.rotation.y = Math.sin(t * 3.0) * 0.25;
+            this.model.ears[0].rotation.x = Math.sin(t * 10.0) * 0.2;
+          } else {
+            this.behaviorName = 'LEAVING';
+            this.isPoseWindow = false;
+            let alpha = (t - 18.0) / 2.0;
+            this.model.root.position.lerpVectors(this.ridgePos, this.ridgePos.clone().add(new THREE.Vector3(0,0,10)), alpha);
+          }
+          this.model.root.rotation.y = Math.atan2(this.forwardVec.x, this.forwardVec.z);
+        }
+      },
+      {
+        id: 'cross_deer_2',
+        species: 'Mistdeer',
+        temperament: 'Timid',
+        triggerProgress: 0.90,
+        isFormation: true,
+        started: false,
+        clock: 0.0,
+        maxDuration: 20.0,
+        model: crossDeer2,
+        behaviorName: 'VIGIL',
+        ridgePos: new THREE.Vector3(38.0, 4.4, -2.0),
+        forwardVec: new THREE.Vector3(-0.25, 0, -0.96).normalize(),
+        update: function(dt) {
+          if (!this.started || this.clock >= 20.0) {
+            this.model.root.visible = false;
+            return;
+          }
+          const t = this.clock;
+          if (t < 4.0) {
+            this.model.root.visible = true;
+            this.behaviorName = 'ARRIVING';
+            this.isPoseWindow = false;
+            let alpha = t / 4.0;
+            this.model.root.position.lerpVectors(this.ridgePos.clone().add(new THREE.Vector3(0,0,8)), this.ridgePos, alpha);
+          } else if (t < 18.0) {
+            // 4-18s VIGIL pose window
+            this.model.root.visible = true;
+            this.behaviorName = 'VIGIL';
+            this.isPoseWindow = true;
+            this.model.root.position.copy(this.ridgePos);
+            this.model.neckHead.rotation.x = -0.18;
+            this.model.tail.rotation.y = Math.sin((t + 1) * 3.0) * 0.25;
+          } else {
+            this.behaviorName = 'LEAVING';
+            this.isPoseWindow = false;
+            let alpha = (t - 18.0) / 2.0;
+            this.model.root.position.lerpVectors(this.ridgePos, this.ridgePos.clone().add(new THREE.Vector3(0,0,10)), alpha);
+          }
+          this.model.root.rotation.y = Math.atan2(this.forwardVec.x, this.forwardVec.z);
+        }
+      },
+      {
+        id: 'cross_fox',
+        species: 'Duskfox',
+        temperament: 'Timid',
+        triggerProgress: 0.90,
+        isFormation: true,
+        started: false,
+        clock: 0.0,
+        maxDuration: 20.0,
+        model: crossFox,
+        behaviorName: 'MOONGAZE',
+        ridgePos: new THREE.Vector3(31.5, 4.1, -3.2),
+        forwardVec: new THREE.Vector3(-0.35, 0, -0.93).normalize(),
+        update: function(dt) {
+          if (!this.started || this.clock >= 20.0) {
+            this.model.root.visible = false;
+            return;
+          }
+          const t = this.clock;
+          if (t < 4.0) {
+            this.model.root.visible = true;
+            this.behaviorName = 'PROWLING';
+            this.isPoseWindow = false;
+            let alpha = t / 4.0;
+            this.model.root.position.lerpVectors(this.ridgePos.clone().add(new THREE.Vector3(0,0,7)), this.ridgePos, alpha);
+          } else if (t < 18.0) {
+            // 4-18s MOONGAZE as its pose window
+            this.model.root.visible = true;
+            this.behaviorName = 'MOONGAZE';
+            this.isPoseWindow = true;
+            this.model.root.position.copy(this.ridgePos);
+            this.model.headGroup.rotation.x = -0.2;
+            this.model.emberMat.emissiveIntensity = 2.4 + Math.sin(t * 5.0) * 0.5;
+          } else {
+            this.behaviorName = 'PROWLING';
+            this.isPoseWindow = false;
+            let alpha = (t - 18.0) / 2.0;
+            this.model.root.position.lerpVectors(this.ridgePos, this.ridgePos.clone().add(new THREE.Vector3(0,0,8)), alpha);
+          }
+          this.model.root.rotation.y = Math.atan2(this.forwardVec.x, this.forwardVec.z);
+        }
+      }
+    ];
+
+    /* --- CONTROLS & INPUT SYSTEM --- */
+    window.addEventListener('keydown', (e) => {
+      console.log('Key pressed:', e.key, e.code, e.keyCode);
+      if (gameState.phase === 'ready') {
+        if (e.key === 'Enter' || e.code === 'Space') {
+          startVoyage();
+        }
+        return;
+      }
+
+      if (e.key === 'r' || e.key === 'R') {
+        resetVoyage();
+        return;
+      }
+
+
+
+      if (e.key === 'z' || e.key === 'Z') {
+        if (gameState.phase === 'voyage') {
+          toggleLens();
+        }
+        return;
+      }
+
+      if (e.key === 'b' || e.key === 'B') {
+        e.preventDefault();
+        toggleBestiary();
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        toggleAlbum();
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        if (gameState.phase === 'album') {
+          toggleAlbum();
+        } else if (gameState.phase === 'bestiary') {
+          toggleBestiary();
+        }
+        return;
+      }
+
+      if (gameState.phase === 'voyage') {
+        if (e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1') setGear(1);
+        if (e.key === '2' || e.code === 'Digit2' || e.code === 'Numpad2') setGear(2);
+        if (e.key === '3' || e.code === 'Digit3' || e.code === 'Numpad3') setGear(3);
+      }
+    });
+
+    document.getElementById('btn-start').addEventListener('click', startVoyage);
+
+    function startVoyage() {
+      document.getElementById('ready-modal').classList.add('hidden');
+      gameState.phase = 'voyage';
+      exportArenaState();
+    }
+
+    function setGear(g) {
+      gameState.gear = g;
+      [1, 2, 3].forEach(num => {
+        const el = document.getElementById(`gear-${num}`);
+        if (el) {
+          if (num === g) el.classList.add('active');
+          else el.classList.remove('active');
+        }
+      });
+      exportArenaState();
+    }
+
+    // Pointer lock & mouse movement
+    canvas.addEventListener('mousedown', (e) => {
+      if (gameState.phase !== 'voyage') return;
+
+      if (e.button === 2) { // RMB: Raise spirit camera
+        gameState.cameraRaised = true;
+        exportArenaState();
+      } else if (e.button === 0) { // LMB: Shutter release
+        if (gameState.cameraRaised) {
+          takePhoto();
+        }
+      }
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 2) {
+        gameState.cameraRaised = false;
+        exportArenaState();
+      }
+    });
+
+    // Prevent context menu on right click
+    window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Mouse free look
+    window.addEventListener('mousemove', (e) => {
+      if (gameState.phase !== 'voyage') return;
+
+      // Sensitivity
+      const sens = gameState.cameraRaised ? 0.0022 : 0.0035;
+      cameraRig.targetYaw -= e.movementX * sens;
+      cameraRig.targetPitch += e.movementY * sens;
+
+      // Clamp pitch to prevent flipping or clipping through water
+      cameraRig.targetPitch = Math.max(-0.4, Math.min(0.85, cameraRig.targetPitch));
+    });
+
+    /* --- PHOTO CAPTURE & SCORING SYSTEM --- */
+    /*
+      Base: 20 for anchor inside photo frame
+      Center: +30 when anchor lies inside the central 60% guide rectangle
+      Distance: +40 NEAR (< 12 units), +20 MID (12–25), +0 FAR (> 25)
+      Facing: +30 under 45° rule (spirit forward points within 45° of vector toward camera)
+      Pose: +50 when shutter fires during that spirit's pose window
+      Best subject: in-frame spirit with highest earned component sum.
+      Ties break to nearer spirit, then anchor nearest frame center.
+      No anchor inside scores 0, labeled "No subject".
+      Breakdown attached to every photo.
+    */
+// Silent shutter - Flash system removed
+
+    // Helper: effective distance band thresholds per species and lens step
+    function getSpeciesThresholds(species, isTele) {
+      const isBold = (species === 'Glowturtle' || species === 'Veilheron');
+      if (isBold) {
+        return {
+          near: isTele ? 24.0 : 12.0,
+          mid: isTele ? 50.0 : 25.0
+        };
+      } else {
+        // Timid species demand intimacy: WIDE: NEAR < 8, MID 8-25; TELE: NEAR < 16, MID 16-50
+        return {
+          near: isTele ? 16.0 : 8.0,
+          mid: isTele ? 50.0 : 25.0
+        };
+      }
+    }
+
+    /* --- SPIRIT ZOOM LENS SYSTEM --- */
+    function setLens(step) {
+      if (gameState.targetLens === step) return;
+      gameState.targetLens = step;
+      gameState.currentLens = step;
+      const vfLens = document.getElementById('vf-lens-badge');
+      if (vfLens) vfLens.textContent = `LENS: ${step}`;
+      const hudLens = document.getElementById('hud-lens-text');
+      if (hudLens) hudLens.textContent = step;
+      exportArenaState();
+    }
+
+    function toggleLens() {
+      setLens(gameState.targetLens === 'WIDE' ? 'TELE' : 'WIDE');
+    }
+
+    // Mouse wheel switches focal steps while camera is raised
+    window.addEventListener('wheel', (e) => {
+      if (gameState.phase !== 'voyage') return;
+      if (!gameState.cameraRaised) return; // Only while spirit camera is raised
+      if (e.deltaY < 0) {
+        setLens('TELE');
+      } else if (e.deltaY > 0) {
+        setLens('WIDE');
+      }
+    }, { passive: true });
+
+    const shutterFlashEl = document.getElementById('shutter-flash');
+    const vfRefusalEl = document.getElementById('vf-refusal');
+
+    function showRefusal(msg) {
+      vfRefusalEl.textContent = msg;
+      vfRefusalEl.style.display = 'block';
+      setTimeout(() => { vfRefusalEl.style.display = 'none'; }, 600);
+    }
+
+    function takePhoto() {
+      // 1.5s Shutter Cooldown check
+      if (gameState.shutterCooldown > 0) {
+        showRefusal('RECHARGING...');
+        return;
+      }
+
+      if (gameState.film <= 0) {
+        showRefusal('SHUTTER EMPTY');
+        return;
+      }
+
+      gameState.shutterCooldown = 1.5;
+
+      gameState.film--;
+      document.getElementById('hud-film').textContent = gameState.film;
+      document.getElementById('vf-film-count').textContent = gameState.film;
+
+      // Visual shutter capture overlay (subtle non-flash shutter indicator)
+      shutterFlashEl.style.opacity = '0.7';
+      setTimeout(() => { shutterFlashEl.style.opacity = '0'; }, 160);
+
+      // Render one clean frame now to ensure canvas buffer matches shutter instant
+      renderer.render(scene, camera);
+      const photoDataUrl = renderer.domElement.toDataURL('image/jpeg', 0.88);
+
+      // Score evaluation against active visible spirits
+      const evaluatedSubjects = [];
+
+      encounters.forEach(enc => {
+        if (!enc.started || enc.clock >= enc.maxDuration || !enc.model.root.visible) return;
+
+        // Anchor world position
+        const anchorWorldPos = new THREE.Vector3();
+        enc.model.anchor.getWorldPosition(anchorWorldPos);
+
+        // Project into screen NDC coordinates (-1 to 1)
+        const proj = anchorWorldPos.clone().project(camera);
+
+        // Behind camera check
+        if (proj.z >= 1.0) return;
+
+        // Viewport bounds: Outer frame is [10%, 90%] horizontally and [7%, 93%] vertically
+        // In NDC: X in [-0.8, 0.8], Y in [-0.86, 0.86]
+        const inOuterFrame = (proj.x >= -0.8 && proj.x <= 0.8 && proj.y >= -0.86 && proj.y <= 0.86);
+
+        if (!inOuterFrame) return;
+
+        // 60% Guide Rect: 60% of outer frame width (0.8 * 2 * 0.6 = 0.96 => [-0.48, 0.48])
+        // and 60% of outer frame height (0.86 * 2 * 0.6 = 1.032 => [-0.516, 0.516])
+        const inCenterGuide = (proj.x >= -0.48 && proj.x <= 0.48 && proj.y >= -0.516 && proj.y <= 0.516);
+
+        // Distance camera to anchor using active lens and temperament thresholds
+        const activeLens = gameState.targetLens;
+        const isTele = (activeLens === 'TELE');
+        const thresh = getSpeciesThresholds(enc.species, isTele);
+
+        const dist = camera.position.distanceTo(anchorWorldPos);
+        let band = 'FAR';
+        let distScore = 0;
+        if (dist < thresh.near) {
+          band = 'NEAR';
+          distScore = 40;
+        } else if (dist <= thresh.mid) {
+          band = 'MID';
+          distScore = 20;
+        } else {
+          band = 'FAR';
+          distScore = 0;
+        }
+
+        // Facing test: spirit forward vector points within 45° of line toward camera
+        const toCam = new THREE.Vector3().subVectors(camera.position, anchorWorldPos).normalize();
+        const fwd = enc.forwardVec.clone().normalize();
+        const dot = fwd.dot(toCam);
+        const isFacing = dot >= Math.cos(THREE.MathUtils.degToRad(45)); // ~0.7071
+
+        // Pose window
+        const isPose = !!enc.isPoseWindow;
+
+        // Calculate score
+        let total = 20; // Base
+        const breakdown = [
+          { name: 'Spirit in Frame (Base)', val: 20 }
+        ];
+
+        if (inCenterGuide) {
+          total += 30;
+          breakdown.push({ name: 'Centered in Guide Rect', val: 30 });
+        }
+
+        if (distScore > 0) {
+          total += distScore;
+          breakdown.push({ name: `Distance Band (${band})`, val: distScore });
+        }
+
+        if (isFacing) {
+          total += 30;
+          breakdown.push({ name: 'Facing Camera (<= 45°)', val: 30 });
+        }
+
+        if (isPose) {
+          total += 50;
+          const poseWord = enc.behaviorName ? (enc.behaviorName.charAt(0).toUpperCase() + enc.behaviorName.slice(1).toLowerCase()) : 'Special';
+          breakdown.push({ name: `Pose: ${poseWord}`, val: 50 });
+        }
+
+        // Distance to screen center (0,0) for tie breaker
+        const centerDist = Math.sqrt(proj.x * proj.x + proj.y * proj.y);
+
+        evaluatedSubjects.push({
+          species: enc.species,
+          score: total,
+          distance: dist,
+          band: band,
+          isFacing: isFacing,
+          isPose: isPose,
+          centerDist: centerDist,
+          inCenterGuide: inCenterGuide,
+          proj: proj.clone(),
+          breakdown: breakdown
+        });
+      });
+
+      // Check Gathering Bonus: at least 2 distinct species in photo
+      const distinctSpecies = new Set(evaluatedSubjects.map(s => s.species));
+      const isGathering = (distinctSpecies.size >= 2);
+
+      let isMirrorshotEarned = false;
+      // Pick best subject
+      let best = null;
+      if (evaluatedSubjects.length > 0) {
+        evaluatedSubjects.sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          if (a.distance !== b.distance) return a.distance - b.distance;
+          return a.centerDist - b.centerDist;
+        });
+        best = evaluatedSubjects[0];
+      }
+
+      // If Gathering earned, stack +25 to breakdown and best subject's score
+      if (best && isGathering) {
+        best.score += 25;
+        best.breakdown.push({ name: 'Gathering', val: 25 });
+      }
+
+      // Composition (+20): anchor lies within 8% of frame's height from any of the 4 golden points
+      let hasComposition = false;
+      if (best) {
+        const aspectFrame = (window.innerWidth * 0.80) / (window.innerHeight * 0.86);
+        const bestU = (best.proj.x + 0.8) / 1.6;
+        const bestV = (0.86 - best.proj.y) / 1.72;
+
+        const goldenPoints = [
+          { u: 0.382, v: 0.382 },
+          { u: 0.618, v: 0.382 },
+          { u: 0.382, v: 0.618 },
+          { u: 0.618, v: 0.618 }
+        ];
+
+        for (let gp of goldenPoints) {
+          const du = (bestU - gp.u) * aspectFrame;
+          const dv = (bestV - gp.v);
+          const distFromGolden = Math.sqrt(du * du + dv * dv);
+          if (distFromGolden <= 0.08) {
+            hasComposition = true;
+            break;
+          }
+        }
+
+        if (hasComposition) {
+          best.score += 20;
+          best.breakdown.push({ name: 'Composition', val: 20 });
+        }
+      }
+      gameState.lastPhotoComposition = hasComposition;
+
+      // Mirrorshot (+30): best subject is Glowturtle taken during BASKING while ferry is inside pool's 18u approach ring
+      if (best && best.species === 'Glowturtle') {
+        const turtleEnc = encounters.find(e => e.species === 'Glowturtle');
+        const inApproachRing = (ferry.position.distanceTo(mirrorPoolPos) <= 18.0);
+        if (turtleEnc && turtleEnc.isPoseWindow && inApproachRing) {
+          best.score += 30;
+          best.breakdown.push({ name: 'Mirrorshot', val: 30 });
+          isMirrorshotEarned = true;
+        }
+      }
+
+      // Print active lens in photo breakdown
+      const activeLens = gameState.targetLens;
+      const photoBreakdown = best ? [...best.breakdown] : [{ name: 'No subject in frame', val: 0 }];
+      photoBreakdown.push({ name: `Lens: ${activeLens}`, val: 0, isLens: true });
+
+      const photoRecord = {
+        id: gameState.photos.length + 1,
+        imgUrl: photoDataUrl,
+        timestampProgress: gameState.progress,
+        lens: activeLens,
+        subject: best ? best.species : 'No subject',
+        distanceText: best ? `${best.distance.toFixed(1)}u (${best.band})` : '--',
+        score: best ? best.score : 0,
+        breakdown: photoBreakdown
+      };
+
+      // --- THE KEEPER'S COMMISSION EVALUATION ---
+      // Line 1: a NEAR Mistdeer photo with Pose (best subject)
+      if (best && best.species === 'Mistdeer' && best.band === 'NEAR' && best.isPose) {
+        commissionState.line1 = true;
+      }
+      // Line 2: a Brightwing photo with Facing and Center (best subject)
+      if (best && best.species === 'Brightwing' && best.isFacing && best.inCenterGuide) {
+        commissionState.line2 = true;
+      }
+      // Line 3: a Gathering photo containing 3 or more distinct species' anchors
+      if (distinctSpecies.size >= 3) {
+        commissionState.line3 = true;
+      }
+      // Line 4: a Mirrorshot
+      if (best && isMirrorshotEarned) {
+        commissionState.line4 = true;
+      }
+      // Line 5: a Duskfox photo with Composition (best subject)
+      if (best && best.species === 'Duskfox' && hasComposition) {
+        commissionState.line5 = true;
+      }
+      updateCommissionUI();
+
+      // Bestiary Update:
+      // A photo counts for every species whose anchor is inside it, both for photo count and for PHOTOGRAPHED;
+      // best-photo candidacy belongs only to the photo's best subject.
+      if (best && photoRecord.score > 0) {
+        distinctSpecies.forEach(sp => {
+          if (bestiaryState[sp]) {
+            bestiaryState[sp].photoCount++;
+            bestiaryState[sp].status = 'PHOTOGRAPHED';
+          }
+        });
+
+        const bestSpecies = best.species;
+        if (bestiaryState[bestSpecies]) {
+          if (photoRecord.score > bestiaryState[bestSpecies].bestScore) {
+            bestiaryState[bestSpecies].bestScore = photoRecord.score;
+            bestiaryState[bestSpecies].bestPhoto = photoRecord;
+          }
+        }
+      }
+
+      gameState.photos.push(photoRecord);
+      gameState.lastScore = photoRecord.score;
+      gameState.totalScore += photoRecord.score;
+
+      if (!gameState.bestPhoto || photoRecord.score > gameState.bestPhoto.score) {
+        gameState.bestPhoto = photoRecord;
+      }
+
+      document.getElementById('hud-last-score').textContent = photoRecord.score;
+      document.getElementById('hud-total-score').textContent = gameState.totalScore;
+
+      exportArenaState();
+    }
+
+    /* --- ALBUM MANAGEMENT --- */
+    function toggleAlbum() {
+      if (gameState.phase === 'complete') return;
+
+      const albumModal = document.getElementById('album-modal');
+      if (gameState.phase === 'album') {
+        albumModal.classList.add('hidden');
+        gameState.phase = gameState.previousPhaseBeforeAlbum;
+      } else {
+        if (gameState.phase === 'bestiary') {
+          document.getElementById('bestiary-modal').classList.add('hidden');
+        }
+        gameState.previousPhaseBeforeAlbum = (gameState.phase === 'bestiary' ? gameState.previousPhaseBeforeBestiary : gameState.phase);
+        gameState.phase = 'album';
+        populateAlbum();
+        albumModal.classList.remove('hidden');
+      }
+      exportArenaState();
+    }
+
+    /* --- BESTIARY MANAGEMENT --- */
+    function toggleBestiary() {
+      if (gameState.phase === 'complete') return;
+
+      const bestiaryModal = document.getElementById('bestiary-modal');
+      if (gameState.phase === 'bestiary') {
+        bestiaryModal.classList.add('hidden');
+        gameState.phase = gameState.previousPhaseBeforeBestiary;
+      } else {
+        if (gameState.phase === 'album') {
+          document.getElementById('album-modal').classList.add('hidden');
+        }
+        gameState.previousPhaseBeforeBestiary = (gameState.phase === 'album' ? gameState.previousPhaseBeforeAlbum : gameState.phase);
+        gameState.phase = 'bestiary';
+        populateBestiary();
+        bestiaryModal.classList.remove('hidden');
+      }
+      exportArenaState();
+    }
+
+    function updateCommissionUI() {
+      const commLines = [
+        { id: 1, text: '1. NEAR Mistdeer with Pose', readyText: '1. NEAR Mistdeer photo with Pose', done: commissionState.line1 },
+        { id: 2, text: '2. Brightwing Facing & Center', readyText: '2. Brightwing photo with Facing and Center', done: commissionState.line2 },
+        { id: 3, text: '3. 3+ Species Gathering', readyText: '3. Gathering photo with 3+ distinct species', done: commissionState.line3 },
+        { id: 4, text: '4. Mirrorshot', readyText: '4. Mirrorshot of Basking Glowturtle', done: commissionState.line4 },
+        { id: 5, text: '5. Duskfox Composition', readyText: '5. Duskfox photo with Composition', done: commissionState.line5 }
+      ];
+
+      let count = 0;
+      commLines.forEach(cl => {
+        if (cl.done) count++;
+
+        // Ready screen
+        const rEl = document.getElementById(`ready-comm-${cl.id}`);
+        if (rEl) {
+          rEl.textContent = `${cl.done ? '☑ [DONE]' : '□'} ${cl.readyText}`;
+          rEl.className = `commission-item ${cl.done ? 'done' : ''}`;
+        }
+
+        // Bestiary modal strip
+        const bEl = document.getElementById(`bestiary-comm-${cl.id}`);
+        if (bEl) {
+          bEl.innerHTML = `${cl.text}: <b style="color:${cl.done ? '#34d399' : '#94a3b8'}">${cl.done ? 'DONE' : 'TODO'}</b>`;
+          bEl.className = `comm-pill ${cl.done ? 'done' : ''}`;
+        }
+
+        // Voyage complete summary
+        const cEl = document.getElementById(`complete-comm-${cl.id}`);
+        if (cEl) {
+          cEl.textContent = `${cl.done ? '☑ [DONE]' : '□'} ${cl.text}`;
+          cEl.style.color = cl.done ? '#34d399' : '#94a3b8';
+          cEl.style.fontWeight = cl.done ? 'bold' : 'normal';
+        }
+      });
+
+      const countEl = document.getElementById('complete-comm-count');
+      if (countEl) countEl.textContent = `${count} / 5 Completed`;
+
+      const banner = document.getElementById('complete-commission-headline');
+      if (banner) {
+        banner.style.display = (count === 5) ? 'block' : 'none';
+      }
+    }
+
+    function populateBestiary() {
+      ['Mistdeer', 'Brightwing', 'Glowturtle', 'Veilheron', 'Duskfox'].forEach(species => {
+        const sKey = species.toLowerCase();
+        const data = bestiaryState[species];
+
+        // Status badge
+        const statusEl = document.getElementById(`${sKey}-status`);
+        if (statusEl) {
+          statusEl.textContent = data.status;
+          statusEl.className = `bestiary-status-badge status-${data.status.toLowerCase()}`;
+        }
+
+        // Photo count
+        const countEl = document.getElementById(`${sKey}-photo-count`);
+        if (countEl) {
+          countEl.textContent = data.photoCount;
+        }
+
+        // Best photo thumbnail & score badge
+        const imgEl = document.getElementById(`${sKey}-best-img`);
+        const noPhotoEl = document.getElementById(`${sKey}-no-photo`);
+        const badgeEl = document.getElementById(`${sKey}-best-badge`);
+
+        if (data.bestPhoto) {
+          if (imgEl) {
+            imgEl.style.display = 'block';
+            imgEl.src = data.bestPhoto.imgUrl;
+          }
+          if (noPhotoEl) noPhotoEl.style.display = 'none';
+          if (badgeEl) {
+            badgeEl.style.display = 'block';
+            badgeEl.textContent = `${data.bestPhoto.score} pts`;
+          }
+        } else {
+          if (imgEl) imgEl.style.display = 'none';
+          if (noPhotoEl) noPhotoEl.style.display = 'block';
+          if (badgeEl) badgeEl.style.display = 'none';
+        }
+      });
+    }
+
+    function populateAlbum() {
+      const container = document.getElementById('album-thumbnails');
+      container.innerHTML = '';
+
+      if (gameState.photos.length === 0) {
+        container.innerHTML = '<div style="color: #64748b; font-size: 13px; text-align: center; padding: 20px;">No photos taken yet.</div>';
+        showAlbumDetail(null);
+        return;
+      }
+
+      gameState.photos.forEach((photo, idx) => {
+        const card = document.createElement('div');
+        card.className = 'thumbnail-card';
+        if (idx === gameState.photos.length - 1) card.classList.add('selected');
+
+        card.innerHTML = `
+          <img src="${photo.imgUrl}" alt="Photo ${photo.id}" />
+          <div class="thumbnail-info">
+            <span>#${photo.id} ${photo.subject}</span>
+            <span style="color:#fbbf24; font-weight:bold;">${photo.score} pts</span>
+          </div>
+        `;
+        card.addEventListener('click', () => {
+          document.querySelectorAll('.thumbnail-card').forEach(c => c.classList.remove('selected'));
+          card.classList.add('selected');
+          showAlbumDetail(photo);
+        });
+        container.appendChild(card);
+      });
+
+      // Show latest photo initially
+      showAlbumDetail(gameState.photos[gameState.photos.length - 1]);
+    }
+
+    function showAlbumDetail(photo) {
+      const mainImg = document.getElementById('album-main-img');
+      const noSelect = document.getElementById('album-no-selection');
+      const details = document.getElementById('album-details');
+      const tbody = document.getElementById('album-breakdown-body');
+
+      if (!photo) {
+        mainImg.style.display = 'none';
+        noSelect.style.display = 'block';
+        details.style.display = 'none';
+        return;
+      }
+
+      noSelect.style.display = 'none';
+      mainImg.style.display = 'block';
+      mainImg.src = photo.imgUrl;
+      details.style.display = 'flex';
+
+      document.getElementById('album-subject-title').textContent = photo.subject;
+      document.getElementById('album-subject-sub').textContent = `Subject Distance: ${photo.distanceText}`;
+
+      tbody.innerHTML = '';
+      photo.breakdown.forEach(item => {
+        const row = document.createElement('tr');
+        if (item.isLens) {
+          row.innerHTML = `
+            <td style="color:#94a3b8; font-style:italic;">${item.name}</td>
+            <td style="color:#38bdf8;">--</td>
+          `;
+        } else {
+          row.innerHTML = `
+            <td>${item.name}</td>
+            <td>+${item.val}</td>
+          `;
+        }
+        tbody.appendChild(row);
+      });
+
+      const totalRow = document.createElement('tr');
+      totalRow.className = 'total-score-row';
+      totalRow.innerHTML = `
+        <td>Total Photo Score</td>
+        <td>${photo.score}</td>
+      `;
+      tbody.appendChild(totalRow);
+    }
+
+    /* --- RESET EXPEDITION --- */
+    function resetVoyage() {
+      gameState.phase = 'ready';
+      gameState.progress = 0.0;
+      gameState.gear = 3;
+      gameState.film = 10;
+      gameState.totalScore = 0;
+      gameState.lastScore = null;
+      gameState.photos = [];
+      gameState.bestPhoto = null;
+      gameState.cameraRaised = false;
+      gameState.cameraRaiseT = 0.0;
+
+      // Reset encounters
+      encounters.forEach(enc => {
+        enc.started = false;
+        enc.clock = 0.0;
+        enc.isPoseWindow = false;
+        enc.model.root.visible = false;
+      });
+
+      // Reset Bestiary cards, lens, and re-arm buoy
+      ['Mistdeer', 'Brightwing', 'Glowturtle', 'Veilheron', 'Duskfox'].forEach(sp => {
+        bestiaryState[sp].status = 'UNSEEN';
+        bestiaryState[sp].photoCount = 0;
+        bestiaryState[sp].bestPhoto = null;
+        bestiaryState[sp].bestScore = 0;
+      });
+      gameState.shutterCooldown = 0.0;
+      gameState.lastPhotoComposition = false;
+      buoyArmed = true;
+      if (typeof turtleReflectionGroup !== 'undefined') turtleReflectionGroup.visible = false;
+      buoyLight.intensity = 1.2;
+      buoyLanternMat.emissiveIntensity = 1.0;
+      setLens('WIDE');
+      gameState.zoomT = 0.0;
+      camera.fov = 55.0;
+      camera.updateProjectionMatrix();
+      populateBestiary();
+
+      setGear(3);
+      gameState.film = 8;
+      document.getElementById('hud-film').textContent = '8';
+      document.getElementById('vf-film-count').textContent = '8';
+      document.getElementById('hud-last-score').textContent = '--';
+      document.getElementById('hud-total-score').textContent = '0';
+      document.getElementById('hud-progress-fill').style.width = '0%';
+
+      // Reset Commission State
+      commissionState.line1 = false;
+      commissionState.line2 = false;
+      commissionState.line3 = false;
+      commissionState.line4 = false;
+      commissionState.line5 = false;
+      updateCommissionUI();
+
+      // Reset Great Crossing finale
+      crossingStarted = false;
+      crossingClock = 0.0;
+      crossingActive = false;
+      lilySparksMat.opacity = 0.0;
+      if (typeof crossBirdsWing !== 'undefined') {
+        crossBirdLead.root.visible = false;
+        crossBirdsWing.forEach(b => b.root.visible = false);
+        crossTurtles.forEach(t => t.root.visible = false);
+        crossDeer1.root.visible = false;
+        crossDeer2.root.visible = false;
+        crossFox.root.visible = false;
+      }
+
+      document.getElementById('album-modal').classList.add('hidden');
+      document.getElementById('bestiary-modal').classList.add('hidden');
+      document.getElementById('complete-modal').classList.add('hidden');
+      document.getElementById('ready-modal').classList.remove('hidden');
+
+      ferry.position.set(0, 0, 0);
+      ferry.rotation.set(0, 0, 0);
+      exportArenaState();
+    }
+
+    /* --- DYNAMIC ANCHOR OVERLAY TAGS --- */
+    const anchorContainer = document.getElementById('anchor-tags-container');
+    const anchorTagsMap = new Map();
+
+    function updateAnchorTags() {
+      // Tags only appear when viewfinder is raised
+      if (gameState.cameraRaiseT < 0.2 || gameState.phase !== 'voyage') {
+        anchorContainer.innerHTML = '';
+        anchorTagsMap.clear();
+        return;
+      }
+
+      encounters.forEach(enc => {
+        if (!enc.started || enc.clock >= enc.maxDuration || !enc.model.root.visible) {
+          if (anchorTagsMap.has(enc.id)) {
+            const el = anchorTagsMap.get(enc.id);
+            el.remove();
+            anchorTagsMap.delete(enc.id);
+          }
+          return;
+        }
+
+        const anchorWorldPos = new THREE.Vector3();
+        enc.model.anchor.getWorldPosition(anchorWorldPos);
+
+        const proj = anchorWorldPos.clone().project(camera);
+
+        // In front of camera & inside outer photo frame
+        const inVf = (proj.z < 1.0 && proj.x >= -0.8 && proj.x <= 0.8 && proj.y >= -0.86 && proj.y <= 0.86);
+
+        if (!inVf) {
+          if (anchorTagsMap.has(enc.id)) {
+            const el = anchorTagsMap.get(enc.id);
+            el.remove();
+            anchorTagsMap.delete(enc.id);
+          }
+          return;
+        }
+
+        // Screen coordinates in pixels
+        const sx = (proj.x * 0.5 + 0.5) * window.innerWidth;
+        const sy = (-proj.y * 0.5 + 0.5) * window.innerHeight;
+
+        const dist = camera.position.distanceTo(anchorWorldPos);
+        const isTele = (gameState.targetLens === 'TELE');
+        const thresh = getSpeciesThresholds(enc.species, isTele);
+        let band = 'FAR';
+        if (dist < thresh.near) band = 'NEAR';
+        else if (dist <= thresh.mid) band = 'MID';
+
+        const toCam = new THREE.Vector3().subVectors(camera.position, anchorWorldPos).normalize();
+        const fwd = enc.forwardVec.clone().normalize();
+        const isFacing = fwd.dot(toCam) >= Math.cos(THREE.MathUtils.degToRad(45));
+
+        let tagEl = anchorTagsMap.get(enc.id);
+        if (!tagEl) {
+          tagEl = document.createElement('div');
+          tagEl.className = 'anchor-tag';
+          anchorContainer.appendChild(tagEl);
+          anchorTagsMap.set(enc.id, tagEl);
+        }
+
+        tagEl.style.left = `${sx}px`;
+        tagEl.style.top = `${sy}px`;
+        tagEl.style.opacity = `${gameState.cameraRaiseT}`;
+
+        tagEl.innerHTML = `
+          <span class="species">${enc.species}</span>
+          <span class="behavior-badge ${enc.isPoseWindow ? 'gold' : ''}">${enc.behaviorName || ''}</span>
+          <span>[${band} ${dist.toFixed(1)}u]</span>
+          ${isFacing ? '<span class="facing-badge">FACING</span>' : ''}
+        `;
+      });
+    }
+
+    /* --- MAIN LOOP (FIXED TIME-STEP ACCURACY) --- */
+    let lastTime = performance.now();
+
+    function animate(now) {
+      requestAnimationFrame(animate);
+
+      const dt = Math.min(0.1, (now - lastTime) / 1000.0);
+      lastTime = now;
+
+      // Handle Voyage Progress & Ferry movement
+      if (gameState.phase === 'voyage') {
+        const targetSpeedFactor = GEARS[gameState.gear].speedFactor;
+        // Smooth speed adjustment
+        ferryDynamics.currentSpeed += (targetSpeedFactor - ferryDynamics.currentSpeed) * Math.min(1.0, dt * 3.0);
+
+        // Advance progress
+        const speedPerSec = (1.0 / CIRCUIT_DURATION_CRUISE) * ferryDynamics.currentSpeed;
+        gameState.progress += speedPerSec * dt;
+
+        // Check encounters trigger fraction
+        encounters.forEach(enc => {
+          if (!enc.started && gameState.progress >= enc.triggerProgress) {
+            enc.started = true;
+            enc.clock = 0.0;
+          }
+        });
+
+        // Voyage Complete condition: full circuit returned to dock
+        if (gameState.progress >= 1.0) {
+          gameState.progress = 1.0;
+          gameState.phase = 'complete';
+          showVoyageComplete();
+        }
+      }
+
+      // Update Ferry Transform along River Curve
+      const clampedProg = Math.min(0.9999, Math.max(0.0, gameState.progress % 1.0));
+      const ferryPos = riverCurve.getPoint(clampedProg);
+      const tangent = riverCurve.getTangent(clampedProg).normalize();
+      ferry.position.copy(ferryPos);
+
+      // Ferry orientation
+      const angle = Math.atan2(tangent.x, tangent.z);
+      ferry.rotation.y = angle;
+
+      // Gentle river bobbing
+      const bob = Math.sin(now * 0.002) * 0.05;
+      ferry.position.y += bob;
+      ferry.rotation.z = Math.sin(now * 0.0015) * 0.02;
+
+      // Ferry Secondary Motion:
+      // 1. Lantern sways on speed changes / inertia
+      const speedDiff = GEARS[gameState.gear].speedFactor - ferryDynamics.currentSpeed;
+      ferryDynamics.lanternSwayVel += speedDiff * 4.0 * dt;
+      ferryDynamics.lanternSwayVel -= ferryDynamics.lanternSwayAngle * 8.0 * dt; // restoring spring
+      ferryDynamics.lanternSwayVel *= 0.94; // damping
+      ferryDynamics.lanternSwayAngle += ferryDynamics.lanternSwayVel * dt;
+      lanternPivot.rotation.z = ferryDynamics.lanternSwayAngle + Math.sin(now * 0.003) * 0.05;
+
+      // 2. Stern paddle turns only while moving
+      if (ferryDynamics.currentSpeed > 0.01) {
+        paddlePivot.rotation.x += ferryDynamics.currentSpeed * 6.0 * dt;
+      }
+
+      // 3. Bow wake ripple cuts and fades while holding
+      const targetWakeAlpha = (ferryDynamics.currentSpeed > 0.05) ? 0.65 : 0.0;
+      ferryDynamics.wakeOpacity += (targetWakeAlpha - ferryDynamics.wakeOpacity) * Math.min(1.0, dt * 4.0);
+      wakeMat.opacity = ferryDynamics.wakeOpacity;
+      bowWake.scale.set(0.8 + Math.sin(now * 0.005) * 0.08, 1, 1.2 + Math.cos(now * 0.005) * 0.1);
+
+      // Splash ripple decay
+      if (splashRipple.life > 0) {
+        splashRipple.life -= dt * 0.8;
+        const s = (1.0 - splashRipple.life) * 4.0 + 0.5;
+        splashRipple.ring.scale.set(s, s, s);
+        splashRipple.mat.opacity = Math.max(0, splashRipple.life * 0.8);
+      }
+
+      // Skim ripple decay
+      if (skimRipple.life > 0) {
+        skimRipple.life -= dt * 0.9;
+        const s = (1.0 - skimRipple.life) * 3.5 + 0.4;
+        skimRipple.ring.scale.set(s, s, s);
+        skimRipple.mat.opacity = Math.max(0, skimRipple.life * 0.7);
+      }
+
+      const isPaused = (gameState.phase === 'album' || gameState.phase === 'bestiary');
+
+      // Shutter Cooldown tick (runs while camera is raised or lowered, pauses with album/bestiary)
+      if (!isPaused && gameState.shutterCooldown > 0) {
+        gameState.shutterCooldown = Math.max(0, gameState.shutterCooldown - dt);
+      }
+      updateCooldownUI();
+
+      // The Great Crossing finale trigger at 90% circuit progress
+      if (!isPaused && gameState.phase === 'voyage') {
+        if (!crossingStarted && gameState.progress >= 0.90) {
+          crossingStarted = true;
+          crossingClock = 0.0;
+          crossingActive = true;
+          // Trigger all crossing encounters
+          encounters.forEach(enc => {
+            if (enc.isFormation) {
+              enc.started = true;
+              enc.clock = 0.0;
+            }
+          });
+        }
+
+        if (crossingStarted) {
+          crossingClock += dt;
+          if (crossingClock < 20.0) {
+            crossingActive = true;
+            lilySparksMat.opacity = Math.min(0.85, crossingClock * 0.4);
+            // Rise lily lights off water like slow sparks
+            const posAttr = lilySparksGeo.attributes.position;
+            for (let i = 0; i < lilySparksCount; i++) {
+              let py = posAttr.getY(i) + dt * 1.8;
+              if (py > 15.0) py = 0.1;
+              posAttr.setY(i, py);
+            }
+            posAttr.needsUpdate = true;
+          } else {
+            crossingActive = false;
+            lilySparksMat.opacity = 0.0;
+          }
+        }
+      }
+
+      // Update encounters
+      if (!isPaused) {
+        encounters.forEach(enc => {
+          enc.update(dt);
+          // Mark SEEN status once species has appeared
+          if (enc.started && bestiaryState[enc.species] && bestiaryState[enc.species].status === 'UNSEEN') {
+            bestiaryState[enc.species].status = 'SEEN';
+          }
+        });
+      }
+
+      // Fireflies floating animation
+      const posArr = fireflies.geometry.attributes.position.array;
+      for (let i = 0; i < fireflyCount; i++) {
+        let orig = fireflyOrigins[i];
+        let tVal = now * 0.001 * orig.speed + orig.offset;
+        posArr[i * 3] = orig.x + Math.sin(tVal) * 2.5;
+        posArr[i * 3 + 1] = orig.y + Math.sin(tVal * 1.5) * 1.0;
+        posArr[i * 3 + 2] = orig.z + Math.cos(tVal) * 2.5;
+      }
+      fireflies.geometry.attributes.position.needsUpdate = true;
+
+      // Smooth Zoom Lens Transition (WIDE 55° <-> TELE 27.5°)
+      const targetZoomT = (gameState.targetLens === 'TELE') ? 1.0 : 0.0;
+      gameState.zoomT += (targetZoomT - gameState.zoomT) * Math.min(1.0, dt * 10.0);
+      camera.fov = THREE.MathUtils.lerp(55.0, 27.5, gameState.zoomT);
+      camera.updateProjectionMatrix();
+
+      // Film Restock Lantern Buoy Proximity Check (refills to 8 exposures)
+      if (buoyArmed && ferry.position.distanceTo(buoyPos) <= 6.0) {
+        buoyArmed = false;
+        gameState.film = 8;
+        document.getElementById('hud-film').textContent = '8';
+        document.getElementById('vf-film-count').textContent = '8';
+        buoyLight.intensity = 0.2;
+        buoyLanternMat.emissiveIntensity = 0.25;
+        showBuoyToast();
+      }
+
+      // Camera Free-Look & Raise Transition
+      cameraRig.yaw += (cameraRig.targetYaw - cameraRig.yaw) * Math.min(1.0, dt * 15.0);
+      cameraRig.pitch += (cameraRig.targetPitch - cameraRig.pitch) * Math.min(1.0, dt * 15.0);
+
+      const targetRaise = gameState.cameraRaised ? 1.0 : 0.0;
+      gameState.cameraRaiseT += (targetRaise - gameState.cameraRaiseT) * Math.min(1.0, dt * 10.0);
+
+      const vfEl = document.getElementById('viewfinder');
+      if (gameState.cameraRaiseT > 0.05) {
+        vfEl.style.display = 'block';
+        vfEl.style.opacity = `${gameState.cameraRaiseT}`;
+      } else {
+        vfEl.style.display = 'none';
+      }
+
+      // Third-person camera positioning relative to ferry
+      const camDist = THREE.MathUtils.lerp(cameraRig.baseDist, cameraRig.raisedDist, gameState.cameraRaiseT);
+      const camHeight = THREE.MathUtils.lerp(cameraRig.baseHeight, cameraRig.raisedHeight, gameState.cameraRaiseT);
+
+      // Camera orientation spherical coordinates centered on ferry deck
+      const lookFocus = new THREE.Vector3().copy(ferry.position);
+      lookFocus.y += 1.2;
+
+      const totalYaw = ferry.rotation.y + cameraRig.yaw;
+      const camOffset = new THREE.Vector3(
+        -Math.sin(totalYaw) * Math.cos(cameraRig.pitch) * camDist,
+        camHeight + Math.sin(cameraRig.pitch) * camDist,
+        -Math.cos(totalYaw) * Math.cos(cameraRig.pitch) * camDist
+      );
+
+      camera.position.copy(lookFocus).add(camOffset);
+      // Prevent clipping into river ground
+      if (camera.position.y < 0.6) camera.position.y = 0.6;
+      camera.lookAt(lookFocus);
+
+      // Render
+      renderer.render(scene, camera);
+
+      // UI progress bar
+      document.getElementById('hud-progress-fill').style.width = `${(gameState.progress * 100).toFixed(1)}%`;
+
+      // Update anchor tags overlay
+      updateAnchorTags();
+
+      // Export read-only arena state object every frame
+      exportArenaState();
+    }
+
+    function updateCooldownUI() {
+      const cd = Math.max(0, gameState.shutterCooldown);
+      const frac = Math.min(1.0, Math.max(0.0, 1.0 - (cd / 1.5)));
+
+      // Viewfinder sweeping arc
+      const vfArcMeter = document.getElementById('vf-arc-meter');
+      const vfRechargeLabel = document.getElementById('vf-recharge-label');
+      if (vfArcMeter && vfRechargeLabel) {
+        if (cd > 0) {
+          vfArcMeter.style.strokeDashoffset = `${226.19 * (1.0 - frac)}`;
+          vfArcMeter.style.stroke = '#f59e0b';
+          vfRechargeLabel.textContent = `RECHARGING ${cd.toFixed(1)}s`;
+        } else {
+          vfArcMeter.style.strokeDashoffset = '0';
+          vfArcMeter.style.stroke = 'rgba(56, 189, 248, 0.4)';
+          vfRechargeLabel.textContent = '';
+        }
+      }
+
+      // HUD recharge arc state
+      const hudArcMeter = document.getElementById('hud-arc-meter');
+      const hudCooldownText = document.getElementById('hud-cooldown-text');
+      if (hudArcMeter && hudCooldownText) {
+        if (cd > 0) {
+          hudArcMeter.style.strokeDashoffset = `${251.32 * (1.0 - frac)}`;
+          hudArcMeter.style.stroke = '#f59e0b';
+          hudCooldownText.textContent = `${cd.toFixed(1)}s`;
+          hudCooldownText.style.color = '#f59e0b';
+        } else {
+          hudArcMeter.style.strokeDashoffset = '0';
+          hudArcMeter.style.stroke = '#38bdf8';
+          hudCooldownText.textContent = 'READY';
+          hudCooldownText.style.color = '#38bdf8';
+        }
+      }
+    }
+
+    function exportArenaState() {
+      const activeList = [];
+      const isTele = (gameState.targetLens === 'TELE');
+      const nearThresh = isTele ? 24.0 : 12.0;
+      const midThresh = isTele ? 50.0 : 25.0;
+
+      encounters.forEach(enc => {
+        if (enc.started && enc.clock < enc.maxDuration && enc.model.root.visible) {
+          const anchorPos = new THREE.Vector3();
+          enc.model.anchor.getWorldPosition(anchorPos);
+
+          const dist = camera.position.distanceTo(anchorPos);
+          let band = 'FAR';
+          if (dist < nearThresh) band = 'NEAR';
+          else if (dist <= midThresh) band = 'MID';
+
+          const toCam = new THREE.Vector3().subVectors(camera.position, anchorPos).normalize();
+          const fwd = enc.forwardVec.clone().normalize();
+          const isFacing = fwd.dot(toCam) >= Math.cos(THREE.MathUtils.degToRad(45));
+
+          activeList.push({
+            species: enc.species,
+            anchorPosition: { x: anchorPos.x, y: anchorPos.y, z: anchorPos.z },
+            encounterClock: enc.clock,
+            poseWindowFlag: !!enc.isPoseWindow,
+            facingFlag: isFacing,
+            band: band,
+            behaviorName: enc.behaviorName,
+            behavior: enc.behaviorName,
+            temperament: enc.temperament || 'Bold',
+            fled: !!enc.fled,
+            fledFlag: !!enc.fled,
+            isFormation: !!enc.isFormation
+          });
+        }
+      });
+
+      const speciesList = ['Mistdeer', 'Brightwing', 'Glowturtle', 'Veilheron', 'Duskfox'];
+      const bestiaryObj = {};
+      const bestiaryArr = [];
+      speciesList.forEach(sp => {
+        const d = bestiaryState[sp];
+        bestiaryObj[sp] = {
+          status: d.status,
+          photoCount: d.photoCount,
+          bestScore: d.bestScore,
+          temperament: d.temperament || (sp === 'Glowturtle' || sp === 'Veilheron' ? 'Bold' : 'Timid')
+        };
+        bestiaryArr.push({
+          species: sp,
+          status: d.status,
+          photoCount: d.photoCount,
+          bestScore: d.bestScore,
+          temperament: d.temperament || (sp === 'Glowturtle' || sp === 'Veilheron' ? 'Bold' : 'Timid')
+        });
+      });
+
+      const inMirrorPool = (ferry.position.distanceTo(mirrorPoolPos) <= 18.0);
+      const formationActiveList = activeList.filter(s => s.isFormation);
+      const commArr = [
+        commissionState.line1,
+        commissionState.line2,
+        commissionState.line3,
+        commissionState.line4,
+        commissionState.line5
+      ];
+      let commDoneCount = commArr.filter(Boolean).length;
+
+      window.__arena_state = {
+        phase: gameState.phase,
+        progressFraction: gameState.progress,
+        gear: gameState.gear,
+        film: gameState.film,
+        totalScore: gameState.totalScore,
+        viewfinderFlag: gameState.cameraRaised,
+        shutterCooldownRemaining: Math.max(0, gameState.shutterCooldown),
+        cooldownRemaining: Math.max(0, gameState.shutterCooldown),
+        currentLens: gameState.targetLens,
+        lens: gameState.targetLens,
+        buoyArmed: buoyArmed,
+        night: true,
+        nightFlag: true,
+        compositionFlag: !!gameState.lastPhotoComposition,
+        lastPhotoComposition: !!gameState.lastPhotoComposition,
+        mirrorPoolApproach: inMirrorPool,
+        mirrorPoolApproachFlag: inMirrorPool,
+        crossingActive: !!crossingActive,
+        crossingActiveFlag: !!crossingActive,
+        formationSpirits: formationActiveList,
+        commission: commArr,
+        commissionLines: { ...commissionState },
+        commissionCount: commDoneCount,
+        commissionFulfilled: commDoneCount === 5,
+        effectiveBandThresholds: {
+          Mistdeer: { near: isTele ? 16 : 8, mid: isTele ? 50 : 25, far: isTele ? 50 : 25 },
+          Brightwing: { near: isTele ? 16 : 8, mid: isTele ? 50 : 25, far: isTele ? 50 : 25 },
+          Glowturtle: { near: isTele ? 24 : 12, mid: isTele ? 50 : 25, far: isTele ? 50 : 25 },
+          Veilheron: { near: isTele ? 24 : 12, mid: isTele ? 50 : 25, far: isTele ? 50 : 25 },
+          Duskfox: { near: isTele ? 16 : 8, mid: isTele ? 50 : 25, far: isTele ? 50 : 25 }
+        },
+        bestiary: bestiaryObj,
+        bestiarySummary: bestiaryArr,
+        activeSpirits: activeList
+      };
+    }
+
+    function showVoyageComplete() {
+      const completeModal = document.getElementById('complete-modal');
+      completeModal.classList.remove('hidden');
+
+      document.getElementById('complete-total-score').textContent = gameState.totalScore;
+      const bestImg = document.getElementById('complete-best-img');
+      const noPhotos = document.getElementById('complete-no-photos');
+      const breakdownEl = document.getElementById('complete-best-breakdown');
+
+      if (gameState.bestPhoto) {
+        bestImg.style.display = 'block';
+        bestImg.src = gameState.bestPhoto.imgUrl;
+        noPhotos.style.display = 'none';
+
+        let html = `<div style="font-weight:bold; color:#38bdf8; margin-bottom:8px; font-size:15px;">Best Subject: ${gameState.bestPhoto.subject} — Total ${gameState.bestPhoto.score} pts</div>`;
+        html += '<ul style="list-style:none; padding-left:0; margin:0; line-height:1.6;">';
+        gameState.bestPhoto.breakdown.forEach(item => {
+          if (item.isLens) {
+            html += `<li style="color:#94a3b8; font-style:italic;">• ${item.name}</li>`;
+          } else {
+            html += `<li>• ${item.name}: +${item.val}</li>`;
+          }
+        });
+        html += '</ul>';
+        breakdownEl.innerHTML = html;
+      } else {
+        bestImg.style.display = 'none';
+        noPhotos.style.display = 'block';
+        breakdownEl.innerHTML = '<div style="color:#64748b; text-align:center;">No photographs taken during this voyage.</div>';
+      }
+
+      // Update Voyage Summary Best Scores per Species (All 4 species)
+      const deerScoreEl = document.getElementById('complete-score-mistdeer');
+      const birdScoreEl = document.getElementById('complete-score-brightwing');
+      const turtleScoreEl = document.getElementById('complete-score-glowturtle');
+      const heronScoreEl = document.getElementById('complete-score-veilheron');
+      if (deerScoreEl) deerScoreEl.textContent = bestiaryState.Mistdeer.bestScore > 0 ? `${bestiaryState.Mistdeer.bestScore} pts` : 'None';
+      if (birdScoreEl) birdScoreEl.textContent = bestiaryState.Brightwing.bestScore > 0 ? `${bestiaryState.Brightwing.bestScore} pts` : 'None';
+      if (turtleScoreEl) turtleScoreEl.textContent = bestiaryState.Glowturtle.bestScore > 0 ? `${bestiaryState.Glowturtle.bestScore} pts` : 'None';
+      if (heronScoreEl) heronScoreEl.textContent = bestiaryState.Veilheron.bestScore > 0 ? `${bestiaryState.Veilheron.bestScore} pts` : 'None';
+      const foxScoreEl = document.getElementById('complete-score-duskfox');
+      if (foxScoreEl) foxScoreEl.textContent = bestiaryState.Duskfox.bestScore > 0 ? `${bestiaryState.Duskfox.bestScore} pts` : 'None';
+    }
+
+    // Start render loop
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

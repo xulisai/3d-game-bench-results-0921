@@ -1,0 +1,2585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WIRE WHISPERER — EOD Wire Module Trainer</title>
+<style>
+  :root{
+    --amber:#ffb347; --amber-dim:#c98a2b; --red:#ff4a38; --green:#43e08c;
+    --panel:#10141a; --line:#2c3540; --text:#d6dce4; --dim:#8b95a3;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;
+    background:#0b0d10;font-family:"Courier New",ui-monospace,Menlo,Consolas,monospace;color:var(--text);}
+  canvas{display:block;}
+  #gl{position:fixed;inset:0;z-index:0;}
+  .hidden{display:none !important;}
+  kbd{display:inline-block;border:1px solid #4a5563;border-bottom-width:2px;padding:1px 8px;margin:0 2px;
+    border-radius:4px;background:#1a1f26;color:var(--amber);font-weight:bold;font-size:0.92em;}
+  .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;}
+  .hudLabel{font-size:11px;letter-spacing:0.22em;color:var(--dim);}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;z-index:10;pointer-events:none;}
+  #hudTL{position:absolute;top:16px;left:18px;}
+  #hudClock{font-size:42px;font-weight:bold;color:var(--amber);text-shadow:0 0 14px rgba(255,179,71,0.35);
+    letter-spacing:0.06em;line-height:1.05;}
+  #hudStrikes{display:flex;align-items:center;gap:7px;margin-top:6px;}
+  .dot{width:14px;height:14px;border-radius:50%;border:2px solid #5a6472;background:#14181d;display:inline-block;}
+  .dot.lit{background:var(--red);border-color:#ff7a6a;box-shadow:0 0 10px rgba(255,74,56,0.8);}
+  #hudRate{font-size:12px;letter-spacing:0.14em;margin-top:3px;}
+  #hudRate.hot{color:var(--red);}
+  #hudRate.idle{color:var(--dim);}
+  #hudDevice{margin-top:9px;font-size:13px;color:var(--dim);letter-spacing:0.06em;}
+  #hudPair{margin-top:4px;font-size:12px;letter-spacing:0.06em;color:var(--dim);}
+  #hudTR{position:absolute;top:18px;right:20px;text-align:right;font-size:14px;line-height:1.65;letter-spacing:0.08em;}
+  #hudTR .val{color:var(--amber);}
+  #hudTR .ok{color:var(--green);}
+  #hudTR .bad{color:var(--red);}
+  #hudCam{color:var(--dim);font-size:12px;}
+  #hudHints{position:absolute;bottom:14px;left:0;right:0;text-align:center;font-size:13px;color:var(--dim);letter-spacing:0.05em;}
+
+  /* ---------- Title ---------- */
+  #title{background:rgba(5,7,9,0.88);z-index:30;}
+  .titleBox{text-align:center;max-width:760px;padding:30px;}
+  .overline{font-size:12px;letter-spacing:0.5em;color:var(--dim);margin-bottom:18px;}
+  #title h1{margin:0;font-size:66px;font-weight:900;letter-spacing:0.16em;color:var(--amber);
+    text-shadow:0 0 26px rgba(255,179,71,0.35), 0 2px 0 #6e4a15;}
+  .tagline{margin-top:14px;font-size:14px;letter-spacing:0.18em;color:var(--text);}
+  .controls{margin:30px auto 0;display:grid;grid-template-columns:1fr 1fr;gap:9px 34px;max-width:600px;
+    font-size:13.5px;text-align:left;}
+  .controls div{display:flex;align-items:center;gap:10px;color:var(--dim);}
+  .pressStart{margin-top:32px;font-size:19px;font-weight:bold;letter-spacing:0.22em;color:#ffe2ad;
+    animation:pulse 1.6s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.35;}}
+  .placardNote{margin-top:22px;font-size:11px;letter-spacing:0.24em;color:#6d7683;}
+
+  /* ---------- Manual ---------- */
+  #manual{position:fixed;top:0;right:0;bottom:0;width:430px;z-index:25;background:rgba(10,13,16,0.94);
+    border-left:2px solid var(--amber);padding:24px 26px;transform:translateX(102%);transition:transform 0.18s ease-out;
+    overflow-y:auto;}
+  #manual.open{transform:translateX(0);}
+  #manual h2{margin:0 0 6px;font-size:17px;letter-spacing:0.14em;color:var(--amber);}
+  .manNote{font-size:12px;line-height:1.55;color:var(--dim);margin:0 0 16px;}
+  #manual ol{list-style:none;margin:0;padding:0;}
+  #manual li{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);background:#12161c;
+    padding:11px 12px;margin-bottom:9px;font-size:13px;line-height:1.5;}
+  .rowNum{flex:0 0 24px;height:24px;border:1px solid var(--amber-dim);border-radius:50%;color:var(--amber);
+    display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:13px;margin-top:1px;}
+  .manFoot{margin-top:14px;font-size:11px;letter-spacing:0.16em;color:var(--dim);}
+
+  /* ---------- Result card ---------- */
+  #card{z-index:40;background:rgba(4,5,7,0.55);}
+  #cardBox{text-align:center;border:2px solid var(--line);background:rgba(10,13,17,0.96);
+    padding:38px 60px;min-width:520px;}
+  #cardTitle{font-size:46px;font-weight:900;letter-spacing:0.2em;}
+  #card.lost #cardTitle{color:var(--red);text-shadow:0 0 22px rgba(255,74,56,0.5);}
+  #card.defused #cardTitle{color:var(--green);text-shadow:0 0 22px rgba(67,224,140,0.5);}
+  #card.lost #cardBox{border-color:#7e2a22;}
+  #card.defused #cardBox{border-color:#2c7a52;}
+  #cardSub{margin-top:14px;font-size:14px;letter-spacing:0.1em;color:var(--text);}
+  #cardHints{margin-top:26px;font-size:13px;color:var(--dim);}
+
+  /* ---------- Test menu ---------- */
+  #testmenu{z-index:35;background:rgba(4,6,8,0.82);}
+  #menuBox{width:700px;max-width:94vw;border:2px solid var(--line);background:rgba(10,13,17,0.97);padding:26px 30px;}
+  #menuBox h2{margin:0 0 6px;font-size:19px;letter-spacing:0.14em;color:var(--amber);}
+  .menuHead{font-size:11.5px;color:var(--dim);letter-spacing:0.08em;margin-bottom:16px;line-height:1.6;}
+  #menuList{max-height:56vh;overflow-y:auto;}
+  .menuRow{display:flex;align-items:center;gap:12px;border:1px solid var(--line);background:#12161c;
+    padding:6px 12px;margin-bottom:6px;font-size:12.5px;}
+  .menuRow.sel{border-color:var(--amber);background:#1c1a12;box-shadow:0 0 12px rgba(255,179,71,0.25);}
+  .mName{flex:0 0 96px;font-weight:bold;color:var(--amber);}
+  .mSerial{flex:0 0 90px;letter-spacing:0.12em;}
+  .mBatt{flex:0 0 70px;color:var(--dim);}
+  .mWires{flex:1 1 auto;display:flex;gap:5px;align-items:center;}
+  .chip{display:inline-block;width:15px;height:15px;border-radius:3px;border:1px solid #000;}
+  .mRow{flex:0 0 118px;text-align:right;font-size:10.5px;letter-spacing:0.1em;color:var(--dim);}
+  .mFrk{font-size:10.5px;color:var(--dim);letter-spacing:0.08em;margin-left:8px;}
+  .menuFoot{margin-top:14px;font-size:12px;color:var(--dim);letter-spacing:0.06em;}
+
+  /* ---------- Score screen ---------- */
+  #score{z-index:36;background:rgba(4,6,8,0.85);}
+  #scoreBox{width:780px;max-width:94vw;border:2px solid var(--amber);background:rgba(10,13,17,0.97);padding:26px 30px;}
+  #scoreBox h2{margin:0 0 6px;font-size:19px;letter-spacing:0.14em;color:var(--amber);}
+  .scoreLine{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);
+    padding:8px 2px;font-size:13.5px;letter-spacing:0.06em;}
+  .scoreLine .slK{color:var(--dim);}
+  .scoreLine .slV{color:var(--amber);}
+  .scoreTotal{display:flex;justify-content:space-between;padding:14px 2px 4px;font-size:17px;font-weight:bold;letter-spacing:0.1em;}
+  .scoreTotal .slV{color:var(--green);}
+  #scoreRating{font-size:46px;font-weight:900;letter-spacing:0.2em;text-align:center;margin-top:8px;
+    color:var(--green);text-shadow:0 0 22px rgba(67,224,140,0.5);}
+
+  /* ---------- Flash & fatal ---------- */
+  #flash{position:fixed;inset:0;z-index:50;pointer-events:none;opacity:0;
+    background:radial-gradient(circle at 50% 55%, #fff8e6 0%, #ffc46a 45%, #ff7a30 100%);}
+  #fatal{z-index:60;background:#0b0d10;}
+  #fatal .titleBox h1{color:var(--red);font-size:34px;}
+</style>
+</head>
+<body>
+  <div id="flash"></div>
+
+  <div id="hud" class="hidden">
+    <div id="hudTL">
+      <div class="hudLabel">COUNTDOWN</div>
+      <div id="hudClock">270.00</div>
+      <div id="hudStrikes">
+        <span class="hudLabel">STRIKES</span>
+        <span class="dot" id="dot0"></span><span class="dot" id="dot1"></span><span class="dot" id="dot2"></span>
+      </div>
+      <div id="hudRate" class="idle">CLOCK ×1.00</div>
+      <div id="hudDevice">LINKED PAIR · MA-1 + SL-1</div>
+      <div id="hudPair"></div>
+    </div>
+    <div id="hudTR">
+      <div>MODULE: <span class="val" id="hudModule">WIRE</span></div>
+      <div>STATUS: <span id="hudStatus">ARMED</span></div>
+      <div><span id="hudCutLbl">CUTS:</span> <span class="val" id="hudCuts">0/2</span> · RULE ROW <span class="val" id="hudRow">2</span><span id="hudHold"></span></div>
+      <div id="hudCam">CAM: DESK OVERVIEW</div>
+    </div>
+    <div id="hudHints"><kbd>TAB</kbd> SCORE · <kbd>X</kbd> SWITCH DEVICE · <kbd>1</kbd>–<kbd>6</kbd> WIRE · <kbd>1</kbd>–<kbd>4</kbd> MEMORY · <kbd>SPACE</kbd> BUTTON/LOCK/LINK · <kbd>Q</kbd>/<kbd>E</kbd> ROTOR · <kbd>H</kbd> MANUAL · <kbd>C</kbd> CAMERA · <kbd>←</kbd><kbd>→</kbd> MODULE · <kbd>P</kbd> TEST DEVICES · <kbd>R</kbd> RESET</div>
+  </div>
+
+  <aside id="manual">
+    <h2>FIELD MANUAL — WIRE CUTTING</h2>
+    <p class="manNote">Apply the first row whose condition matches. Cut exactly the listed wires, in the order listed.
+      Any other cut — or a listed wire cut out of order — is a strike.</p>
+    <ol>
+      <li><span class="rowNum">1</span><span>No red wires → cut the 2nd wire from the left, then the 5th wire if the slot holds 5 or 6 wires.</span></li>
+      <li><span class="rowNum">2</span><span>The rightmost wire is yellow → cut every NON-yellow wire, working left to right.</span></li>
+      <li><span class="rowNum">3</span><span>Exactly two blue wires → cut the 1st wire, then the last wire.</span></li>
+      <li><span class="rowNum">4</span><span>More white wires than black wires → cut every black wire left to right; if there is no black wire, cut the 3rd wire.</span></li>
+      <li><span class="rowNum">5</span><span>Any other arrangement → cut the first red wire, then the last wire.</span></li>
+    </ol>
+    <h2 style="margin-top:24px;">FIELD MANUAL — BUTTON</h2>
+    <p class="manNote">Read four data points: the button cap color, the FRK indicator lamp (lit/dark), the battery count on the case, and whether the serial contains a vowel (A E I O U). While the button is held, the lamp above it shows WHITE during the first 3.0 s, RED during the next 3.0 s, GREEN during the next 3.0 s, then repeats. Judgement happens at release.</p>
+    <ol>
+      <li><span class="rowNum">1</span><span>The cap is red and the FRK lamp is lit → hold; release while the lamp is WHITE.</span></li>
+      <li><span class="rowNum">2</span><span>The cap is red and the serial contains no vowel → hold; release while the lamp is RED.</span></li>
+      <li><span class="rowNum">3</span><span>The cap is blue and the battery count is even (0, 2 or 4) → tap (release within 3.0 s).</span></li>
+      <li><span class="rowNum">4</span><span>The cap is yellow and the serial contains a vowel → hold; release while the lamp is GREEN.</span></li>
+      <li><span class="rowNum">5</span><span>Any other combination → hold; release while the lamp is WHITE.</span></li>
+    </ol>
+    <h2 style="margin-top:24px;">FIELD MANUAL — ROTOR</h2>
+    <p class="manNote">Eight numbered lamps (1 at the top, then clockwise), each red, green, or dark. Rotate the dial with <kbd>Q</kbd>/<kbd>E</kbd> in 45° detents (1–8, wrapping 8 → 1); <kbd>Space</kbd> locks the dial. A lock at the wrong detent is a strike; the dial stays where it was locked and may be turned and locked again.</p>
+    <ol>
+      <li><span class="rowNum">1</span><span>No red lamp → lock at detent 6.</span></li>
+      <li><span class="rowNum">2</span><span>An odd number of red lamps → lock at the detent equal to the lowest-numbered red lamp.</span></li>
+      <li><span class="rowNum">3</span><span>No green lamp → lock at detent 2.</span></li>
+      <li><span class="rowNum">4</span><span>Any other pattern → lock at the detent equal to the LOWEST-numbered green lamp.</span></li>
+    </ol>
+    <h2 style="margin-top:24px;">FIELD MANUAL — MEMORY</h2>
+    <p class="manNote">Four keys, each printed with a label 1–4 in a fixed scrambled order; a display shows one digit per stage, drawn from the fixed four-digit sequence. Press one key per stage, in stage order:</p>
+    <ol>
+      <li><span class="rowNum">1</span><span>Stage 1: press the key at the POSITION shown on the display.</span></li>
+      <li><span class="rowNum">2</span><span>Stage 2: press the key whose LABEL equals the display digit.</span></li>
+      <li><span class="rowNum">3</span><span>Stage 3: if the display digit is odd, press the key at the POSITION equal to the label pressed in Stage 2; if it is even, press the key at the POSITION shown on the display.</span></li>
+      <li><span class="rowNum">4</span><span>Stage 4: if the display digit is odd, press the key whose LABEL equals the position pressed in Stage 1; if it is even, press the key whose LABEL equals the display digit.</span></li>
+    </ol>
+    <p class="manNote">A wrong key is a strike and resets the module to Stage 1 with the same digit sequence. Press <kbd>1</kbd>–<kbd>4</kbd> while the MEMORY module is active to press the key at that position. A stage lamp 1–4 marks progress.</p>
+    <h2 style="margin-top:24px;">FIELD MANUAL — CROSS-REFERENCE</h2>
+    <p class="manNote"><b>The linked pair.</b> MA-1 and SL-1 are armed together as one linked pair, joined by the bus cable. One shared 270.00 s clock drives both displays in lockstep, with one shared strike pool and one shared rate. Three strikes or a zero clock loses the pair (PAIR FAILED); the pair is cleared only when every module on BOTH devices is defused (PAIR CLEAR). Press <kbd>X</kbd> to switch which device your keys act on.</p>
+    <p class="manNote"><b>Button tables.</b> The five BUTTON rows become <b>Table A</b>. Use <b>Table B</b> when 2 or more wires have been cut on this device at the moment the button is pressed (strike cuts count); otherwise use Table A. On the linked pair, wires cut across BOTH devices are counted. Table B, first matching row:</p>
+    <ol>
+      <li><span class="rowNum">1</span><span>The battery count is odd (1 or 3) → hold; release while the lamp is GREEN.</span></li>
+      <li><span class="rowNum">2</span><span>The cap is white → tap (release within 3.0 s).</span></li>
+      <li><span class="rowNum">3</span><span>Any other combination → tap (release within 3.0 s).</span></li>
+    </ol>
+    <p class="manNote"><b>Rotor shift.</b> If the MEMORY module on the same device is fully solved before the dial is locked, add 1 clockwise to the detent the table gives (8 wraps to 1).</p>
+    <p class="manNote"><b>Linked pair feeds.</b> On the pair the readings cross devices. <b>Button selector:</b> the table choice counts wires cut across BOTH devices. <b>Rotor feed:</b> SL-1's rotor takes the detent from its table row, applies the memory shift of +1 first (from MA-1's MEMORY — solved before the dial is locked), then adds P clockwise, where P is the position pressed in Stage 1 of MA-1's MEMORY in its current attempt (no feed until Stage 1 is pressed); wrap 8 → 1 at each step. <b>LINK feed:</b> lamp W reads the shared cut count across both devices (lit at 2 or more), lamp M reads MA-1's MEMORY solved state, and lamp B reads SL-1's own battery count (lit at 3 or 4).</p>
+    <p class="manNote"><b>LINK module.</b> Three labelled lamps and one key. Lamp W is lit while 2 or more wires are cut on this device; lamp M is lit while the MEMORY module is fully solved; lamp B is lit while the battery count is 3 or 4. On the linked pair, the LINK feed above replaces these same-device readings. Apply the first matching row:</p>
+    <ol>
+      <li><span class="rowNum">1</span><span>The serial's last character is an even digit (0, 2, 4, 6, 8) → press the key while W and M are lit and B is dark.</span></li>
+      <li><span class="rowNum">2</span><span>Any other serial → press the key while exactly one of W and M is lit and B is lit.</span></li>
+    </ol>
+    <p class="manNote">A press at any other lamp pattern is a strike. <kbd>Space</kbd> presses the key while the LINK module is active.</p>
+    <h2 style="margin-top:24px;">FIELD MANUAL — SEASON &amp; SQUAD SCORE</h2>
+    <p class="manNote"><b>The season.</b> One season is a fixed roster of six devices in order: the three-device shift SB-1, SB-2, SB-3, the linked pair MA-1 + SL-1 (one shared clock, two defusals), and the final exam FX-1. Inside a season a detonation no longer restarts the shift: the device is logged as lost — a pair detonation logs both of its devices — and <kbd>Enter</kbd> advances to the next device; a defusal advances the same way. Strikes accumulate across the whole season. <kbd>R</kbd> performs the master reset: season, counters, and score return to zero.</p>
+    <p class="manNote"><b>Squad score.</b> Score = defused devices × 200 (max 6) + max(0, 300 − season strikes × 50). Rating: <b>S</b> at 1000 or more, <b>A</b> at 800 or more, <b>B</b> at 600 or more, <b>C</b> below. Press <kbd>Tab</kbd> (outside an active module interaction) to open the score screen — it lists every device's state, every score line item, and the total.</p>
+    <div class="manFoot">CLOCK KEEPS RUNNING WHILE THE MANUAL IS OPEN · <kbd>H</kbd> CLOSE</div>
+  </aside>
+
+  <div id="title" class="overlay">
+    <div class="titleBox">
+      <div class="overline">EOD TRAINING SYSTEM · BAY 3 · SEASON</div>
+      <h1>WIRE WHISPERER</h1>
+      <div class="tagline">BOMB-DISPOSAL TRAINER — SIX-DEVICE SEASON · ONE SQUAD SCORE</div>
+      <div class="controls">
+        <div><kbd>ENTER</kbd><span>enter the bench</span></div>
+        <div><kbd>TAB</kbd><span>squad score screen</span></div>
+        <div><kbd>X</kbd><span>switch device in the linked pair</span></div>
+        <div><kbd>1</kbd>–<kbd>6</kbd><span>cut wire in groove · WIRE bay</span></div>
+        <div><kbd>H</kbd><span>toggle wire-cutting manual</span></div>
+        <div><kbd>C</kbd><span>desk / close-up camera</span></div>
+        <div><kbd>←</kbd> <kbd>→</kbd><span>select module bay</span></div>
+        <div><kbd>P</kbd><span>test devices menu</span></div>
+        <div><kbd>SPACE</kbd><span>press button · lock rotor · link key</span></div>
+        <div><kbd>Q</kbd>/<kbd>E</kbd><span>rotate rotor dial</span></div>
+        <div><kbd>1</kbd>–<kbd>4</kbd><span>press memory key</span></div>
+        <div><kbd>ESC</kbd><span>leave test device</span></div>
+        <div><kbd>R</kbd><span>full reset to title</span></div>
+      </div>
+      <div class="pressStart">PRESS ENTER TO ENTER THE BENCH</div>
+      <div class="placardNote">TRAINING DEVICE — INERT CHARGE · NO LIVE ORDNANCE · ALL SIMULATION</div>
+    </div>
+  </div>
+
+  <div id="testmenu" class="overlay hidden">
+    <div id="menuBox">
+      <h2>TEST DEVICES — MANUAL ROW AUDIT</h2>
+      <div class="menuHead">TWENTY FIXED, NON-SCORING DEVICES — FIVE WIRE, EIGHT BUTTON, FOUR ROTOR, ONE MEMORY, TWO LINK. SAME CLOCK, SAME MANUALS, SAME LOGIC.
+        <kbd>ESC</kbd> RETURNS TO THE LINKED PAIR WITH ITS PRIOR STATE INTACT.</div>
+      <div id="menuList"></div>
+      <div class="menuFoot"><kbd>↑</kbd><kbd>↓</kbd> SELECT · <kbd>1</kbd>–<kbd>9</kbd><kbd>0</kbd> QUICK SELECT · <kbd>ENTER</kbd> ARM DEVICE · <kbd>ESC</kbd> RETURN TO LINKED PAIR</div>
+    </div>
+  </div>
+
+  <div id="score" class="overlay hidden">
+    <div id="scoreBox">
+      <h2>SQUAD SCORE — SEASON BOARD</h2>
+      <div class="menuHead">SIX-DEVICE SEASON: SB-1 · SB-2 · SB-3 · MA-1 + SL-1 (ONE SHARED CLOCK, TWO DEFUSALS) · FX-1.
+        STRIKES ACCUMULATE ACROSS THE WHOLE SEASON. SCORE = DEFUSED DEVICES × 200 + MAX(0, 300 − SEASON STRIKES × 50).</div>
+      <div id="scoreRoster"></div>
+      <div id="scoreLines"></div>
+      <div class="scoreTotal"><span class="slK">SEASON TOTAL</span><span class="slV" id="scoreTotalVal">0</span></div>
+      <div id="scoreRating">C</div>
+      <div class="menuFoot"><kbd>TAB</kbd> RESUME · <kbd>ENTER</kbd> NEW SEASON (WHEN COMPLETE) · <kbd>R</kbd> MASTER RESET</div>
+    </div>
+  </div>
+
+  <div id="card" class="overlay hidden">
+    <div id="cardBox">
+      <div id="cardTitle">DEVICE LOST</div>
+      <div id="cardSub"></div>
+      <div id="cardHints"><kbd>ENTER</kbd> RE-ARM DEVICE · <kbd>R</kbd> TITLE CARD</div>
+    </div>
+  </div>
+
+  <div id="fatal" class="overlay hidden">
+    <div class="titleBox">
+      <h1>RENDERER UNAVAILABLE</h1>
+      <div class="tagline">THE LOCAL THREE.JS RUNTIME COULD NOT BE LOADED. RUN THIS PAGE OVER HTTP FROM ITS WORKSPACE ROOT.</div>
+    </div>
+  </div>
+
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+  <script>
+  /*GAMEJS-START*/
+  (function(){
+    'use strict';
+
+    /* ================= helpers ================= */
+    function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+    function hash01(n){
+      n = Math.imul(n ^ 61, 2654435761);
+      n ^= n >>> 13;
+      n = Math.imul(n, 1274126177);
+      n ^= n >>> 16;
+      return (n >>> 0) / 4294967296;
+    }
+    function v3(x,y,z){ return new THREE.Vector3(x,y,z); }
+
+    /* ================= DOM ================= */
+    var elFlash=document.getElementById('flash');
+    var elHud=document.getElementById('hud');
+    var elClock=document.getElementById('hudClock');
+    var dots=[document.getElementById('dot0'),document.getElementById('dot1'),document.getElementById('dot2')];
+    var elDevice=document.getElementById('hudDevice');
+    var elPair=document.getElementById('hudPair');
+    var elModule=document.getElementById('hudModule');
+    var elStatus=document.getElementById('hudStatus');
+    var elCuts=document.getElementById('hudCuts');
+    var elRow=document.getElementById('hudRow');
+    var elCutLbl=document.getElementById('hudCutLbl');
+    var elHold=document.getElementById('hudHold');
+    var elRate=document.getElementById('hudRate');
+    var elCam=document.getElementById('hudCam');
+    var elManual=document.getElementById('manual');
+    var elTitle=document.getElementById('title');
+    var elMenu=document.getElementById('testmenu');
+    var elMenuList=document.getElementById('menuList');
+    var elCard=document.getElementById('card');
+    var elCardTitle=document.getElementById('cardTitle');
+    var elCardSub=document.getElementById('cardSub');
+    var elCardHints=document.getElementById('cardHints');
+    var elFatal=document.getElementById('fatal');
+    var elScore=document.getElementById('score');
+    var elScoreRoster=document.getElementById('scoreRoster');
+    var elScoreLines=document.getElementById('scoreLines');
+    var elScoreTotalVal=document.getElementById('scoreTotalVal');
+    var elScoreRating=document.getElementById('scoreRating');
+
+    /* ================= audio (WebAudio, fully synthesized) ================= */
+    var AU={
+      ctx:null, noise:null,
+      init:function(){
+        if(this.ctx){ if(this.ctx.state==='suspended') this.ctx.resume(); return; }
+        var C=window.AudioContext||window.webkitAudioContext; if(!C) return;
+        try{ this.ctx=new C(); }catch(e){ this.ctx=null; return; }
+        var sr=this.ctx.sampleRate, buf=this.ctx.createBuffer(1,sr,sr), d=buf.getChannelData(0), s=1234567;
+        for(var i=0;i<sr;i++){ s=(Math.imul(s,1103515245)+12345)>>>0; d[i]=((s>>>9)/8388608)-1; }
+        this.noise=buf;
+      },
+      t:function(){ return this.ctx?this.ctx.currentTime:0; },
+      osc:function(type,f0,f1,t0,dur,vol){
+        if(!this.ctx) return;
+        var o=this.ctx.createOscillator(), g=this.ctx.createGain();
+        o.type=type; o.frequency.setValueAtTime(f0,t0);
+        if(f1!==f0) o.frequency.exponentialRampToValueAtTime(Math.max(1,f1),t0+dur);
+        g.gain.setValueAtTime(0.0001,t0);
+        g.gain.exponentialRampToValueAtTime(vol,t0+0.008);
+        g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+        o.connect(g); g.connect(this.ctx.destination);
+        o.start(t0); o.stop(t0+dur+0.02);
+      },
+      hiss:function(t0,dur,vol,filterType,freq){
+        if(!this.ctx||!this.noise) return;
+        var src=this.ctx.createBufferSource(); src.buffer=this.noise;
+        src.loop=true; src.playbackRate.value=1;
+        var f=this.ctx.createBiquadFilter(); f.type=filterType; f.frequency.value=freq;
+        var g=this.ctx.createGain();
+        g.gain.setValueAtTime(0.0001,t0);
+        g.gain.exponentialRampToValueAtTime(vol,t0+0.006);
+        g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+        src.connect(f); f.connect(g); g.connect(this.ctx.destination);
+        src.start(t0); src.stop(t0+dur+0.02);
+      },
+      beep:function(urgent){
+        if(!this.ctx) return;
+        this.osc('sine', urgent?1244:880, urgent?1244:880, this.t(), 0.07, 0.05);
+      },
+      click:function(){
+        if(!this.ctx) return; var t0=this.t();
+        this.hiss(t0,0.035,0.14,'highpass',2400);
+        this.osc('square',1500,900,t0,0.02,0.05);
+      },
+      clack:function(){
+        if(!this.ctx) return; var t0=this.t();
+        this.osc('square',150,90,t0,0.06,0.16);
+        this.hiss(t0,0.05,0.16,'lowpass',900);
+      },
+      buzz:function(){
+        if(!this.ctx) return;
+        this.osc('sawtooth',96,68,this.t(),0.34,0.13);
+      },
+      rumble:function(){
+        if(!this.ctx) return; var t0=this.t();
+        this.hiss(t0,1.8,0.42,'lowpass',120);
+        this.osc('sine',44,30,t0,1.8,0.34);
+      },
+      chime:function(){
+        if(!this.ctx) return; var t0=this.t();
+        this.osc('sine',659,659,t0,0.20,0.11);
+        this.osc('sine',880,880,t0+0.16,0.42,0.11);
+      }
+    };
+
+    /* ================= constants ================= */
+    var STEP=1/60, CLOCK_START=270, RATE_BASE=1.4;
+    var WIRE_COLORS={RED:0xd23b2e,BLUE:0x2f6fd2,YELLOW:0xe0c33c,WHITE:0xd8d8d2,BLACK:0x2a2d31};
+    var CHIP={RED:'#c9382b',BLUE:'#2f6fd2',YELLOW:'#d9b93a',WHITE:'#cfd2ce',BLACK:'#2a2d31',DARK:'#202326',GREEN:'#2f9e63'};
+    var PAIR_MA1={name:'MA-1',serial:'B4TN62',batteries:2,frk:false,modules:[
+      {type:'WIRE',wires:['RED','YELLOW','BLUE','BLACK','BLUE','WHITE']},
+      {type:'MEMORY',labels:[2,4,1,3],sequence:[3,4,1,2]}]};
+    var PAIR_SL1={name:'SL-1',serial:'N8Q3T4',batteries:2,frk:true,modules:[
+      {type:'BUTTON',cap:'WHITE'},
+      {type:'ROTOR',lamps:['DARK','RED','GREEN','RED','DARK','GREEN','DARK','DARK']},
+      {type:'LINK'}]};
+    var PAIR_X=[-0.9,0.9], PAIR_SCALE=0.68, DEV_Y=0.945;
+    var SB_CONFIGS=[
+      {name:'SB-1',serial:'K7M2QX',batteries:2,frk:false,modules:[
+        {type:'WIRE',wires:['RED','BLUE','WHITE','WHITE','BLACK']},
+        {type:'BUTTON',cap:'RED'},
+        {type:'ROTOR',lamps:['RED','GREEN','DARK','DARK','RED','GREEN','GREEN','DARK']}]},
+      {name:'SB-2',serial:'T4K9ZM',batteries:3,frk:true,modules:[
+        {type:'WIRE',wires:['BLUE','YELLOW','WHITE','BLACK']},
+        {type:'BUTTON',cap:'WHITE'},
+        {type:'ROTOR',lamps:['RED','DARK','RED','DARK','DARK','DARK','DARK','DARK']},
+        {type:'MEMORY',labels:[3,1,4,2],sequence:[4,3,2,1]}]},
+      {name:'SB-3',serial:'A2C8LD',batteries:3,frk:false,modules:[
+        {type:'WIRE',wires:['RED','YELLOW','BLUE','WHITE','BLUE','YELLOW']},
+        {type:'BUTTON',cap:'BLUE'},
+        {type:'ROTOR',lamps:['DARK','RED','DARK','GREEN','RED','DARK','RED','GREEN']},
+        {type:'MEMORY',labels:[4,1,2,3],sequence:[2,4,1,3]},
+        {type:'LINK'}]}
+    ];
+    var FX1_CONFIG={name:'FX-1',serial:'E5GJ8N',batteries:3,frk:true,modules:[
+      {type:'WIRE',wires:['WHITE','YELLOW','RED','BLACK','BLUE','YELLOW']},
+      {type:'BUTTON',cap:'RED'},
+      {type:'ROTOR',lamps:['RED','GREEN','DARK','DARK','RED','GREEN','GREEN','DARK']},
+      {type:'MEMORY',labels:[3,4,2,1],sequence:[1,2,1,3]},
+      {type:'LINK'}]};
+    var SHIFT_X=[-1.7,0,1.7];
+    var TEST_DEVICES=[
+      {name:'WIRE R1',serial:'D3P9CN',batteries:2,frk:false,modules:[{type:'WIRE',wires:['BLUE','YELLOW','WHITE','BLACK']}]},
+      {name:'WIRE R2',serial:'F6HK2T',batteries:1,frk:false,modules:[{type:'WIRE',wires:['RED','YELLOW','BLUE','WHITE','YELLOW']}]},
+      {name:'WIRE R3',serial:'J8MV4Q',batteries:3,frk:false,modules:[{type:'WIRE',wires:['RED','BLUE','WHITE','BLACK','BLUE','WHITE']}]},
+      {name:'WIRE R4',serial:'L2RT8B',batteries:4,frk:false,modules:[{type:'WIRE',wires:['WHITE','WHITE','RED','WHITE','BLUE']}]},
+      {name:'WIRE R5',serial:'N5QX7D',batteries:2,frk:false,modules:[{type:'WIRE',wires:['BLUE','RED','BLACK','WHITE','BLACK']}]},
+      {name:'BUTTON A1',serial:'T4K9ZM',batteries:3,frk:true,modules:[{type:'BUTTON',cap:'RED'}]},
+      {name:'BUTTON A2',serial:'K7M2QX',batteries:1,frk:false,modules:[{type:'BUTTON',cap:'RED'}]},
+      {name:'BUTTON A3',serial:'B3N5RT',batteries:2,frk:false,modules:[{type:'BUTTON',cap:'BLUE'}]},
+      {name:'BUTTON A4',serial:'A2C8LD',batteries:1,frk:false,modules:[{type:'BUTTON',cap:'YELLOW'}]},
+      {name:'BUTTON A5',serial:'Q9X2VB',batteries:3,frk:true,modules:[{type:'BUTTON',cap:'WHITE'}]},
+      {name:'ROTOR R1',serial:'V3KM8T',batteries:2,frk:false,modules:[{type:'ROTOR',lamps:['GREEN','GREEN','DARK','GREEN','DARK','GREEN','GREEN','DARK']}]},
+      {name:'ROTOR R2',serial:'W7PB4N',batteries:1,frk:false,modules:[{type:'ROTOR',lamps:['DARK','RED','DARK','GREEN','RED','DARK','RED','GREEN']}]},
+      {name:'ROTOR R3',serial:'X2NQ9L',batteries:4,frk:false,modules:[{type:'ROTOR',lamps:['RED','DARK','RED','DARK','DARK','DARK','DARK','DARK']}]},
+      {name:'ROTOR R4',serial:'Z5TR7B',batteries:3,frk:false,modules:[{type:'ROTOR',lamps:['RED','GREEN','DARK','DARK','RED','GREEN','GREEN','DARK']}]},
+      {name:'MEMORY M1',serial:'R6TS3V',batteries:2,frk:false,modules:[{type:'MEMORY',labels:[2,4,1,3],sequence:[3,4,1,2]}]},
+      {name:'BUTTON B1',serial:'M5RB2X',batteries:3,frk:false,modules:[
+        {type:'WIRE',wires:['BLUE','YELLOW','RED','WHITE','BLACK','WHITE'],preCut:2},
+        {type:'BUTTON',cap:'BLUE'}]},
+      {name:'BUTTON B2',serial:'G7TK3N',batteries:2,frk:false,modules:[
+        {type:'WIRE',wires:['BLUE','YELLOW','RED','WHITE','BLACK','WHITE'],preCut:2},
+        {type:'BUTTON',cap:'WHITE'}]},
+      {name:'BUTTON B3',serial:'P2WL9K',batteries:2,frk:true,modules:[
+        {type:'WIRE',wires:['BLUE','YELLOW','RED','WHITE','BLACK','WHITE'],preCut:2},
+        {type:'BUTTON',cap:'RED'}]},
+      {name:'LINK R1',serial:'B4TN62',batteries:2,frk:false,modules:[
+        {type:'WIRE',wires:['RED','YELLOW','BLUE','BLACK','BLUE','WHITE']},
+        {type:'MEMORY',labels:[2,4,1,3],sequence:[3,4,1,2]},
+        {type:'LINK'}]},
+      {name:'LINK R2',serial:'K7M2QX',batteries:3,frk:false,modules:[
+        {type:'WIRE',wires:['BLACK','YELLOW','RED','YELLOW','BLUE','WHITE']},
+        {type:'MEMORY',labels:[2,1,4,3],sequence:[2,3,1,2]},
+        {type:'LINK'}]}
+    ];
+    var BAY_POS=[{x:-0.795,z:0.34},{x:-0.275,z:0.34},{x:0.235,z:0.34},{x:-0.795,z:-0.34},{x:-0.30,z:-0.34}];
+    var BAY_W={WIRE:0.55,BUTTON:0.45,ROTOR:0.53,MEMORY:0.55,LINK:0.44};
+    var HOLD_LAMP_COLORS={WHITE:0xfff3dc,RED:0xff3020,GREEN:0x3fe07f};
+    var CAP_COLORS={RED:0xd23b2e,BLUE:0x2f6fd2,YELLOW:0xe0c33c,WHITE:0xd8d8d2};
+    var SEG_MAP={'0':'abcdef','1':'bc','2':'abged','3':'abgcd','4':'fgbc','5':'afgcd','6':'afgedc','7':'abc','8':'abcdefg','9':'abcfgd'};
+    var SEG_DEFS={a:[0,-0.075,'H'],g:[0,0,'H'],d:[0,0.075,'H'],
+                  f:[-0.0425,-0.0375,'V'],b:[0.0425,-0.0375,'V'],
+                  e:[-0.0425,0.0375,'V'],c:[0.0425,0.0375,'V']};
+
+    /* ================= manual resolution ================= */
+    function resolveManual(colors){
+      var n=colors.length, i;
+      var hasRed=false; for(i=0;i<n;i++) if(colors[i]==='RED') hasRed=true;
+      if(!hasRed){
+        var c1=[1];
+        if(n===5||n===6) c1.push(4);
+        return {row:1,cuts:c1};
+      }
+      if(colors[n-1]==='YELLOW'){
+        var c2=[]; for(i=0;i<n;i++) if(colors[i]!=='YELLOW') c2.push(i);
+        return {row:2,cuts:c2};
+      }
+      var blues=0; for(i=0;i<n;i++) if(colors[i]==='BLUE') blues++;
+      if(blues===2) return {row:3,cuts:[0,n-1]};
+      var whites=0,blacks=0;
+      for(i=0;i<n;i++){ if(colors[i]==='WHITE') whites++; if(colors[i]==='BLACK') blacks++; }
+      if(whites>blacks){
+        var c4=[]; for(i=0;i<n;i++) if(colors[i]==='BLACK') c4.push(i);
+        if(c4.length===0) c4.push(2);
+        return {row:4,cuts:c4};
+      }
+      var firstRed=colors.indexOf('RED');
+      var c5=[firstRed,n-1];
+      if(c5[1]===c5[0]) c5=[firstRed];
+      return {row:5,cuts:c5};
+    }
+
+    /* ================= button resolution ================= */
+    function hasSerialVowel(serial){ return /[AEIOU]/.test(serial); }
+    function resolveButton(cap,frk,batteries,serial){
+      var v=hasSerialVowel(serial);
+      if(cap==='RED'&&frk) return {row:1,hold:true,color:'WHITE'};
+      if(cap==='RED'&&!v) return {row:2,hold:true,color:'RED'};
+      if(cap==='BLUE'&&(batteries%2===0)) return {row:3,hold:false,color:null};
+      if(cap==='YELLOW'&&v) return {row:4,hold:true,color:'GREEN'};
+      return {row:5,hold:true,color:'WHITE'};
+    }
+    function holdLampColorAt(elapsed){
+      var e=elapsed%9;
+      return e<3?'WHITE':(e<6?'RED':'GREEN');
+    }
+
+    /* ================= rotor resolution ================= */
+    function resolveRotor(lamps){
+      var reds=[],greens=[];
+      for(var i=0;i<8;i++){
+        if(lamps[i]==='RED') reds.push(i+1);
+        else if(lamps[i]==='GREEN') greens.push(i+1);
+      }
+      if(reds.length===0) return {row:1,detent:6};
+      if(reds.length%2===1) return {row:2,detent:reds[0]};
+      if(greens.length===0) return {row:3,detent:2};
+      return {row:4,detent:greens[0]};
+    }
+
+    /* ================= game state ================= */
+    function freshState(config){
+      var modules=config.modules.map(function(md){
+        if(md.type==='WIRE'){
+          var res=resolveManual(md.wires);
+          return {type:'WIRE',defused:false,
+            wires:md.wires.map(function(c,i){
+              var pc=!!(md.preCut&&i<md.preCut);
+              return {color:c,cut:pc,animStart:pc?-10:null};
+            }),
+            cuts:res.cuts,cutProgress:0,row:res.row};
+        }
+        if(md.type==='ROTOR'){
+          var rr=resolveRotor(md.lamps);
+          return {type:'ROTOR',defused:false,lamps:md.lamps.slice(),row:rr.row,lockDetent:rr.detent,
+            detent:1,locked:false,lockResult:null};
+        }
+        if(md.type==='MEMORY'){
+          return {type:'MEMORY',defused:false,labels:md.labels.slice(),sequence:md.sequence.slice(),
+            stage:1,history:[],row:0};
+        }
+        if(md.type==='LINK'){
+          var lr=('02468'.indexOf(config.serial.charAt(config.serial.length-1))>=0)?1:2;
+          return {type:'LINK',defused:false,row:lr};
+        }
+        var br=resolveButton(md.cap,config.frk,config.batteries,config.serial);
+        return {type:'BUTTON',defused:false,cap:md.cap,row:br.row,hold:br.hold,holdColor:br.color,
+          tableA:br,res:br,table:null,held:false,pressT:null};
+      });
+      return {
+        config:config, modules:modules,
+        clock:CLOCK_START, strikes:0,
+        result:null, resultReason:null, cardTimer:0,
+        flicker:0
+      };
+    }
+    function wireModuleOf(st){
+      for(var i=0;i<st.modules.length;i++) if(st.modules[i].type==='WIRE') return st.modules[i];
+      return null;
+    }
+    function activeModuleIndex(st){ return clamp(G.activeBay,0,st.modules.length-1); }
+    function activeModule(st){ return st.modules[activeModuleIndex(st)]; }
+    /* season: phase 0 = three-device shift, phase 1 = linked pair, phase 2 = final exam */
+    function freshStage(phase){
+      var stage={kind:phase===0?'shift':(phase===1?'pair':'fx'),phase:phase,index:0,
+        clock:CLOCK_START,strikes:0,result:null,resultReason:null,failedBy:null,cardTimer:0,flicker:0};
+      if(phase===0){
+        stage.states=SB_CONFIGS.map(function(c){ return freshState(c); });
+      } else if(phase===1){
+        stage.states=[freshState(PAIR_MA1),freshState(PAIR_SL1)];
+      } else {
+        stage.states=[freshState(FX1_CONFIG)];
+      }
+      return stage;
+    }
+    function freshSeason(){
+      var cfgs=[SB_CONFIGS[0],SB_CONFIGS[1],SB_CONFIGS[2],PAIR_MA1,PAIR_SL1,FX1_CONFIG];
+      return {phase:0,stage:freshStage(0),strikes:0,complete:false,
+        roster:cfgs.map(function(c){ return {name:c.name,serial:c.serial,state:'pending',strikes:0}; })};
+    }
+    function logResult(st){
+      var stage=G.season.stage, idx;
+      if(stage.kind==='pair') idx=3+stage.states.indexOf(st);
+      else if(stage.kind==='fx') idx=5;
+      else idx=stage.states.indexOf(st);
+      if(st.result){
+        G.season.roster[idx].state=st.result;
+        G.season.roster[idx].strikes=st.strikes;
+      }
+      var all=true;
+      for(var i=0;i<G.season.roster.length;i++) if(G.season.roster[i].state==='pending') all=false;
+      G.season.complete=all;
+    }
+    function seasonDefusedCount(){
+      var n=0;
+      for(var i=0;i<G.season.roster.length;i++) if(G.season.roster[i].state==='defused') n++;
+      return n;
+    }
+    function seasonScoreParts(){
+      var dc=seasonDefusedCount(), ss=G.season.strikes;
+      var pts=dc*200, bonus=Math.max(0,300-ss*50);
+      var total=pts+bonus;
+      return {defused:dc,strikes:ss,defusedPoints:pts,bonus:bonus,total:total,
+        rating:(total>=1000)?'S':((total>=800)?'A':((total>=600)?'B':'C'))};
+    }
+    function seasonDeviceNumber(){
+      var stage=G.season.stage;
+      if(stage.kind==='shift') return stage.index+1;
+      if(stage.kind==='pair') return 4+stage.index;
+      return 6;
+    }
+    function stageResolved(){
+      var stage=G.season.stage;
+      return stage.kind==='pair'?!!stage.result:!!stage.states[stage.index].result;
+    }
+    function buttonHeldOnActive(){
+      var st=activeState();
+      for(var i=0;i<st.modules.length;i++){
+        var m=st.modules[i];
+        if(m.type==='BUTTON'&&m.held) return true;
+      }
+      return false;
+    }
+    function poolStrikes(){
+      if(G.phase==='testplay'&&G.test) return G.test.strikes;
+      var stage=G.season.stage;
+      return stage.kind==='pair'?stage.strikes:stage.states[stage.index].strikes;
+    }
+
+    var G={
+      phase:'title',           /* title | play | testmenu | testplay | score */
+      season:freshSeason(),
+      scoreReturn:'play',
+      test:null,
+      testIndex:null,
+      menuIndex:0,
+      activeBay:0,
+      manualOpen:false,
+      cameraMode:'desk',
+      simTime:0,
+      flashT:0, spike:0, ledFlash:0
+    };
+    function activeState(){
+      if(G.phase==='testplay'&&G.test) return G.test;
+      var stage=G.season.stage;
+      return stage.states[stage.index];
+    }
+
+    /* ================= three.js core ================= */
+    var renderer,scene,camera;
+    var spikeLight;
+    var camCur={pos:null,tgt:null};
+    var MATS={};
+
+    function initThree(){
+      renderer=new THREE.WebGLRenderer({antialias:true});
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+      renderer.setSize(window.innerWidth,window.innerHeight);
+      renderer.domElement.id='gl';
+      document.body.insertBefore(renderer.domElement,document.body.firstChild);
+      if('outputColorSpace' in renderer && THREE.SRGBColorSpace!==undefined){
+        renderer.outputColorSpace=THREE.SRGBColorSpace;
+      } else if(THREE.sRGBEncoding!==undefined){
+        renderer.outputEncoding=THREE.sRGBEncoding;
+      }
+      if(THREE.ACESFilmicToneMapping!==undefined){
+        renderer.toneMapping=THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure=1.05;
+      }
+      renderer.shadowMap.enabled=true;
+      renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+
+      scene=new THREE.Scene();
+      scene.background=new THREE.Color(0x1a1f24);
+      if(THREE.Fog) scene.fog=new THREE.Fog(0x1a1f24,10,26);
+
+      camera=new THREE.PerspectiveCamera(50,window.innerWidth/window.innerHeight,0.05,60);
+
+      var hemi=new THREE.HemisphereLight(0x9fb4c8,0x2a2d24,0.5); scene.add(hemi);
+      var amb=new THREE.AmbientLight(0x3a4048,0.5); scene.add(amb);
+      var dir=new THREE.DirectionalLight(0xdfe8f2,0.95);
+      dir.position.set(-3.5,5.5,2.5);
+      dir.castShadow=true;
+      dir.shadow.mapSize.width=2048; dir.shadow.mapSize.height=2048;
+      dir.shadow.camera.left=-5.5; dir.shadow.camera.right=5.5;
+      dir.shadow.camera.top=5.5; dir.shadow.camera.bottom=-5.5;
+      dir.shadow.camera.near=1; dir.shadow.camera.far=16;
+      dir.shadow.bias=-0.0004;
+      scene.add(dir);
+
+      spikeLight=new THREE.PointLight(0xffc27a,0,9,2);
+      spikeLight.position.set(0,1.75,0.25);
+      scene.add(spikeLight);
+
+      MATS.steel=new THREE.MeshStandardMaterial({color:0x5a626c,metalness:0.75,roughness:0.4});
+      MATS.caseBody=new THREE.MeshStandardMaterial({color:0x49505a,metalness:0.55,roughness:0.5});
+      MATS.deck=new THREE.MeshStandardMaterial({color:0x33383f,metalness:0.4,roughness:0.62});
+      MATS.olive=new THREE.MeshStandardMaterial({color:0x5f6b4f,metalness:0.25,roughness:0.7});
+      MATS.oliveDark=new THREE.MeshStandardMaterial({color:0x3a4132,metalness:0.25,roughness:0.75});
+      MATS.dark=new THREE.MeshStandardMaterial({color:0x1a1d21,metalness:0.3,roughness:0.8});
+      MATS.slot=new THREE.MeshStandardMaterial({color:0x23262b,metalness:0.35,roughness:0.7});
+      MATS.groove=new THREE.MeshStandardMaterial({color:0x0c0d0f,metalness:0.1,roughness:0.95});
+      MATS.metal=new THREE.MeshStandardMaterial({color:0x8a9099,metalness:0.85,roughness:0.35});
+      MATS.copper=new THREE.MeshStandardMaterial({color:0xc98a4b,metalness:0.85,roughness:0.35});
+      MATS.mat=new THREE.MeshStandardMaterial({color:0x1d2023,metalness:0.05,roughness:0.95});
+      MATS.wall=new THREE.MeshStandardMaterial({color:0x353b41,metalness:0.1,roughness:0.9});
+
+      window.addEventListener('resize',onResize);
+      onResize();
+      camCur.pos=v3(0,4.7,5.5);
+      camCur.tgt=v3(0,0.95,0);
+    }
+    function onResize(){
+      if(!renderer) return;
+      camera.aspect=window.innerWidth/window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth,window.innerHeight);
+    }
+
+    /* ================= canvas textures ================= */
+    function srgbTex(t){
+      if(t&&'colorSpace' in t && THREE.SRGBColorSpace!==undefined) t.colorSpace=THREE.SRGBColorSpace;
+      else if(t&&THREE.sRGBEncoding!==undefined) t.encoding=THREE.sRGBEncoding;
+      return t;
+    }
+    function makeCanvas(w,h,draw){
+      var c=document.createElement('canvas'); c.width=w; c.height=h;
+      draw(c.getContext('2d'),w,h);
+      var t=srgbTex(new THREE.CanvasTexture(c));
+      t.anisotropy=4;
+      return t;
+    }
+    function placardTexture(){
+      return makeCanvas(1024,512,function(g,w,h){
+        g.fillStyle='#262b30'; g.fillRect(0,0,w,h);
+        g.strokeStyle='#d99a2b'; g.lineWidth=10; g.strokeRect(18,18,w-36,h-36);
+        g.strokeStyle='#7e5a1c'; g.lineWidth=3; g.strokeRect(40,40,w-80,h-80);
+        g.fillStyle='#e8e3d5'; g.textAlign='center';
+        g.font='bold 108px Arial';
+        g.fillText('TRAINING DEVICE',w/2,180);
+        g.fillStyle='#ffb347';
+        g.fillText('INERT CHARGE',w/2,300);
+        g.fillStyle='#9aa2ac'; g.font='34px Arial';
+        g.fillText('EOD TRAINING BAY 3  ·  WIRE MODULE TRAINER  ·  NO LIVE ORDNANCE',w/2,392);
+        g.fillStyle='#454b52';
+        [[70,70],[w-70,70],[70,h-70],[w-70,h-70]].forEach(function(p){
+          g.beginPath(); g.arc(p[0],p[1],14,0,Math.PI*2); g.fill();
+        });
+      });
+    }
+    function serialTexture(serial){
+      return makeCanvas(256,128,function(g,w,h){
+        var grd=g.createLinearGradient(0,0,0,h);
+        grd.addColorStop(0,'#b9bdc2'); grd.addColorStop(1,'#878d94');
+        g.fillStyle=grd; g.fillRect(0,0,w,h);
+        g.strokeStyle='#5c6167'; g.lineWidth=4; g.strokeRect(6,6,w-12,h-12);
+        g.fillStyle='#3c4148'; g.textAlign='center'; g.font='20px Arial';
+        g.fillText('SERIAL NO.',w/2,34);
+        g.fillStyle='#15181c'; g.font='bold 52px Arial';
+        g.fillText(serial,w/2,92);
+        g.fillStyle='#6a7077';
+        [[16,16],[w-16,16],[16,h-16],[w-16,h-16]].forEach(function(p){
+          g.beginPath(); g.arc(p[0],p[1],4,0,Math.PI*2); g.fill();
+        });
+      });
+    }
+    function grooveNumbersTexture(){
+      return makeCanvas(512,64,function(g,w,h){
+        g.fillStyle='#16181c'; g.fillRect(0,0,w,h);
+        g.textAlign='center'; g.textBaseline='middle';
+        g.font='bold 42px Arial'; g.fillStyle='#e8a33d';
+        for(var i=0;i<6;i++){
+          var x=w*(0.5+(i-2.5)*0.1375);
+          g.fillText(String(i+1),x,h/2+2);
+        }
+      });
+    }
+    function rotorNumbersTexture(){
+      return makeCanvas(256,256,function(g,w,h){
+        g.clearRect(0,0,w,h);
+        g.fillStyle='#e8a33d'; g.textAlign='center'; g.textBaseline='middle';
+        g.font='bold 30px Arial';
+        for(var i=0;i<8;i++){
+          var th=i*Math.PI/4;
+          g.fillText(String(i+1), w/2+Math.sin(th)*81, h/2-Math.cos(th)*81);
+        }
+      });
+    }
+    function moduleLabelTexture(txt){
+      return makeCanvas(256,64,function(g,w,h){
+        g.fillStyle='#20242a'; g.fillRect(0,0,w,h);
+        g.strokeStyle='#4a5160'; g.lineWidth=4; g.strokeRect(3,3,w-6,h-6);
+        g.fillStyle='#ffb347'; g.textAlign='center'; g.textBaseline='middle';
+        g.font='bold 40px Arial'; g.fillText(txt,w/2,h/2+2);
+      });
+    }
+    function hazardTexture(){
+      return makeCanvas(1024,64,function(g,w,h){
+        g.fillStyle='#1a1d20'; g.fillRect(0,0,w,h);
+        g.fillStyle='#d99a2b';
+        for(var x=-64;x<w+64;x+=128){
+          g.beginPath();
+          g.moveTo(x,h); g.lineTo(x+64,0); g.lineTo(x+96,0); g.lineTo(x+32,h);
+          g.closePath(); g.fill();
+        }
+      });
+    }
+    function floorTexture(){
+      var t=makeCanvas(512,512,function(g,w,h){
+        g.fillStyle='#23262a'; g.fillRect(0,0,w,h);
+        g.strokeStyle='#2c3036'; g.lineWidth=2;
+        for(var i=0;i<=w;i+=64){
+          g.beginPath(); g.moveTo(i,0); g.lineTo(i,h); g.stroke();
+          g.beginPath(); g.moveTo(0,i); g.lineTo(w,i); g.stroke();
+        }
+        for(var k=0;k<260;k++){
+          var x=(hash01(k*17+1)*w)|0, y=(hash01(k*29+7)*h)|0;
+          g.fillStyle=hash01(k*41) > 0.5 ? '#212428' : '#26292d';
+          g.fillRect(x,y,3,3);
+        }
+      });
+      t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(6,4);
+      return t;
+    }
+    function smokeTexture(){
+      return makeCanvas(128,128,function(g,w,h){
+        var grd=g.createRadialGradient(w/2,h/2,6,w/2,h/2,w/2);
+        grd.addColorStop(0,'rgba(205,210,215,0.85)');
+        grd.addColorStop(0.55,'rgba(160,168,175,0.4)');
+        grd.addColorStop(1,'rgba(150,155,160,0)');
+        g.clearRect(0,0,w,h);
+        g.fillStyle=grd; g.fillRect(0,0,w,h);
+      });
+    }
+
+    /* ================= geometry helpers ================= */
+    function roundedRectShape(w,h,r){
+      var s=new THREE.Shape(), x=-w/2, y=-h/2;
+      s.moveTo(x+r,y);
+      s.lineTo(x+w-r,y); s.quadraticCurveTo(x+w,y,x+w,y+r);
+      s.lineTo(x+w,y+h-r); s.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+      s.lineTo(x+r,y+h); s.quadraticCurveTo(x,y+h,x,y+h-r);
+      s.lineTo(x,y+r); s.quadraticCurveTo(x,y,x+r,y);
+      return s;
+    }
+    function tubeBetween(p1,p2,r,mat){
+      var dirV=new THREE.Vector3().subVectors(p2,p1);
+      var len=dirV.length();
+      var geo=new THREE.CylinderGeometry(r,r,len,10);
+      var m=new THREE.Mesh(geo,mat);
+      m.position.copy(p1).add(p2).multiplyScalar(0.5);
+      m.quaternion.setFromUnitVectors(v3(0,1,0),dirV.normalize());
+      return m;
+    }
+
+    /* ================= bench ================= */
+    function buildBench(){
+      var floor=new THREE.Mesh(new THREE.PlaneGeometry(26,18),
+        new THREE.MeshStandardMaterial({map:floorTexture(),roughness:0.95,metalness:0.05}));
+      floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+
+      var wall=new THREE.Mesh(new THREE.BoxGeometry(9,3.4,0.12),MATS.wall);
+      wall.position.set(0,1.7,-1.86); wall.receiveShadow=true; scene.add(wall);
+
+      var placard=new THREE.Mesh(new THREE.PlaneGeometry(1.9,0.95),
+        new THREE.MeshStandardMaterial({map:placardTexture(),roughness:0.8}));
+      placard.position.set(0,2.02,-1.79); scene.add(placard);
+
+      var hazard=new THREE.Mesh(new THREE.PlaneGeometry(6,0.09),
+        new THREE.MeshStandardMaterial({map:hazardTexture(),roughness:0.8}));
+      hazard.rotation.x=-Math.PI/2; hazard.position.set(0,0.903,1.44); scene.add(hazard);
+      var hazard2=new THREE.Mesh(new THREE.PlaneGeometry(6,0.09),
+        new THREE.MeshStandardMaterial({map:hazardTexture(),roughness:0.8}));
+      hazard2.rotation.x=-Math.PI/2; hazard2.position.set(0,0.903,-1.44); scene.add(hazard2);
+
+      /* steel table: top 6.0 x 3.0 at height 0.9 */
+      var top=new THREE.Mesh(new THREE.BoxGeometry(6.0,0.08,3.0),MATS.steel);
+      top.position.set(0,0.86,0); top.castShadow=top.receiveShadow=true; scene.add(top);
+      var legPos=[[-2.75,-1.3],[2.75,-1.3],[-2.75,1.3],[2.75,1.3]];
+      legPos.forEach(function(p){
+        var leg=new THREE.Mesh(new THREE.BoxGeometry(0.14,0.82,0.14),MATS.dark);
+        leg.position.set(p[0],0.41,p[1]); leg.castShadow=true; scene.add(leg);
+      });
+      [[-1.3],[1.3]].forEach(function(z){
+        var brace=new THREE.Mesh(new THREE.BoxGeometry(5.4,0.06,0.06),MATS.dark);
+        brace.position.set(0,0.18,z[0]); scene.add(brace);
+      });
+
+      /* rubber mat (full-length pad under all three shift devices) */
+      var mat=new THREE.Mesh(new THREE.BoxGeometry(5.9,0.025,1.9),MATS.mat);
+      mat.position.set(0,0.9125,0); mat.receiveShadow=true; scene.add(mat);
+
+      /* overhead floodlight on a jointed arm */
+      var base=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.13,0.05,16),MATS.dark);
+      base.position.set(-2.5,0.94,-1.15); scene.add(base);
+      var e1=v3(-2.42,1.95,-1.05), e2=v3(-1.55,2.45,-0.6), head=v3(-1.35,2.3,-0.45);
+      scene.add(tubeBetween(v3(-2.5,0.96,-1.15),e1,0.035,MATS.dark));
+      var joint=new THREE.Mesh(new THREE.SphereGeometry(0.06,12,10),MATS.dark);
+      joint.position.copy(e1); scene.add(joint);
+      scene.add(tubeBetween(e1,e2,0.03,MATS.dark));
+      var joint2=new THREE.Mesh(new THREE.SphereGeometry(0.05,12,10),MATS.dark);
+      joint2.position.copy(e2); scene.add(joint2);
+      scene.add(tubeBetween(e2,head,0.028,MATS.dark));
+      var headDir=new THREE.Vector3().subVectors(v3(0.15,1.0,0.1),head).normalize();
+      var shade=new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.21,0.24,18,1,true),
+        new THREE.MeshStandardMaterial({color:0x2e343b,metalness:0.6,roughness:0.45,side:THREE.DoubleSide}));
+      shade.position.copy(head);
+      shade.quaternion.setFromUnitVectors(v3(0,-1,0),headDir);
+      scene.add(shade);
+      var bulb=new THREE.Mesh(new THREE.CircleGeometry(0.15,18),
+        new THREE.MeshBasicMaterial({color:0xfff2d8}));
+      bulb.position.copy(head).addScaledVector(headDir,0.1);
+      bulb.lookAt(bulb.position.clone().add(headDir));
+      scene.add(bulb);
+      var spot=new THREE.SpotLight(0xfff1d6,2.4,14,0.52,0.45,1);
+      spot.position.copy(head);
+      spot.castShadow=true;
+      spot.shadow.mapSize.width=1024; spot.shadow.mapSize.height=1024;
+      spot.shadow.bias=-0.0003;
+      scene.add(spot);
+      spot.target.position.set(0.15,1.0,0.1); scene.add(spot.target);
+      var spill=new THREE.PointLight(0xfff0d0,0.6,6,2);
+      spill.position.copy(head); scene.add(spill);
+
+      /* cable spool */
+      var spool=new THREE.Group();
+      var f1=new THREE.Mesh(new THREE.CylinderGeometry(0.26,0.26,0.035,22),MATS.oliveDark);
+      f1.rotation.z=Math.PI/2; f1.position.x=-0.13; spool.add(f1);
+      var f2=f1.clone(); f2.position.x=0.13; spool.add(f2);
+      var core=new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.11,0.22,18),MATS.dark);
+      core.rotation.z=Math.PI/2; spool.add(core);
+      var cable=new THREE.Mesh(new THREE.TorusGeometry(0.165,0.05,10,26),
+        new THREE.MeshStandardMaterial({color:0x22262b,roughness:0.9}));
+      cable.rotation.y=Math.PI/2; spool.add(cable);
+      spool.position.set(2.55,1.165,1.15);
+      spool.traverse(function(o){ if(o.isMesh){o.castShadow=true;} });
+      scene.add(spool);
+      var tailCurve=new THREE.CatmullRomCurve3([
+        v3(2.55,1.16,1.15),v3(2.75,0.95,0.95),v3(2.92,0.91,0.62)
+      ]);
+      var tail=new THREE.Mesh(new THREE.TubeGeometry(tailCurve,14,0.022,8,false),
+        new THREE.MeshStandardMaterial({color:0x22262b,roughness:0.9}));
+      tail.castShadow=true; scene.add(tail);
+
+      /* tool tray with side cutters */
+      var tray=new THREE.Group();
+      var tb=new THREE.Mesh(new THREE.BoxGeometry(0.72,0.04,0.42),MATS.olive);
+      tb.position.y=0.02; tray.add(tb);
+      var walls=[
+        [0,0.075,-0.2,0.72,0.07,0.025],[0,0.075,0.2,0.72,0.07,0.025],
+        [-0.348,0.075,0,0.025,0.07,0.37],[0.348,0.075,0,0.025,0.07,0.37]
+      ];
+      walls.forEach(function(w){
+        var m=new THREE.Mesh(new THREE.BoxGeometry(w[3],w[4],w[5]),MATS.olive);
+        m.position.set(w[0],w[1],w[2]); tray.add(m);
+      });
+      var h1=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.018,0.34),
+        new THREE.MeshStandardMaterial({color:0x7a332a,roughness:0.7}));
+      h1.position.set(-0.03,0.055,0.02); h1.rotation.y=0.17; tray.add(h1);
+      var h2=h1.clone(); h2.rotation.y=-0.17; h2.position.x=0.03; tray.add(h2);
+      var j1=new THREE.Mesh(new THREE.BoxGeometry(0.03,0.014,0.1),MATS.metal);
+      j1.position.set(-0.008,0.058,-0.19); j1.rotation.y=0.17; tray.add(j1);
+      var j2=j1.clone(); j2.rotation.y=-0.17; j2.position.x=0.012; tray.add(j2);
+      tray.position.set(-2.35,0.925,1.15);
+      tray.traverse(function(o){ if(o.isMesh){o.castShadow=true;} });
+      scene.add(tray);
+
+      /* caged inspection lamp clamped to the bench edge */
+      var clampBase=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.2,0.09),MATS.dark);
+      clampBase.position.set(2.3,0.93,1.44); scene.add(clampBase);
+      scene.add(tubeBetween(v3(2.3,1.02,1.44),v3(2.44,1.32,1.36),0.018,MATS.dark));
+      var cage=new THREE.Group();
+      var bulbS=new THREE.Mesh(new THREE.SphereGeometry(0.055,14,10),
+        new THREE.MeshStandardMaterial({color:0xffe6b8,emissive:0xffd9a0,emissiveIntensity:1.4,roughness:0.4}));
+      cage.add(bulbS);
+      [-0.032,0,0.032].forEach(function(y){
+        var ring=new THREE.Mesh(new THREE.TorusGeometry(0.082,0.006,8,20),MATS.dark);
+        ring.rotation.x=Math.PI/2; ring.position.y=y; cage.add(ring);
+      });
+      for(var bi=0;bi<4;bi++){
+        var bar=new THREE.Mesh(new THREE.CylinderGeometry(0.005,0.005,0.19,6),MATS.dark);
+        var ba=bi*Math.PI/2;
+        bar.position.set(Math.cos(ba)*0.082,0,Math.sin(ba)*0.082);
+        cage.add(bar);
+      }
+      cage.position.set(2.5,1.4,1.32);
+      cage.traverse(function(o){ if(o.isMesh){o.castShadow=true;} });
+      scene.add(cage);
+      var warm=new THREE.PointLight(0xffd9a0,0.85,3.5,2);
+      warm.position.set(2.5,1.42,1.3); scene.add(warm);
+    }
+
+    /* ================= the training device ================= */
+    var DEVS=[];
+    function armedRefs(){
+      var st=activeState();
+      for(var i=0;i<DEVS.length;i++) if(DEVS[i].st===st) return DEVS[i];
+      return null;
+    }
+    function disposeGroup(g){
+      g.traverse(function(o){
+        if(o.geometry) o.geometry.dispose();
+        if(o.material&&o.material.userData&&o.material.userData.own){
+          if(o.material.map&&o.material.map.userData&&o.material.map.userData.own) o.material.map.dispose();
+          o.material.dispose();
+        }
+      });
+      scene.remove(g);
+    }
+    function ownMatFactory(store){
+      return function(opts){
+        var m=new THREE.MeshStandardMaterial(opts);
+        m.userData.own=true; store.push(m);
+        return m;
+      };
+    }
+    function makeSevenSegDigit(ownMat,segH,segV){
+      var dg=new THREE.Group();
+      var letterSegs={};
+      for(var k in SEG_DEFS){
+        var sd=SEG_DEFS[k];
+        var sm=ownMat({color:0x1c0806,emissive:0x000000,emissiveIntensity:0,roughness:0.5});
+        var sMesh=new THREE.Mesh(sd[2]==='H'?segH:segV,sm);
+        sMesh.position.set(sd[0],0,sd[1]);
+        dg.add(sMesh);
+        letterSegs[k]=sm;
+      }
+      return {group:dg,segs:letterSegs};
+    }
+    function keyLabelTexture(d){
+      return makeCanvas(128,128,function(g,w,h){
+        g.fillStyle='#23262b'; g.fillRect(0,0,w,h);
+        g.strokeStyle='#4a5160'; g.lineWidth=6; g.strokeRect(4,4,w-8,h-8);
+        g.fillStyle='#e8e3d5'; g.textAlign='center'; g.textBaseline='middle';
+        g.font='bold 68px Arial'; g.fillText(String(d),w/2,h/2+3);
+      });
+    }
+    function linkLettersTexture(){
+      return makeCanvas(256,64,function(g,w,h){
+        g.clearRect(0,0,w,h);
+        g.fillStyle='#e8a33d'; g.textAlign='center'; g.textBaseline='middle';
+        g.font='bold 40px Arial';
+        var xs=[-0.10,0,0.10], ls=['W','M','B'];
+        for(var i=0;i<3;i++) g.fillText(ls[i], w/2+xs[i]/0.34*256, h/2+2);
+      });
+    }
+
+    /* builds one module bay (frame + module content) at bay position bp */
+    function buildBayModule(g,ownMat,texList,TOP,mod,bp,bw){
+      var fw=bw||0.55, fd=0.62;
+      var bayPanel=new THREE.Mesh(new THREE.BoxGeometry(fw-0.04,0.012,fd-0.04),MATS.dark);
+      bayPanel.position.set(bp.x,TOP+0.004,bp.z); g.add(bayPanel);
+      var frameMat=ownMat({color:0x5f6b4f,metalness:0.25,roughness:0.7,emissive:0xffb347,emissiveIntensity:0.05});
+      var fr=[
+        [bp.x-fw/2+0.025,TOP+0.0175,bp.z,0.05,0.035,fd],
+        [bp.x+fw/2-0.025,TOP+0.0175,bp.z,0.05,0.035,fd],
+        [bp.x,TOP+0.0175,bp.z-fd/2+0.025,fw,0.035,0.05],
+        [bp.x,TOP+0.0175,bp.z+fd/2-0.025,fw,0.035,0.05]
+      ];
+      fr.forEach(function(f){
+        var m=new THREE.Mesh(new THREE.BoxGeometry(f[3],f[4],f[5]),frameMat);
+        m.position.set(f[0],f[1],f[2]); g.add(m);
+      });
+      [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(function(sgn){
+        var sx=bp.x+sgn[0]*(fw/2-0.045), sz=bp.z+sgn[1]*(fd/2-0.045);
+        var s=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.014,10),MATS.metal);
+        s.position.set(sx,TOP+0.04,sz); g.add(s);
+        var sl=new THREE.Mesh(new THREE.BoxGeometry(0.03,0.004,0.006),MATS.dark);
+        sl.position.set(sx,TOP+0.048,sz); g.add(sl);
+      });
+      var modBase=new THREE.Mesh(new THREE.BoxGeometry(0.56,0.02,0.52),MATS.olive);
+      modBase.position.set(bp.x,TOP+0.03,bp.z); g.add(modBase);
+
+      /* status LED on the front frame rail */
+      var ledBase=new THREE.Mesh(new THREE.CylinderGeometry(0.022,0.024,0.012,12),MATS.metal);
+      ledBase.position.set(bp.x-fw*0.25,TOP+0.041,bp.z+fd/2-0.032); g.add(ledBase);
+      var ledMat=ownMat({color:0x3a2a08,emissive:0xffb347,emissiveIntensity:0.9,roughness:0.3});
+      var led=new THREE.Mesh(new THREE.SphereGeometry(0.017,10,8,0,Math.PI*2,0,Math.PI/2),ledMat);
+      led.position.set(bp.x-fw*0.25,TOP+0.047,bp.z+fd/2-0.032); g.add(led);
+
+      var rec={type:mod.type,frameMat:frameMat,ledMat:ledMat,wires:null,capGroup:null,capBaseY:0,lampMat:null,
+        lampMats:null,dialGroup:null,dialCur:0,dialTarget:0,
+        keyCaps:null,pressTimes:null,stageLampMats:null,dispSegs:null,keyBaseY:0,
+        linkLampMats:null,keyCap:null,linkPressT:-99};
+
+      if(mod.type==='WIRE'){
+        var slotBase=new THREE.Mesh(new THREE.BoxGeometry(0.40,0.05,0.44),MATS.slot);
+        slotBase.position.set(bp.x,TOP+0.055,bp.z); g.add(slotBase);
+        for(var gr=0;gr<6;gr++){
+          var groove=new THREE.Mesh(new THREE.BoxGeometry(0.026,0.008,0.4),MATS.groove);
+          groove.position.set(bp.x+(gr-2.5)*0.055,TOP+0.083,bp.z);
+          g.add(groove);
+        }
+        var numTex=grooveNumbersTexture(); numTex.userData={own:true}; texList.push(numTex);
+        var nums=new THREE.Mesh(new THREE.PlaneGeometry(0.36,0.04),
+          new THREE.MeshBasicMaterial({map:numTex,transparent:false}));
+        nums.material.userData.own=true; nums.material.map.userData.own=true; texList.push(nums.material);
+        nums.rotation.x=-Math.PI/2;
+        nums.position.set(bp.x,TOP+0.0415,bp.z+0.245);
+        g.add(nums);
+        var labTex=moduleLabelTexture('WIRE'); labTex.userData={own:true}; texList.push(labTex);
+        var lab=new THREE.Mesh(new THREE.PlaneGeometry(0.14,0.05),
+          new THREE.MeshBasicMaterial({map:labTex}));
+        lab.material.userData.own=true; texList.push(lab.material);
+        lab.rotation.x=-Math.PI/2;
+        lab.position.set(bp.x,TOP+0.0415,bp.z-0.245);
+        g.add(lab);
+        var wireY=TOP+0.092;
+        var wires=[];
+        for(var wi=0;wi<mod.wires.length;wi++){
+          var wx=bp.x+(wi-2.5)*0.055;
+          var col=WIRE_COLORS[mod.wires[wi].color]||0x888888;
+          var wm=ownMat({color:col,roughness:0.55,metalness:0.15,
+            emissive:0x0b0b0d,emissiveIntensity:0.9});
+          var p0=v3(wx,wireY,bp.z-0.2), p1=v3(wx,wireY+0.012,bp.z-0.1),
+              p2=v3(wx,wireY+0.028,bp.z), p3=v3(wx,wireY+0.012,bp.z+0.1),
+              p4=v3(wx,wireY,bp.z+0.2);
+          var fullCurve=new THREE.CatmullRomCurve3([p0,p1,p2,p3,p4]);
+          var full=new THREE.Mesh(new THREE.TubeGeometry(fullCurve,14,0.014,8,false),wm);
+          g.add(full);
+          /* left half (pivot p0) and right half (pivot p4) for the severed look */
+          var lg=new THREE.Group(); lg.position.copy(p0);
+          var lc=new THREE.CatmullRomCurve3([v3(0,0,0),v3(0,0.012,0.1),v3(0,0.028,0.2)]);
+          var ltube=new THREE.Mesh(new THREE.TubeGeometry(lc,8,0.014,8,false),wm);
+          ltube.castShadow=true; lg.add(ltube);
+          var ltip=new THREE.Mesh(new THREE.CylinderGeometry(0.007,0.007,0.032,8),MATS.copper);
+          ltip.rotation.x=Math.PI/2; ltip.position.set(0,0.027,0.185); lg.add(ltip);
+          var lnode=new THREE.Mesh(new THREE.SphereGeometry(0.0095,8,6),MATS.copper);
+          lnode.position.set(0,0.028,0.2); lg.add(lnode);
+          g.add(lg);
+          var rg=new THREE.Group(); rg.position.copy(p4);
+          var rc=new THREE.CatmullRomCurve3([v3(0,0,0),v3(0,0.012,-0.1),v3(0,0.028,-0.2)]);
+          var rtube=new THREE.Mesh(new THREE.TubeGeometry(rc,8,0.014,8,false),wm);
+          rtube.castShadow=true; rg.add(rtube);
+          var rtip=new THREE.Mesh(new THREE.CylinderGeometry(0.007,0.007,0.032,8),MATS.copper);
+          rtip.rotation.x=Math.PI/2; rtip.position.set(0,0.027,-0.185); rg.add(rtip);
+          var rnode=new THREE.Mesh(new THREE.SphereGeometry(0.0095,8,6),MATS.copper);
+          rnode.position.set(0,0.028,-0.2); rg.add(rnode);
+          g.add(rg);
+          if(mod.wires[wi].cut){ full.visible=false; }
+          else { lg.visible=false; rg.visible=false; }
+          wires.push({mat:wm,full:full,L:lg,R:rg});
+        }
+        rec.wires=wires;
+      } else if(mod.type==='BUTTON'){
+        /* BUTTON module: guarded cap + hold lamp */
+        var capCol=CAP_COLORS[mod.cap]||0x888888;
+        var guard=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.14,0.024,20),MATS.slot);
+        guard.position.set(bp.x,TOP+0.05,bp.z+0.02); g.add(guard);
+        var capBaseY=TOP+0.072;
+        var capMat=ownMat({color:capCol,roughness:0.5,metalness:0.1});
+        var capGroup=new THREE.Group();
+        var capCyl=new THREE.Mesh(new THREE.CylinderGeometry(0.095,0.095,0.034,20),capMat);
+        capGroup.add(capCyl);
+        var capTop=new THREE.Mesh(new THREE.SphereGeometry(0.095,20,10,0,Math.PI*2,0,Math.PI/2),capMat);
+        capTop.scale.y=0.55; capTop.position.y=0.017;
+        capGroup.add(capTop);
+        capGroup.position.set(bp.x,capBaseY,bp.z+0.02);
+        g.add(capGroup);
+        var ped=new THREE.Mesh(new THREE.CylinderGeometry(0.032,0.036,0.022,12),MATS.metal);
+        ped.position.set(bp.x,TOP+0.041,bp.z-0.17); g.add(ped);
+        var lampMat=ownMat({color:0x202326,emissive:0x000000,emissiveIntensity:0,roughness:0.35});
+        var lamp=new THREE.Mesh(new THREE.SphereGeometry(0.038,14,8,0,Math.PI*2,0,Math.PI/2),lampMat);
+        lamp.position.set(bp.x,TOP+0.052,bp.z-0.17); g.add(lamp);
+        var cap2Tex=moduleLabelTexture('HOLD LAMP'); cap2Tex.userData={own:true}; texList.push(cap2Tex);
+        var cap2=new THREE.Mesh(new THREE.PlaneGeometry(0.18,0.04),
+          new THREE.MeshBasicMaterial({map:cap2Tex}));
+        cap2.material.userData.own=true; texList.push(cap2.material);
+        cap2.rotation.x=-Math.PI/2;
+        cap2.position.set(bp.x,TOP+0.0415,bp.z-0.245);
+        g.add(cap2);
+        var lab2Tex=moduleLabelTexture('BUTTON'); lab2Tex.userData={own:true}; texList.push(lab2Tex);
+        var lab2=new THREE.Mesh(new THREE.PlaneGeometry(0.18,0.045),
+          new THREE.MeshBasicMaterial({map:lab2Tex}));
+        lab2.material.userData.own=true; texList.push(lab2.material);
+        lab2.rotation.x=-Math.PI/2;
+        lab2.position.set(bp.x,TOP+0.0415,bp.z+0.245);
+        g.add(lab2);
+        rec.capGroup=capGroup; rec.capBaseY=capBaseY; rec.lampMat=lampMat;
+      } else if(mod.type==='ROTOR'){
+        /* ROTOR module: eight-lamp ring + rotating detent dial with grip serrations */
+        var ringTex=rotorNumbersTexture(); ringTex.userData={own:true}; texList.push(ringTex);
+        var ring=new THREE.Mesh(new THREE.PlaneGeometry(0.46,0.46),
+          new THREE.MeshBasicMaterial({map:ringTex,transparent:true}));
+        ring.material.userData.own=true; texList.push(ring.material);
+        ring.rotation.x=-Math.PI/2;
+        ring.position.set(bp.x,TOP+0.041,bp.z);
+        g.add(ring);
+        var lampMats=[];
+        for(var li2=0;li2<8;li2++){
+          var th=li2*Math.PI/4;
+          var lm2=ownMat({color:0x202326,emissive:0x000000,emissiveIntensity:0,roughness:0.4});
+          var dome2=new THREE.Mesh(new THREE.SphereGeometry(0.026,12,8,0,Math.PI*2,0,Math.PI/2),lm2);
+          dome2.position.set(bp.x+Math.sin(th)*0.185,TOP+0.046,bp.z-Math.cos(th)*0.185);
+          g.add(dome2);
+          lampMats.push(lm2);
+        }
+        var dial=new THREE.Group();
+        dial.position.set(bp.x,TOP+0.05,bp.z+0.01);
+        var dBase=new THREE.Mesh(new THREE.CylinderGeometry(0.115,0.125,0.03,20),MATS.slot);
+        dial.add(dBase);
+        for(var ti=0;ti<18;ti++){
+          var ta=ti*Math.PI*2/18;
+          var tooth=new THREE.Mesh(new THREE.BoxGeometry(0.024,0.016,0.014),MATS.metal);
+          tooth.position.set(Math.sin(ta)*0.125,0,Math.cos(ta)*0.125);
+          tooth.rotation.y=ta;
+          dial.add(tooth);
+        }
+        var dCap=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.018,20),MATS.olive);
+        dCap.position.y=0.022; dial.add(dCap);
+        var ptr=new THREE.Mesh(new THREE.BoxGeometry(0.02,0.02,0.055),
+          ownMat({color:0xffb347,emissive:0xffb347,emissiveIntensity:0.9,roughness:0.4}));
+        ptr.position.set(0,0.028,-0.105);
+        dial.add(ptr);
+        g.add(dial);
+        rec.lampMats=lampMats;
+        rec.dialGroup=dial;
+        rec.dialCur=-(mod.detent-1)*Math.PI/4;
+        rec.dialTarget=rec.dialCur;
+      } else if(mod.type==='MEMORY'){
+        /* MEMORY module: labelled keys, stage lamps, single-digit display */
+        var mBezel=new THREE.Mesh(new THREE.BoxGeometry(0.15,0.012,0.20),MATS.dark);
+        mBezel.position.set(bp.x,TOP+0.035,bp.z-0.175); g.add(mBezel);
+        var msegH=new THREE.BoxGeometry(0.044,0.01,0.013);
+        var msegV=new THREE.BoxGeometry(0.013,0.01,0.044);
+        var msd=makeSevenSegDigit(ownMat,msegH,msegV);
+        msd.group.position.set(bp.x,TOP+0.05,bp.z-0.175);
+        g.add(msd.group);
+        rec.dispSegs=msd.segs;
+        var stageLampMats=[];
+        for(var si3=0;si3<4;si3++){
+          var slm=ownMat({color:0x3a2a08,emissive:0xffb347,emissiveIntensity:0,roughness:0.4});
+          var sd3=new THREE.Mesh(new THREE.SphereGeometry(0.02,10,8,0,Math.PI*2,0,Math.PI/2),slm);
+          sd3.position.set(bp.x+(si3-1.5)*0.11,TOP+0.046,bp.z-0.055);
+          g.add(sd3);
+          stageLampMats.push(slm);
+        }
+        rec.stageLampMats=stageLampMats;
+        var keyCaps=[],pressTimes=[];
+        for(var ki=0;ki<4;ki++){
+          var kx=bp.x+(ki-1.5)*0.11;
+          var kg=new THREE.Group();
+          kg.position.set(kx,TOP+0.044,bp.z+0.13);
+          var kb=new THREE.Mesh(new THREE.BoxGeometry(0.085,0.028,0.085),MATS.slot);
+          kg.add(kb);
+          var kTex=keyLabelTexture(mod.labels[ki]); kTex.userData={own:true}; texList.push(kTex);
+          var kp=new THREE.Mesh(new THREE.PlaneGeometry(0.072,0.072),
+            new THREE.MeshBasicMaterial({map:kTex}));
+          kp.material.userData.own=true; texList.push(kp.material);
+          kp.rotation.x=-Math.PI/2;
+          kp.position.y=0.016;
+          kg.add(kp);
+          g.add(kg);
+          keyCaps.push(kg);
+          pressTimes.push(-99);
+        }
+        rec.keyCaps=keyCaps; rec.pressTimes=pressTimes; rec.keyBaseY=TOP+0.044;
+        var mLabTex=moduleLabelTexture('MEMORY'); mLabTex.userData={own:true}; texList.push(mLabTex);
+        var mLab=new THREE.Mesh(new THREE.PlaneGeometry(0.20,0.04),
+          new THREE.MeshBasicMaterial({map:mLabTex}));
+        mLab.material.userData.own=true; texList.push(mLab.material);
+        mLab.rotation.x=-Math.PI/2;
+        mLab.position.set(bp.x,TOP+0.0415,bp.z+0.245);
+        g.add(mLab);
+      } else {
+        /* LINK module: three labelled lamps (W M B) + one key */
+        var linkLampMats=[];
+        for(var ci=0;ci<3;ci++){
+          var clm=ownMat({color:0x202326,emissive:0x000000,emissiveIntensity:0,roughness:0.4});
+          var cd=new THREE.Mesh(new THREE.SphereGeometry(0.026,12,8,0,Math.PI*2,0,Math.PI/2),clm);
+          cd.position.set(bp.x+(ci-1)*0.10,TOP+0.046,bp.z-0.12);
+          g.add(cd);
+          linkLampMats.push(clm);
+        }
+        var lTex=linkLettersTexture(); lTex.userData={own:true}; texList.push(lTex);
+        var lStrip=new THREE.Mesh(new THREE.PlaneGeometry(0.34,0.05),
+          new THREE.MeshBasicMaterial({map:lTex,transparent:true}));
+        lStrip.material.userData.own=true; texList.push(lStrip.material);
+        lStrip.rotation.x=-Math.PI/2;
+        lStrip.position.set(bp.x,TOP+0.0415,bp.z-0.185);
+        g.add(lStrip);
+        var lkg=new THREE.Group();
+        lkg.position.set(bp.x,TOP+0.044,bp.z+0.10);
+        var lkb=new THREE.Mesh(new THREE.BoxGeometry(0.09,0.028,0.09),MATS.slot);
+        lkg.add(lkb);
+        g.add(lkg);
+        rec.linkLampMats=linkLampMats;
+        rec.keyCap=lkg; rec.keyBaseY=TOP+0.044;
+        var lLabTex=moduleLabelTexture('LINK'); lLabTex.userData={own:true}; texList.push(lLabTex);
+        var lLab=new THREE.Mesh(new THREE.PlaneGeometry(0.16,0.04),
+          new THREE.MeshBasicMaterial({map:lLabTex}));
+        lLab.material.userData.own=true; texList.push(lLab.material);
+        lLab.rotation.x=-Math.PI/2;
+        lLab.position.set(bp.x,TOP+0.0415,bp.z+0.245);
+        g.add(lLab);
+      }
+      return rec;
+    }
+
+    function buildDeviceAt(st,x,y,sc){
+      var g=new THREE.Group();
+      var ownMats=[];
+      var ownMat=ownMatFactory(ownMats);
+      var texList=[];
+      var cfg=st.config;
+      var TOP=0.425;
+      var shadows=function(root){ root.traverse(function(o){ if(o.isMesh){o.castShadow=true;o.receiveShadow=true;} }); };
+
+      /* case with beveled edges */
+      var caseGeo=new THREE.ExtrudeGeometry(roundedRectShape(2.34,1.54,0.12),
+        {depth:0.44,bevelEnabled:true,bevelThickness:0.03,bevelSize:0.03,bevelSegments:2,curveSegments:6});
+      caseGeo.rotateX(-Math.PI/2);
+      g.add(new THREE.Mesh(caseGeo,MATS.caseBody));
+
+      /* recessed top deck */
+      var deckGeo=new THREE.ExtrudeGeometry(roundedRectShape(2.14,1.34,0.08),
+        {depth:0.012,bevelEnabled:true,bevelThickness:0.008,bevelSize:0.008,bevelSegments:1,curveSegments:5});
+      deckGeo.rotateX(-Math.PI/2);
+      var deckMesh=new THREE.Mesh(deckGeo,MATS.deck);
+      deckMesh.position.y=0.397;
+      g.add(deckMesh);
+
+      /* corner bolts */
+      [[-1.08,-0.68],[1.08,-0.68],[-1.08,0.68],[1.08,0.68]].forEach(function(p,i){
+        var b=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,0.02,12),MATS.metal);
+        b.position.set(p[0],0.472,p[1]); g.add(b);
+        var s=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.005,0.008),MATS.dark);
+        s.position.set(p[0],0.483,p[1]); s.rotation.y=i*0.6+0.4; g.add(s);
+      });
+
+      /* side latches */
+      [-0.7,0.7].forEach(function(x){
+        var l=new THREE.Mesh(new THREE.BoxGeometry(0.09,0.05,0.035),MATS.metal);
+        l.position.set(x,0.44,0.79); g.add(l);
+      });
+
+      /* seven-segment countdown display */
+      var bezel=new THREE.Mesh(new THREE.BoxGeometry(0.66,0.014,0.28),MATS.dark);
+      bezel.position.set(0.28,TOP+0.007,-0.40); g.add(bezel);
+      var segH=new THREE.BoxGeometry(0.062,0.014,0.018);
+      var segV=new THREE.BoxGeometry(0.018,0.014,0.062);
+      var segs=[];
+      var digitsGroup=new THREE.Group();
+      digitsGroup.position.set(0.28,TOP+0.018,-0.40);
+      for(var d=0;d<3;d++){
+        var dg=makeSevenSegDigit(ownMat,segH,segV);
+        dg.group.position.x=(d-1)*0.115;
+        digitsGroup.add(dg.group);
+        for(var k in dg.segs){ segs.push({mat:dg.segs[k],digit:d,letter:k}); }
+      }
+      g.add(digitsGroup);
+
+      /* three strike lamps */
+      var lamps=[];
+      for(var li=0;li<3;li++){
+        var lx=0.63+li*0.16;
+        var lb=new THREE.Mesh(new THREE.CylinderGeometry(0.062,0.068,0.02,14),MATS.metal);
+        lb.position.set(lx,TOP+0.01,0.34); g.add(lb);
+        var lm=ownMat({color:0x30100e,emissive:0xff2d1a,emissiveIntensity:0,roughness:0.35,metalness:0.1});
+        var dome=new THREE.Mesh(new THREE.SphereGeometry(0.05,16,10,0,Math.PI*2,0,Math.PI/2),lm);
+        dome.scale.y=0.8;
+        dome.position.set(lx,TOP+0.018,0.34);
+        g.add(dome);
+        lamps.push(lm);
+      }
+
+      /* battery holders with cylindrical batteries */
+      var holderPos=[[0.28,-0.16],[0.66,-0.16]];
+      var cellsFor=function(h){ var b=Math.floor(cfg.batteries/2), ex=cfg.batteries%2; return h===0?b+ex:b; };
+      holderPos.forEach(function(hp,h){
+        var hb=new THREE.Mesh(new THREE.BoxGeometry(0.32,0.022,0.16),MATS.oliveDark);
+        hb.position.set(hp[0],TOP+0.011,hp[1]); g.add(hb);
+        [-0.145,0.145].forEach(function(ox){
+          var wallM=new THREE.Mesh(new THREE.BoxGeometry(0.022,0.075,0.16),MATS.oliveDark);
+          wallM.position.set(hp[0]+ox,TOP+0.037,hp[1]); g.add(wallM);
+        });
+        var count=cellsFor(h);
+        for(var ci=0;ci<count;ci++){
+          var cx=hp[0]+(count===2?(ci===0?-0.07:0.07):0);
+          var body=new THREE.Mesh(new THREE.CylinderGeometry(0.048,0.048,0.115,14),
+            new THREE.MeshStandardMaterial({color:0x2b323c,metalness:0.7,roughness:0.4}));
+          body.rotation.z=Math.PI/2;
+          body.position.set(cx,TOP+0.07,hp[1]);
+          g.add(body);
+          var wrap=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.075,14),MATS.oliveDark);
+          wrap.rotation.z=Math.PI/2;
+          wrap.position.set(cx,TOP+0.07,hp[1]);
+          g.add(wrap);
+          var cap=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.014,10),MATS.copper);
+          cap.rotation.z=Math.PI/2;
+          cap.position.set(cx+0.062,TOP+0.07,hp[1]);
+          g.add(cap);
+        }
+      });
+
+      /* exhaust fan */
+      var fan=new THREE.Group();
+      var recess=new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.17,0.014,22),MATS.dark);
+      recess.position.y=0.007; fan.add(recess);
+      var ring=new THREE.Mesh(new THREE.TorusGeometry(0.155,0.011,8,26),MATS.metal);
+      ring.rotation.x=Math.PI/2; ring.position.y=0.016; fan.add(ring);
+      var blades=new THREE.Group();
+      for(var bl=0;bl<5;bl++){
+        var blade=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.006,0.125),MATS.metal);
+        var ba2=bl*Math.PI*2/5;
+        blade.position.set(Math.cos(ba2)*0.085,0.014,Math.sin(ba2)*0.085);
+        blade.rotation.y=-ba2+0.7;
+        blades.add(blade);
+      }
+      var hub=new THREE.Mesh(new THREE.CylinderGeometry(0.028,0.028,0.02,12),MATS.dark);
+      hub.position.y=0.014; blades.add(hub);
+      fan.add(blades);
+      [0,Math.PI/2].forEach(function(a2){
+        var guard=new THREE.Mesh(new THREE.BoxGeometry(0.31,0.005,0.02),MATS.dark);
+        guard.position.y=0.032;
+        guard.rotation.y=a2;
+        fan.add(guard);
+      });
+      fan.position.set(0.88,TOP,-0.44);
+      g.add(fan);
+
+      /* serial plate on the front edge */
+      var serTex=serialTexture(cfg.serial); serTex.userData={own:true}; texList.push(serTex);
+      var plate=new THREE.Mesh(new THREE.PlaneGeometry(0.5,0.15),
+        new THREE.MeshStandardMaterial({map:serTex,roughness:0.5,metalness:0.3}));
+      plate.material.userData.own=true; ownMats.push(plate.material);
+      plate.position.set(0,0.2,0.806);
+      g.add(plate);
+
+      /* FRK indicator lamp beside the serial plate */
+      var frkBezel=new THREE.Mesh(new THREE.CylinderGeometry(0.034,0.038,0.012,14),MATS.metal);
+      frkBezel.rotation.x=Math.PI/2;
+      frkBezel.position.set(0.42,0.2,0.804); g.add(frkBezel);
+      var frkMat=ownMat({color:cfg.frk?0x402508:0x24262a,
+        emissive:cfg.frk?0xffa030:0x000000,emissiveIntensity:cfg.frk?1.3:0,roughness:0.35});
+      var frkDome=new THREE.Mesh(new THREE.SphereGeometry(0.028,12,8),frkMat);
+      frkDome.position.set(0.42,0.2,0.808); g.add(frkDome);
+      var frkTex=moduleLabelTexture('FRK'); frkTex.userData={own:true}; texList.push(frkTex);
+      var frkLab=new THREE.Mesh(new THREE.PlaneGeometry(0.16,0.055),
+        new THREE.MeshBasicMaterial({map:frkTex}));
+      frkLab.material.userData.own=true; ownMats.push(frkLab.material);
+      frkLab.position.set(0.58,0.2,0.807);
+      g.add(frkLab);
+
+      /* device nameplate beside the serial plate */
+      var nmTex=moduleLabelTexture(cfg.name); nmTex.userData={own:true}; texList.push(nmTex);
+      var nmLab=new THREE.Mesh(new THREE.PlaneGeometry(0.26,0.065),
+        new THREE.MeshBasicMaterial({map:nmTex}));
+      nmLab.material.userData.own=true; ownMats.push(nmLab.material);
+      nmLab.position.set(-0.55,0.2,0.805);
+      g.add(nmLab);
+
+      /* module bays in use */
+      var devModules=[];
+      for(var mi=0;mi<st.modules.length;mi++){
+        var bp=BAY_POS[mi]||BAY_POS[BAY_POS.length-1];
+        devModules.push(buildBayModule(g,ownMat,texList,TOP,st.modules[mi],bp,BAY_W[st.modules[mi].type]));
+      }
+
+      g.position.set(x,y,0);
+      if(sc&&sc!==1) g.scale.set(sc,sc,sc);
+      shadows(g);
+      scene.add(g);
+      g.userData.tex=texList;
+      var refs={group:g,segs:segs,lamps:lamps,blades:blades,modules:devModules,frkMat:frkMat,st:st,x:x};
+
+      /* pose pre-severed wires at their settled angle */
+      for(var mi2=0;mi2<st.modules.length;mi2++){
+        var smod=st.modules[mi2];
+        if(smod.type!=='WIRE') continue;
+        for(var wi2=0;wi2<smod.wires.length;wi2++){
+          if(smod.wires[wi2].cut) applyCutPose(refs,mi2,wi2,999);
+        }
+      }
+      return refs;
+    }
+    var BUS=null;
+    function rebuildDevices(){
+      for(var i=0;i<DEVS.length;i++) disposeGroup(DEVS[i].group);
+      DEVS=[];
+      if(BUS){ disposeGroup(BUS.group); BUS=null; }
+      if(G.phase==='testplay'&&G.test){
+        DEVS.push(buildDeviceAt(G.test,0,0.955,1));
+      } else {
+        var stage=G.season.stage;
+        if(stage.kind==='shift'){
+          for(var k=0;k<stage.states.length;k++){
+            DEVS.push(buildDeviceAt(stage.states[k],SHIFT_X[k],DEV_Y,PAIR_SCALE));
+          }
+        } else if(stage.kind==='pair'){
+          DEVS.push(buildDeviceAt(stage.states[0],PAIR_X[0],DEV_Y,PAIR_SCALE));
+          DEVS.push(buildDeviceAt(stage.states[1],PAIR_X[1],DEV_Y,PAIR_SCALE));
+          buildBusCable();
+        } else {
+          DEVS.push(buildDeviceAt(stage.states[0],0,0.955,1));
+        }
+      }
+    }
+    /* bus cable joining the linked pair across the gap between the two cases */
+    function buildBusCable(){
+      var g=new THREE.Group();
+      var faceX=0.9-1.20*PAIR_SCALE;      /* inner case wall |x| */
+      var portY=DEV_Y+0.425*PAIR_SCALE;   /* pair deck height */
+      var darkM=new THREE.MeshStandardMaterial({color:0x1d2126,roughness:0.85,metalness:0.2});
+      darkM.userData.own=true;
+      var metalM=new THREE.MeshStandardMaterial({color:0x8a9099,metalness:0.85,roughness:0.35});
+      metalM.userData.own=true;
+      var lensA=null,lensB=null;
+      [-1,1].forEach(function(s){
+        var port=new THREE.Mesh(new THREE.BoxGeometry(0.07,0.10,0.13),metalM);
+        port.position.set(-s*(faceX-0.02),portY,0);
+        port.castShadow=true;
+        g.add(port);
+        var lm=new THREE.MeshStandardMaterial({color:0x3a2a08,emissive:0xffb347,emissiveIntensity:0.9,roughness:0.3});
+        lm.userData.own=true;
+        var lens=new THREE.Mesh(new THREE.BoxGeometry(0.032,0.03,0.012),lm);
+        lens.position.set(-s*(faceX-0.02),portY+0.024,0.068);
+        g.add(lens);
+        if(s<0) lensA=lm; else lensB=lm;
+      });
+      var curve=new THREE.CatmullRomCurve3([
+        v3(-(faceX-0.01),portY,0),
+        v3(-faceX*0.55,portY+0.10,0),
+        v3(0,portY+0.155,0),
+        v3(faceX*0.55,portY+0.10,0),
+        v3(faceX-0.01,portY,0)
+      ]);
+      [-0.03,0.03].forEach(function(zo){
+        var tube=new THREE.Mesh(new THREE.TubeGeometry(curve,20,0.024,8,false),darkM);
+        tube.position.z=zo;
+        tube.castShadow=true;
+        g.add(tube);
+      });
+      scene.add(g);
+      BUS={group:g,lensA:lensA,lensB:lensB};
+    }
+    function updateBusGlow(){
+      if(!BUS) return;
+      var e,c,it;
+      if(G.season.stage.result==='lost'){ e=0xff3020; c=0x2a0806; it=1.2; }
+      else if(G.season.stage.result==='defused'){ e=0x3fe07f; c=0x0c2a14; it=1.2; }
+      else { e=0xffb347; c=0x3a2a08; it=0.9+0.15*Math.sin(G.simTime*3.1); }
+      BUS.lensA.emissive.setHex(e); BUS.lensA.color.setHex(c); BUS.lensA.emissiveIntensity=it;
+      BUS.lensB.emissive.setHex(e); BUS.lensB.color.setHex(c); BUS.lensB.emissiveIntensity=it;
+    }
+
+    function applyCutPose(refs,mi,wi,t){
+      var rec=refs.modules[mi].wires[wi];
+      var ang=cutAngle(t);
+      rec.L.rotation.x=-ang;
+      rec.R.rotation.x=ang;
+    }
+    function cutAngle(t){
+      var tt=Math.max(0,t);
+      return 0.5*(1-Math.exp(-9*tt))+0.14*Math.exp(-4*tt)*Math.sin(16*tt);
+    }
+
+    /* ================= smoke ================= */
+    var SMOKE_N=26, SMOKE=[];
+    function initSmoke(){
+      var tex=smokeTexture();
+      for(var i=0;i<SMOKE_N;i++){
+        var m=new THREE.SpriteMaterial({map:tex,transparent:true,opacity:0,depthWrite:false,color:0xa8aeb4});
+        var s=new THREE.Sprite(m);
+        s.visible=false; scene.add(s);
+        SMOKE.push({sprite:s,mat:m,t:0,dur:1,vel:v3(0,0,0),s0:0.3,rot:0,rspin:0,active:false});
+      }
+    }
+    function smokeBurst(dx,dy){
+      for(var i=0;i<SMOKE_N;i++){
+        var p=SMOKE[i];
+        p.active=true; p.t=-i*0.022;
+        p.dur=1.7+hash01(i*31+1)*1.2;
+        var a=hash01(i*7+3)*6.2832, r=0.22+hash01(i*13+5)*0.6;
+        p.vel.set(Math.cos(a)*r,0.5+hash01(i*3+9)*0.55,Math.sin(a)*r*0.7);
+        p.s0=0.28+hash01(i*17+2)*0.3;
+        p.rot=hash01(i*5+4)*6.28; p.rspin=(hash01(i*11+6)-0.5)*1.6;
+        p.sprite.position.set(dx+hash01(i*23+8)*0.24-0.12,(dy||1.42)+hash01(i*29+3)*0.12,hash01(i*37+1)*0.2-0.1);
+        p.mat.rotation=p.rot;
+      }
+    }
+    function updateSmoke(dt){
+      for(var i=0;i<SMOKE_N;i++){
+        var p=SMOKE[i]; if(!p.active) continue;
+        p.t+=dt;
+        if(p.t<0){ p.sprite.visible=false; continue; }
+        if(p.t>=p.dur){ p.active=false; p.sprite.visible=false; p.mat.opacity=0; continue; }
+        p.sprite.visible=true;
+        p.vel.multiplyScalar(Math.max(0,1-0.55*dt));
+        p.vel.y+=0.18*dt;
+        p.sprite.position.addScaledVector(p.vel,dt);
+        var sc=p.s0+p.t*0.85;
+        p.sprite.scale.set(sc,sc,1);
+        p.mat.opacity=0.5*Math.max(0,1-p.t/p.dur)*Math.min(1,p.t*8);
+        p.mat.rotation=p.rot+p.t*p.rspin;
+      }
+    }
+
+    /* ================= game actions ================= */
+    var keyQueue=[];
+    function handleKey(code){
+      if(code==='KeyR'){ toTitle(); return; }
+      if(G.phase==='title'){
+        if(code==='Enter') enterBench();
+        return;
+      }
+      if(G.phase==='testmenu'){
+        if(code==='Escape') closeMenu();
+        else if(code==='Enter') armTest(G.menuIndex);
+        else if(code==='ArrowUp'){ G.menuIndex=(G.menuIndex+TEST_DEVICES.length-1)%TEST_DEVICES.length; renderMenu(); }
+        else if(code==='ArrowDown'){ G.menuIndex=(G.menuIndex+1)%TEST_DEVICES.length; renderMenu(); }
+        else if(code.indexOf('Digit')===0){
+          var dv=(code==='Digit0')?9:(+code.slice(5)-1);
+          if(dv>=0&&dv<TEST_DEVICES.length){ G.menuIndex=dv; renderMenu(); }
+        }
+        return;
+      }
+      /* play | testplay */
+      var st=activeState();
+      if(code==='Escape'&&G.phase==='testplay'){ exitTest(); return; }
+      if(code==='Tab'){
+        if(G.phase==='play'&&!buttonHeldOnActive()) openScore();
+        else if(G.phase==='testplay'&&!buttonHeldOnActive()) openScore();
+        else if(G.phase==='score') closeScore();
+        return;
+      }
+      if(code==='KeyX'&&G.phase==='play'&&G.season.stage.kind==='pair'&&!G.season.stage.result){
+        G.season.stage.index=1-G.season.stage.index;
+        G.activeBay=0;
+        AU.click();
+        return;
+      }
+      if(code==='Escape'&&G.phase==='score'){ closeScore(); return; }
+      if(code==='Enter'){
+        if(G.phase==='play'){
+          if(stageResolved()) advanceSeason();
+        } else if(G.phase==='score'){
+          if(G.season.complete) startNewSeason();
+          else closeScore();
+        } else if(st.result) reArm();
+        return;
+      }
+      if(code==='KeyH'){ G.manualOpen=!G.manualOpen; syncManual(); return; }
+      if(code==='KeyC'){ G.cameraMode=(G.cameraMode==='desk')?'close':'desk'; return; }
+      if(code==='SpaceDown'){
+        var sm=activeModule(st);
+        if(sm&&sm.type==='ROTOR') lockRotor(st,sm);
+        else if(sm&&sm.type==='LINK') pressLinkKey(st,sm);
+        else pressButton();
+        return;
+      }
+      if(code==='SpaceUp'){ releaseButton(); return; }
+      if(code==='KeyP'&&G.phase==='play'&&!stageResolved()){ openMenu(); return; }
+      if(code==='ArrowLeft'||code==='ArrowRight'){
+        var nb=st.modules.length;
+        G.activeBay=(activeModuleIndex(st)+(code==='ArrowLeft'?nb-1:1))%nb;
+        return;
+      }
+      var mod=activeModule(st);
+      if((code==='KeyQ'||code==='KeyE')&&mod&&mod.type==='ROTOR'){
+        rotateRotor(code==='KeyE'?1:-1,st,mod);
+        return;
+      }
+      if(code.indexOf('Digit')===0&&mod){
+        var dgt=+code.slice(5);
+        if(mod.type==='WIRE'&&dgt>=1&&dgt<=6) cutWire(dgt-1,st,mod);
+        else if(mod.type==='MEMORY'&&dgt>=1&&dgt<=4) pressMemoryKey(dgt,st,mod);
+      }
+    }
+
+    function enterBench(){
+      AU.init();
+      G.phase='play';
+      elTitle.classList.add('hidden');
+      elHud.classList.remove('hidden');
+    }
+    function toTitle(){
+      G.phase='title';
+      G.season=freshSeason();
+      G.test=null; G.testIndex=null;
+      G.manualOpen=false; G.cameraMode='desk'; G.activeBay=0;
+      G.flashT=0; G.spike=0; G.ledFlash=0;
+      SMOKE.forEach(function(p){ p.active=false; p.sprite.visible=false; p.mat.opacity=0; });
+      rebuildDevices();
+      elCard.classList.add('hidden');
+      elMenu.classList.add('hidden');
+      elScore.classList.add('hidden');
+      elTitle.classList.remove('hidden');
+      elHud.classList.add('hidden');
+      syncManual();
+      elFlash.style.opacity=0;
+    }
+    function openMenu(){
+      G.phase='testmenu'; G.menuIndex=0;
+      renderMenu();
+      elMenu.classList.remove('hidden');
+    }
+    function closeMenu(){
+      G.phase='play';
+      elMenu.classList.add('hidden');
+    }
+    function armTest(i){
+      G.testIndex=i;
+      G.activeBay=0;
+      G.test=freshState(TEST_DEVICES[i]);
+      rebuildDevices();
+      G.phase='testplay';
+      elMenu.classList.add('hidden');
+    }
+    function exitTest(){
+      G.phase='play';
+      G.test=null; G.testIndex=null;
+      if(G.activeBay>=activeState().modules.length) G.activeBay=0;
+      rebuildDevices();
+    }
+    function reArm(){
+      elCard.classList.add('hidden');
+      G.activeBay=0;
+      G.test=freshState(TEST_DEVICES[G.testIndex]);
+      rebuildDevices();
+    }
+    /* season advancement: a resolved device is logged and Enter moves on */
+    function advanceSeason(){
+      var stage=G.season.stage;
+      elCard.classList.add('hidden');
+      G.activeBay=0;
+      if(stage.kind==='shift'&&stage.index<2){
+        stage.index++;
+        return;
+      }
+      if(stage.kind==='shift'){ G.season.phase=1; G.season.stage=freshStage(1); }
+      else if(stage.kind==='pair'){ G.season.phase=2; G.season.stage=freshStage(2); }
+      else { openScore(); return; }
+      rebuildDevices();
+    }
+    function openScore(){
+      G.scoreReturn=G.phase;
+      G.phase='score';
+      renderScore();
+      elScore.classList.remove('hidden');
+    }
+    function closeScore(){
+      G.phase=G.scoreReturn||'play';
+      elScore.classList.add('hidden');
+    }
+    function startNewSeason(){
+      elCard.classList.add('hidden');
+      elScore.classList.add('hidden');
+      G.season=freshSeason();
+      G.activeBay=0;
+      G.flashT=0; G.spike=0; G.ledFlash=0;
+      SMOKE.forEach(function(p){ p.active=false; p.sprite.visible=false; p.mat.opacity=0; });
+      elFlash.style.opacity=0;
+      G.phase='play';
+      rebuildDevices();
+    }
+
+    function cutWire(i,st,mod){
+      if(!st||st.result||!mod) return;
+      if(i>=mod.wires.length) return;        /* empty groove: nothing happens */
+      var w=mod.wires[i];
+      if(w.cut) return;                      /* severed wire cannot be cut again */
+      w.cut=true; w.animStart=G.simTime;
+      AU.click();
+      var mi=st.modules.indexOf(mod);
+      var R=armedRefs();
+      if(R&&R.modules[mi]&&R.modules[mi].wires&&R.modules[mi].wires[i]){
+        var rec=R.modules[mi].wires[i];
+        rec.full.visible=false;
+        rec.L.visible=true;
+        rec.R.visible=true;
+      }
+      if(i===mod.cuts[mod.cutProgress]){
+        mod.cutProgress++;
+        if(mod.cutProgress>=mod.cuts.length){ defuseModule(st,mod); }
+      } else {
+        addStrike(st);
+      }
+    }
+    function pressButton(){
+      var st=activeState();
+      if(!st||st.result) return;
+      var mod=activeModule(st);
+      if(!mod||mod.type!=='BUTTON'||mod.defused||mod.held) return;
+      mod.held=true;
+      mod.pressT=G.simTime;
+      mod.table=((G.phase==='testplay')?wireCutCount(st):pairCutCount())>=2?'B':'A';
+      mod.res=(mod.table==='B')?resolveButtonTableB(st.config.batteries,mod.cap):mod.tableA;
+      mod.row=mod.res.row;
+    }
+    function releaseButton(){
+      var st=activeState();
+      if(!st) return;
+      for(var i=0;i<st.modules.length;i++){
+        var mod=st.modules[i];
+        if(mod.type!=='BUTTON'||!mod.held) continue;
+        mod.held=false;
+        if(st.result) return;
+        var elapsed=G.simTime-mod.pressT;
+        var ok=mod.res.hold?(holdLampColorAt(elapsed)===mod.res.color):(elapsed<=3.0);
+        if(ok) defuseModule(st,mod); else addStrike(st);
+      }
+    }
+    function rotateRotor(dir,st,mod){
+      if(!st||st.result||!mod||mod.type!=='ROTOR'||mod.defused) return;
+      mod.detent=((mod.detent-1+dir+8)%8)+1;
+      mod.locked=false;
+      mod.lockResult=null;
+      AU.click();
+    }
+    function lockRotor(st,mod){
+      if(!st||st.result||!mod||mod.type!=='ROTOR'||mod.defused) return;
+      mod.locked=true;
+      AU.clack();
+      var target=mod.lockDetent;
+      var stage=G.season.stage;
+      if(G.phase!=='testplay'&&stage.kind==='pair'){
+        var ma=stage.states[0];
+        if(memorySolved(ma)) target=(target%8)+1;
+        var P=stage1Pos(ma);
+        if(P>0) target=((target-1+P)%8)+1;
+      } else if(memorySolved(st)) target=(target%8)+1;
+      if(mod.detent===target){
+        mod.lockResult='correct';
+        defuseModule(st,mod);
+      } else {
+        mod.lockResult='wrong';
+        addStrike(st);
+      }
+    }
+    function expectedMemoryPos(mod,stage,digit){
+      var labels=mod.labels;
+      if(stage===1) return digit;
+      if(stage===2){
+        for(var p=1;p<=4;p++) if(labels[p-1]===digit) return p;
+        return 1;
+      }
+      if(stage===3){
+        if(digit%2===1) return mod.history[1].label;
+        return digit;
+      }
+      if(digit%2===1){
+        var p1=mod.history[0].pos;
+        for(var q=1;q<=4;q++) if(labels[q-1]===p1) return q;
+        return 1;
+      }
+      for(var r=1;r<=4;r++) if(labels[r-1]===digit) return r;
+      return 1;
+    }
+    function pressMemoryKey(pos,st,mod){
+      if(!st||st.result||!mod||mod.type!=='MEMORY'||mod.defused) return;
+      if(pos<1||pos>4) return;
+      var digit=mod.sequence[Math.min(mod.stage,4)-1];
+      AU.click();
+      var mi=st.modules.indexOf(mod);
+      var R=armedRefs();
+      if(R&&R.modules[mi]&&R.modules[mi].pressTimes) R.modules[mi].pressTimes[pos-1]=G.simTime;
+      if(pos===expectedMemoryPos(mod,mod.stage,digit)){
+        mod.history.push({stage:mod.stage,pos:pos,label:mod.labels[pos-1],digit:digit});
+        mod.stage++;
+        if(mod.stage>4) defuseModule(st,mod);
+      } else {
+        addStrike(st);
+        mod.stage=1;
+        mod.history=[];
+      }
+    }
+    function wireCutCount(st){
+      var n=0;
+      for(var i=0;i<st.modules.length;i++){
+        var m=st.modules[i];
+        if(m.type==='WIRE') for(var j=0;j<m.wires.length;j++) if(m.wires[j].cut) n++;
+      }
+      return n;
+    }
+    function pairCutCount(){
+      var stage=G.season.stage;
+      if(stage.kind!=='pair') return wireCutCount(stage.states[stage.index]);
+      var n=0;
+      for(var i=0;i<stage.states.length;i++) n+=wireCutCount(stage.states[i]);
+      return n;
+    }
+    function stage1Pos(st){
+      for(var i=0;i<st.modules.length;i++){
+        var m=st.modules[i];
+        if(m.type==='MEMORY'&&m.history.length>0) return m.history[0].pos;
+      }
+      return 0;
+    }
+    function memorySolved(st){
+      for(var i=0;i<st.modules.length;i++){
+        var m=st.modules[i];
+        if(m.type==='MEMORY'&&m.defused) return true;
+      }
+      return false;
+    }
+    function resolveButtonTableB(batteries,cap){
+      if(batteries%2===1) return {row:1,hold:true,color:'GREEN'};
+      if(cap==='WHITE') return {row:2,hold:false,color:null};
+      return {row:3,hold:false,color:null};
+    }
+    function linkLampStates(st){
+      var stage=G.season.stage;
+      if(G.phase!=='testplay'&&stage.kind==='pair'){
+        var ma=stage.states[0], sl=stage.states[1];
+        return {W:pairCutCount()>=2,M:memorySolved(ma),B:sl.config.batteries>=3};
+      }
+      return {W:wireCutCount(st)>=2,M:memorySolved(st),B:st.config.batteries>=3};
+    }
+    function pressLinkKey(st,mod){
+      if(!st||st.result||!mod||mod.type!=='LINK'||mod.defused) return;
+      AU.click();
+      var mi=st.modules.indexOf(mod);
+      var R=armedRefs();
+      if(R&&R.modules[mi]) R.modules[mi].linkPressT=G.simTime;
+      var s=linkLampStates(st);
+      var ok;
+      if(mod.row===1) ok=(s.W&&s.M&&!s.B);
+      else { var cnt=(s.W?1:0)+(s.M?1:0); ok=(cnt===1)&&s.B; }
+      if(ok) defuseModule(st,mod); else addStrike(st);
+    }
+    function addStrike(st){
+      if(G.phase==='testplay') st.strikes++;
+      else {
+        var stage=G.season.stage;
+        if(stage.kind==='pair'){
+          stage.strikes++;
+          for(var i=0;i<stage.states.length;i++) stage.states[i].strikes=stage.strikes;
+        } else {
+          st.strikes++;
+        }
+        G.season.strikes++;   /* strikes accumulate across the whole season */
+      }
+      G.ledFlash=0.5;
+      AU.clack(); AU.buzz();
+      if(poolStrikes()>=3) detonate(st,'strikes');
+    }
+    function detonate(st,reason){
+      if(G.phase==='play'){
+        var stage=G.season.stage;
+        var dx;
+        if(stage.kind==='pair'){
+          if(stage.result) return;
+          stage.result='lost'; stage.resultReason=reason; stage.failedBy=st.config.name;
+          stage.cardTimer=0.9;
+          dx=PAIR_X[stage.index];
+          for(var i=0;i<stage.states.length;i++){
+            var s=stage.states[i];
+            s.result='lost'; s.resultReason=reason;
+            s.clock=Math.max(0,stage.clock);
+            s.strikes=Math.max(s.strikes,stage.strikes);
+            if(s===st) dx=PAIR_X[i];
+          }
+          logResult(stage.states[0]);
+          logResult(stage.states[1]);
+        } else {
+          if(st.result) return;
+          st.result='lost'; st.resultReason=reason;
+          if(st.clock<=0) st.clock=0;
+          stage.cardTimer=0.9;
+          dx=stage.kind==='shift'?SHIFT_X[stage.states.indexOf(st)]:0;
+          logResult(st);
+        }
+        G.flashT=1; G.spike=1;
+        var fullSize=(stage.kind==='fx');
+        spikeLight.position.set(dx,fullSize?1.75:1.5,0.25);
+        smokeBurst(dx,fullSize?1.42:1.30);
+        AU.rumble();
+        return;
+      }
+      if(st.result) return;
+      st.result='lost'; st.resultReason=reason;
+      st.strikes=Math.max(st.strikes,3);
+      if(st.clock<=0) st.clock=0;
+      G.flashT=1; G.spike=1;
+      spikeLight.position.set(0,1.75,0.25);
+      smokeBurst(0,1.42);
+      AU.rumble();
+      st.cardTimer=0.9;
+    }
+    function defuseModule(st,mod){
+      if(mod.defused) return;
+      mod.defused=true;
+      AU.chime();
+      var all=true;
+      for(var i=0;i<st.modules.length;i++) if(!st.modules[i].defused) all=false;
+      if(all&&!st.result){
+        st.result='defused';
+        if(G.phase==='testplay'){
+          st.cardTimer=0.7;
+        } else {
+          var stage=G.season.stage;
+          if(stage.kind==='pair'){
+            var other=stage.states[stage.states[0]===st?1:0];
+            if(other.result==='defused'){ stage.result='defused'; stage.cardTimer=0.7; }
+          } else {
+            stage.cardTimer=0.7;
+          }
+          logResult(st);
+        }
+      }
+    }
+    function showCard(st){
+      elCard.classList.remove('hidden','lost','defused');
+      if(st.result==='lost'){
+        elCard.classList.add('lost');
+        elCardTitle.textContent='DEVICE LOST';
+        elCardSub.textContent=(st.resultReason==='strikes'?'THREE STRIKES — ':'CLOCK REACHED ZERO — ')
+          +'TRAINING CHARGE DETONATED · '+st.config.serial+' · INERT CHARGE — NO INJURIES';
+        elCardHints.innerHTML='<kbd>ENTER</kbd> RE-ARM DEVICE · <kbd>R</kbd> TITLE CARD';
+      } else {
+        elCard.classList.add('defused');
+        elCardTitle.textContent='DEVICE DEFUSED';
+        elCardSub.textContent='ALL MODULES CLEARED · CLOCK REMAINING '+st.clock.toFixed(2)+' · '+(st.strikes===1?'1 STRIKE':st.strikes+' STRIKES')+' · '+st.config.serial;
+        elCardHints.innerHTML='<kbd>ENTER</kbd> RE-ARM DEVICE · <kbd>R</kbd> TITLE CARD';
+      }
+    }
+    function showStageCard(){
+      elCard.classList.remove('hidden','lost','defused');
+      var stage=G.season.stage;
+      var nextHint=(stage.kind==='fx')?'SQUAD SCORE':'NEXT DEVICE';
+      if(stage.kind==='pair'){
+        var strikeWord=(stage.strikes===1)?'1 STRIKE':stage.strikes+' STRIKES';
+        if(stage.result==='lost'){
+          elCard.classList.add('lost');
+          elCardTitle.textContent='PAIR FAILED';
+          elCardSub.textContent=(stage.resultReason==='strikes'?'THREE STRIKES — ':'CLOCK REACHED ZERO — ')
+            +'LINKED PAIR LOST · '+stage.failedBy+' DETONATED · INERT CHARGE — NO INJURIES';
+        } else {
+          elCard.classList.add('defused');
+          elCardTitle.textContent='PAIR CLEAR';
+          elCardSub.textContent='MA-1 + SL-1 BOTH DEFUSED · CLOCK REMAINING '+stage.clock.toFixed(2)+' · '+strikeWord;
+        }
+      } else {
+        var st=stage.states[stage.index];
+        var sw=(st.strikes===1)?'1 STRIKE':st.strikes+' STRIKES';
+        if(st.result==='lost'){
+          elCard.classList.add('lost');
+          elCardTitle.textContent='DEVICE LOST';
+          elCardSub.textContent=(st.resultReason==='strikes'?'THREE STRIKES — ':'CLOCK REACHED ZERO — ')
+            +'TRAINING CHARGE DETONATED · '+st.config.serial+' · INERT CHARGE — NO INJURIES';
+        } else {
+          elCard.classList.add('defused');
+          elCardTitle.textContent='DEVICE DEFUSED';
+          elCardSub.textContent='ALL MODULES CLEARED · CLOCK REMAINING '+st.clock.toFixed(2)+' · '+sw+' · '+st.config.serial;
+        }
+      }
+      elCardHints.innerHTML='<kbd>ENTER</kbd> '+nextHint+' · <kbd>R</kbd> MASTER RESET';
+    }
+
+    function renderMenu(){
+      elMenuList.innerHTML='';
+      TEST_DEVICES.forEach(function(d,i){
+        var row=document.createElement('div');
+        row.className='menuRow'+(i===G.menuIndex?' sel':'');
+        var feat=d.modules[d.modules.length-1];
+        var wmod=null;
+        d.modules.forEach(function(m){ if(m.type==='WIRE') wmod=m; });
+        var mid, ruleLabel;
+        if(feat.type==='WIRE'){
+          var chips=feat.wires.map(function(c){ return '<i class="chip" style="background:'+CHIP[c]+'"></i>'; }).join('');
+          mid='<span class="mWires">'+chips+'</span>';
+          ruleLabel='CHECKS RULE '+resolveManual(feat.wires).row;
+        } else if(feat.type==='BUTTON'){
+          mid='<span class="mWires"><i class="chip" style="background:'+CHIP[feat.cap]+'"></i>'
+            +'<span class="mFrk">FRK '+(d.frk?'LIT':'DARK')+'</span></span>';
+          ruleLabel=(wmod&&(wmod.preCut||0)>=2)?'CHECKS TABLE B':'CHECKS RULE '+resolveButton(feat.cap,d.frk,d.batteries,d.serial).row;
+        } else if(feat.type==='ROTOR'){
+          var rchips=feat.lamps.map(function(c){ return '<i class="chip" style="background:'+CHIP[c]+'"></i>'; }).join('');
+          mid='<span class="mWires">'+rchips+'</span>';
+          ruleLabel='CHECKS RULE '+resolveRotor(feat.lamps).row;
+        } else if(feat.type==='MEMORY'){
+          mid='<span class="mWires"><span class="mFrk">LBL '+feat.labels.join('-')+' · SEQ '+feat.sequence.join('-')+'</span></span>';
+          ruleLabel='MEMORY · 4 STAGES';
+        } else {
+          var lrow=('02468'.indexOf(d.serial.charAt(d.serial.length-1))>=0)?1:2;
+          mid='<span class="mWires"><span class="mFrk">SERIAL END '+d.serial.charAt(d.serial.length-1)+' · BATT '+d.batteries+'</span></span>';
+          ruleLabel='CHECKS LINK ROW '+lrow;
+        }
+        row.innerHTML='<span class="mName">'+d.name+'</span>'
+          +'<span class="mSerial">'+d.serial+'</span>'
+          +'<span class="mBatt">BATT '+d.batteries+'</span>'
+          +mid
+          +'<span class="mRow">'+ruleLabel+'</span>';
+        elMenuList.appendChild(row);
+      });
+    }
+    function renderScore(){
+      elScoreRoster.innerHTML='';
+      G.season.roster.forEach(function(r,i){
+        var row=document.createElement('div');
+        row.className='menuRow';
+        var word=r.state==='lost'?'LOST':(r.state==='defused'?'DEFUSED':'PENDING');
+        row.innerHTML='<span class="mName">'+r.name+'</span>'
+          +'<span class="mSerial">'+r.serial+'</span>'
+          +'<span class="mBatt">SLOT '+(i+1)+'/6</span>'
+          +'<span class="mRow">'+word+(r.strikes?(' · '+r.strikes+' STRIKE'+(r.strikes===1?'':'S')):'')+'</span>';
+        elScoreRoster.appendChild(row);
+      });
+      var sp=seasonScoreParts();
+      elScoreLines.innerHTML='<div class="scoreLine"><span class="slK">DEFUSED DEVICES</span><span class="slV">'
+          +sp.defused+' OF 6 × 200 = '+sp.defusedPoints+'</span></div>'
+        +'<div class="scoreLine"><span class="slK">SEASON STRIKES</span><span class="slV">'
+          +sp.strikes+' × 50 = '+(sp.strikes*50)+'</span></div>'
+        +'<div class="scoreLine"><span class="slK">CLEAN-RUN BONUS</span><span class="slV">'
+          +'MAX(0, 300 − '+sp.strikes+' × 50) = '+sp.bonus+'</span></div>';
+      elScoreTotalVal.textContent=sp.total;
+      elScoreRating.textContent='RATING '+sp.rating;
+      elScoreRating.style.color=(sp.rating==='S')?'#ffb347':((sp.rating==='A')?'#43e08c':((sp.rating==='B')?'#c98a2b':'#8b95a3'));
+    }
+    function syncManual(){
+      var inBench=(G.phase==='play'||G.phase==='testplay');
+      elManual.classList.toggle('open',G.manualOpen&&inBench);
+    }
+
+    /* ================= camera ================= */
+    function deviceScale(){
+      if(G.phase==='testplay') return 1;
+      return G.season.stage.kind==='fx'?1:PAIR_SCALE;
+    }
+    function deviceBaseX(){
+      if(G.phase==='testplay') return 0;
+      var stage=G.season.stage;
+      if(stage.kind==='shift') return SHIFT_X[stage.index];
+      if(stage.kind==='pair') return PAIR_X[stage.index];
+      return 0;
+    }
+    function camGoal(){
+      if(G.cameraMode==='close'){
+        var st=activeState();
+        var bp=BAY_POS[activeModuleIndex(st)]||BAY_POS[0];
+        var dx=deviceBaseX();
+        var sc=deviceScale();
+        if(sc===1) return {pos:v3(dx+bp.x,2.85,1.18),tgt:v3(dx+bp.x,1.42,0.32)};
+        return {pos:v3(dx+bp.x*sc,2.42,1.00),tgt:v3(dx+bp.x*sc,1.29,0.22)};
+      }
+      return {pos:v3(0,4.7,5.5),tgt:v3(0,0.95,0)};
+    }
+    function updateCamera(dt){
+      var goal=camGoal();
+      var kp=1-Math.exp(-3.4*dt), kt=1-Math.exp(-3.8*dt);
+      camCur.pos.lerp(goal.pos,kp);
+      camCur.tgt.lerp(goal.tgt,kt);
+      camera.position.copy(camCur.pos);
+      camera.lookAt(camCur.tgt);
+    }
+
+    /* ================= per-step updates ================= */
+    function updateDeviceVisuals(st,refs,mode,dt,isActive){
+      /* fan spins on the armed device only */
+      if(mode==='armed') refs.blades.rotation.y=G.simTime*4.2;
+
+      /* strike lamps breathe while lit; the armed device shows the shared pool */
+      var lit=(mode==='armed')?poolStrikes():0;
+      if(mode==='lost') lit=3;
+      for(var i=0;i<3;i++){
+        refs.lamps[i].emissiveIntensity=(i<lit)?(0.85+0.3*Math.sin(G.simTime*2.6+i*1.05)):0;
+      }
+
+      /* FRK indicator lamp */
+      refs.frkMat.emissiveIntensity=(mode==='dark')?0:(st.config.frk?1.3:0);
+
+      var abIdx=activeModuleIndex(st);
+      var live=(mode==='armed');
+
+      /* per-module updates: bay highlight, LED, wires or button */
+      for(var mi=0;mi<st.modules.length;mi++){
+        var mod=st.modules[mi], rec=refs.modules[mi];
+        if(!rec) continue;
+        rec.frameMat.emissiveIntensity=(live&&isActive&&mi===abIdx)?(0.22+0.14*Math.sin(G.simTime*3.2)):0.04;
+        if(mode==='dark'){
+          rec.ledMat.emissive.setHex(0x000000); rec.ledMat.color.setHex(0x14161a); rec.ledMat.emissiveIntensity=0;
+        } else if(mod.defused){
+          rec.ledMat.emissive.setHex(0x3fe07f); rec.ledMat.color.setHex(0x0c2a14); rec.ledMat.emissiveIntensity=1.2;
+        } else if(live&&G.ledFlash>0){
+          rec.ledMat.emissive.setHex(0xff3020); rec.ledMat.color.setHex(0x2a0806); rec.ledMat.emissiveIntensity=1.3;
+        } else {
+          rec.ledMat.emissive.setHex(0xffb347); rec.ledMat.color.setHex(0x3a2a08); rec.ledMat.emissiveIntensity=mod.locked?1.6:(0.9+0.15*Math.sin(G.simTime*3.1));
+        }
+        if(mod.type==='WIRE'&&rec.wires){
+          for(var wi=0;wi<mod.wires.length;wi++){
+            var wst=mod.wires[wi];
+            if(wst.cut){
+              applyCutPose(refs,mi,wi,G.simTime-(wst.animStart===null?-10:wst.animStart));
+            }
+          }
+        } else if(mod.type==='BUTTON'&&rec.lampMat){
+          rec.capGroup.position.y=rec.capBaseY-(mod.held?0.016:0);
+          if(live&&mod.held){
+            rec.lampMat.emissive.setHex(HOLD_LAMP_COLORS[holdLampColorAt(G.simTime-mod.pressT)]);
+            rec.lampMat.color.setHex(0x2a2d31);
+            rec.lampMat.emissiveIntensity=1.25;
+          } else {
+            rec.lampMat.emissive.setHex(0x000000);
+            rec.lampMat.color.setHex(0x202326);
+            rec.lampMat.emissiveIntensity=0;
+          }
+        } else if(mod.type==='ROTOR'&&rec.dialGroup){
+          if(live){
+            rec.dialTarget=-(mod.detent-1)*Math.PI/4;
+            rec.dialCur+=(rec.dialTarget-rec.dialCur)*(1-Math.exp(-10*dt));
+          }
+          rec.dialGroup.rotation.y=rec.dialCur;
+          for(var rl=0;rl<8;rl++){
+            var rc2=mod.lamps[rl];
+            if(mode==='dark'){ rec.lampMats[rl].emissive.setHex(0x000000); rec.lampMats[rl].color.setHex(0x202326); rec.lampMats[rl].emissiveIntensity=0; }
+            else if(rc2==='RED'){ rec.lampMats[rl].emissive.setHex(0xff3020); rec.lampMats[rl].color.setHex(0x2a0806); rec.lampMats[rl].emissiveIntensity=1.1; }
+            else if(rc2==='GREEN'){ rec.lampMats[rl].emissive.setHex(0x3fe07f); rec.lampMats[rl].color.setHex(0x0c2a14); rec.lampMats[rl].emissiveIntensity=1.1; }
+            else { rec.lampMats[rl].emissive.setHex(0x000000); rec.lampMats[rl].color.setHex(0x202326); rec.lampMats[rl].emissiveIntensity=0; }
+          }
+        } else if(mod.type==='MEMORY'&&rec.dispSegs){
+          var mdv=mod.sequence[Math.min(mod.stage,4)-1];
+          var mpat=(mode==='dark'||mode==='lost')?null:SEG_MAP[String(mdv)];
+          for(var mk in rec.dispSegs){
+            var mm=rec.dispSegs[mk];
+            if(mpat&&mpat.indexOf(mk)>=0){
+              mm.emissive.setHex(mod.defused?0x3fe07f:0xff3a26);
+              mm.color.setHex(mod.defused?0x0c2a14:0x2a0603);
+              mm.emissiveIntensity=1.15;
+            } else { mm.emissive.setHex(0x000000); mm.color.setHex(0x1c0806); mm.emissiveIntensity=0; }
+          }
+          for(var sl2=0;sl2<4;sl2++){
+            var on2=((sl2+1)<mod.stage||mod.defused)&&mode!=='dark'&&mode!=='lost';
+            rec.stageLampMats[sl2].emissive.setHex(mod.defused?0x3fe07f:0xffb347);
+            rec.stageLampMats[sl2].color.setHex(mod.defused?0x0c2a14:0x3a2a08);
+            rec.stageLampMats[sl2].emissiveIntensity=on2?(0.9+0.1*Math.sin(G.simTime*2.8+sl2)):0;
+          }
+          for(var kq=0;kq<4;kq++){
+            var tq=G.simTime-rec.pressTimes[kq];
+            var koff=(live&&tq>=0&&tq<0.4)?(-0.009*Math.exp(-7*tq)*Math.cos(16*tq)):0;
+            rec.keyCaps[kq].position.y=rec.keyBaseY+koff;
+          }
+        } else if(mod.type==='LINK'&&rec.keyCap){
+          var lls=live?linkLampStates(st):{W:false,M:false,B:false};
+          var lorder=['W','M','B'];
+          for(var ll2=0;ll2<3;ll2++){
+            var lit2=lls[lorder[ll2]];
+            rec.linkLampMats[ll2].emissive.setHex(lit2?0xffb347:0x000000);
+            rec.linkLampMats[ll2].color.setHex(lit2?0x3a2a08:0x202326);
+            rec.linkLampMats[ll2].emissiveIntensity=lit2?(1.1+0.1*Math.sin(G.simTime*3+ll2)):0;
+          }
+          var tq3=G.simTime-rec.linkPressT;
+          rec.keyCap.position.y=rec.keyBaseY+((live&&tq3>=0&&tq3<0.4)?(-0.009*Math.exp(-7*tq3)*Math.cos(16*tq3)):0);
+        }
+      }
+
+      /* seven-segment display: live clock, dim spare, frozen green, dead */
+      var val,segDim=false,segGreen=false;
+      if(mode==='lost'){ val=null; }
+      else if(mode==='dark'){ val=CLOCK_START; segDim=true; }
+      else if(mode==='defused'){ val=clamp(Math.ceil(st.clock),0,999); segGreen=true; }
+      else { val=clamp(Math.ceil(st.clock),0,999); }
+      var str=(val===null)?'   ':String(val).padStart(3,'0');
+      for(var s=0;s<refs.segs.length;s++){
+        var seg=refs.segs[s];
+        var on=(val!==null)&&SEG_MAP[str[seg.digit]]&&SEG_MAP[str[seg.digit]].indexOf(seg.letter)>=0;
+        if(on&&live&&st.flicker>0){
+          var ph=Math.floor((0.12-st.flicker)*60);
+          if(hash01(val*131+seg.digit*31+seg.letter.charCodeAt(0)*7+ph*297)<0.18) on=false;
+        }
+        if(on&&segDim){ seg.mat.emissive.setHex(0xff3a26); seg.mat.color.setHex(0x2a0603); seg.mat.emissiveIntensity=0.12; }
+        else if(on&&segGreen){ seg.mat.emissive.setHex(0x3fe07f); seg.mat.color.setHex(0x0c2a14); seg.mat.emissiveIntensity=1.0; }
+        else if(on){ seg.mat.emissive.setHex(0xff3a26); seg.mat.color.setHex(0x2a0603); seg.mat.emissiveIntensity=1.15; }
+        else { seg.mat.emissive.setHex(0x000000); seg.mat.color.setHex(0x1c0806); seg.mat.emissiveIntensity=0; }
+      }
+    }
+    function updateAllDevices(dt){
+      var testplay=(G.phase==='testplay'&&G.test);
+      var st=activeState();
+      for(var i=0;i<DEVS.length;i++){
+        var R=DEVS[i];
+        var mode;
+        if(testplay){
+          mode=R.st===st?(R.st.result==='lost'?'lost':(R.st.result==='defused'?'defused':'armed')):(R.st.result==='defused'?'defused':'dark');
+          updateDeviceVisuals(R.st,R,mode,dt,R.st===st);
+        } else {
+          var stage=G.season.stage;
+          if(stage.kind==='pair'){
+            if(stage.result==='lost') mode='lost';
+            else mode=R.st.result==='defused'?'defused':'armed';
+            updateDeviceVisuals(R.st,R,mode,dt,R.st===st&&!stage.result);
+          } else {
+            if(R.st.result==='lost') mode='lost';
+            else if(R.st===st) mode=R.st.result==='defused'?'defused':'armed';
+            else mode=R.st.result==='defused'?'defused':'dark';
+            updateDeviceVisuals(R.st,R,mode,dt,R.st===st&&!R.st.result);
+          }
+        }
+      }
+      if(!testplay) updateBusGlow();
+    }
+
+    function updateEffects(dt){
+      if(G.flashT>0){
+        G.flashT=Math.max(0,G.flashT-dt*1.15);
+        elFlash.style.opacity=(G.flashT*0.95).toFixed(3);
+        if(G.flashT===0) elFlash.style.opacity=0;
+      }
+      if(G.spike>0){
+        G.spike=Math.max(0,G.spike-dt*1.6);
+        spikeLight.intensity=G.spike*30;
+      }
+      if(G.ledFlash>0) G.ledFlash=Math.max(0,G.ledFlash-dt);
+    }
+
+    function step(dt){
+      G.simTime+=dt;
+      while(keyQueue.length){ handleKey(keyQueue.shift()); }
+      if(G.phase==='play'){
+        var stage=G.season.stage;
+        if(stage.kind==='pair'){
+          if(!stage.result){
+            var prev=Math.ceil(stage.clock);
+            var rate=Math.pow(RATE_BASE,stage.strikes);
+            stage.clock-=dt*rate;
+            if(stage.clock<0) stage.clock=0;
+            var nowS=Math.ceil(stage.clock);
+            if(nowS!==prev){ stage.flicker=0.12; AU.beep(stage.clock<30.02); }
+            if(stage.clock<=0) detonate(stage.states[stage.index],'clock');
+          }
+          for(var pi=0;pi<stage.states.length;pi++){
+            var ps=stage.states[pi];
+            ps.clock=stage.clock; ps.strikes=stage.strikes; ps.flicker=stage.flicker;
+          }
+          if(stage.flicker>0) stage.flicker=Math.max(0,stage.flicker-dt);
+        } else {
+          var sd=stage.states[stage.index];
+          if(!sd.result){
+            var prevD=Math.ceil(sd.clock);
+            var rateD=Math.pow(RATE_BASE,sd.strikes);
+            sd.clock-=dt*rateD;
+            if(sd.clock<0) sd.clock=0;
+            var nowSD=Math.ceil(sd.clock);
+            if(nowSD!==prevD){ sd.flicker=0.12; AU.beep(sd.clock<30.02); }
+            if(sd.clock<=0) detonate(sd,'clock');
+          }
+          if(sd.flicker>0) sd.flicker=Math.max(0,sd.flicker-dt);
+        }
+        if(stage.cardTimer>0){
+          stage.cardTimer-=dt;
+          if(stage.cardTimer<=0) showStageCard();
+        }
+      } else {
+        var st=activeState();
+        if(st){
+          if(G.phase==='testplay'&&!st.result){
+            var prev2=Math.ceil(st.clock);
+            var rate2=Math.pow(RATE_BASE,poolStrikes());
+            st.clock-=dt*rate2;
+            if(st.clock<0) st.clock=0;
+            var nowS2=Math.ceil(st.clock);
+            if(nowS2!==prev2){ st.flicker=0.12; AU.beep(st.clock<30.02); }
+            if(st.clock<=0) detonate(st,'clock');
+          }
+          if(st.flicker>0) st.flicker=Math.max(0,st.flicker-dt);
+          if(st.result&&st.cardTimer>0){
+            st.cardTimer-=dt;
+            if(st.cardTimer<=0) showCard(st);
+          }
+        }
+      }
+      updateAllDevices(dt);
+      updateSmoke(dt);
+      updateEffects(dt);
+      updateCamera(dt);
+    }
+
+    /* ================= HUD + arena state ================= */
+    function updateHUD(){
+      var st=activeState();
+      var rate=Math.pow(RATE_BASE,poolStrikes());
+      elClock.textContent=st.clock.toFixed(2);
+      elRate.textContent='CLOCK ×'+rate.toFixed(2);
+      elRate.className=(rate>1.001)?'hot':'idle';
+      for(var i=0;i<3;i++) dots[i].className='dot'+(i<poolStrikes()?' lit':'');
+      elDevice.textContent=(G.phase==='play'?('SEASON DEVICE '+seasonDeviceNumber()+'/6 · '):'')+st.config.name+' · '+st.config.serial+' · BATT '+st.config.batteries+' · FRK '+(st.config.frk?'LIT':'DARK');
+      if(G.phase==='play'){
+        var stage=G.season.stage;
+        var parts=[];
+        for(var ri=0;ri<G.season.roster.length;ri++){
+          var r=G.season.roster[ri];
+          var armed=(stage.kind==='shift'&&ri===stage.index)||(stage.kind==='pair'&&ri===3+stage.index)||(stage.kind==='fx'&&ri===5);
+          var word=r.state==='lost'?'LOST':(r.state==='defused'?'DEF':(armed?'ARM':'PEND'));
+          parts.push(r.name+' '+word);
+        }
+        elPair.textContent='SEASON: '+parts.join(' · ')+(G.season.complete?' · COMPLETE':'');
+      } else if(G.phase==='testplay'||G.phase==='testmenu'){
+        elPair.textContent='SEASON PAUSED FOR TEST';
+      } else {
+        elPair.textContent='';
+      }
+      var idx=activeModuleIndex(st);
+      var mod=st.modules[idx];
+      elModule.textContent=mod.type+' (BAY '+(idx+1)+')';
+      elStatus.textContent=mod.defused?'DEFUSED':(st.result==='lost'?'LOST':'ARMED');
+      elStatus.className=mod.defused?'ok':(st.result==='lost'?'bad':'val');
+      if(mod.type==='WIRE'){
+        elCutLbl.textContent='CUTS:';
+        elCuts.textContent=mod.cutProgress+'/'+mod.cuts.length;
+        elHold.textContent='';
+      } else if(mod.type==='ROTOR'){
+        elCutLbl.textContent='DETENT:';
+        elCuts.textContent=mod.detent+'/8';
+        elHold.textContent=(mod.locked?' · LOCKED':'')+(mod.lockResult==='wrong'?' · WRONG LOCK':'');
+      } else if(mod.type==='MEMORY'){
+        elCutLbl.textContent='STAGE:';
+        elCuts.textContent=Math.min(mod.stage,4)+'/4';
+        elHold.textContent='';
+      } else if(mod.type==='LINK'){
+        var ls=linkLampStates(st);
+        elCutLbl.textContent='ROW:';
+        elCuts.textContent=mod.row+'/2';
+        elHold.textContent=' · W:'+(ls.W?1:0)+' M:'+(ls.M?1:0)+' B:'+(ls.B?1:0);
+      } else {
+        elCutLbl.textContent='MODE:';
+        elCuts.textContent=mod.res.hold?'HOLD':'TAP';
+        elHold.textContent=(mod.held?(' · LAMP: '+holdLampColorAt(G.simTime-mod.pressT)):'')+(mod.table?(' · TABLE '+mod.table):'')+((G.phase!=='testplay')?(' · PAIR CUTS '+pairCutCount()):'');
+      }
+      elRow.textContent=mod.row;
+      elCam.textContent='CAM: '+(G.cameraMode==='desk'?'DESK OVERVIEW':'MODULE CLOSE-UP');
+    }
+    function writeArenaState(){
+      var st=activeState();
+      var wm=wireModuleOf(st);
+      var idx=activeModuleIndex(st);
+      var mod=st.modules[idx];
+      var btn=null, rotor=null, mem=null, link=null;
+      for(var i=0;i<st.modules.length;i++){
+        if(st.modules[i].type==='BUTTON') btn=st.modules[i];
+        if(st.modules[i].type==='ROTOR') rotor=st.modules[i];
+        if(st.modules[i].type==='MEMORY') mem=st.modules[i];
+        if(st.modules[i].type==='LINK') link=st.modules[i];
+      }
+      var ls=linkLampStates(st);
+      var season=G.season;
+      var seasonStage=season.stage;
+      var inPair=(G.phase!=='testplay'&&seasonStage.kind==='pair');
+      var pairData=null;
+      if(inPair){
+        var ma=seasonStage.states[0], sl=seasonStage.states[1];
+        var P=stage1Pos(ma);
+        var slRotor=null, slBtn=null, slLink=null;
+        for(var j=0;j<sl.modules.length;j++){
+          if(sl.modules[j].type==='ROTOR') slRotor=sl.modules[j];
+          if(sl.modules[j].type==='BUTTON') slBtn=sl.modules[j];
+          if(sl.modules[j].type==='LINK') slLink=sl.modules[j];
+        }
+        var tgt=null, mshift=0;
+        if(slRotor){
+          tgt=slRotor.lockDetent;
+          if(memorySolved(ma)){ tgt=(tgt%8)+1; mshift=1; }
+          if(P>0) tgt=((tgt-1+P)%8)+1;
+        }
+        var cuts=pairCutCount();
+        pairData=Object.freeze({
+          active:seasonStage.index,
+          failed:seasonStage.result==='lost',
+          cleared:seasonStage.result==='defused',
+          sharedClock:Math.round(seasonStage.clock*100)/100,
+          sharedStrikes:seasonStage.strikes,
+          devices:Object.freeze([ma,sl].map(function(s,si){
+            return Object.freeze({name:s.config.name,serial:s.config.serial,armed:si===seasonStage.index,
+              defused:s.result==='defused',lost:s.result==='lost',
+              modules:Object.freeze(s.modules.map(function(m){ return Object.freeze({type:m.type,defused:!!m.defused,row:m.row}); }))});
+          })),
+          stage1Pos:P,
+          rotorFeed:Object.freeze({stage1Pos:P,memoryShift:mshift,targetDetent:tgt,
+            detent:slRotor?slRotor.detent:null,locked:slRotor?!!slRotor.locked:null}),
+          buttonFeed:Object.freeze({wiresCutAcrossPair:cuts,tableWouldBe:(cuts>=2)?'B':'A',
+            table:slBtn?(slBtn.table||null):null}),
+          linkFeed:slLink?Object.freeze({W:ls.W,M:ls.M,B:ls.B}):null
+        });
+      }
+      var seasonData=null;
+      if(G.phase!=='testplay'){
+        var sp=seasonScoreParts();
+        seasonData=Object.freeze({
+          phase:season.phase,
+          stage:season.phase===0?('SHIFT · '+seasonStage.states[seasonStage.index].config.name):(season.phase===1?'LINKED PAIR':'FINAL EXAM'),
+          roster:Object.freeze(season.roster.map(function(r){
+            return Object.freeze({name:r.name,serial:r.serial,state:r.state,strikes:r.strikes});
+          })),
+          defusedCount:sp.defused,
+          strikeCount:sp.strikes,
+          defusedPoints:sp.defusedPoints,
+          strikeBonus:sp.bonus,
+          total:sp.total,
+          rating:sp.rating,
+          complete:season.complete
+        });
+      }
+      window.__arena_state=Object.freeze({
+        phase:G.phase,
+        clock:Math.round(st.clock*100)/100,
+        strikes:st.strikes,
+        serial:st.config.serial,
+        batteries:st.config.batteries,
+        frk:!!st.config.frk,
+        wires:Object.freeze(wm?wm.wires.map(function(w){ return Object.freeze({color:w.color,cut:!!w.cut}); }):[]),
+        manualRow:mod.row,
+        manualOpen:G.manualOpen,
+        cameraMode:G.cameraMode,
+        selectedTestDevice:(G.phase==='testmenu')?G.menuIndex:((G.phase==='testplay')?G.testIndex:null),
+        result:st.result,
+        modules:Object.freeze(st.modules.map(function(m){ return Object.freeze({type:m.type,defused:!!m.defused,row:m.row}); })),
+        activeModule:idx,
+        capColor:btn?btn.cap:null,
+        buttonHeld:btn?!!btn.held:false,
+        pressElapsed:(btn&&btn.held)?Math.round((G.simTime-btn.pressT)*1000)/1000:null,
+        holdLamp:(btn&&btn.held)?holdLampColorAt(G.simTime-btn.pressT):null,
+        rotorLamps:Object.freeze(rotor?rotor.lamps.slice():[]),
+        rotorDetent:rotor?rotor.detent:null,
+        rotorLocked:rotor?!!rotor.locked:null,
+        lockResult:rotor?rotor.lockResult:null,
+        memoryLabels:Object.freeze(mem?mem.labels.slice():[]),
+        memorySequence:Object.freeze(mem?mem.sequence.slice():[]),
+        memoryStage:mem?Math.min(mem.stage,4):null,
+        memoryHistory:Object.freeze(mem?mem.history.map(function(h){ return Object.freeze({stage:h.stage,pos:h.pos,label:h.label,digit:h.digit}); }):[]),
+        buttonTable:btn?(btn.table||null):null,
+        wireCutCount:wireCutCount(st),
+        pairWireCutCount:inPair?pairCutCount():null,
+        linkLamps:link?Object.freeze({W:ls.W,M:ls.M,B:ls.B}):null,
+        clockRate:Math.round(Math.pow(RATE_BASE,poolStrikes())*1000)/1000,
+        beepPhase:Math.round((st.clock-Math.floor(st.clock))*1000)/1000,
+        strikePool:poolStrikes(),
+        shiftIndex:seasonStage.index,
+        shiftDevices:Object.freeze(seasonStage.states.map(function(sd,i2){ return Object.freeze({armed:i2===seasonStage.index&&G.phase!=='testplay',defused:sd.result==='defused',lost:sd.result==='lost'}); })),
+        pairActive:inPair,
+        pairFailed:(G.phase!=='testplay')?(season.roster[3].state==='lost'||season.roster[4].state==='lost'):null,
+        pairCleared:(G.phase!=='testplay')?(season.roster[3].state==='defused'&&season.roster[4].state==='defused'):null,
+        sharedClock:inPair?Math.round(seasonStage.clock*100)/100:null,
+        pair:pairData,
+        season:seasonData
+      });
+    }
+
+    /* ================= main loop ================= */
+    var lastT=0, acc=0;
+    function frame(now){
+      requestAnimationFrame(frame);
+      if(!lastT) lastT=now;
+      var dt=(now-lastT)/1000; lastT=now;
+      if(dt>0.25) dt=0.25;
+      acc+=dt;
+      var guard=0;
+      while(acc>=STEP&&guard<6){ step(STEP); acc-=STEP; guard++; }
+      if(guard===6) acc=0;
+      renderer.render(scene,camera);
+      updateHUD();
+      writeArenaState();
+    }
+
+    /* ================= input ================= */
+    function bindInput(){
+      window.addEventListener('keydown',function(e){
+        if(e.metaKey||e.ctrlKey||e.altKey) return;
+        if(e.repeat) return;
+        if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','Tab'].indexOf(e.code)>=0) e.preventDefault();
+        keyQueue.push(e.code==='Space'?'SpaceDown':e.code);
+      });
+      window.addEventListener('keyup',function(e){
+        if(e.metaKey||e.ctrlKey||e.altKey) return;
+        if(e.code==='Space') keyQueue.push('SpaceUp');
+      });
+    }
+
+    /* ================= boot ================= */
+    function boot(){
+      try{ initThree(); }
+      catch(err){ elFatal.classList.remove('hidden'); return; }
+      buildBench();
+      initSmoke();
+      rebuildDevices();
+      bindInput();
+      syncManual();
+      requestAnimationFrame(frame);
+    }
+
+    if(window.THREE){
+      boot();
+    } else {
+      /* fallback: ES-module build vendored in the workspace (works over http) */
+      import('./vendor/three/three.module.min.js')
+        .then(function(m){ window.THREE=m; boot(); })
+        .catch(function(){ elFatal.classList.remove('hidden'); });
+    }
+  })();
+  /*GAMEJS-END*/
+  </script>
+</body>
+</html>

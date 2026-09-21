@@ -1,0 +1,2450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Deeptide Voyager</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #02060d;
+      font-family: 'Consolas', 'Courier New', monospace, sans-serif;
+      color: #bbf0f7;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      left: 0;
+      top: 0;
+      z-index: 1;
+    }
+
+    /* Screen edge vignette for pressure warning */
+    #pressure-vignette {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 5;
+      box-shadow: inset 0 0 120px 40px rgba(220, 20, 20, 0);
+      transition: box-shadow 0.15s ease;
+    }
+    .pressure-pulse {
+      animation: pressurePulse 1s infinite alternate;
+    }
+    @keyframes pressurePulse {
+      0% { box-shadow: inset 0 0 80px 30px rgba(220, 20, 20, 0.35); }
+      100% { box-shadow: inset 0 0 160px 70px rgba(255, 10, 10, 0.75); }
+    }
+
+    /* Damage flash overlay */
+    #damage-flash {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 40, 40, 0);
+      pointer-events: none;
+      z-index: 6;
+      transition: background 0.1s linear;
+    }
+
+    /* Upgrade flash overlay */
+    #upgrade-flash {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(80, 220, 255, 0);
+      pointer-events: none;
+      z-index: 6;
+      transition: background 0.15s linear;
+    }
+
+    /* HUD Layout */
+    #hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+      padding: 16px 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .top-hud {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .gauges-card {
+      background: rgba(4, 18, 30, 0.85);
+      border: 1px solid rgba(0, 240, 255, 0.35);
+      border-radius: 6px;
+      padding: 12px 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), inset 0 0 12px rgba(0, 220, 255, 0.1);
+      width: 290px;
+      backdrop-filter: blur(4px);
+    }
+
+    .gauge-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 7px;
+      font-size: 13px;
+      letter-spacing: 1px;
+      font-weight: bold;
+    }
+    .gauge-row:last-child {
+      margin-bottom: 0;
+    }
+    .gauge-label {
+      width: 80px;
+      color: #6edbf0;
+      text-shadow: 0 0 6px rgba(0, 240, 255, 0.5);
+    }
+    .gauge-bar-bg {
+      flex: 1;
+      height: 10px;
+      background: rgba(8, 32, 48, 0.9);
+      border: 1px solid rgba(0, 200, 240, 0.3);
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 0 10px;
+      position: relative;
+    }
+    .gauge-bar-fill {
+      height: 100%;
+      width: 100%;
+      transition: width 0.08s linear;
+      border-radius: 2px;
+    }
+    #battery-bar {
+      background: linear-gradient(90deg, #ffaa00, #00f0ff);
+      box-shadow: 0 0 8px #00f0ff;
+    }
+    #oxygen-bar {
+      background: linear-gradient(90deg, #0088ff, #44ffff);
+      box-shadow: 0 0 8px #00e5ff;
+    }
+    #hull-bar {
+      background: linear-gradient(90deg, #ff2244, #22ff88);
+      box-shadow: 0 0 8px #22ff88;
+    }
+    .gauge-value {
+      width: 55px;
+      text-align: right;
+      color: #e2f8ff;
+      font-size: 12px;
+    }
+
+    /* Depth Gauge */
+    .depth-card {
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1px dashed rgba(0, 240, 255, 0.25);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: bold;
+    }
+    #depth-readout {
+      color: #4df4c8;
+      text-shadow: 0 0 8px rgba(77, 244, 200, 0.6);
+      transition: color 0.15s ease;
+    }
+    #depth-readout.warning {
+      color: #ff3344;
+      text-shadow: 0 0 12px #ff1122;
+      animation: textBlink 0.6s infinite alternate;
+    }
+    @keyframes textBlink {
+      0% { opacity: 0.7; }
+      100% { opacity: 1; }
+    }
+    #rated-depth-label {
+      font-size: 11px;
+      color: #8bbdc8;
+    }
+
+    /* Mission Board HUD Panel */
+    .board-card {
+      background: rgba(4, 18, 30, 0.88);
+      border: 1px solid rgba(130, 100, 255, 0.45);
+      border-radius: 6px;
+      padding: 10px 18px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), inset 0 0 15px rgba(120, 80, 255, 0.12);
+      min-width: 320px;
+      backdrop-filter: blur(4px);
+    }
+    .board-title {
+      font-size: 12px;
+      letter-spacing: 2px;
+      color: #c7a4ff;
+      border-bottom: 1px solid rgba(180, 140, 255, 0.3);
+      padding-bottom: 4px;
+      margin-bottom: 6px;
+      text-align: center;
+      text-shadow: 0 0 8px rgba(180, 140, 255, 0.6);
+    }
+    .mission-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      margin-bottom: 4px;
+      letter-spacing: 1px;
+    }
+    .mission-row:last-child {
+      margin-bottom: 0;
+    }
+    .mission-name {
+      color: #e5d8ff;
+    }
+    .mission-status {
+      font-weight: bold;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+    }
+    .status-live {
+      color: #ffcc00;
+      background: rgba(255, 204, 0, 0.15);
+      border: 1px solid rgba(255, 204, 0, 0.4);
+      text-shadow: 0 0 6px rgba(255, 204, 0, 0.6);
+    }
+    .status-complete {
+      color: #44ffaa;
+      background: rgba(68, 255, 170, 0.15);
+      border: 1px solid rgba(68, 255, 170, 0.4);
+      text-shadow: 0 0 6px rgba(68, 255, 170, 0.6);
+    }
+
+    /* Submarine status tags & cargo */
+    .status-card {
+      background: rgba(4, 18, 30, 0.85);
+      border: 1px solid rgba(0, 240, 255, 0.35);
+      border-radius: 6px;
+      padding: 10px 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+      width: 280px;
+      backdrop-filter: blur(4px);
+    }
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+      font-size: 11px;
+    }
+    .status-row:last-child {
+      margin-bottom: 0;
+    }
+    .indicator-tag {
+      padding: 2px 7px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+    .tag-docked {
+      background: rgba(34, 255, 136, 0.2);
+      border: 1px solid #22ff88;
+      color: #22ff88;
+      text-shadow: 0 0 8px #22ff88;
+    }
+    .tag-undocked {
+      background: rgba(100, 150, 180, 0.15);
+      border: 1px solid rgba(100, 150, 180, 0.3);
+      color: #7b9fa8;
+    }
+    .tag-on {
+      background: rgba(255, 220, 60, 0.2);
+      border: 1px solid #ffd83c;
+      color: #ffd83c;
+      text-shadow: 0 0 8px #ffd83c;
+    }
+    .tag-off {
+      background: rgba(100, 150, 180, 0.15);
+      border: 1px solid rgba(100, 150, 180, 0.3);
+      color: #7b9fa8;
+    }
+    .tag-current {
+      background: rgba(0, 240, 255, 0.25);
+      border: 1px solid #00f0ff;
+      color: #00f0ff;
+      text-shadow: 0 0 8px #00f0ff;
+    }
+    .tag-beacon {
+      background: rgba(255, 170, 0, 0.25);
+      border: 1px solid #ffaa00;
+      color: #ffaa00;
+      text-shadow: 0 0 8px #ffaa00;
+    }
+
+    /* Sonar Pip indicator */
+    #sonar-pip {
+      display: inline-block;
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: #00f0ff;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 10px #00f0ff;
+      transition: background 0.1s ease, box-shadow 0.1s ease;
+    }
+    #sonar-pip.cooling {
+      background: #334455;
+      border-color: #667788;
+      box-shadow: none;
+    }
+    #sonar-pip.empty-flash {
+      background: #ff2233 !important;
+      border-color: #ff8888 !important;
+      box-shadow: 0 0 12px #ff2233 !important;
+    }
+
+    /* Banners & Modal Overlays */
+    #dive-banner {
+      position: absolute;
+      top: 18%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(6, 24, 40, 0.95);
+      border: 2px solid #55ffbb;
+      box-shadow: 0 0 30px rgba(85, 255, 187, 0.6);
+      padding: 16px 40px;
+      border-radius: 8px;
+      color: #bbfcee;
+      font-size: 24px;
+      letter-spacing: 4px;
+      font-weight: bold;
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      z-index: 50;
+      backdrop-filter: blur(8px);
+    }
+    #dive-banner.visible {
+      opacity: 1;
+    }
+
+    .modal-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(2, 6, 14, 0.88);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      pointer-events: auto;
+      backdrop-filter: blur(6px);
+    }
+    .modal-title {
+      font-size: 40px;
+      letter-spacing: 6px;
+      margin-bottom: 16px;
+      font-weight: bold;
+      text-shadow: 0 0 20px rgba(0, 240, 255, 0.8);
+      text-align: center;
+    }
+    .modal-subtitle {
+      font-size: 15px;
+      color: #9cdcee;
+      margin-bottom: 24px;
+      letter-spacing: 2px;
+      max-width: 660px;
+      text-align: center;
+      line-height: 1.6;
+    }
+    .controls-grid {
+      background: rgba(6, 26, 44, 0.7);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      border-radius: 6px;
+      padding: 16px 24px;
+      display: grid;
+      grid-template-columns: auto auto;
+      column-gap: 26px;
+      row-gap: 8px;
+      margin-bottom: 26px;
+      font-size: 13px;
+    }
+    .controls-grid .key {
+      color: #ffd83c;
+      font-weight: bold;
+    }
+    .modal-prompt {
+      font-size: 20px;
+      color: #00f0ff;
+      letter-spacing: 3px;
+      animation: pulsePrompt 1.2s infinite alternate;
+      font-weight: bold;
+    }
+    @keyframes pulsePrompt {
+      0% { opacity: 0.5; transform: scale(0.98); }
+      100% { opacity: 1; transform: scale(1.02); }
+    }
+
+    #blackout-overlay {
+      background: rgba(0, 2, 6, 0.96);
+    }
+    #hullbreach-overlay {
+      background: rgba(20, 2, 2, 0.94);
+    }
+    #victory-overlay {
+      background: rgba(3, 16, 28, 0.94);
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="pressure-vignette"></div>
+  <div id="damage-flash"></div>
+  <div id="upgrade-flash"></div>
+
+  <div id="hud">
+    <div class="top-hud">
+      <!-- Left Gauges -->
+      <div class="gauges-card">
+        <div class="gauge-row">
+          <span class="gauge-label">BATTERY</span>
+          <div class="gauge-bar-bg">
+            <div id="battery-bar" class="gauge-bar-fill"></div>
+          </div>
+          <span id="battery-val" class="gauge-value">140/140</span>
+        </div>
+        <div class="gauge-row">
+          <span class="gauge-label">OXYGEN</span>
+          <div class="gauge-bar-bg">
+            <div id="oxygen-bar" class="gauge-bar-fill"></div>
+          </div>
+          <span id="oxygen-val" class="gauge-value">180s</span>
+        </div>
+        <div class="gauge-row">
+          <span class="gauge-label">HULL</span>
+          <div class="gauge-bar-bg">
+            <div id="hull-bar" class="gauge-bar-fill"></div>
+          </div>
+          <span id="hull-val" class="gauge-value">100%</span>
+        </div>
+        <div class="depth-card">
+          <span>DEPTH: <span id="depth-readout">20m</span></span>
+          <span id="rated-depth-label">RATED: 80m</span>
+        </div>
+      </div>
+
+      <!-- Center Mission Board -->
+      <div class="board-card">
+        <div class="board-title">HAVEN DOCK MISSION BOARD</div>
+        <div class="mission-row">
+          <span class="mission-name">DIVE I — THE LUMEN PODS</span>
+          <span id="board-dive1" class="mission-status status-live">LIVE</span>
+        </div>
+        <div class="mission-row">
+          <span class="mission-name">DIVE II — RESONANCE</span>
+          <span id="board-dive2" class="mission-status status-live">LIVE</span>
+        </div>
+        <div class="mission-row">
+          <span class="mission-name">DIVE III — THE SHELF</span>
+          <span id="board-dive3" class="mission-status status-live">LIVE</span>
+        </div>
+        <div class="mission-row">
+          <span class="mission-name">DIVE IV — THE SURVEY</span>
+          <span id="board-dive4" class="mission-status status-live">LIVE</span>
+        </div>
+      </div>
+
+      <!-- Right Sub Telemetry & Cargo -->
+      <div class="status-card">
+        <div class="status-row">
+          <span>STATION</span>
+          <span id="docked-tag" class="indicator-tag tag-docked">DOCKED</span>
+        </div>
+        <div class="status-row">
+          <span>HEADLAMP [L]</span>
+          <span id="headlamp-tag" class="indicator-tag tag-on">ON</span>
+        </div>
+        <div class="status-row">
+          <span>SONAR [F]</span>
+          <div id="sonar-pip"></div>
+        </div>
+        <div class="status-row">
+          <span>WATER CURRENT</span>
+          <span id="current-tag" class="indicator-tag tag-off">CALM</span>
+        </div>
+        <div class="status-row">
+          <span>SURVEY BEACON [B]</span>
+          <span id="beacon-tag" class="indicator-tag tag-off">NONE</span>
+        </div>
+        <div class="status-row" style="margin-top: 4px; border-top: 1px dashed rgba(0,240,255,0.2); padding-top: 3px;">
+          <span>CARGO PODS:</span>
+          <span id="cargo-pods" style="color: #4df4c8; font-weight: bold;">0/3 (Banked 0)</span>
+        </div>
+        <div class="status-row">
+          <span>CRYSTALS:</span>
+          <span id="cargo-crystals" style="color: #ff9cf5; font-weight: bold;">0/6 (Banked 0)</span>
+        </div>
+        <div class="status-row">
+          <span>ABYSS:</span>
+          <span id="cargo-abyss" style="color: #6ee7ff; font-weight: bold;">0/4 (Banked 0)</span>
+        </div>
+        <div class="status-row">
+          <span>SURVEY:</span>
+          <span id="cargo-survey" style="color: #ffaa00; font-weight: bold;">0/3</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Temporary 3s dive completion banner -->
+  <div id="dive-banner">DIVE I COMPLETE</div>
+
+  <!-- Ready Overlay -->
+  <div id="ready-overlay" class="modal-overlay">
+    <div class="modal-title" style="color: #00f0ff;">DEEPTIDE VOYAGER</div>
+    <div class="modal-subtitle">
+      Piloting research submarine Deeptide. Explore the Lumen Rift, traverse the pitch-black Duskreach Hollow, conquer the Twilight Shelf, navigate treacherous water currents, and brave the scalding Vent Gauntlet to complete the Survey.
+    </div>
+    <div class="controls-grid">
+      <div><span class="key">W / S</span> : Forward / Reverse Thrust</div>
+      <div><span class="key">A / D</span> : Yaw Left / Right</div>
+      <div><span class="key">Space / Shift</span> : Ascend / Descend</div>
+      <div><span class="key">L</span> : Toggle Forward Headlamp</div>
+      <div><span class="key">F</span> : Fire Acoustic Sonar Ping</div>
+      <div><span class="key">B</span> : Load / Plant Survey Beacon</div>
+      <div><span class="key">R</span> : Emergency Reset</div>
+    </div>
+    <div class="modal-prompt">PRESS ENTER TO DIVE</div>
+  </div>
+
+  <!-- Blackout End Screen -->
+  <div id="blackout-overlay" class="modal-overlay" style="display: none;">
+    <div class="modal-title" style="color: #4488ff;">BLACKOUT</div>
+    <div class="modal-subtitle">Life support depleted. The Deeptide drifts silent in the abyssal calm.</div>
+    <div class="modal-prompt">PRESS R TO RESTORE</div>
+  </div>
+
+  <!-- Hull Breach End Screen -->
+  <div id="hullbreach-overlay" class="modal-overlay" style="display: none;">
+    <div class="modal-title" style="color: #ff2244;">HULL BREACH</div>
+    <div class="modal-subtitle">Structural integrity failed. The submarine has imploded under hydrostatic pressure or superheated vents.</div>
+    <div class="modal-prompt">PRESS R TO RESTORE</div>
+  </div>
+
+  <!-- All Dives Complete End Screen -->
+  <div id="victory-overlay" class="modal-overlay" style="display: none;">
+    <div class="modal-title" style="color: #6effb0;">ALL DIVES COMPLETE</div>
+    <div class="modal-subtitle">Every objective across the Rift, the Hollow, the Twilight Shelf, and the Bell Approach has been recovered and secured. The abyss survey is complete.</div>
+    <div class="modal-prompt">PRESS R TO RESTORE</div>
+  </div>
+
+  <!-- Local classic Three.js runtime -->
+  <!-- Deeptide Voyager Round 7 -->
+<script src="./assets/_shared/three/build/three.min.js"></script>
+
+  <script>
+    /* Deeptide Voyager - Round 4 Implementation */
+    // Deterministic Audio Synthesizer via Web Audio API
+    const AudioEngine = (() => {
+      let ctx = null;
+      function getContext() {
+        if (!ctx && (window.AudioContext || window.webkitAudioContext)) {
+          ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (ctx && ctx.state === 'suspended') {
+          ctx.resume();
+        }
+        return ctx;
+      }
+      return {
+        playPing() {
+          const ac = getContext();
+          if (!ac) return;
+          const osc = ac.createOscillator();
+          const gain = ac.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(840, ac.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(140, ac.currentTime + 0.8);
+          gain.gain.setValueAtTime(0.3, ac.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.8);
+          osc.connect(gain);
+          gain.connect(ac.destination);
+          osc.start();
+          osc.stop(ac.currentTime + 0.85);
+        },
+        playChime() {
+          const ac = getContext();
+          if (!ac) return;
+          [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
+            const osc = ac.createOscillator();
+            const gain = ac.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, ac.currentTime + idx * 0.08);
+            gain.gain.setValueAtTime(0.2, ac.currentTime + idx * 0.08);
+            gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + idx * 0.08 + 0.6);
+            osc.connect(gain);
+            gain.connect(ac.destination);
+            osc.start(ac.currentTime + idx * 0.08);
+            osc.stop(ac.currentTime + idx * 0.08 + 0.65);
+          });
+        },
+        playClank() {
+          const ac = getContext();
+          if (!ac) return;
+          const osc = ac.createOscillator();
+          const gain = ac.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(220, ac.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(60, ac.currentTime + 0.4);
+          gain.gain.setValueAtTime(0.35, ac.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.4);
+          osc.connect(gain);
+          gain.connect(ac.destination);
+          osc.start();
+          osc.stop(ac.currentTime + 0.45);
+        },
+        playImpact() {
+          const ac = getContext();
+          if (!ac) return;
+          const osc = ac.createOscillator();
+          const gain = ac.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(120, ac.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(30, ac.currentTime + 0.3);
+          gain.gain.setValueAtTime(0.4, ac.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.3);
+          osc.connect(gain);
+          gain.connect(ac.destination);
+          osc.start();
+          osc.stop(ac.currentTime + 0.35);
+        },
+        playClick() {
+          const ac = getContext();
+          if (!ac) return;
+          const osc = ac.createOscillator();
+          const gain = ac.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(300, ac.currentTime);
+          gain.gain.setValueAtTime(0.15, ac.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.05);
+          osc.connect(gain);
+          gain.connect(ac.destination);
+          osc.start();
+          osc.stop(ac.currentTime + 0.06);
+        },
+        playBeaconAnchor() {
+          const ac = getContext();
+          if (!ac) return;
+          const osc = ac.createOscillator();
+          const gain = ac.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(440, ac.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(880, ac.currentTime + 0.5);
+          gain.gain.setValueAtTime(0.3, ac.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.5);
+          osc.connect(gain);
+          gain.connect(ac.destination);
+          osc.start();
+          osc.stop(ac.currentTime + 0.55);
+        }
+      };
+    })();
+
+    // Constants & Retune
+    const MAX_BATTERY = 140;
+    const HEADLAMP_DRAIN = 2.5; // 2.5/s
+    const SONAR_PULSE_COST = 8; // 8 battery
+    const THRUST_DRAIN = 1.0; // 1/s holding any thrust key
+    const OXYGEN_MAX = 180;
+    const HULL_MAX = 100;
+    const DOCK_RECHARGE_RATE = 20; // 20/s
+    const DOCK_REFILL_RATE = 30; // 30/s
+    const DOCK_REPAIR_RATE = 10; // 10/s
+    const PRESSURE_HULL_DRAIN = 2.0; // 2/s below rated depth
+    const VENT_ERUPTION_DRAIN = 10.0; // 10 hull/s while inside erupting vent column
+    const CURRENT_PUSH_SPEED = 6.0; // 6 units/s constant push inside bands
+
+    // Movement constants
+    const ACCEL_RATE = 4.0;
+    const MAX_SPEED_FWD_NORMAL = 8.0;
+    const MAX_SPEED_FWD_BEACON = 6.0;
+    const MAX_SPEED_REV = 3.0;
+    const MAX_SPEED_VERT = 4.0;
+    const YAW_RATE = Math.PI / 3; // 60 degrees per second
+
+    // Game State
+    const gameState = {
+      phase: 'ready', // 'ready', 'playing', 'blackout', 'hull_breach', 'all_dives_complete'
+      battery: MAX_BATTERY,
+      oxygen: OXYGEN_MAX,
+      hull: HULL_MAX,
+      docked: true,
+      headlamp: true,
+      sonarCooldown: 0,
+      ratedDepth: 80,
+      platingsInstalled: 0,
+
+      // Current & Beacon state
+      inCurrent: false,
+      beaconAboard: false,
+      beaconsPlanted: 0,
+
+      // Objectives
+      podsAboard: 0,
+      podsBanked: 0,
+      crystalsAboard: 0,
+      crystalsBanked: 0,
+      abyssAboard: 0,
+      abyssBanked: 0,
+
+      dive1Complete: false,
+      dive2Complete: false,
+      dive3Complete: false,
+      dive4Complete: false,
+
+      // Banner tracking
+      bannerTimeout: 0,
+      lastCollisionTime: -10,
+
+      // Physics velocity
+      forwardVel: 0,
+      verticalVel: 0,
+      yaw: 0,
+      roll: 0,
+      pitch: 0
+    };
+
+    // Input tracker
+    const keys = {
+      KeyW: false,
+      KeyS: false,
+      KeyA: false,
+      KeyD: false,
+      Space: false,
+      ShiftLeft: false,
+      ShiftRight: false
+    };
+
+    // Three.js Scene Setup
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x010814);
+    scene.fog = new THREE.FogExp2(0x010814, 0.016);
+
+    const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 500);
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = false;
+      container.appendChild(renderer.domElement);
+    } catch (e) {
+      console.warn('WebGL context creation failed, using headless fallback renderer');
+      const canvas = document.createElement('canvas');
+      canvas.width = window.innerWidth || 800;
+      canvas.height = window.innerHeight || 600;
+      container.appendChild(canvas);
+      renderer = {
+        domElement: canvas,
+        setSize() {},
+        setPixelRatio() {},
+        render() {},
+        shadowMap: {}
+      };
+    }
+
+    // Ambient and Directional Bioluminescent Lights
+    const ambientLight = new THREE.AmbientLight(0x0a2238, 1.2);
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0x1870a0, 0.8);
+    dirLight.position.set(20, 60, -20);
+    scene.add(dirLight);
+
+    // Collision Registry
+    const colliders = [];
+
+    // Wireframe overlay tracking for sonar
+    const wireframeMeshes = [];
+
+    function registerWireframeOverlay(mesh) {
+      if (!mesh || !mesh.geometry) return;
+      const wireGeo = new THREE.WireframeGeometry(mesh.geometry);
+      const wireMat = new THREE.LineBasicMaterial({
+        color: 0x44f0ff,
+        transparent: true,
+        opacity: 0,
+        linewidth: 1
+      });
+      const lineMesh = new THREE.LineSegments(wireGeo, wireMat);
+      lineMesh.matrixAutoUpdate = false;
+      mesh.add(lineMesh);
+      wireframeMeshes.push({ mesh, lineMesh, litTimer: 0 });
+    }
+
+    // Thermocline Ceiling at Y = 0 (Visible ripples, shimmering)
+    const ceilingGeo = new THREE.PlaneGeometry(350, 450, 64, 64);
+    ceilingGeo.rotateX(Math.PI / 2);
+    const ceilingMat = new THREE.MeshBasicMaterial({
+      color: 0x00d4ff,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.28
+    });
+    const ceilingMesh = new THREE.Mesh(ceilingGeo, ceilingMat);
+    ceilingMesh.position.set(0, 0, 40);
+    scene.add(ceilingMesh);
+
+    // Haven Dock Station (Brass supply station at cradle near 20 meters depth: Y = -20)
+    const havenDockGroup = new THREE.Group();
+    havenDockGroup.position.set(0, -20, 0);
+
+    // Dock Central Hub
+    const dockHubGeo = new THREE.CylinderGeometry(8, 10, 7, 12);
+    const dockBrassMat = new THREE.MeshStandardMaterial({
+      color: 0xba8c42,
+      roughness: 0.35,
+      metalness: 0.85
+    });
+    const dockHubMesh = new THREE.Mesh(dockHubGeo, dockBrassMat);
+    dockHubMesh.position.y = 4;
+    havenDockGroup.add(dockHubMesh);
+    registerWireframeOverlay(dockHubMesh);
+
+    // Mooring Pylons & Anchors
+    for (let i = 0; i < 4; i++) {
+      const angle = (i * Math.PI) / 2;
+      const armGeo = new THREE.BoxGeometry(2, 2, 14);
+      const armMesh = new THREE.Mesh(armGeo, dockBrassMat);
+      armMesh.position.set(Math.sin(angle) * 7, 4, Math.cos(angle) * 7);
+      armMesh.rotation.y = angle;
+      havenDockGroup.add(armMesh);
+
+      const pylonGeo = new THREE.CylinderGeometry(0.8, 0.8, 45, 8);
+      const pylonMesh = new THREE.Mesh(pylonGeo, dockBrassMat);
+      pylonMesh.position.set(Math.sin(angle) * 14, -18, Math.cos(angle) * 14);
+      havenDockGroup.add(pylonMesh);
+      registerWireframeOverlay(pylonMesh);
+    }
+
+    // Lit Docking Cradle (Glowing ring where Deeptide docks)
+    const cradleRingGeo = new THREE.TorusGeometry(5.5, 0.45, 12, 32);
+    cradleRingGeo.rotateX(Math.PI / 2);
+    const cradleRingMat = new THREE.MeshBasicMaterial({
+      color: 0x00ffcc,
+      transparent: true,
+      opacity: 0.85
+    });
+    const cradleRingMesh = new THREE.Mesh(cradleRingGeo, cradleRingMat);
+    cradleRingMesh.position.set(0, 0, 0);
+    havenDockGroup.add(cradleRingMesh);
+
+    const cradleLight = new THREE.PointLight(0x00ffcc, 2.5, 30);
+    cradleLight.position.set(0, 1, 0);
+    havenDockGroup.add(cradleLight);
+
+    // Physical In-World Mission Board mounted on Haven Dock
+    const boardPanelGeo = new THREE.BoxGeometry(6, 4, 0.5);
+    const boardPanelMat = new THREE.MeshBasicMaterial({ color: 0x08182b });
+    const boardPanelMesh = new THREE.Mesh(boardPanelGeo, boardPanelMat);
+    boardPanelMesh.position.set(0, 6, -8);
+    havenDockGroup.add(boardPanelMesh);
+
+    const boardGlowGeo = new THREE.PlaneGeometry(5.6, 3.6);
+    const boardCanvas = document.createElement('canvas');
+    boardCanvas.width = 512;
+    boardCanvas.height = 340;
+    const boardCtx = boardCanvas.getContext('2d');
+    const boardTexture = new THREE.CanvasTexture(boardCanvas);
+    const boardScreenMat = new THREE.MeshBasicMaterial({ map: boardTexture, transparent: true });
+    const boardScreenMesh = new THREE.Mesh(boardGlowGeo, boardScreenMat);
+    boardScreenMesh.position.set(0, 6, -7.7);
+    havenDockGroup.add(boardScreenMesh);
+
+    // Beacon Rack on Haven Dock holding Survey Beacons
+    const beaconRackPos = new THREE.Vector3(5.5, -20.0, -2.5);
+    const beaconRackGroup = new THREE.Group();
+    beaconRackGroup.position.copy(beaconRackPos);
+
+    const rackFrameGeo = new THREE.BoxGeometry(1.6, 2.2, 0.8);
+    const rackFrameMat = new THREE.MeshStandardMaterial({ color: 0x445566, metalness: 0.8, roughness: 0.3 });
+    const rackFrameMesh = new THREE.Mesh(rackFrameGeo, rackFrameMat);
+    beaconRackGroup.add(rackFrameMesh);
+    registerWireframeOverlay(rackFrameMesh);
+
+    // Stored beacons in rack
+    for (let br = 0; br < 3; br++) {
+      const bGeo = new THREE.CylinderGeometry(0.2, 0.2, 1.2, 8);
+      const bMat = new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0x663300, roughness: 0.3 });
+      const bMesh = new THREE.Mesh(bGeo, bMat);
+      bMesh.position.set(-0.4 + br * 0.4, 0.2, 0.2);
+      beaconRackGroup.add(bMesh);
+    }
+    const rackLight = new THREE.PointLight(0xffaa00, 1.5, 8);
+    rackLight.position.set(0, 0.5, 0.5);
+    beaconRackGroup.add(rackLight);
+    scene.add(beaconRackGroup);
+
+    scene.add(havenDockGroup);
+
+    // Dock colliders (Upper hub and structural arms; cradle is open water)
+    colliders.push({
+      type: 'box',
+      center: new THREE.Vector3(0, -10, 0),
+      size: new THREE.Vector3(16, 8, 16),
+      isDock: true
+    });
+
+    // Submarine Construction (The Deeptide)
+    const sub = new THREE.Group();
+    sub.position.set(0, -20, 8);
+
+    // Main hull
+    const hullGeo = new THREE.CylinderGeometry(1.0, 0.9, 5.0, 16);
+    hullGeo.rotateX(Math.PI / 2);
+    const subMat = new THREE.MeshStandardMaterial({
+      color: 0x1b4054,
+      roughness: 0.3,
+      metalness: 0.75
+    });
+    const subHullMesh = new THREE.Mesh(hullGeo, subMat);
+    sub.add(subHullMesh);
+
+    // Nose cone
+    const noseGeo = new THREE.SphereGeometry(1.0, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+    noseGeo.rotateX(-Math.PI / 2);
+    const noseMesh = new THREE.Mesh(noseGeo, subMat);
+    noseMesh.position.z = 2.5;
+    sub.add(noseMesh);
+
+    // Viewport dome
+    const domeGeo = new THREE.SphereGeometry(0.55, 16, 16);
+    const domeMat = new THREE.MeshBasicMaterial({ color: 0x44ffff });
+    const domeMesh = new THREE.Mesh(domeGeo, domeMat);
+    domeMesh.position.set(0, 0.25, 3.1);
+    sub.add(domeMesh);
+
+    // Conning Fin
+    const finGeo = new THREE.BoxGeometry(0.35, 1.2, 1.8);
+    const finMesh = new THREE.Mesh(finGeo, subMat);
+    finMesh.position.set(0, 1.2, 0.2);
+    sub.add(finMesh);
+
+    // Headlamp Housing & SpotLight
+    const lampHousingGeo = new THREE.CylinderGeometry(0.3, 0.35, 0.6, 12);
+    lampHousingGeo.rotateX(Math.PI / 2);
+    const lampHousingMat = new THREE.MeshStandardMaterial({ color: 0x334455, metalness: 0.9 });
+    const lampHousingMesh = new THREE.Mesh(lampHousingGeo, lampHousingMat);
+    lampHousingMesh.position.set(0, -0.4, 3.1);
+    sub.add(lampHousingMesh);
+
+    const headlampSpot = new THREE.SpotLight(0xfff6cf, 4.5, 45, Math.PI / 6, 0.3, 1.2);
+    headlampSpot.position.set(0, -0.4, 3.3);
+    const headlampTarget = new THREE.Object3D();
+    headlampTarget.position.set(0, -0.4, 25);
+    sub.add(headlampSpot);
+    sub.add(headlampTarget);
+    headlampSpot.target = headlampTarget;
+
+    const coneBeamGeo = new THREE.ConeGeometry(8, 28, 16, 1, true);
+    coneBeamGeo.rotateX(-Math.PI / 2);
+    coneBeamGeo.translate(0, 0, 14);
+    const coneBeamMat = new THREE.MeshBasicMaterial({
+      color: 0xfff0aa,
+      transparent: true,
+      opacity: 0.15,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    const coneBeamMesh = new THREE.Mesh(coneBeamGeo, coneBeamMat);
+    coneBeamMesh.position.set(0, -0.4, 3.2);
+    sub.add(coneBeamMesh);
+
+    // Dive Planes
+    const divePlaneLeft = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.08, 0.6), subMat);
+    const divePlaneRight = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.08, 0.6), subMat);
+    divePlaneLeft.position.set(-1.4, -0.1, 0.8);
+    divePlaneRight.position.set(1.4, -0.1, 0.8);
+    sub.add(divePlaneLeft);
+    sub.add(divePlaneRight);
+
+    // Stern Propeller
+    const propGroup = new THREE.Group();
+    propGroup.position.set(0, 0, -2.6);
+    const propHubMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.4, 12), lampHousingMat);
+    propHubMesh.rotation.x = Math.PI / 2;
+    propGroup.add(propHubMesh);
+
+    for (let i = 0; i < 3; i++) {
+      const bladeMesh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.9, 0.06), subMat);
+      bladeMesh.rotation.z = (i * Math.PI * 2) / 3;
+      bladeMesh.position.set(
+        Math.sin((i * Math.PI * 2) / 3) * 0.45,
+        Math.cos((i * Math.PI * 2) / 3) * 0.45,
+        0
+      );
+      propGroup.add(bladeMesh);
+    }
+    sub.add(propGroup);
+
+    // Visibly Clamped Survey Beacon Under Hull
+    const subBeaconGeo = new THREE.CylinderGeometry(0.22, 0.22, 1.4, 8);
+    subBeaconGeo.rotateX(Math.PI / 2);
+    const subBeaconMat = new THREE.MeshStandardMaterial({
+      color: 0xffaa00,
+      emissive: 0x995500,
+      roughness: 0.2,
+      metalness: 0.7
+    });
+    const subBeaconMesh = new THREE.Mesh(subBeaconGeo, subBeaconMat);
+    subBeaconMesh.position.set(0, -1.05, 0.4);
+    subBeaconMesh.visible = false;
+    sub.add(subBeaconMesh);
+
+    // Stern Bubble Trail Particles
+    const BUBBLE_COUNT = 40;
+    const bubbleGeo = new THREE.SphereGeometry(0.1, 6, 6);
+    const bubbleMat = new THREE.MeshBasicMaterial({
+      color: 0x88ffff,
+      transparent: true,
+      opacity: 0.65
+    });
+    const bubblePool = [];
+    for (let i = 0; i < BUBBLE_COUNT; i++) {
+      const b = new THREE.Mesh(bubbleGeo, bubbleMat);
+      b.visible = false;
+      scene.add(b);
+      bubblePool.push({
+        mesh: b,
+        life: 0,
+        maxLife: 1.2,
+        vel: new THREE.Vector3()
+      });
+    }
+
+    scene.add(sub);
+
+    // Sonar Pulse Ring
+    const sonarRingGeo = new THREE.RingGeometry(0.4, 1.2, 48);
+    sonarRingGeo.rotateX(Math.PI / 2);
+    const sonarRingMat = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.9
+    });
+    const sonarRingMesh = new THREE.Mesh(sonarRingGeo, sonarRingMat);
+    sonarRingMesh.visible = false;
+    scene.add(sonarRingMesh);
+
+    const sonarState = {
+      active: false,
+      radius: 0,
+      maxRadius: 60,
+      speed: 25,
+      origin: new THREE.Vector3()
+    };
+
+    // Helper for rock cliffs / walls
+    const riftRockMat = new THREE.MeshStandardMaterial({ color: 0x0a1b2b, roughness: 0.9, metalness: 0.1 });
+    const hollowRockMat = new THREE.MeshStandardMaterial({ color: 0x05080c, roughness: 0.95, metalness: 0.05 });
+    const shelfRockMat = new THREE.MeshStandardMaterial({ color: 0x051422, roughness: 0.85, metalness: 0.15 });
+
+    function createSolidWall(x, y, z, sx, sy, sz, mat, rotY = 0) {
+      const geo = new THREE.BoxGeometry(sx, sy, sz);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x, y, z);
+      mesh.rotation.y = rotY;
+      scene.add(mesh);
+      colliders.push({
+        type: 'box',
+        center: new THREE.Vector3(x, y, z),
+        size: new THREE.Vector3(sx, sy, sz)
+      });
+      registerWireframeOverlay(mesh);
+      return mesh;
+    }
+
+    // 1. Lumen Rift Walls
+    createSolidWall(-55, -35, 0, 10, 70, 180, riftRockMat);
+    createSolidWall(55, -35, 0, 10, 70, 180, riftRockMat);
+    createSolidWall(0, -35, -95, 120, 70, 10, riftRockMat);
+    createSolidWall(0, -70, -10, 120, 10, 160, riftRockMat); // Seabed
+    createSolidWall(-20, -40, 20, 8, 45, 8, riftRockMat);
+    createSolidWall(25, -38, -30, 10, 48, 10, riftRockMat);
+    createSolidWall(0, -25, 20, 32, 6, 8, riftRockMat); // Arch bridge
+
+    // Ancient Sunken Bell on distant lower ledge (x = 32, y = -48, z = 45)
+    const bellGroup = new THREE.Group();
+    bellGroup.position.set(32, -48, 45);
+    const bellLedgeMesh = new THREE.Mesh(new THREE.CylinderGeometry(8, 9, 4, 10), riftRockMat);
+    bellGroup.add(bellLedgeMesh);
+    registerWireframeOverlay(bellLedgeMesh);
+
+    const bellMesh = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 3.2, 4.5, 12, 1, true), new THREE.MeshStandardMaterial({ color: 0x987332, roughness: 0.5, metalness: 0.8 }));
+    bellMesh.position.y = 3;
+    bellGroup.add(bellMesh);
+    registerWireframeOverlay(bellMesh);
+    scene.add(bellGroup);
+    colliders.push({
+      type: 'box',
+      center: new THREE.Vector3(32, -48, 45),
+      size: new THREE.Vector3(16, 10, 16)
+    });
+
+    // 2. Duskreach Hollow
+    createSolidWall(-75, -35, -135, 10, 60, 90, hollowRockMat);
+    createSolidWall(-30, -35, -145, 10, 60, 80, hollowRockMat);
+    createSolidWall(-52, -35, -185, 55, 60, 10, hollowRockMat);
+    createSolidWall(-52, -65, -135, 55, 10, 90, hollowRockMat);
+
+    for (let t = 0; t < 8; t++) {
+      const tx = -60 + ((t * 7) % 25);
+      const tz = -105 - (t * 9);
+      const isHanging = t % 2 === 0;
+      const ty = isHanging ? -15 : -55;
+      const toothGeo = new THREE.ConeGeometry(2.2, 16, 6);
+      if (!isHanging) toothGeo.rotateX(Math.PI);
+      const toothMesh = new THREE.Mesh(toothGeo, hollowRockMat);
+      toothMesh.position.set(tx, ty, tz);
+      scene.add(toothMesh);
+      colliders.push({
+        type: 'box',
+        center: new THREE.Vector3(tx, ty + (isHanging ? -5 : 5), tz),
+        size: new THREE.Vector3(4, 14, 4)
+      });
+      registerWireframeOverlay(toothMesh);
+    }
+
+    // 3. Twilight Shelf & Chasm Ledges
+    createSolidWall(-60, -115, 150, 10, 100, 140, shelfRockMat);
+    createSolidWall(60, -115, 150, 10, 100, 140, shelfRockMat);
+    createSolidWall(0, -115, 225, 130, 100, 10, shelfRockMat);
+    createSolidWall(15, -98, 110, 35, 6, 35, shelfRockMat); // Chasm ledge (95m depth)
+    createSolidWall(0, -145, 165, 115, 10, 95, shelfRockMat); // Main Shelf floor (140m depth)
+    createSolidWall(-20, -158, 195, 40, 10, 40, shelfRockMat); // Deep trench edge (150m depth)
+
+    for (let m = 0; m < 7; m++) {
+      const mx = -35 + ((m * 14) % 70);
+      const mz = 135 + ((m * 11) % 75);
+      const monoMesh = new THREE.Mesh(new THREE.BoxGeometry(4, 12, 5), shelfRockMat);
+      monoMesh.position.set(mx, -135, mz);
+      monoMesh.rotation.set((m * 0.2), (m * 0.4), (m * 0.15));
+      scene.add(monoMesh);
+      colliders.push({
+        type: 'box',
+        center: new THREE.Vector3(mx, -135, mz),
+        size: new THREE.Vector3(5, 12, 5)
+      });
+      registerWireframeOverlay(monoMesh);
+    }
+
+    // 4. Vent Gauntlet Rocky Passage & Bell Approach
+    // Passage connects off Shelf deep edge (Z ~ 195, X ~ -10 to 35) to Bell Approach beneath ancient sunken bell (X ~ 32, Z ~ 45, Y ~ -150)
+    createSolidWall(-32, -150, 235, 8, 30, 80, shelfRockMat); // Gauntlet West Wall
+    createSolidWall(35, -150, 235, 8, 30, 80, shelfRockMat);  // Gauntlet East Wall
+    createSolidWall(0, -160, 235, 70, 8, 80, shelfRockMat);   // Gauntlet Floor
+
+    // Bell Approach Antechamber (directly beneath ancient bell at depth 150m, Y = -150, X ~ 32, Z ~ 45)
+    createSolidWall(15, -150, 45, 8, 30, 40, shelfRockMat);   // Approach West Wall
+    createSolidWall(50, -150, 45, 8, 30, 40, shelfRockMat);   // Approach East Wall
+    createSolidWall(32, -150, 25, 40, 30, 8, shelfRockMat);   // Approach South Wall
+    createSolidWall(32, -160, 45, 40, 8, 40, shelfRockMat);   // Approach Floor
+
+    // Connecting corridor between Gauntlet and Bell Approach
+    createSolidWall(45, -150, 140, 8, 30, 150, shelfRockMat);
+    createSolidWall(22, -150, 140, 8, 30, 150, shelfRockMat);
+    createSolidWall(33, -160, 140, 30, 8, 150, shelfRockMat);
+
+    // Bell Approach Decorations (Hanging chain lengths, bronze shards, drifting silt)
+    const bronzeShardMat = new THREE.MeshStandardMaterial({ color: 0x997733, metalness: 0.9, roughness: 0.4 });
+    for (let c = 0; c < 5; c++) {
+      const chainGeo = new THREE.CylinderGeometry(0.15, 0.15, 12, 6);
+      const chainMesh = new THREE.Mesh(chainGeo, bronzeShardMat);
+      chainMesh.position.set(24 + c * 4, -142, 38 + (c % 3) * 6);
+      scene.add(chainMesh);
+      registerWireframeOverlay(chainMesh);
+
+      const shardGeo = new THREE.TetrahedronGeometry(1.2, 0);
+      const shardMesh = new THREE.Mesh(shardGeo, bronzeShardMat);
+      shardMesh.position.set(22 + c * 5, -154, 40 + (c % 4) * 4);
+      shardMesh.rotation.set(c * 0.4, c * 0.7, c * 0.2);
+      scene.add(shardMesh);
+      registerWireframeOverlay(shardMesh);
+    }
+
+    // ==========================================
+    // CURRENT BANDS (Translucent corridors of streaming ribbon lines)
+    // ==========================================
+    // Band 1: The Downdraft - pours down through chasm toward Shelf
+    // Band 2: The Crossflow - sweeps horizontally across middle of Shelf
+    // Band 3: The Updraft - rises along cliff face near Haven Dock
+    const currentBands = [
+      {
+        name: 'The Downdraft',
+        dir: new THREE.Vector3(0, -1, 0),
+        bounds: { minX: -16, maxX: 16, minY: -115, maxY: -70, minZ: 82, maxZ: 118 },
+        ribbons: []
+      },
+      {
+        name: 'The Crossflow',
+        dir: new THREE.Vector3(1, 0, 0), // Horizontal sweep across middle of Shelf
+        bounds: { minX: -32, maxX: 32, minY: -142, maxY: -125, minZ: 152, maxZ: 178 },
+        ribbons: []
+      },
+      {
+        name: 'The Updraft',
+        dir: new THREE.Vector3(0, 1, 0), // Rises along cliff face near Haven Dock
+        bounds: { minX: 24, maxX: 46, minY: -62, maxY: -20, minZ: -26, maxZ: 16 },
+        ribbons: []
+      }
+    ];
+
+    // Build visual streaming ribbon corridors & shimmer boundary curtains
+    currentBands.forEach((band) => {
+      const b = band.bounds;
+      const sizeX = b.maxX - b.minX;
+      const sizeY = b.maxY - b.minY;
+      const sizeZ = b.maxZ - b.minZ;
+      const centerX = (b.minX + b.maxX) / 2;
+      const centerY = (b.minY + b.maxY) / 2;
+      const centerZ = (b.minZ + b.maxZ) / 2;
+
+      // Shimmer curtain boundary box
+      const curtainGeo = new THREE.BoxGeometry(sizeX, sizeY, sizeZ);
+      const curtainMat = new THREE.MeshBasicMaterial({
+        color: 0x00f0ff,
+        transparent: true,
+        opacity: 0.12,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const curtainMesh = new THREE.Mesh(curtainGeo, curtainMat);
+      curtainMesh.position.set(centerX, centerY, centerZ);
+      scene.add(curtainMesh);
+      registerWireframeOverlay(curtainMesh);
+
+      // Streaming ribbon lines flowing along push direction
+      const ribbonCount = 18;
+      for (let r = 0; r < ribbonCount; r++) {
+        const lineGeo = new THREE.CylinderGeometry(0.08, 0.08, (band.dir.y !== 0 ? 8 : 12), 4);
+        if (band.dir.x !== 0) lineGeo.rotateZ(Math.PI / 2);
+        const lineMat = new THREE.MeshBasicMaterial({
+          color: 0x66f5ff,
+          transparent: true,
+          opacity: 0.65
+        });
+        const lineMesh = new THREE.Mesh(lineGeo, lineMat);
+        const rx = b.minX + 2 + ((r * 7.1) % (sizeX - 4));
+        const ry = b.minY + 2 + ((r * 5.3) % (sizeY - 4));
+        const rz = b.minZ + 2 + ((r * 8.9) % (sizeZ - 4));
+        lineMesh.position.set(rx, ry, rz);
+        scene.add(lineMesh);
+        band.ribbons.push({ mesh: lineMesh, basePos: new THREE.Vector3(rx, ry, rz) });
+      }
+    });
+
+    // ==========================================
+    // THE VENT GAUNTLET (4 Thermal Vents on 8s Strict Loop, 0/2/4/6s Offsets)
+    // ==========================================
+    // Off Shelf's deep edge, inside rocky passage
+    const ventPositions = [
+      new THREE.Vector3(-12, -156, 212),
+      new THREE.Vector3(4, -156, 228),
+      new THREE.Vector3(-4, -156, 244),
+      new THREE.Vector3(12, -156, 260)
+    ];
+
+    const ventOffsets = [0, 2, 4, 6];
+    const vents = [];
+
+    ventPositions.forEach((pos, idx) => {
+      const vGroup = new THREE.Group();
+      vGroup.position.copy(pos);
+
+      // Chimney rock cone
+      const coneGeo = new THREE.CylinderGeometry(1.4, 3.2, 4.0, 10);
+      const coneMat = new THREE.MeshStandardMaterial({ color: 0x1f1916, roughness: 0.95 });
+      const coneMesh = new THREE.Mesh(coneGeo, coneMat);
+      coneMesh.position.y = 2.0;
+      vGroup.add(coneMesh);
+      registerWireframeOverlay(coneMesh);
+
+      // Glowing throat
+      const throatGeo = new THREE.CircleGeometry(1.3, 16);
+      throatGeo.rotateX(-Math.PI / 2);
+      const throatMat = new THREE.MeshBasicMaterial({ color: 0x331100 });
+      const throatMesh = new THREE.Mesh(throatGeo, throatMat);
+      throatMesh.position.y = 4.02;
+      vGroup.add(throatMesh);
+
+      // Expanding rumble telegraph ring
+      const rumbleRingGeo = new THREE.RingGeometry(0.8, 1.4, 24);
+      rumbleRingGeo.rotateX(Math.PI / 2);
+      const rumbleRingMat = new THREE.MeshBasicMaterial({
+        color: 0xff4400,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide
+      });
+      const rumbleRingMesh = new THREE.Mesh(rumbleRingGeo, rumbleRingMat);
+      rumbleRingMesh.position.y = 4.1;
+      vGroup.add(rumbleRingMesh);
+
+      // Eruption column cylinder (fixed height = 15 units, radius = 3.2)
+      const columnGeo = new THREE.CylinderGeometry(3.0, 1.8, 15.0, 16, 1, true);
+      columnGeo.translate(0, 7.5, 0);
+      const columnMat = new THREE.MeshBasicMaterial({
+        color: 0xff5511,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const columnMesh = new THREE.Mesh(columnGeo, columnMat);
+      columnMesh.position.y = 4.0;
+      vGroup.add(columnMesh);
+
+      // Thin smoke wisps for dormant phase
+      const wispGeo = new THREE.CylinderGeometry(0.4, 0.8, 6.0, 8);
+      wispGeo.translate(0, 3.0, 0);
+      const wispMat = new THREE.MeshBasicMaterial({
+        color: 0x667788,
+        transparent: true,
+        opacity: 0.25,
+        depthWrite: false
+      });
+      const wispMesh = new THREE.Mesh(wispGeo, wispMat);
+      wispMesh.position.y = 4.0;
+      vGroup.add(wispMesh);
+
+      scene.add(vGroup);
+      colliders.push({
+        type: 'box',
+        center: new THREE.Vector3(pos.x, pos.y + 2.0, pos.z),
+        size: new THREE.Vector3(4.5, 4.0, 4.5)
+      });
+
+      vents.push({
+        id: idx + 1,
+        pos: pos.clone(),
+        offset: ventOffsets[idx],
+        vGroup,
+        throatMat,
+        rumbleRingMesh,
+        rumbleRingMat,
+        columnMesh,
+        columnMat,
+        wispMesh,
+        currentPhase: 'dormant'
+      });
+    });
+
+    // ==========================================
+    // DIVE IV — THE SURVEY (Three Anchor Rings)
+    // ==========================================
+    // Ring 1: inside the Downdraft
+    // Ring 2: at center of Twilight Shelf
+    // Ring 3: in Bell Approach
+    const anchorRingDefs = [
+      { id: 1, pos: new THREE.Vector3(0, -92, 100), location: 'Downdraft' },
+      { id: 2, pos: new THREE.Vector3(0, -138, 165), location: 'Shelf Center' },
+      { id: 3, pos: new THREE.Vector3(32, -150, 45), location: 'Bell Approach' }
+    ];
+
+    const anchorRings = [];
+
+    anchorRingDefs.forEach((def) => {
+      const rGroup = new THREE.Group();
+      rGroup.position.copy(def.pos);
+
+      // Glowing dashed circle anchor ring
+      const ringGeo = new THREE.TorusGeometry(2.4, 0.18, 8, 32);
+      ringGeo.rotateX(Math.PI / 2);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0xffbb00,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.85
+      });
+      const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+      rGroup.add(ringMesh);
+      registerWireframeOverlay(ringMesh);
+
+      // Unfolded beacon legs & vertical steady light pillar (hidden until planted)
+      const beaconUnit = new THREE.Group();
+      beaconUnit.visible = false;
+
+      // Central core
+      const coreGeo = new THREE.CylinderGeometry(0.35, 0.35, 2.0, 8);
+      const coreMat = new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0xaa5500, roughness: 0.2 });
+      const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+      coreMesh.position.y = 1.0;
+      beaconUnit.add(coreMesh);
+
+      // Three tripod legs unfolded
+      for (let leg = 0; leg < 3; leg++) {
+        const lang = (leg * Math.PI * 2) / 3;
+        const legGeo = new THREE.BoxGeometry(0.12, 1.8, 0.12);
+        legGeo.rotateZ(0.5);
+        const legMesh = new THREE.Mesh(legGeo, coreMat);
+        legMesh.position.set(Math.sin(lang) * 0.9, 0.6, Math.cos(lang) * 0.9);
+        legMesh.rotation.y = lang;
+        beaconUnit.add(legMesh);
+      }
+
+      // Steady vertical light pillar
+      const pillarGeo = new THREE.CylinderGeometry(0.2, 0.8, 60, 12, 1, true);
+      pillarGeo.translate(0, 30, 0);
+      const pillarMat = new THREE.MeshBasicMaterial({
+        color: 0xffcc33,
+        transparent: true,
+        opacity: 0.45,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const pillarMesh = new THREE.Mesh(pillarGeo, pillarMat);
+      beaconUnit.add(pillarMesh);
+
+      const beaconLight = new THREE.PointLight(0xffaa00, 2.5, 20);
+      beaconLight.position.set(0, 2.5, 0);
+      beaconUnit.add(beaconLight);
+
+      rGroup.add(beaconUnit);
+      scene.add(rGroup);
+
+      anchorRings.push({
+        id: def.id,
+        pos: def.pos.clone(),
+        ringMesh,
+        beaconUnit,
+        planted: false
+      });
+    });
+
+    // ==========================================
+    // COLLECTIBLES & PREVIOUS ROUND UPGRADES
+    // ==========================================
+    function createDiamondMarker() {
+      const diamondGeo = new THREE.OctahedronGeometry(1.2, 0);
+      const diamondMat = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.95
+      });
+      const diamondMesh = new THREE.Mesh(diamondGeo, diamondMat);
+      diamondMesh.visible = false;
+      scene.add(diamondMesh);
+      return diamondMesh;
+    }
+
+    // 1. Three Lumen Pods (Dive I)
+    const lumenPods = [];
+    [
+      new THREE.Vector3(-25, -35, -40),
+      new THREE.Vector3(35, -45, -15),
+      new THREE.Vector3(10, -50, 60)
+    ].forEach((pos, idx) => {
+      const podGroup = new THREE.Group();
+      podGroup.position.copy(pos);
+
+      const stalkGeo = new THREE.CylinderGeometry(0.12, 0.2, 5, 8);
+      const stalkMesh = new THREE.Mesh(stalkGeo, new THREE.MeshStandardMaterial({ color: 0x114433, roughness: 0.7 }));
+      stalkMesh.position.y = 2.5;
+      podGroup.add(stalkMesh);
+
+      const seedGeo = new THREE.SphereGeometry(1.1, 14, 14);
+      const seedMesh = new THREE.Mesh(seedGeo, new THREE.MeshStandardMaterial({ color: 0x44ffaa, emissive: 0x22ee88, roughness: 0.2 }));
+      seedMesh.position.y = 5.2;
+      podGroup.add(seedMesh);
+
+      const podLight = new THREE.PointLight(0x44ffaa, 1.5, 12);
+      podLight.position.y = 5.2;
+      podGroup.add(podLight);
+
+      scene.add(podGroup);
+      registerWireframeOverlay(seedMesh);
+
+      lumenPods.push({
+        id: idx + 1,
+        group: podGroup,
+        mesh: seedMesh,
+        pos: pos.clone().add(new THREE.Vector3(0, 5.2, 0)),
+        collected: false
+      });
+    });
+
+    // 2. Six Resonance Crystals (Dive II)
+    const resonanceCrystals = [];
+    [
+      new THREE.Vector3(-45, -25, -85),
+      new THREE.Vector3(-60, -32, -105),
+      new THREE.Vector3(-35, -40, -120),
+      new THREE.Vector3(-65, -28, -135),
+      new THREE.Vector3(-40, -45, -148),
+      new THREE.Vector3(-55, -38, -165)
+    ].forEach((pos, idx) => {
+      const cGroup = new THREE.Group();
+      cGroup.position.copy(pos);
+
+      const cGeo = new THREE.OctahedronGeometry(1.2, 0);
+      cGeo.scale(0.8, 2.0, 0.8);
+      const cMesh = new THREE.Mesh(cGeo, new THREE.MeshStandardMaterial({ color: 0xff66ee, emissive: 0xaa2299, roughness: 0.15, metalness: 0.5 }));
+      cGroup.add(cMesh);
+
+      const cLight = new THREE.PointLight(0xff66ee, 1.2, 10);
+      cGroup.add(cLight);
+
+      scene.add(cGroup);
+      registerWireframeOverlay(cMesh);
+
+      const diamond = createDiamondMarker();
+      diamond.position.copy(pos).add(new THREE.Vector3(0, 3.5, 0));
+
+      resonanceCrystals.push({
+        id: idx + 1,
+        group: cGroup,
+        mesh: cMesh,
+        pos: pos.clone(),
+        diamond,
+        diamondTimer: 0,
+        collected: false
+      });
+    });
+
+    // 3. Four Abyss Crystals (Dive III)
+    const abyssCrystals = [];
+    [
+      new THREE.Vector3(-30, -112, 135),
+      new THREE.Vector3(25, -125, 155),
+      new THREE.Vector3(-15, -137, 175),
+      new THREE.Vector3(20, -151, 195)
+    ].forEach((pos, idx) => {
+      const aGroup = new THREE.Group();
+      aGroup.position.copy(pos);
+
+      const aGeo = new THREE.DodecahedronGeometry(1.3);
+      aGeo.scale(0.9, 1.8, 0.9);
+      const aMesh = new THREE.Mesh(aGeo, new THREE.MeshStandardMaterial({ color: 0x33e5ff, emissive: 0x0088cc, roughness: 0.2, metalness: 0.8 }));
+      aGroup.add(aMesh);
+
+      const aLight = new THREE.PointLight(0x00d0ff, 1.5, 12);
+      aGroup.add(aLight);
+
+      scene.add(aGroup);
+      registerWireframeOverlay(aMesh);
+
+      const diamond = createDiamondMarker();
+      diamond.position.copy(pos).add(new THREE.Vector3(0, 3.5, 0));
+
+      abyssCrystals.push({
+        id: idx + 1,
+        group: aGroup,
+        mesh: aMesh,
+        pos: pos.clone(),
+        diamond,
+        diamondTimer: 0,
+        collected: false
+      });
+    });
+
+    // 4. Two Reinforced Platings
+    const platings = [];
+    [
+      { id: 1, pos: new THREE.Vector3(15, -95, 110), raisesTo: 120 },
+      { id: 2, pos: new THREE.Vector3(-20, -150, 195), raisesTo: 160 }
+    ].forEach((def) => {
+      const pGroup = new THREE.Group();
+      pGroup.position.copy(def.pos);
+
+      const pedMesh = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.4, 2.5, 10), new THREE.MeshStandardMaterial({ color: 0x1a3344, emissive: 0x0a2233, roughness: 0.5 }));
+      pedMesh.position.y = -1.25;
+      pGroup.add(pedMesh);
+
+      const plateMesh = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.4, 2.0), new THREE.MeshStandardMaterial({ color: 0x66f0ff, metalness: 0.95, roughness: 0.2, emissive: 0x116688 }));
+      plateMesh.position.y = 1.2;
+      pGroup.add(plateMesh);
+
+      const pLight = new THREE.PointLight(0x00f0ff, 2.0, 15);
+      pLight.position.y = 1.2;
+      pGroup.add(pLight);
+
+      scene.add(pGroup);
+      registerWireframeOverlay(pedMesh);
+      registerWireframeOverlay(plateMesh);
+
+      platings.push({
+        id: def.id,
+        pos: def.pos.clone().add(new THREE.Vector3(0, 1.2, 0)),
+        group: pGroup,
+        plateMesh,
+        raisesTo: def.raisesTo,
+        installed: false
+      });
+    });
+
+    // ==========================================
+    // USER INPUT & UI HANDLERS
+    // ==========================================
+    function updateKeyState(e, isDown) {
+      const code = e.code || '';
+      const key = (e.key || '').toLowerCase();
+      if (code === 'KeyW' || key === 'w') keys.KeyW = isDown;
+      if (code === 'KeyS' || key === 's') keys.KeyS = isDown;
+      if (code === 'KeyA' || key === 'a') keys.KeyA = isDown;
+      if (code === 'KeyD' || key === 'd') keys.KeyD = isDown;
+      if (code === 'Space' || key === ' ') keys.Space = isDown;
+      if (code === 'ShiftLeft' || code === 'ShiftRight' || key === 'shift') {
+        keys.ShiftLeft = isDown;
+        keys.ShiftRight = isDown;
+      }
+    }
+
+    window.addEventListener('keydown', (e) => {
+      updateKeyState(e, true);
+      const code = e.code || '';
+      const key = (e.key || '').toLowerCase();
+
+      if (code === 'Enter' || key === 'enter' || e.keyCode === 13) {
+        if (gameState.phase === 'ready') {
+          gameState.phase = 'playing';
+          document.getElementById('ready-overlay').style.display = 'none';
+        }
+      }
+      if (code === 'KeyR' || key === 'r' || e.keyCode === 82) {
+        if (gameState.phase === 'blackout' || gameState.phase === 'hull_breach' || gameState.phase === 'all_dives_complete') {
+          resetToInitialState();
+        }
+      }
+      if (code === 'KeyL' || key === 'l' || e.keyCode === 76) {
+        if (gameState.phase === 'playing' && gameState.battery > 0) {
+          gameState.headlamp = !gameState.headlamp;
+        }
+      }
+      if (code === 'KeyF' || key === 'f' || e.keyCode === 70) {
+        if (gameState.phase === 'playing') {
+          triggerSonarPulse();
+        }
+      }
+      if (code === 'KeyB' || key === 'b' || e.keyCode === 66) {
+        if (gameState.phase === 'playing') {
+          handleBeaconAction();
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      updateKeyState(e, false);
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    function handleBeaconAction() {
+      // 1. If no beacon aboard, check if near beacon rack on Haven Dock
+      if (!gameState.beaconAboard) {
+        const distToRack = sub.position.distanceTo(beaconRackPos);
+        if (distToRack <= 6.0) {
+          gameState.beaconAboard = true;
+          subBeaconMesh.visible = true;
+          AudioEngine.playClank();
+          return;
+        }
+      } else {
+        // 2. If beacon is aboard, check if within 4 units of an empty anchor ring
+        let plantedAny = false;
+        for (let ring of anchorRings) {
+          if (!ring.planted) {
+            const dist = sub.position.distanceTo(ring.pos);
+            if (dist <= 4.0) {
+              ring.planted = true;
+              ring.beaconUnit.visible = true;
+              gameState.beaconAboard = false;
+              subBeaconMesh.visible = false;
+              gameState.beaconsPlanted++;
+              plantedAny = true;
+              AudioEngine.playBeaconAnchor();
+
+              // Check Dive 4 completion
+              if (gameState.beaconsPlanted >= 3 && !gameState.dive4Complete) {
+                gameState.dive4Complete = true;
+                // Check if ALL DIVES complete
+                if (gameState.dive1Complete && gameState.dive2Complete && gameState.dive3Complete && gameState.dive4Complete) {
+                  gameState.phase = 'all_dives_complete';
+                  document.getElementById('victory-overlay').style.display = 'flex';
+                  document.getElementById('dive-banner').classList.remove('visible');
+                } else {
+                  showDiveBanner('DIVE IV COMPLETE');
+                }
+              }
+              break;
+            }
+          }
+        }
+        if (!plantedAny) {
+          // Pressing B anywhere else with beacon aboard does nothing
+          AudioEngine.playClick();
+        }
+      }
+    }
+
+    function triggerSonarPulse() {
+      const pip = document.getElementById('sonar-pip');
+      if (gameState.sonarCooldown > 0) return;
+
+      if (gameState.battery < SONAR_PULSE_COST) {
+        AudioEngine.playClick();
+        pip.classList.add('empty-flash');
+        setTimeout(() => pip.classList.remove('empty-flash'), 250);
+        return;
+      }
+
+      gameState.battery -= SONAR_PULSE_COST;
+      gameState.sonarCooldown = 1.0;
+      AudioEngine.playPing();
+
+      sonarState.active = true;
+      sonarState.radius = 0;
+      sonarState.origin.copy(sub.position);
+      sonarRingMesh.position.copy(sub.position);
+      sonarRingMesh.scale.set(1, 1, 1);
+      sonarRingMesh.visible = true;
+      sonarRingMat.opacity = 0.95;
+    }
+
+    function showDiveBanner(text) {
+      const banner = document.getElementById('dive-banner');
+      banner.innerText = text;
+      banner.classList.add('visible');
+      clearTimeout(gameState.bannerTimeout);
+      gameState.bannerTimeout = setTimeout(() => {
+        banner.classList.remove('visible');
+      }, 3000);
+    }
+
+    function resetToInitialState() {
+      gameState.phase = 'ready';
+      gameState.battery = MAX_BATTERY;
+      gameState.oxygen = OXYGEN_MAX;
+      gameState.hull = HULL_MAX;
+      gameState.docked = true;
+      gameState.headlamp = true;
+      gameState.sonarCooldown = 0;
+      gameState.ratedDepth = 80;
+      gameState.platingsInstalled = 0;
+
+      gameState.inCurrent = false;
+      gameState.beaconAboard = false;
+      gameState.beaconsPlanted = 0;
+      subBeaconMesh.visible = false;
+
+      gameState.podsAboard = 0;
+      gameState.podsBanked = 0;
+      gameState.crystalsAboard = 0;
+      gameState.crystalsBanked = 0;
+      gameState.abyssAboard = 0;
+      gameState.abyssBanked = 0;
+
+      gameState.dive1Complete = false;
+      gameState.dive2Complete = false;
+      gameState.dive3Complete = false;
+      gameState.dive4Complete = false;
+
+      gameState.forwardVel = 0;
+      gameState.verticalVel = 0;
+      gameState.yaw = 0;
+      gameState.roll = 0;
+      gameState.pitch = 0;
+
+      sub.position.set(0, -20, 8);
+      sub.rotation.set(0, 0, 0);
+
+      lumenPods.forEach(p => { p.collected = false; p.group.visible = true; });
+      resonanceCrystals.forEach(c => { c.collected = false; c.group.visible = true; c.diamond.visible = false; c.diamondTimer = 0; });
+      abyssCrystals.forEach(a => { a.collected = false; a.group.visible = true; a.diamond.visible = false; a.diamondTimer = 0; });
+      platings.forEach(pl => { pl.installed = false; pl.plateMesh.visible = true; });
+      anchorRings.forEach(r => { r.planted = false; r.beaconUnit.visible = false; });
+
+      document.getElementById('blackout-overlay').style.display = 'none';
+      document.getElementById('hullbreach-overlay').style.display = 'none';
+      document.getElementById('victory-overlay').style.display = 'none';
+      document.getElementById('ready-overlay').style.display = 'flex';
+      document.getElementById('dive-banner').classList.remove('visible');
+    }
+
+    // ==========================================
+    // MAIN LOOP & LOGIC
+    // ==========================================
+    let lastTime = performance.now();
+
+    function updateGame(delta, nowTime) {
+      const isPlaying = gameState.phase === 'playing';
+      const nowSec = nowTime / 1000.0;
+
+      // 1. Controls & Propulsion Inertia
+      const maxFwdSpeed = gameState.beaconAboard ? MAX_SPEED_FWD_BEACON : MAX_SPEED_FWD_NORMAL;
+      let thrustKeyHeld = false;
+
+      if (isPlaying) {
+        if (keys.KeyA) gameState.yaw += YAW_RATE * delta;
+        if (keys.KeyD) gameState.yaw -= YAW_RATE * delta;
+
+        if (gameState.battery > 0) {
+          if (keys.KeyW) {
+            gameState.forwardVel = Math.min(maxFwdSpeed, gameState.forwardVel + ACCEL_RATE * delta);
+            thrustKeyHeld = true;
+          } else if (keys.KeyS) {
+            gameState.forwardVel = Math.max(-MAX_SPEED_REV, gameState.forwardVel - ACCEL_RATE * delta);
+            thrustKeyHeld = true;
+          }
+
+          if (keys.Space) {
+            gameState.verticalVel = Math.min(MAX_SPEED_VERT, gameState.verticalVel + ACCEL_RATE * delta);
+            thrustKeyHeld = true;
+          } else if (keys.ShiftLeft || keys.ShiftRight) {
+            gameState.verticalVel = Math.max(-MAX_SPEED_VERT, gameState.verticalVel - ACCEL_RATE * delta);
+            thrustKeyHeld = true;
+          }
+        }
+      }
+
+      // Drag deceleration
+      if (!keys.KeyW && !keys.KeyS) {
+        if (gameState.forwardVel > 0) {
+          gameState.forwardVel = Math.max(0, gameState.forwardVel - (MAX_SPEED_FWD_NORMAL / 2.0) * delta);
+        } else if (gameState.forwardVel < 0) {
+          gameState.forwardVel = Math.min(0, gameState.forwardVel + (MAX_SPEED_REV / 2.0) * delta);
+        }
+      }
+
+      if (!keys.Space && !keys.ShiftLeft && !keys.ShiftRight) {
+        if (gameState.verticalVel > 0) {
+          gameState.verticalVel = Math.max(0, gameState.verticalVel - (MAX_SPEED_VERT / 2.0) * delta);
+        } else if (gameState.verticalVel < 0) {
+          gameState.verticalVel = Math.min(0, gameState.verticalVel + (MAX_SPEED_VERT / 2.0) * delta);
+        }
+      }
+
+      // 2. Current Bands Detection & Push Force
+      let activeCurrentPush = new THREE.Vector3(0, 0, 0);
+      let inAnyCurrent = false;
+
+      currentBands.forEach((band) => {
+        const b = band.bounds;
+        if (sub.position.x >= b.minX && sub.position.x <= b.maxX &&
+            sub.position.y >= b.minY && sub.position.y <= b.maxY &&
+            sub.position.z >= b.minZ && sub.position.z <= b.maxZ) {
+          inAnyCurrent = true;
+          activeCurrentPush.addScaledVector(band.dir, CURRENT_PUSH_SPEED);
+        }
+
+        // Animate streaming ribbons
+        band.ribbons.forEach((rib) => {
+          rib.mesh.position.addScaledVector(band.dir, CURRENT_PUSH_SPEED * delta);
+          // Loop within bounds
+          if (band.dir.y < 0 && rib.mesh.position.y < b.minY) rib.mesh.position.y = b.maxY;
+          if (band.dir.y > 0 && rib.mesh.position.y > b.maxY) rib.mesh.position.y = b.minY;
+          if (band.dir.x > 0 && rib.mesh.position.x > b.maxX) rib.mesh.position.x = b.minX;
+        });
+      });
+
+      gameState.inCurrent = inAnyCurrent;
+
+      // 3. Battery Drain & Life Support
+      if (isPlaying) {
+        if (thrustKeyHeld && gameState.battery > 0) {
+          gameState.battery = Math.max(0, gameState.battery - THRUST_DRAIN * delta);
+        }
+
+        if (gameState.headlamp && gameState.battery > 0) {
+          gameState.battery = Math.max(0, gameState.battery - HEADLAMP_DRAIN * delta);
+          if (gameState.battery <= 0) {
+            gameState.headlamp = false;
+          }
+        }
+
+        if (gameState.sonarCooldown > 0) {
+          gameState.sonarCooldown = Math.max(0, gameState.sonarCooldown - delta);
+        }
+
+        // Docking status check
+        const cradleDist = new THREE.Vector2(sub.position.x, sub.position.z).length();
+        const inCradle = (cradleDist < 6.5) && (sub.position.y >= -23 && sub.position.y <= -17);
+        gameState.docked = inCradle;
+
+        if (gameState.docked) {
+          gameState.battery = Math.min(MAX_BATTERY, gameState.battery + DOCK_RECHARGE_RATE * delta);
+          gameState.oxygen = Math.min(OXYGEN_MAX, gameState.oxygen + DOCK_REFILL_RATE * delta);
+          gameState.hull = Math.min(HULL_MAX, gameState.hull + DOCK_REPAIR_RATE * delta);
+
+          if (gameState.podsAboard > 0) {
+            gameState.podsBanked += gameState.podsAboard;
+            gameState.podsAboard = 0;
+          }
+          if (gameState.crystalsAboard > 0) {
+            gameState.crystalsBanked += gameState.crystalsAboard;
+            gameState.crystalsAboard = 0;
+          }
+          if (gameState.abyssAboard > 0) {
+            gameState.abyssBanked += gameState.abyssAboard;
+            gameState.abyssAboard = 0;
+          }
+
+          if (!gameState.dive1Complete && gameState.podsBanked >= 3) {
+            gameState.dive1Complete = true;
+            if (!(gameState.dive1Complete && gameState.dive2Complete && gameState.dive3Complete && gameState.dive4Complete)) {
+              showDiveBanner("DIVE I COMPLETE");
+            }
+          }
+          if (!gameState.dive2Complete && gameState.crystalsBanked >= 6) {
+            gameState.dive2Complete = true;
+            if (!(gameState.dive1Complete && gameState.dive2Complete && gameState.dive3Complete && gameState.dive4Complete)) {
+              showDiveBanner("DIVE II COMPLETE");
+            }
+          }
+          if (!gameState.dive3Complete && gameState.abyssBanked >= 4) {
+            gameState.dive3Complete = true;
+            if (!(gameState.dive1Complete && gameState.dive2Complete && gameState.dive3Complete && gameState.dive4Complete)) {
+              showDiveBanner("DIVE III COMPLETE");
+            }
+          }
+
+          if (gameState.dive1Complete && gameState.dive2Complete && gameState.dive3Complete && gameState.dive4Complete) {
+            gameState.phase = 'all_dives_complete';
+            document.getElementById('victory-overlay').style.display = 'flex';
+            document.getElementById('dive-banner').classList.remove('visible');
+          }
+        } else {
+          gameState.oxygen = Math.max(0, gameState.oxygen - delta);
+          if (gameState.oxygen <= 0) {
+            gameState.phase = 'blackout';
+            document.getElementById('blackout-overlay').style.display = 'flex';
+          }
+        }
+
+        // Hydrostatic Pressure Check
+        const currentDepth = Math.max(0, Math.round(-sub.position.y));
+        const isDeep = currentDepth > gameState.ratedDepth;
+
+        const depthEl = document.getElementById('depth-readout');
+        const vignette = document.getElementById('pressure-vignette');
+
+        if (isDeep) {
+          depthEl.classList.add('warning');
+          vignette.classList.add('pressure-pulse');
+          gameState.hull = Math.max(0, gameState.hull - PRESSURE_HULL_DRAIN * delta);
+          if (gameState.hull <= 0) {
+            gameState.phase = 'hull_breach';
+            document.getElementById('hullbreach-overlay').style.display = 'flex';
+          }
+        } else {
+          depthEl.classList.remove('warning');
+          vignette.classList.remove('pressure-pulse');
+        }
+      }
+
+      // 4. Update Thermal Vents (8-second strict cycle: 4s dormant, 1s telegraph, 3s eruption)
+      vents.forEach((vent) => {
+        const cycleTime = (nowSec + vent.offset) % 8.0;
+
+        if (cycleTime < 4.0) {
+          // Dormant (0 to 4s)
+          vent.currentPhase = 'dormant';
+          vent.throatMat.color.setHex(0x331100);
+          vent.rumbleRingMat.opacity = 0;
+          vent.columnMat.opacity = 0;
+          vent.wispMesh.visible = true;
+        } else if (cycleTime < 5.0) {
+          // Telegraph (4 to 5s): glowing throat & expanding rumble ring
+          vent.currentPhase = 'telegraph';
+          const tProgress = cycleTime - 4.0; // 0 to 1
+          vent.throatMat.color.setHex(0xff5500);
+          vent.rumbleRingMesh.scale.set(1.0 + tProgress * 2.2, 1.0 + tProgress * 2.2, 1);
+          vent.rumbleRingMat.opacity = 0.8 * (1.0 - tProgress * 0.3);
+          vent.columnMat.opacity = 0;
+          vent.wispMesh.visible = false;
+        } else {
+          // Eruption (5 to 8s): scalding column of glowing water & sparks (height 15)
+          vent.currentPhase = 'erupting';
+          vent.throatMat.color.setHex(0xffaa22);
+          vent.rumbleRingMat.opacity = 0;
+          vent.columnMat.opacity = 0.55 + Math.sin(nowTime * 0.02) * 0.15;
+          vent.wispMesh.visible = false;
+
+          // Eruption column damage check: cylinder radius ~3.2, Y between pos.y and pos.y + 15
+          if (isPlaying) {
+            const xzDist = new THREE.Vector2(sub.position.x - vent.pos.x, sub.position.z - vent.pos.z).length();
+            if (xzDist <= 3.4 && sub.position.y >= vent.pos.y && sub.position.y <= (vent.pos.y + 15.0)) {
+              gameState.hull = Math.max(0, gameState.hull - VENT_ERUPTION_DRAIN * delta);
+              const df = document.getElementById('damage-flash');
+              df.style.background = 'rgba(255, 60, 20, 0.45)';
+              setTimeout(() => df.style.background = 'rgba(255, 60, 20, 0)', 100);
+
+              if (gameState.hull <= 0) {
+                gameState.phase = 'hull_breach';
+                document.getElementById('hullbreach-overlay').style.display = 'flex';
+              }
+            }
+          }
+        }
+      });
+
+      // 5. Submarine Translation, Current Push & Collision Resolution
+      if (isPlaying) {
+        const moveHeading = gameState.yaw;
+        const forwardStep = gameState.forwardVel * delta;
+        const verticalStep = gameState.verticalVel * delta;
+
+        const nextPos = sub.position.clone();
+        nextPos.x += Math.sin(moveHeading) * forwardStep;
+        nextPos.z += Math.cos(moveHeading) * forwardStep;
+        nextPos.y += verticalStep;
+
+        // Apply active water current push
+        if (inAnyCurrent) {
+          nextPos.addScaledVector(activeCurrentPush, delta);
+        }
+
+        // Thermocline ceiling clamp at Y = 0
+        if (nextPos.y > -1.2) {
+          nextPos.y = -1.2;
+          gameState.verticalVel = Math.min(0, gameState.verticalVel);
+        }
+
+        const subRadius = 1.2;
+        const totalSpeed = Math.sqrt(gameState.forwardVel * gameState.forwardVel + gameState.verticalVel * gameState.verticalVel);
+
+        for (let col of colliders) {
+          if (col.type === 'box') {
+            const minX = col.center.x - col.size.x / 2 - subRadius;
+            const maxX = col.center.x + col.size.x / 2 + subRadius;
+            const minY = col.center.y - col.size.y / 2 - subRadius;
+            const maxY = col.center.y + col.size.y / 2 + subRadius;
+            const minZ = col.center.z - col.size.z / 2 - subRadius;
+            const maxZ = col.center.z + col.size.z / 2 + subRadius;
+
+            if (nextPos.x > minX && nextPos.x < maxX &&
+                nextPos.y > minY && nextPos.y < maxY &&
+                nextPos.z > minZ && nextPos.z < maxZ) {
+
+              const timeSinceLastCollision = (nowTime - gameState.lastCollisionTime) / 1000.0;
+              if (totalSpeed > 3.0 && timeSinceLastCollision > 0.5) {
+                gameState.hull = Math.max(0, gameState.hull - 5.0);
+                gameState.lastCollisionTime = nowTime;
+                AudioEngine.playImpact();
+
+                const df = document.getElementById('damage-flash');
+                df.style.background = 'rgba(255, 30, 30, 0.5)';
+                setTimeout(() => df.style.background = 'rgba(255, 30, 30, 0)', 120);
+
+                if (gameState.hull <= 0) {
+                  gameState.phase = 'hull_breach';
+                  document.getElementById('hullbreach-overlay').style.display = 'flex';
+                }
+              }
+
+              const dx1 = Math.abs(nextPos.x - minX);
+              const dx2 = Math.abs(nextPos.x - maxX);
+              const dy1 = Math.abs(nextPos.y - minY);
+              const dy2 = Math.abs(nextPos.y - maxY);
+              const dz1 = Math.abs(nextPos.z - minZ);
+              const dz2 = Math.abs(nextPos.z - maxZ);
+              const minPen = Math.min(dx1, dx2, dy1, dy2, dz1, dz2);
+
+              if (minPen === dx1) nextPos.x = minX;
+              else if (minPen === dx2) nextPos.x = maxX;
+              else if (minPen === dy1) { nextPos.y = minY; gameState.verticalVel = Math.min(0, gameState.verticalVel); }
+              else if (minPen === dy2) { nextPos.y = maxY; gameState.verticalVel = Math.max(0, gameState.verticalVel); }
+              else if (minPen === dz1) nextPos.z = minZ;
+              else nextPos.z = maxZ;
+            }
+          }
+        }
+
+        sub.position.copy(nextPos);
+
+        const targetRoll = (keys.KeyA ? 0.15 : 0) - (keys.KeyD ? 0.15 : 0);
+        gameState.roll += (targetRoll - gameState.roll) * 0.1;
+        const targetPitch = gameState.verticalVel * 0.05;
+        gameState.pitch += (targetPitch - gameState.pitch) * 0.1;
+
+        sub.rotation.set(gameState.pitch, gameState.yaw, gameState.roll, 'YXZ');
+
+        const planeAngle = (keys.Space ? -0.35 : 0) + ((keys.ShiftLeft || keys.ShiftRight) ? 0.35 : 0);
+        divePlaneLeft.rotation.x = planeAngle;
+        divePlaneRight.rotation.x = planeAngle;
+
+        if (gameState.battery > 0) {
+          const propSpeed = Math.abs(gameState.forwardVel) * 3.5 + (thrustKeyHeld ? 5.0 : 0);
+          propGroup.rotation.z += propSpeed * delta;
+        }
+
+        if (thrustKeyHeld && gameState.battery > 0) {
+          const spawnIdx = Math.floor(nowTime / 40) % BUBBLE_COUNT;
+          const bubble = bubblePool[spawnIdx];
+          if (!bubble.mesh.visible || bubble.life <= 0) {
+            bubble.mesh.visible = true;
+            bubble.life = bubble.maxLife;
+            const sternWorld = propGroup.getWorldPosition(new THREE.Vector3());
+            bubble.mesh.position.copy(sternWorld);
+            bubble.vel.set(
+              (Math.sin(nowTime * 0.05) * 0.4),
+              0.8 + Math.cos(nowTime * 0.08) * 0.3,
+              -Math.cos(gameState.yaw) * 1.5
+            );
+          }
+        }
+      }
+
+      // Update active bubble trail
+      bubblePool.forEach(b => {
+        if (b.mesh.visible) {
+          b.life -= delta;
+          if (b.life <= 0) b.mesh.visible = false;
+          else {
+            b.mesh.position.addScaledVector(b.vel, delta);
+            b.mesh.scale.setScalar(0.5 + (1.0 - b.life / b.maxLife));
+          }
+        }
+      });
+
+      headlampSpot.visible = gameState.headlamp;
+      coneBeamMesh.visible = gameState.headlamp;
+
+      // 6. Sonar Wavefront Expansion
+      if (sonarState.active) {
+        sonarState.radius += sonarState.speed * delta;
+        sonarRingMesh.scale.set(sonarState.radius, sonarState.radius, 1);
+        const fadeRatio = 1.0 - (sonarState.radius / sonarState.maxRadius);
+        sonarRingMat.opacity = Math.max(0, fadeRatio);
+
+        if (sonarState.radius >= sonarState.maxRadius) {
+          sonarState.active = false;
+          sonarRingMesh.visible = false;
+        }
+
+        const rCurrent = sonarState.radius;
+        wireframeMeshes.forEach(w => {
+          const worldPos = w.mesh.getWorldPosition(new THREE.Vector3());
+          const dist = worldPos.distanceTo(sonarState.origin);
+          if (Math.abs(dist - rCurrent) < 4.0) {
+            w.litTimer = 5.0;
+          }
+        });
+
+        resonanceCrystals.forEach(c => {
+          if (!c.collected && Math.abs(c.pos.distanceTo(sonarState.origin) - rCurrent) < 3.0) {
+            if (c.diamondTimer <= 0) AudioEngine.playChime();
+            c.diamondTimer = 5.0;
+            c.diamond.visible = true;
+          }
+        });
+
+        abyssCrystals.forEach(a => {
+          if (!a.collected && Math.abs(a.pos.distanceTo(sonarState.origin) - rCurrent) < 3.0) {
+            if (a.diamondTimer <= 0) AudioEngine.playChime();
+            a.diamondTimer = 5.0;
+            a.diamond.visible = true;
+          }
+        });
+      }
+
+      wireframeMeshes.forEach(w => {
+        if (w.litTimer > 0) {
+          w.litTimer -= delta;
+          w.lineMesh.material.opacity = Math.min(0.85, w.litTimer / 5.0);
+        } else {
+          w.lineMesh.material.opacity = 0;
+        }
+      });
+
+      resonanceCrystals.forEach(c => {
+        if (c.diamondTimer > 0) {
+          c.diamondTimer -= delta;
+          c.diamond.rotation.y += delta * 2.0;
+          if (c.diamondTimer <= 0) c.diamond.visible = false;
+        }
+      });
+
+      abyssCrystals.forEach(a => {
+        if (a.diamondTimer > 0) {
+          a.diamondTimer -= delta;
+          a.diamond.rotation.y += delta * 2.0;
+          if (a.diamondTimer <= 0) a.diamond.visible = false;
+        }
+      });
+
+      // 7. Collectibles & Upgrade Touch Detection
+      if (isPlaying) {
+        lumenPods.forEach(p => {
+          if (!p.collected && sub.position.distanceTo(p.pos) < 4.0) {
+            p.collected = true;
+            p.group.visible = false;
+            gameState.podsAboard++;
+            AudioEngine.playChime();
+          }
+        });
+
+        resonanceCrystals.forEach(c => {
+          if (!c.collected && sub.position.distanceTo(c.pos) < 4.0) {
+            c.collected = true;
+            c.group.visible = false;
+            c.diamond.visible = false;
+            c.diamondTimer = 0;
+            gameState.crystalsAboard++;
+            AudioEngine.playChime();
+          }
+        });
+
+        abyssCrystals.forEach(a => {
+          if (!a.collected && sub.position.distanceTo(a.pos) < 4.0) {
+            a.collected = true;
+            a.group.visible = false;
+            a.diamond.visible = false;
+            a.diamondTimer = 0;
+            gameState.abyssAboard++;
+            AudioEngine.playChime();
+          }
+        });
+
+        platings.forEach(pl => {
+          if (!pl.installed && sub.position.distanceTo(pl.pos) < 4.0) {
+            pl.installed = true;
+            pl.plateMesh.visible = false;
+            gameState.platingsInstalled++;
+            gameState.ratedDepth = pl.raisesTo;
+            AudioEngine.playClank();
+
+            const uf = document.getElementById('upgrade-flash');
+            uf.style.background = 'rgba(80, 220, 255, 0.6)';
+            setTimeout(() => uf.style.background = 'rgba(80, 220, 255, 0)', 180);
+          }
+        });
+      }
+
+      platings.forEach(pl => {
+        if (!pl.installed) pl.plateMesh.rotation.y += delta * 1.5;
+      });
+
+      // 8. Camera Tracking
+      const idealOffset = new THREE.Vector3(
+        -Math.sin(gameState.yaw) * 12,
+        4.5,
+        -Math.cos(gameState.yaw) * 12
+      );
+      const idealCameraPos = sub.position.clone().add(idealOffset);
+      if (idealCameraPos.y > -1.0) idealCameraPos.y = -1.0;
+
+      camera.position.lerp(idealCameraPos, 0.12);
+      const lookTarget = sub.position.clone().add(new THREE.Vector3(
+        Math.sin(gameState.yaw) * 4,
+        0.5,
+        Math.cos(gameState.yaw) * 4
+      ));
+      camera.lookAt(lookTarget);
+
+      // 9. Update 2D In-Game HUD Elements
+      const currentDepthVal = Math.max(0, Math.round(-sub.position.y));
+      document.getElementById('battery-val').innerText = `${Math.round(gameState.battery)}/${MAX_BATTERY}`;
+      document.getElementById('battery-bar').style.width = `${(gameState.battery / MAX_BATTERY) * 100}%`;
+
+      document.getElementById('oxygen-val').innerText = `${Math.ceil(gameState.oxygen)}s`;
+      document.getElementById('oxygen-bar').style.width = `${(gameState.oxygen / OXYGEN_MAX) * 100}%`;
+
+      document.getElementById('hull-val').innerText = `${Math.round(gameState.hull)}%`;
+      document.getElementById('hull-bar').style.width = `${(gameState.hull / HULL_MAX) * 100}%`;
+
+      document.getElementById('depth-readout').innerText = `${currentDepthVal}m`;
+      document.getElementById('rated-depth-label').innerText = `RATED: ${gameState.ratedDepth}m`;
+
+      const dockedTag = document.getElementById('docked-tag');
+      dockedTag.innerText = gameState.docked ? 'DOCKED' : 'UNDOCKED';
+      dockedTag.className = `indicator-tag ${gameState.docked ? 'tag-docked' : 'tag-undocked'}`;
+
+      const lampTag = document.getElementById('headlamp-tag');
+      lampTag.innerText = gameState.headlamp ? 'ON' : 'OFF';
+      lampTag.className = `indicator-tag ${gameState.headlamp ? 'tag-on' : 'tag-off'}`;
+
+      const currentTag = document.getElementById('current-tag');
+      currentTag.innerText = gameState.inCurrent ? 'STRONG PUSH' : 'CALM';
+      currentTag.className = `indicator-tag ${gameState.inCurrent ? 'tag-current' : 'tag-off'}`;
+
+      const beaconTag = document.getElementById('beacon-tag');
+      beaconTag.innerText = gameState.beaconAboard ? 'BEACON ABOARD' : 'NONE';
+      beaconTag.className = `indicator-tag ${gameState.beaconAboard ? 'tag-beacon' : 'tag-off'}`;
+
+      const sonarPip = document.getElementById('sonar-pip');
+      if (gameState.sonarCooldown > 0) sonarPip.classList.add('cooling');
+      else sonarPip.classList.remove('cooling');
+
+      document.getElementById('cargo-pods').innerText = `${gameState.podsAboard}/3 (Banked ${gameState.podsBanked})`;
+      document.getElementById('cargo-crystals').innerText = `${gameState.crystalsAboard}/6 (Banked ${gameState.crystalsBanked})`;
+      document.getElementById('cargo-abyss').innerText = `${gameState.abyssAboard}/4 (Banked ${gameState.abyssBanked})`;
+      document.getElementById('cargo-survey').innerText = `${gameState.beaconsPlanted}/3`;
+
+      // Update Mission Board HUD
+      const b1 = document.getElementById('board-dive1');
+      const b2 = document.getElementById('board-dive2');
+      const b3 = document.getElementById('board-dive3');
+      const b4 = document.getElementById('board-dive4');
+
+      b1.innerText = gameState.dive1Complete ? 'COMPLETE' : 'LIVE';
+      b1.className = `mission-status ${gameState.dive1Complete ? 'status-complete' : 'status-live'}`;
+
+      b2.innerText = gameState.dive2Complete ? 'COMPLETE' : 'LIVE';
+      b2.className = `mission-status ${gameState.dive2Complete ? 'status-complete' : 'status-live'}`;
+
+      b3.innerText = gameState.dive3Complete ? 'COMPLETE' : 'LIVE';
+      b3.className = `mission-status ${gameState.dive3Complete ? 'status-complete' : 'status-live'}`;
+
+      b4.innerText = gameState.dive4Complete ? 'COMPLETE' : 'LIVE';
+      b4.className = `mission-status ${gameState.dive4Complete ? 'status-complete' : 'status-live'}`;
+
+      // 10. Render Physical In-World Dock Station Canvas
+      boardCtx.fillStyle = '#061626';
+      boardCtx.fillRect(0, 0, 512, 340);
+      boardCtx.strokeStyle = '#33aacc';
+      boardCtx.lineWidth = 4;
+      boardCtx.strokeRect(4, 4, 504, 332);
+
+      boardCtx.fillStyle = '#b090ff';
+      boardCtx.font = 'bold 20px monospace';
+      boardCtx.textAlign = 'center';
+      boardCtx.fillText('HAVEN DOCK MISSIONS', 256, 34);
+
+      boardCtx.font = '15px monospace';
+      boardCtx.textAlign = 'left';
+
+      boardCtx.fillStyle = '#e5d8ff';
+      boardCtx.fillText('DIVE I: LUMEN PODS', 24, 75);
+      boardCtx.fillStyle = gameState.dive1Complete ? '#44ffaa' : '#ffcc00';
+      boardCtx.fillText(gameState.dive1Complete ? 'COMPLETE' : 'LIVE', 380, 75);
+
+      boardCtx.fillStyle = '#e5d8ff';
+      boardCtx.fillText('DIVE II: RESONANCE', 24, 115);
+      boardCtx.fillStyle = gameState.dive2Complete ? '#44ffaa' : '#ffcc00';
+      boardCtx.fillText(gameState.dive2Complete ? 'COMPLETE' : 'LIVE', 380, 115);
+
+      boardCtx.fillStyle = '#e5d8ff';
+      boardCtx.fillText('DIVE III: THE SHELF', 24, 155);
+      boardCtx.fillStyle = gameState.dive3Complete ? '#44ffaa' : '#ffcc00';
+      boardCtx.fillText(gameState.dive3Complete ? 'COMPLETE' : 'LIVE', 380, 155);
+
+      boardCtx.fillStyle = '#e5d8ff';
+      boardCtx.fillText('DIVE IV: THE SURVEY', 24, 195);
+      boardCtx.fillStyle = gameState.dive4Complete ? '#44ffaa' : '#ffcc00';
+      boardCtx.fillText(gameState.dive4Complete ? 'COMPLETE' : 'LIVE', 380, 195);
+
+      boardCtx.fillStyle = '#6ee7ff';
+      boardCtx.font = '13px monospace';
+      boardCtx.fillText(`DEPTH: ${currentDepthVal}m | RATED: ${gameState.ratedDepth}m`, 24, 255);
+      boardCtx.fillText(`SURVEY BEACONS: ${gameState.beaconsPlanted}/3 PLANTED`, 24, 285);
+
+      boardTexture.needsUpdate = true;
+
+      // 11. Read-only Deterministic State Export for Automated Evaluation
+      const currentSpeed = Math.sqrt(gameState.forwardVel * gameState.forwardVel + gameState.verticalVel * gameState.verticalVel);
+      window.__arena_state = {
+        phase: gameState.phase,
+        sub: {
+          x: sub.position.x,
+          y: sub.position.y,
+          z: sub.position.z,
+          heading: gameState.yaw,
+          speed: currentSpeed
+        },
+        heading: gameState.yaw,
+        speed: currentSpeed,
+        battery: gameState.battery,
+        oxygen: gameState.oxygen,
+        hull: gameState.hull,
+        docked: gameState.docked,
+        headlamp: gameState.headlamp,
+        pods_aboard: gameState.podsAboard,
+        pods_banked: gameState.podsBanked,
+        sonar_cooldown: Math.max(0, gameState.sonarCooldown),
+        crystals_aboard: gameState.crystalsAboard,
+        crystals_banked: gameState.crystalsBanked,
+        dive1_complete: gameState.dive1Complete,
+        dive2_complete: gameState.dive2Complete,
+        depth: currentDepthVal,
+        rated_depth: gameState.ratedDepth,
+        platings_installed: gameState.platingsInstalled,
+        abyss_aboard: gameState.abyssAboard,
+        abyssBanked: gameState.abyssBanked,
+        abyss_banked: gameState.abyssBanked,
+        dive3_complete: gameState.dive3Complete,
+
+        // Round 4 Telemetry
+        in_current: gameState.inCurrent,
+        beacon_aboard: gameState.beaconAboard,
+        planted_count: gameState.beaconsPlanted,
+        beacons_planted: gameState.beaconsPlanted,
+        vent_phases: vents.map(v => v.currentPhase),
+        vents: vents.map(v => ({ id: v.id, phase: v.currentPhase })),
+        dive4_complete: gameState.dive4Complete
+      };
+    }
+
+    // Render and Game Step Loop
+    function stepGame(nowTime) {
+      const delta = Math.min((nowTime - lastTime) / 1000, 0.1);
+      lastTime = nowTime;
+
+      updateGame(delta, nowTime);
+      if (renderer && renderer.render) {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function animate(nowTime) {
+      requestAnimationFrame(animate);
+      stepGame(nowTime);
+    }
+
+    requestAnimationFrame(animate);
+
+    // Fallback interval to ensure telemetry and logic update continuously in headless environments
+    setInterval(() => {
+      const now = performance.now();
+      if (now - lastTime >= 15) {
+        stepGame(now);
+      }
+    }, 16);
+
+    // Immediate initial tick to ensure window.__arena_state is populated right at startup
+    updateGame(0, performance.now());
+  </script>
+</body>
+</html>

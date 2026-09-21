@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scout Network</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0a1118;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;user-select:none;-webkit-user-select:none}
+  canvas{display:block}
+  #hud{position:fixed;top:14px;left:14px;z-index:5;pointer-events:none;background:rgba(9,14,21,.78);border:1px solid #24405a;border-radius:10px;padding:10px 14px;min-width:342px;color:#dbe7f4}
+  #hud .row{display:flex;justify-content:space-between;align-items:baseline;gap:16px;font-size:13px;line-height:1.6}
+  #hud .k{color:#7e93a8;font-size:10.5px;letter-spacing:.14em;white-space:nowrap}
+  #hud .v{font-family:ui-monospace,Menlo,Consolas,monospace;color:#eaf3fc;text-align:right}
+  #hud .v.target{color:#ff829b;font-weight:600}
+  #hud .row.small{font-size:11px}
+  #hud .row.small .v{color:#a9bfd4}
+  #hud .row.transit .v{color:#ffd257}
+  #hud .row.held .v{color:#ff9a80}
+  #hud .row.jamrow .v{color:#ff8a70}
+  #hud .row.jamnext .v{color:#ffd257}
+  #hud .row.prio .v{color:#ffd257}
+  #hud .v.low{color:#ff6b5e}
+  #hud .v.score{color:#ffd257;font-weight:600}
+  #hud .ksplit{display:flex;gap:12px;margin-top:8px;border-top:1px solid #1d3348;padding-top:7px}
+  #hud .kcol{flex:1;min-width:0}
+  #hud .khead{font-size:10px;letter-spacing:.12em;color:#ffb75e;margin-bottom:3px}
+  #hud .khead.hq{color:#7de3a8}
+  #hud .khead b{color:#eaf3fc;font-weight:600}
+  #hud .kentry{display:flex;justify-content:space-between;gap:8px;font-size:10.5px;line-height:1.55}
+  #hud .kentry .kn{color:#c9d8e6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #hud .kentry .kv{color:#8fa6bb;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #hud .kentry.none{color:#5f7488}
+  #tip .dim{color:#9db2c6}
+  #hint{position:fixed;left:14px;bottom:12px;z-index:5;color:#5f7488;font-size:11px;letter-spacing:.08em;pointer-events:none}
+  #tip{position:fixed;z-index:9;pointer-events:none;background:rgba(12,20,30,.92);border:1px solid #2e4a63;color:#ffe9b0;padding:3px 8px;border-radius:6px;font-size:12px;display:none;white-space:nowrap}
+  #toast{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:8;background:rgba(12,20,30,.92);border:1px solid #2e4a63;color:#eaf3fc;padding:8px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+  #toast.show{opacity:1}
+  .overlay{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:rgba(4,8,13,.45)}
+  .overlay.hidden{display:none}
+  .panel{background:rgba(9,15,23,.88);border:1px solid #2e4a63;border-radius:16px;padding:34px 48px;text-align:center;color:#dbe7f4;max-width:580px;box-shadow:0 12px 60px rgba(0,0,0,.5)}
+  .panel h1{margin:0 0 10px;font-size:32px;letter-spacing:.36em;text-indent:.36em;color:#ffd257;font-weight:700}
+  .panel .obj{margin:6px 0;color:#c7d6e4;font-size:15px;line-height:1.5}
+  .panel .ctr{margin:14px 0 0;color:#7e93a8;font-size:12.5px;line-height:1.8}
+  .panel .go{margin:18px 0 0;color:#8fe3b0;font-size:13.5px;letter-spacing:.12em;animation:blink 1.6s infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.45}}
+  .panel .time{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:30px;color:#ffd257;margin:12px 0 0}
+  .panel .mono{font-family:ui-monospace,Menlo,Consolas,monospace;color:#ffd257}
+  .panel .grade{margin:4px 0 0;font-size:46px;font-weight:800;line-height:1.1}
+  .panel .dlist{margin:12px auto 0;max-height:150px;overflow-y:auto;text-align:left;max-width:420px;border-top:1px solid #1d3348;padding-top:8px}
+  .panel .drow{display:flex;justify-content:space-between;gap:14px;font-size:12px;line-height:1.6;color:#c9d8e6}
+  .panel .drow .dv{font-family:ui-monospace,Menlo,Consolas,monospace;color:#ffd257;white-space:nowrap}
+  .panel .drow.lost{color:#5f7488;font-size:11px}
+  .panel .foot{margin:10px 0 0;font-size:10.5px;color:#5f7488;line-height:1.5}
+  #fatal .panel{border-color:#7a2e3d}
+</style>
+</head>
+<body>
+  <div id="hud">
+    <div class="row"><span class="k">TIME LEFT</span><span class="v" id="hTime">1:00.0</span></div>
+    <div class="row"><span class="k">SCORE</span><span class="v score" id="hScore">0</span></div>
+    <div class="row"><span class="k">LOCATION</span><span class="v" id="hLoc">Base Camp (HQ)</span></div>
+    <div class="row"><span class="k">TARGET</span><span class="v target" id="hTarget">Beacon Summit &middot; unobserved</span></div>
+    <div class="row small"><span class="k">TRAILS</span><span class="v" id="hAdj">&mdash;</span></div>
+    <div class="row small prio"><span class="k">PRIORITY</span><span class="v" id="hPrio">&mdash;</span></div>
+    <div class="ksplit">
+      <div class="kcol">
+        <div class="khead">SCOUT KNOWS <b id="kScoutN">1</b></div>
+        <div id="kScoutList"><div class="kentry none">&mdash;</div></div>
+      </div>
+      <div class="kcol">
+        <div class="khead hq">HQ KNOWS <b id="kHqN">1</b></div>
+        <div id="kHqList"><div class="kentry none">&mdash;</div></div>
+      </div>
+    </div>
+    <div class="row small transit"><span class="k">IN TRANSIT</span><span class="v" id="kTransit">0</span></div>
+    <div class="row small held"><span class="k">HELD (JAMMED)</span><span class="v" id="kHeld">0</span></div>
+    <div class="row small jamrow"><span class="k">JAMMED NOW</span><span class="v" id="kJam">&mdash;</span></div>
+    <div class="row small jamnext"><span class="k">NEXT CHANGE</span><span class="v" id="kNext">&mdash;</span></div>
+  </div>
+  <div id="hint">DRAG orbit &nbsp;&middot;&nbsp; WHEEL zoom &nbsp;&middot;&nbsp; CLICK to travel &nbsp;&middot;&nbsp; RED DOME = jammed &nbsp;&middot;&nbsp; R restart</div>
+  <div id="tip"></div>
+  <div id="toast"></div>
+
+  <div id="titleCard" class="overlay">
+    <div class="panel">
+      <h1>SCOUT NETWORK</h1>
+      <p class="obj">Gather intel and get <b>Beacon Summit's</b> report to HQ before the clock runs out &mdash; the mission ends at <b>1:00</b>, win or lose. Gold-diamond posts are priority targets worth 400; the Target is worth 600.</p>
+      <p class="ctr">Click an adjacent post to travel &mdash; reachable trails light up amber.<br>
+      Reports fly back node-by-node; jamming shifts mid-mission &mdash; watch the JAMMED NOW panel and adapt.<br>
+      Score = delivered intel only. Held and in-transit reports are lost at the buzzer.<br>
+      Drag to orbit &middot; Scroll to zoom &middot; R restarts.</p>
+      <p class="go">PRESS ENTER TO BEGIN THE MISSION</p>
+    </div>
+  </div>
+
+  <div id="winCard" class="overlay hidden">
+    <div class="panel">
+      <h1 id="endTitle">MISSION COMPLETE</h1>
+      <p class="obj" id="endSub"></p>
+      <p class="time" id="endScore">0 PTS</p>
+      <p class="grade" id="endGrade">C</p>
+      <div class="dlist" id="endList"></div>
+      <p class="foot" id="endFoot"></p>
+      <p class="go">PRESS R TO RUN IT AGAIN</p>
+    </div>
+  </div>
+
+  <div id="fatal" class="overlay hidden">
+    <div class="panel">
+      <h1>SCOUT NETWORK</h1>
+      <p class="obj" id="fatalMsg">The 3D runtime failed to load.</p>
+    </div>
+  </div>
+
+<script>
+window.__bootScoutNetwork = function (THREE) {
+  'use strict';
+  if (window.__scoutBooted) return;
+  window.__scoutBooted = true;
+  var fatalCard = document.getElementById('fatal');
+  if (fatalCard) fatalCard.classList.add('hidden');
+
+  // ---------- Deterministic network definition (hand-authored, no randomness) ----------
+  var NODES = [
+    { name: 'Base Camp',     pos: [0, 0, 0],      role: 'hq' },
+    { name: 'Lookout Ridge', pos: [16, 4, 6] },
+    { name: 'Pine Saddle',   pos: [8, 7, -18] },
+    { name: 'West Terrace',  pos: [-14, 3, -10] },
+    { name: 'Birch Ledge',   pos: [-12, 8, 14] },
+    { name: 'Copper Flats',  pos: [28, -3, -8] },
+    { name: 'High Span',     pos: [20, 13, 24] },
+    { name: 'Old Mill',      pos: [-26, -5, 6] },
+    { name: 'Granite Spur',  pos: [36, 9, 16] },
+    { name: 'Long Shadow',   pos: [-38, 5, -20] },
+    { name: 'Red Basin',     pos: [42, -6, -22] },
+    { name: 'Sky Shelf',     pos: [-22, 17, -32] },
+    { name: 'Far Point',     pos: [54, 7, 4] },
+    { name: 'Cold Hollow',   pos: [-50, -9, -6] },
+    { name: 'Sun Terrace',   pos: [32, 19, 46] },
+    { name: 'Moon Mesa',     pos: [-44, 11, 30] },
+    { name: 'Beacon Summit', pos: [62, 14, -30],  role: 'target' }
+  ];
+  var HQ = 0, TARGET = 16;
+  var EDGES = [
+    [0,1],[0,2],[0,3],[0,4],
+    [1,5],[1,6],[1,8],
+    [2,3],[2,5],[2,11],
+    [3,7],[3,9],
+    [4,6],[4,7],[4,15],
+    [5,10],[5,12],
+    [6,8],[6,14],
+    [7,13],[7,15],
+    [8,12],[8,14],
+    [9,11],[9,13],
+    [10,12],[10,16],
+    [12,16]
+  ];
+  var SPEED = 8;          // fixed scout speed, units/second
+  var STEP = 1 / 60;      // fixed simulation timestep (determinism)
+  var STAND = 4.6;        // scout foot height on a node platform
+  var QUEUE_MAX = 3;
+  var SECS_PER_HOP = 2.5;  // report transmission pace: seconds of lag per graph hop back to HQ
+  // Fixed per-node observations — the same node always holds the same intel (no randomness).
+  var INTEL = [
+    { type: 'SUPPLY',  text: 'fully stocked' },
+    { type: 'ENEMY',   text: '1 patrol sighted' },
+    { type: 'TERRAIN', text: 'loose scree, passable' },
+    { type: 'SUPPLY',  text: 'ammunition cache low' },
+    { type: 'TERRAIN', text: 'firm forest ground' },
+    { type: 'ENEMY',   text: 'no contacts' },
+    { type: 'TERRAIN', text: 'span bridge stable' },
+    { type: 'SUPPLY',  text: 'water source usable' },
+    { type: 'ENEMY',   text: '2 patrols, moving' },
+    { type: 'TERRAIN', text: 'fog until noon' },
+    { type: 'ENEMY',   text: '3 patrols, hostile' },
+    { type: 'SUPPLY',  text: 'cache intact' },
+    { type: 'ENEMY',   text: '1 scout, evasive' },
+    { type: 'SUPPLY',  text: 'cache spoiled' },
+    { type: 'TERRAIN', text: 'exposed ridge' },
+    { type: 'TERRAIN', text: 'narrow ledges' },
+    { type: 'ENEMY',   text: 'signal fire lit \u2014 objective confirmed' }
+  ];
+  // Blackout zones: jammed posts cannot transmit; their intel rides with the scout
+  // until it reaches an unjammed relay. Red Basin (10) sits on the natural
+  // HQ -> Target route; the Target itself is never jammed.
+  var JAMMED_IDS = [9, 10, 13, 14];   // jamming state at mission start
+  var JAMMED = {};
+  for (var ji = 0; ji < JAMMED_IDS.length; ji++) JAMMED[JAMMED_IDS[ji]] = true;
+  var JAMMED0 = {};
+  for (ji = 0; ji < JAMMED_IDS.length; ji++) JAMMED0[JAMMED_IDS[ji]] = true;
+  // Dynamic jamming schedule (deterministic): each entry fires at the first
+  // fixed-step tick where the mission clock reaches t. Same every run.
+  var JAM_SCHEDULE = [
+    { t: 20, node: 5,  jam: true  },   // Copper Flats relay dies
+    { t: 30, node: 10, jam: false },   // Red Basin (priority, on the main route) opens up
+    { t: 40, node: 2,  jam: true  },   // Pine Saddle relay dies
+    { t: 45, node: 6,  jam: true  }    // High Span (priority) goes dark
+  ];
+  // Scoring: priority posts (gold diamonds) are worth 400, ordinary posts 100,
+  // the final Target 600, and HQ's own status 0. Mission is capped at TIME_LIMIT.
+  var TIME_LIMIT = 60;
+  var PRIORITY_IDS = [6, 9, 12, 15];
+  var PRIORITY = {};
+  for (ji = 0; ji < PRIORITY_IDS.length; ji++) PRIORITY[PRIORITY_IDS[ji]] = true;
+  var SCORE = [];
+  for (ji = 0; ji < NODES.length; ji++) SCORE.push(PRIORITY[ji] ? 400 : 100);
+  SCORE[HQ] = 0;
+  SCORE[TARGET] = 600;
+
+  function fatal(msg) {
+    var m = document.getElementById('fatalMsg');
+    if (m) m.textContent = msg;
+    var f = document.getElementById('fatal');
+    if (f) f.classList.remove('hidden');
+  }
+
+  // ---------- Renderer / scene ----------
+  var renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+  } catch (e) {
+    fatal('WebGL is not available in this browser.');
+    return;
+  }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x0a1118);
+  document.body.insertBefore(renderer.domElement, document.body.firstChild);
+  var dom = renderer.domElement;
+  dom.style.cursor = 'grab';
+
+  var scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x0a1118, 230, 880);
+  var camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.5, 3000);
+  var clock = new THREE.Clock();
+
+  var hemi = new THREE.HemisphereLight(0xcfe5ff, 0x16202e, 0.95);
+  scene.add(hemi);
+  var sun = new THREE.DirectionalLight(0xfff2d9, 0.85);
+  sun.position.set(60, 110, 40);
+  scene.add(sun);
+  var fill = new THREE.DirectionalLight(0x7fa8ff, 0.3);
+  fill.position.set(-70, 40, -80);
+  scene.add(fill);
+  // Newer three.js builds use physical light units by default; compensate so lit
+  // surfaces render with comparable brightness on either runtime version.
+  var physicalMode;
+  if (renderer.useLegacyLights !== undefined) physicalMode = !renderer.useLegacyLights;
+  else if (renderer.physicallyCorrectLights !== undefined) physicalMode = !!renderer.physicallyCorrectLights;
+  else physicalMode = true;
+  if (physicalMode) {
+    hemi.intensity *= Math.PI;
+    sun.intensity *= Math.PI;
+    fill.intensity *= Math.PI;
+  }
+
+  // ---------- Sky (deterministic golden-spiral star field) ----------
+  (function () {
+    var N = 460, arr = new Float32Array(N * 3);
+    for (var i = 0; i < N; i++) {
+      var t = (i + 0.5) / N;
+      var phi = Math.acos(1 - 2 * t);
+      var th = i * 2.399963229728653;
+      var r = 680 + (i % 9) * 26;
+      arr[i * 3] = r * Math.sin(phi) * Math.cos(th);
+      arr[i * 3 + 1] = r * Math.cos(phi);
+      arr[i * 3 + 2] = r * Math.sin(phi) * Math.sin(th);
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    var m = new THREE.PointsMaterial({ color: 0x8fb0d9, size: 2.1, sizeAttenuation: false, fog: false, transparent: true, opacity: 0.85 });
+    scene.add(new THREE.Points(g, m));
+  })();
+
+  // ---------- Ground ----------
+  var ground = new THREE.Mesh(new THREE.CircleGeometry(320, 48), new THREE.MeshBasicMaterial({ color: 0x0d1622 }));
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -15;
+  scene.add(ground);
+  var grid = new THREE.PolarGridHelper(150, 16, 8, 64, 0x22344a, 0x1a2838);
+  grid.position.y = -14.9;
+  scene.add(grid);
+
+  // ---------- Node construction (lookout towers) ----------
+  function lamb(c) { return new THREE.MeshLambertMaterial({ color: c }); }
+  function mk(geo, mat, x, y, z) {
+    var m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, z);
+    return m;
+  }
+
+  var nodeObjs = [], hitMeshes = [];
+  function buildNode(i) {
+    var n = NODES[i];
+    var isHQ = n.role === 'hq', isT = n.role === 'target';
+    var big = (isHQ || isT) ? 1.22 : 1;
+    var colCol = isHQ ? 0xd9a53f : isT ? 0xc23a5f : 0x5c718a;
+    var lanCol = isHQ ? 0xffd257 : isT ? 0xff5d7e : 0x6fd3ff;
+    var g = new THREE.Group();
+    g.position.set(n.pos[0], n.pos[1], n.pos[2]);
+    g.add(mk(new THREE.CylinderGeometry(2.3 * big, 3.0 * big, 1.6, 7), lamb(0x3a4656), 0, 0.8, 0));
+    g.add(mk(new THREE.CylinderGeometry(0.75 * big, 1.05 * big, 2.6, 8), lamb(colCol), 0, 2.9, 0));
+    g.add(mk(new THREE.CylinderGeometry(1.75 * big, 1.75 * big, 0.35, 10), lamb(0x48586c), 0, 4.4, 0));
+    var ring = mk(new THREE.TorusGeometry(1.9 * big, 0.06, 8, 30), new THREE.MeshBasicMaterial({ color: 0x2f4257 }), 0, 4.62, 0);
+    ring.rotation.x = Math.PI / 2;
+    g.add(ring);
+    var lant = mk(new THREE.SphereGeometry(0.34, 10, 8), new THREE.MeshBasicMaterial({ color: lanCol }), 0, 5.35, 0);
+    g.add(lant);
+    var beamMat = null;
+    if (isHQ) {
+      g.add(mk(new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6), lamb(0x8a94a3), 0.9, 6.2, 0));
+      g.add(mk(new THREE.PlaneGeometry(1.1, 0.62), new THREE.MeshBasicMaterial({ color: 0xe3b341, side: THREE.DoubleSide }), 1.5, 7.3, 0));
+    }
+    if (isT) {
+      beamMat = new THREE.MeshBasicMaterial({ color: 0xff5d7e, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+      g.add(mk(new THREE.CylinderGeometry(0.55, 0.95, 26, 10, 1, true), beamMat, 0, 17, 0));
+    }
+    var jammer = null, dome = null, domeMat = null, gem = null;
+    if (PRIORITY[i]) {
+      gem = mk(new THREE.OctahedronGeometry(0.45), new THREE.MeshBasicMaterial({ color: 0xffd257 }), 0, 6.7, 0);
+      g.add(gem);
+    }
+    // Jamming visuals exist on every node; visibility tracks the live JAMMED state.
+    domeMat = new THREE.MeshBasicMaterial({ color: 0xff4a3d, transparent: true, opacity: 0.08, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    dome = mk(new THREE.SphereGeometry(4.2, 14, 10), domeMat, 0, 2.6, 0);
+    dome.visible = !!JAMMED[i];
+    g.add(dome);
+    jammer = new THREE.Group();
+    var barMat = new THREE.MeshBasicMaterial({ color: 0xff4a3d });
+    jammer.add(new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.14, 0.14), barMat));
+    jammer.add(new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.6, 0.14), barMat));
+    jammer.position.y = gem ? 7.9 : 6.7;
+    jammer.visible = !!JAMMED[i];
+    g.add(jammer);
+    var hit = mk(new THREE.SphereGeometry(3.6 * big, 8, 6), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }), 0, 2.8, 0);
+    hit.userData.node = i;
+    g.add(hit);
+    hitMeshes.push(hit);
+    scene.add(g);
+    return {
+      ring: ring, lant: lant, ringMat: ring.material, lantMat: lant.material, beamMat: beamMat,
+      jammer: jammer, dome: dome, domeMat: domeMat, gem: gem,
+      baseRing: isHQ ? 0xb98a2e : isT ? 0x93274a : 0x2f4257,
+      baseLant: lanCol
+    };
+  }
+  for (var ni = 0; ni < NODES.length; ni++) nodeObjs.push(buildNode(ni));
+
+  // ---------- Edges (suspended cable trails following the 3D layout) ----------
+  var adj = [];
+  for (ni = 0; ni < NODES.length; ni++) adj.push({});
+  var edgeObjs = [];
+  EDGES.forEach(function (e) {
+    var a = e[0], b = e[1];
+    adj[a][b] = edgeObjs.length;
+    adj[b][a] = edgeObjs.length;
+    var pa = new THREE.Vector3(NODES[a].pos[0], NODES[a].pos[1] + STAND, NODES[a].pos[2]);
+    var pb = new THREE.Vector3(NODES[b].pos[0], NODES[b].pos[1] + STAND, NODES[b].pos[2]);
+    var dist = pa.distanceTo(pb);
+    var mid = pa.clone().add(pb).multiplyScalar(0.5);
+    mid.y -= Math.min(2.4, dist * 0.055);
+    var curve = new THREE.QuadraticBezierCurve3(pa, mid, pb);
+    var mat = new THREE.MeshBasicMaterial({ color: 0x2f4b63 });
+    var tube = new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(10, Math.round(dist / 1.5)), 0.11, 6, false), mat);
+    scene.add(tube);
+    edgeObjs.push({ a: a, b: b, dist: dist, curve: curve, mat: mat });
+  });
+
+  // Static sanity check: the graph must be fully connected.
+  (function () {
+    var seen = {}, st = [0];
+    seen[0] = 1;
+    while (st.length) {
+      var n = st.pop();
+      for (var k in adj[n]) if (!seen[k]) { seen[k] = 1; st.push(parseInt(k, 10)); }
+    }
+    var count = 0, q;
+    for (q in seen) count++;
+    if (count !== NODES.length) console.error('Scout Network: graph not fully connected (' + count + '/' + NODES.length + ')');
+  })();
+
+  // Static shortest path (hop count) from every node back to HQ — reports route along it,
+  // so delay depends on graph distance, not straight-line distance.
+  var hopDist = [], hopPath = [];
+  (function () {
+    var parent = [], i;
+    for (i = 0; i < NODES.length; i++) { hopDist.push(-1); parent.push(-1); }
+    hopDist[HQ] = 0;
+    var q = [HQ];
+    while (q.length) {
+      var n = q.shift();
+      for (var k in adj[n]) {
+        var m = parseInt(k, 10);
+        if (hopDist[m] === -1) { hopDist[m] = hopDist[n] + 1; parent[m] = n; q.push(m); }
+      }
+    }
+    for (i = 0; i < NODES.length; i++) {
+      var p = [], n2 = i;
+      while (n2 !== -1) { p.unshift(n2); n2 = parent[n2]; }
+      hopPath.push(p);
+    }
+  })();
+
+  // ---------- Scout (articulated figure) ----------
+  function buildScout() {
+    var g = new THREE.Group();
+    var suit = lamb(0x33475c), skin = lamb(0xf1c69b), vest = lamb(0xe87f2e);
+    function limb(x, y, w, h, mat) {
+      var piv = new THREE.Group();
+      piv.position.set(x, y, 0);
+      var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), mat);
+      m.position.y = -h / 2;
+      piv.add(m);
+      g.add(piv);
+      return piv;
+    }
+    var legL = limb(-0.11, 0.52, 0.15, 0.5, suit), legR = limb(0.11, 0.52, 0.15, 0.5, suit);
+    var torso = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.56, 0.26), vest);
+    torso.position.y = 0.82;
+    g.add(torso);
+    var pack = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.36, 0.13), lamb(0x3f5a78));
+    pack.position.set(0, 0.86, -0.2);
+    g.add(pack);
+    var head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), skin);
+    head.position.y = 1.27;
+    g.add(head);
+    var helm = new THREE.Mesh(new THREE.SphereGeometry(0.185, 10, 8), lamb(0xe8eef4));
+    helm.position.y = 1.31;
+    helm.scale.set(1, 0.72, 1);
+    g.add(helm);
+    var armL = limb(-0.28, 1.05, 0.11, 0.44, suit), armR = limb(0.28, 1.05, 0.11, 0.44, suit);
+    scene.add(g);
+    return { g: g, legL: legL, legR: legR, armL: armL, armR: armR };
+  }
+  var scout = buildScout();
+
+  // ---------- Mission state ----------
+  var phase = 'title';       // 'title' | 'playing' | 'complete'
+  var elapsed = 0;           // mission clock while playing (frozen when the report lands)
+  var simNow = 0;            // simulation clock; keeps running post-completion so in-flight reports land
+  var acc = 0;
+  var cur = HQ;              // node the scout occupies / departed from
+  var travel = null;         // {edge, from, to, dist, gone}
+  var queue = [];
+  var targetReached = false;
+  var finalTime = 0;
+  var hovered = -1;
+  // Knowledge: membership sets + insertion-ordered id lists (HQ lags behind the scout).
+  var scoutKnown = {}, hqKnown = {}, scoutSeq = [], hqSeq = [];
+  var transit = [];          // in-flight reports: {node, relay, sendAt, delay, path, marker}
+  var held = [];             // observations carried by the scout, waiting for an unjammed relay
+  var targetObserved = false, targetDelivered = false;
+  var scoutArrivalTime = null, deliveryTime = null;
+  var lastHqArrival = -10;
+  var score = 0;             // points from observations that have reached HQ
+  var endReason = null;      // 'delivered' | 'expired' once the mission ends
+  var endScore = 0, endGrade = null, endDelivered = [], lostHeld = 0, lostTransit = 0;
+
+  function resetKnowledge() {
+    for (var i = 0; i < transit.length; i++) if (transit[i].marker) scene.remove(transit[i].marker);
+    scoutKnown = {}; hqKnown = {}; scoutSeq = [HQ]; hqSeq = [HQ]; transit = []; held = [];
+    scoutKnown[HQ] = true; hqKnown[HQ] = true;
+    targetObserved = false; targetDelivered = false;
+    scoutArrivalTime = null; deliveryTime = null;
+    lastHqArrival = -10;
+    score = 0; endReason = null; endGrade = null;
+    endScore = 0; endDelivered = []; lostHeld = 0; lostTransit = 0;
+    for (i = 0; i < JAM_SCHEDULE.length; i++) JAM_SCHEDULE[i].done = false;
+    JAMMED = {};
+    for (i = 0; i < JAMMED_IDS.length; i++) JAMMED[JAMMED_IDS[i]] = true;
+  }
+  resetKnowledge();
+
+  function transitItemFor(id) {
+    for (var i = 0; i < transit.length; i++) if (transit[i].node === id) return transit[i];
+    return null;
+  }
+
+  function liveJammed() {
+    var out = [];
+    for (var i = 0; i < NODES.length; i++) if (JAMMED[i]) out.push(i);
+    return out;
+  }
+
+  // Fires scheduled jam changes at their fixed mission times. If a node clears
+  // while the scout stands on it carrying held intel, it relays immediately.
+  function updateJamSchedule() {
+    for (var i = 0; i < JAM_SCHEDULE.length; i++) {
+      var e = JAM_SCHEDULE[i];
+      if (e.done || simNow < e.t) continue;
+      e.done = true;
+      JAMMED[e.node] = e.jam;
+      toast((e.jam ? 'JAMMED \u2014 ' : 'CLEARED \u2014 ') + NODES[e.node].name + (e.jam ? ' goes dark' : ' can transmit again'));
+      if (!e.jam && !travel && cur === e.node && held.length) relayHeld(e.node);
+    }
+  }
+
+  // ---------- Camera (custom orbit: rotate + zoom, clamped so it never flips) ----------
+  var center = new THREE.Vector3();
+  NODES.forEach(function (n) { center.x += n.pos[0]; center.y += n.pos[1]; center.z += n.pos[2]; });
+  center.multiplyScalar(1 / NODES.length);
+  var boundR = 0;
+  NODES.forEach(function (n) {
+    boundR = Math.max(boundR, new THREE.Vector3(n.pos[0], n.pos[1], n.pos[2]).distanceTo(center));
+  });
+  boundR += 10;
+  var vFov = camera.fov * Math.PI / 180;
+  var hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+  var minR = 16;
+  var camState = { yaw: 0.8, pitch: 0.55, r: 150, tYaw: 0.8, tPitch: 0.55, tR: 150 };
+  camState.r = camState.tR = Math.max(60, Math.min(320, (boundR * 1.08) / Math.tan(Math.min(vFov, hFov) / 2)));
+  var maxR = camState.tR * 2.6;
+
+  function updateCamera(dt) {
+    var k = 1 - Math.exp(-dt * 9);
+    camState.yaw += (camState.tYaw - camState.yaw) * k;
+    camState.pitch += (camState.tPitch - camState.pitch) * k;
+    camState.r += (camState.tR - camState.r) * k;
+    var cp = Math.cos(camState.pitch), sp = Math.sin(camState.pitch);
+    camera.position.set(
+      center.x + camState.r * cp * Math.sin(camState.yaw),
+      center.y + camState.r * sp,
+      center.z + camState.r * cp * Math.cos(camState.yaw)
+    );
+    camera.lookAt(center);
+  }
+
+  // ---------- Picking / hover ----------
+  var raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  function castNode(cx, cy) {
+    var r = dom.getBoundingClientRect();
+    ndc.x = ((cx - r.left) / r.width) * 2 - 1;
+    ndc.y = -((cy - r.top) / r.height) * 2 + 1;
+    raycaster.setFromCamera(ndc, camera);
+    var hits = raycaster.intersectObjects(hitMeshes, false);
+    return hits.length ? hits[0].object.userData.node : -1;
+  }
+  var tip = document.getElementById('tip');
+  function updateHover(cx, cy) {
+    var h = castNode(cx, cy);
+    hovered = h;
+    dom.style.cursor = h >= 0 ? 'pointer' : 'grab';
+    if (h >= 0) {
+      var n = NODES[h];
+      var tag = (n.role === 'hq' ? ' \u2014 HQ' : n.role === 'target' ? ' \u2014 TARGET' : '') + (JAMMED[h] ? ' \u2014 JAMMED' : '');
+      var line2 = scoutKnown[h] ? INTEL[h].type + ': ' + INTEL[h].text : 'not yet observed';
+      var hqLine = hqKnown[h] ? 'reported to HQ'
+        : (transitItemFor(h) ? 'report in transit'
+        : (held.indexOf(h) !== -1 ? 'held by scout \u2014 jammed' : 'no report at HQ'));
+      var val = 'VALUE: ' + SCORE[h] + (PRIORITY[h] ? ' \u2014 HIGH PRIORITY' : '') + (h === TARGET ? ' \u2014 FINAL TARGET' : '');
+      tip.innerHTML = '<b>' + n.name + tag + '</b><br>' + line2 + '<br><span class="dim">' + val + ' \u00b7 HQ: ' + hqLine + '</span>';
+      tip.style.left = (cx + 14) + 'px';
+      tip.style.top = (cy + 12) + 'px';
+      tip.style.display = 'block';
+    } else {
+      tip.style.display = 'none';
+    }
+  }
+
+  // ---------- Movement rules ----------
+  function startTravel(a, b) {
+    var ei = adj[a][b];
+    if (ei === undefined) return;
+    travel = { edge: ei, from: a, to: b, dist: edgeObjs[ei].dist, gone: 0 };
+    refreshEdges();
+  }
+
+  // ---------- Observations, jamming, and the report delay ----------
+  function observeNode(id) {
+    if (scoutKnown[id]) return;
+    scoutKnown[id] = true;
+    scoutSeq.push(id);
+    if (id === TARGET) targetObserved = true;
+    if (JAMMED[id]) {
+      // Blackout: scout learns the intel instantly, but nothing is transmitted.
+      held.push(id);
+      toast('JAMMED \u2014 intel held: ' + NODES[id].name + ' (' + INTEL[id].text + ')');
+      return;
+    }
+    if (id === TARGET) toast('Target observed \u2014 report in transit, ETA ' + (hopDist[id] * SECS_PER_HOP).toFixed(1) + 's');
+    else toast('Observed ' + NODES[id].name + ' \u2014 ' + INTEL[id].type.toLowerCase() + ': ' + INTEL[id].text);
+    pushTransit(id, id);
+  }
+
+  // Queue a report for transmission: delay comes from the RELAY node's graph
+  // distance back to HQ (for direct reports the relay is the node itself).
+  function pushTransit(id, relay) {
+    var hops = hopDist[relay];
+    if (hops <= 0) {
+      hqKnown[id] = true;
+      hqSeq.push(id);
+      score += SCORE[id];
+      if (id === TARGET) { deliveryTime = elapsed; targetDelivered = true; endMission('delivered'); }
+      return;
+    }
+    transit.push({ node: id, relay: relay, sendAt: simNow, delay: hops * SECS_PER_HOP, path: hopPath[relay].slice(), marker: makeMarker() });
+  }
+
+  // On arriving at an unjammed node, every held observation transmits from here.
+  function relayHeld(relay) {
+    if (!held.length || JAMMED[relay]) return;
+    var names = [];
+    for (var i = 0; i < held.length && i < 3; i++) names.push(NODES[held[i]].name);
+    toast(held.length + ' held report' + (held.length > 1 ? 's' : '') + ' relaying via ' + NODES[relay].name +
+      ' \u2014 ETA ' + (hopDist[relay] * SECS_PER_HOP).toFixed(1) + 's');
+    for (i = 0; i < held.length; i++) pushTransit(held[i], relay);
+    held = [];
+  }
+
+  function updateTransmissions() {
+    var landedTarget = false;
+    for (var i = transit.length - 1; i >= 0; i--) {
+      var t = transit[i];
+      if (simNow < t.sendAt + t.delay) continue;
+      hqKnown[t.node] = true;
+      hqSeq.push(t.node);
+      score += SCORE[t.node];
+      if (t.marker) scene.remove(t.marker);
+      lastHqArrival = simNow;
+      transit.splice(i, 1);
+      if (t.node === TARGET) {
+        deliveryTime = simNow;
+        targetDelivered = true;
+        landedTarget = true;
+      } else if (phase === 'playing') {
+        toast('Report received at HQ \u2014 ' + NODES[t.node].name + ': ' + INTEL[t.node].text + ' +' + SCORE[t.node] + ' (' + t.delay.toFixed(1) + 's lag)');
+      }
+    }
+    if (landedTarget) endMission('delivered');
+  }
+
+  function endMission(reason) {
+    if (phase === 'complete') return;
+    phase = 'complete';
+    endReason = reason;
+    finalTime = elapsed;
+    endScore = score;
+    endDelivered = [];
+    for (var i = 0; i < hqSeq.length; i++) if (hqSeq[i] !== HQ) endDelivered.push(hqSeq[i]);
+    lostHeld = held.length;
+    lostTransit = transit.length;
+    for (i = 0; i < transit.length; i++) if (transit[i].marker) scene.remove(transit[i].marker);
+    transit = [];
+    held = [];
+    endGrade = computeGrade();
+    refreshEdges();
+    showEnd();
+  }
+
+  function computeGrade() {
+    var prioDelivered = 0;
+    for (var i = 0; i < endDelivered.length; i++) if (PRIORITY[endDelivered[i]]) prioDelivered++;
+    if (endReason === 'delivered' && prioDelivered >= 3 && TIME_LIMIT - deliveryTime >= 10) return 'S';
+    if (endReason === 'delivered' || prioDelivered >= 3 || endScore >= 900) return 'A';
+    if (targetReached || prioDelivered >= 1 || endScore >= 400) return 'B';
+    return 'C';
+  }
+
+  var markerPos = new THREE.Vector3(), markerTan = new THREE.Vector3(), markerPerp = new THREE.Vector3();
+  function makeMarker() {
+    var g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffd257 })));
+    g.add(new THREE.Mesh(new THREE.SphereGeometry(0.95, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffd257, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false })));
+    scene.add(g);
+    return g;
+  }
+
+  function updateMarkersVisual() {
+    for (var i = 0; i < transit.length; i++) {
+      var t = transit[i];
+      var u = Math.max(0, Math.min(1, (simNow - t.sendAt) / t.delay));
+      var segs = t.path.length - 1;
+      var f = u * segs;
+      var seg = Math.min(segs - 1, Math.floor(f));
+      var lu = f - seg;
+      var e = edgeObjs[adj[t.path[seg]][t.path[seg + 1]]];
+      var uu = (e.a === t.path[seg]) ? lu : 1 - lu;
+      e.curve.getPointAt(uu, markerPos);
+      e.curve.getTangentAt(uu, markerTan);
+      markerPerp.set(-markerTan.z, 0, markerTan.x).normalize();
+      markerPos.addScaledVector(markerPerp, ((t.node % 3) - 1) * 0.55);
+      markerPos.y += 0.55 + 0.12 * Math.sin(simNow * 6 + t.sendAt * 4);
+      t.marker.position.copy(markerPos);
+    }
+  }
+
+  function onPick(id) {
+    if (phase !== 'playing') return;
+    if (travel) {
+      var end = queue.length ? queue[queue.length - 1] : travel.to;
+      if (id === end) { toast('Already queued'); return; }
+      if (adj[end][id] !== undefined) {
+        if (queue.length >= QUEUE_MAX) { toast('Move queue is full'); return; }
+        queue.push(id);
+        toast('Queued: ' + NODES[id].name);
+      } else {
+        toast('No trail from ' + NODES[end].name + ' to ' + NODES[id].name);
+      }
+    } else {
+      if (id === cur) return;
+      if (adj[cur][id] !== undefined) {
+        startTravel(cur, id);
+      } else {
+        toast('No trail from ' + NODES[cur].name + ' to ' + NODES[id].name);
+      }
+    }
+  }
+
+  function refreshEdges() {
+    var focus = travel ? travel.to : cur;
+    for (var i = 0; i < edgeObjs.length; i++) {
+      var e = edgeObjs[i], c = 0x2f4b63;
+      if (travel && travel.edge === i) c = 0xffd257;
+      else if (e.a === focus || e.b === focus) c = 0xcf9c3f;
+      e.mat.color.setHex(c);
+    }
+  }
+
+  // ---------- Fixed-step simulation (deterministic) ----------
+  function simStep() {
+    if (phase === 'title') return;
+    simNow += STEP;
+    if (phase !== 'playing') return;
+    elapsed = simNow;
+    updateJamSchedule();
+    updateTransmissions();
+    if (elapsed >= TIME_LIMIT) {
+      elapsed = TIME_LIMIT;
+      endMission('expired');
+      return;
+    }
+    if (travel) {
+      travel.gone += SPEED * STEP;
+      if (travel.gone >= travel.dist) {
+        cur = travel.to;
+        travel = null;
+        if (cur === TARGET && scoutArrivalTime === null) {
+          scoutArrivalTime = elapsed;
+          targetReached = true;
+        }
+        observeNode(cur);
+        relayHeld(cur);
+        if (queue.length) {
+          var nxt = queue.shift();
+          if (adj[cur][nxt] !== undefined) {
+            startTravel(cur, nxt);
+            toast('Now heading to ' + NODES[nxt].name);
+          } else {
+            queue = [];
+          }
+        }
+        refreshEdges();
+      }
+    }
+  }
+
+  // ---------- Flow ----------
+  function startMission() {
+    resetKnowledge();
+    phase = 'playing';
+    elapsed = 0;
+    simNow = 0;
+    acc = 0;
+    document.getElementById('titleCard').classList.add('hidden');
+    toast('Depart Base Camp \u2014 click an amber-lit post');
+  }
+  function restart() {
+    cur = HQ;
+    travel = null;
+    queue = [];
+    elapsed = 0;
+    simNow = 0;
+    acc = 0;
+    targetReached = false;
+    phase = 'playing';
+    resetKnowledge();
+    document.getElementById('winCard').classList.add('hidden');
+    document.getElementById('titleCard').classList.add('hidden');
+    refreshEdges();
+    toast('Mission restarted \u2014 you are at Base Camp');
+  }
+  function showEnd() {
+    var endTitle = document.getElementById('endTitle');
+    var endSub = document.getElementById('endSub');
+    if (endReason === 'delivered') {
+      endTitle.textContent = 'MISSION COMPLETE';
+      endSub.innerHTML = 'Scout reached <b>Beacon Summit</b> at ' + fmt(scoutArrivalTime === null ? finalTime : scoutArrivalTime) +
+        ' \u2014 report delivered at ' + fmt(deliveryTime) + ' with ' + fmt(Math.max(0, TIME_LIMIT - deliveryTime)) + ' to spare.';
+    } else {
+      endTitle.textContent = 'TIME EXPIRED';
+      endSub.innerHTML = 'The clock ran out at ' + fmt(TIME_LIMIT) + ' with the scout at <b>' + NODES[cur].name + '</b>. Held and in-transit intel is lost.';
+    }
+    document.getElementById('endScore').textContent = endScore + ' PTS';
+    var g = document.getElementById('endGrade');
+    g.textContent = endGrade;
+    g.style.color = endGrade === 'S' ? '#ffd257' : endGrade === 'A' ? '#7de3a8' : endGrade === 'B' ? '#7fb8ff' : '#8fa6bb';
+    var html = '';
+    for (var i = 0; i < endDelivered.length; i++) {
+      var id = endDelivered[i];
+      html += '<div class="drow"><span>' + NODES[id].name + (PRIORITY[id] ? ' \u2605' : '') + (id === TARGET ? ' \u2014 final target' : '') + '</span><span class="dv">+' + SCORE[id] + '</span></div>';
+    }
+    if (!html) html = '<div class="drow"><span>Nothing reached HQ in time.</span><span class="dv">+0</span></div>';
+    html += '<div class="drow lost"><span>Lost \u2014 held: ' + lostHeld + ' \u00b7 in transit: ' + lostTransit + '</span><span class="dv"></span></div>';
+    document.getElementById('endList').innerHTML = html;
+    document.getElementById('endFoot').textContent = 'Grades \u2014 S: target + 3\u2605 with 10s spare \u00b7 A: target delivered or 3\u2605 \u00b7 B: target reached or 1\u2605 \u00b7 C: less';
+    document.getElementById('winCard').classList.remove('hidden');
+  }
+
+  // ---------- Per-frame visuals ----------
+  var scoutPos = new THREE.Vector3();
+  function updateScoutVisual() {
+    var swing = 0, bob = 0;
+    if (travel) {
+      var e = edgeObjs[travel.edge];
+      var s = Math.max(0, Math.min(1, travel.gone / travel.dist));
+      e.curve.getPointAt(s, scoutPos);
+      var tan = e.curve.getTangentAt(s);
+      scout.g.rotation.y = Math.atan2(tan.x, tan.z);
+      scoutPos.y += 0.14 + 0.3 * Math.sin(Math.PI * s) + Math.abs(Math.sin(travel.gone * 2.1)) * 0.05;
+      swing = Math.sin(travel.gone * 2.3) * 0.6;
+    } else {
+      var p = NODES[cur].pos;
+      bob = phase === 'complete' ? Math.abs(Math.sin(elapsed * 4.2)) * 0.22 : Math.sin(elapsed * 2.1) * 0.025;
+      scoutPos.set(p[0], p[1] + STAND + 0.02 + bob, p[2]);
+    }
+    scout.legL.rotation.x = swing;
+    scout.legR.rotation.x = -swing;
+    scout.armL.rotation.x = -swing * 0.75;
+    scout.armR.rotation.x = swing * 0.75;
+    scout.g.position.copy(scoutPos);
+  }
+
+  function updateNodeVisuals() {
+    for (var i = 0; i < NODES.length; i++) {
+      var o = nodeObjs[i];
+      // Three knowledge states: cyan = unobserved, amber = scout-observed, green = known at HQ.
+      var stateCol = hqKnown[i] ? 0x6fe3a1 : (scoutKnown[i] ? 0xffb347 : o.baseLant);
+      o.lantMat.color.setHex(i === hovered ? 0xffffff : stateCol);
+      var s = (i === hovered) ? 1.5 : 1;
+      if (i === TARGET) s *= 1 + 0.2 * Math.sin(elapsed * 3.2);
+      if (i === HQ) s *= 1 + 0.7 * Math.max(0, 1 - (simNow - lastHqArrival) / 0.5);
+      if (JAMMED[i]) s *= 1 + 0.07 * Math.sin(simNow * 13 + i * 2.1);
+      o.lant.scale.set(s, s, s);
+      if (o.jammer) { o.jammer.visible = !!JAMMED[i]; o.jammer.rotation.y = simNow * 1.6; }
+      if (o.dome) o.dome.visible = !!JAMMED[i];
+      if (o.domeMat) o.domeMat.opacity = 0.06 + 0.035 * (0.5 + 0.5 * Math.sin(simNow * 2.2 + i * 1.3));
+      if (o.gem) {
+        o.gem.rotation.y = simNow * 2.0;
+        o.gem.position.y = 6.7 + 0.15 * Math.sin(simNow * 2.5);
+      }
+      o.ringMat.color.setHex(
+        i === cur ? 0x7fd4ff : (i === hovered ? 0xeaf4ff :
+          hqKnown[i] ? 0x2e6b4a : (scoutKnown[i] ? 0x8a6a24 : o.baseRing))
+      );
+      if (o.beamMat) {
+        o.beamMat.opacity = targetDelivered ? 0.3 : 0.1 + 0.07 * (0.5 + 0.5 * Math.sin(elapsed * 2.6));
+        o.beamMat.color.setHex(targetDelivered ? 0x7dffb0 : (targetObserved ? 0xffc857 : 0xff5d7e));
+      }
+    }
+  }
+
+  // ---------- HUD ----------
+  var hTime = document.getElementById('hTime');
+  var hLoc = document.getElementById('hLoc');
+  var hAdj = document.getElementById('hAdj');
+  var hTarget = document.getElementById('hTarget');
+  var kScoutN = document.getElementById('kScoutN');
+  var kHqN = document.getElementById('kHqN');
+  var kScoutList = document.getElementById('kScoutList');
+  var kHqList = document.getElementById('kHqList');
+  var kTransit = document.getElementById('kTransit');
+  var kHeld = document.getElementById('kHeld');
+  var hScore = document.getElementById('hScore');
+  var hPrio = document.getElementById('hPrio');
+  var kJam = document.getElementById('kJam');
+  var kNext = document.getElementById('kNext');
+  (function () {
+    var names = [];
+    for (var i = 0; i < PRIORITY_IDS.length; i++) names.push(NODES[PRIORITY_IDS[i]].name + ' \u00b7' + SCORE[PRIORITY_IDS[i]]);
+    hPrio.textContent = names.join(', ') + ' \u00b7 target ' + SCORE[TARGET];
+  })();
+
+  function fmt(t) {
+    var m = Math.floor(t / 60), s = t - m * 60;
+    return m + ':' + (s < 10 ? '0' : '') + s.toFixed(1);
+  }
+  function adjNames(n) {
+    var names = [];
+    for (var k in adj[n]) {
+      var m = parseInt(k, 10);
+      names.push(NODES[m].name + (JAMMED[m] ? ' [JAMMED]' : ''));
+    }
+    return names.length ? names.join(', ') : '\u2014';
+  }
+  var lastKSig = '';
+  function fillKnowledge(el, seq) {
+    var html = '';
+    for (var i = seq.length - 1, shown = 0; i >= 0 && shown < 4; i--, shown++) {
+      html += '<div class="kentry"><span class="kn">' + NODES[seq[i]].name + '</span><span class="kv">' +
+        INTEL[seq[i]].type.toLowerCase() + ': ' + INTEL[seq[i]].text + '</span></div>';
+    }
+    el.innerHTML = html || '<div class="kentry none">&mdash;</div>';
+  }
+  function updateHUD() {
+    var rem = Math.max(0, TIME_LIMIT - elapsed);
+    hTime.textContent = fmt(rem);
+    hTime.classList.toggle('low', rem <= 15 && phase === 'playing');
+    if (phase === 'complete') {
+      hLoc.textContent = endReason === 'delivered' ? 'Mission complete \u2014 report delivered' : 'Time expired \u2014 mission over';
+      hAdj.textContent = '\u2014';
+    } else if (travel) {
+      var txt = NODES[travel.from].name + ' \u2192 ' + NODES[travel.to].name;
+      if (queue.length) txt += '  (then ' + queue.map(function (q) { return NODES[q].name; }).join(' \u2192 ') + ')';
+      hLoc.textContent = txt;
+      hAdj.textContent = adjNames(travel.to);
+    } else {
+      hLoc.textContent = NODES[cur].name + (cur === HQ ? ' (HQ)' : '');
+      hAdj.textContent = adjNames(cur);
+    }
+    var tStat;
+    if (targetDelivered) tStat = ' \u00b7 delivered';
+    else {
+      var tt = transitItemFor(TARGET);
+      if (tt) tStat = ' \u00b7 reporting (ETA ' + Math.max(0, tt.sendAt + tt.delay - simNow).toFixed(1) + 's)';
+      else if (targetObserved) tStat = ' \u00b7 observed';
+      else tStat = ' \u00b7 unobserved';
+    }
+    hTarget.textContent = NODES[TARGET].name + tStat;
+    var jamNames = [];
+    for (var jn = 0; jn < NODES.length; jn++) if (JAMMED[jn]) jamNames.push(NODES[jn].name);
+    kJam.textContent = jamNames.length ? jamNames.join(', ') : '\u2014';
+    var nextEv = null;
+    for (jn = 0; jn < JAM_SCHEDULE.length; jn++) {
+      if (!JAM_SCHEDULE[jn].done && (nextEv === null || JAM_SCHEDULE[jn].t < nextEv.t)) nextEv = JAM_SCHEDULE[jn];
+    }
+    kNext.textContent = phase === 'playing'
+      ? (nextEv ? NODES[nextEv.node].name + (nextEv.jam ? ' jams' : ' clears') + ' in ' + Math.max(0, nextEv.t - simNow).toFixed(1) + 's' : 'no changes left')
+      : '\u2014';
+    var sig = scoutSeq.length + '/' + hqSeq.length + '/' + transit.length + '/' + held.length + '/' + score;
+    if (sig !== lastKSig) {
+      lastKSig = sig;
+      hScore.textContent = score;
+      kScoutN.textContent = scoutSeq.length;
+      kHqN.textContent = hqSeq.length;
+      fillKnowledge(kScoutList, scoutSeq);
+      fillKnowledge(kHqList, hqSeq);
+      kTransit.textContent = transit.length;
+      if (!held.length) kHeld.textContent = '0';
+      else {
+        var hs = [];
+        for (var j = 0; j < held.length && j < 2; j++) hs.push(NODES[held[j]].name);
+        kHeld.textContent = held.length + ' \u00b7 ' + hs.join(', ') + (held.length > 2 ? ' +' + (held.length - 2) : '');
+      }
+    }
+  }
+
+  var toastTimer = null;
+  function toast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 1800);
+  }
+
+  // ---------- State export for inspection ----------
+  function r2(x) { return Math.round(x * 100) / 100; }
+  function exportState() {
+    window.__arena_state = {
+      phase: phase,
+      elapsed: elapsed,
+      missionTime: fmt(phase === 'complete' ? finalTime : elapsed),
+      targetReached: targetReached,
+      scoutNode: travel ? null : cur,
+      scoutNodeName: travel ? null : NODES[cur].name,
+      scoutEdge: travel ? { from: travel.from, to: travel.to, progress: Math.min(1, travel.gone / travel.dist) } : null,
+      scoutPosition: [r2(scoutPos.x), r2(scoutPos.y), r2(scoutPos.z)],
+      currentNode: travel ? NODES[travel.from].name : NODES[cur].name,
+      destination: travel ? travel.to : null,
+      destinationName: travel ? NODES[travel.to].name : null,
+      queue: queue.slice(),
+      scoutKnowledgeCount: scoutSeq.length,
+      hqKnowledgeCount: hqSeq.length,
+      scoutKnowledgeNodes: scoutSeq.slice(),
+      hqKnowledgeNodes: hqSeq.slice(),
+      inTransitCount: transit.length,
+      inTransit: transit.map(function (t) {
+        return { node: t.node, name: NODES[t.node].name, relay: t.relay, relayName: NODES[t.relay].name, hops: t.path.length - 1, delay: t.delay, eta: Math.max(0, t.sendAt + t.delay - simNow) };
+      }),
+      targetObserved: targetObserved,
+      targetDelivered: targetDelivered,
+      reportEta: (function () { var t = transitItemFor(TARGET); return t ? Math.max(0, t.sendAt + t.delay - simNow) : 0; })(),
+      scoutArrivalTime: scoutArrivalTime,
+      deliveryTime: deliveryTime,
+      heldCount: held.length,
+      heldNodes: held.slice(),
+      jammedNodes: liveJammed(),
+      jamSchedule: JAM_SCHEDULE.map(function (e) { return { t: e.t, node: e.node, jam: e.jam, fired: !!e.done }; }),
+      priorityNodes: PRIORITY_IDS,
+      values: SCORE,
+      timeLimit: TIME_LIMIT,
+      timeLeft: Math.max(0, TIME_LIMIT - elapsed),
+      score: score,
+      grade: endGrade,
+      endReason: endReason,
+      nodes: NODES.length,
+      edges: EDGES.length,
+      speed: SPEED,
+      hq: HQ,
+      target: TARGET
+    };
+  }
+
+  // ---------- Input ----------
+  var drag = null;
+  dom.addEventListener('mousedown', function (e) {
+    if (e.button !== 0) return;
+    drag = { x: e.clientX, y: e.clientY, moved: 0 };
+    dom.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mousemove', function (e) {
+    if (drag) {
+      var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      drag.x = e.clientX;
+      drag.y = e.clientY;
+      drag.moved += Math.abs(dx) + Math.abs(dy);
+      camState.tYaw -= dx * 0.0052;
+      camState.tPitch = Math.max(0.12, Math.min(1.38, camState.tPitch + dy * 0.0042));
+    } else {
+      updateHover(e.clientX, e.clientY);
+    }
+  });
+  window.addEventListener('mouseup', function (e) {
+    if (e.button !== 0 || !drag) return;
+    var wasClick = drag.moved < 6;
+    drag = null;
+    dom.style.cursor = 'grab';
+    if (wasClick) {
+      hovered = -1;
+      tip.style.display = 'none';
+      var id = castNode(e.clientX, e.clientY);
+      if (id >= 0) onPick(id);
+    }
+  });
+  dom.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    var d = e.deltaY * (e.deltaMode === 1 ? 33 : 1);
+    camState.tR = Math.min(maxR, Math.max(minR, camState.tR * Math.exp(d * 0.0011)));
+  }, { passive: false });
+  dom.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      if (phase === 'title') startMission();
+      else if (phase === 'complete') restart();
+    } else if (e.key === 'r' || e.key === 'R') {
+      restart();
+    }
+  });
+
+  // Touch: one-finger orbit, two-finger pinch zoom, tap to travel
+  function pinchDist(e) {
+    var dx = e.touches[0].clientX - e.touches[1].clientX;
+    var dy = e.touches[0].clientY - e.touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+  var touch = null;
+  dom.addEventListener('touchstart', function (e) {
+    if (e.touches.length === 1) touch = { x: e.touches[0].clientX, y: e.touches[0].clientY, moved: 0 };
+    else if (e.touches.length === 2) touch = { pinch: pinchDist(e) };
+    e.preventDefault();
+  }, { passive: false });
+  dom.addEventListener('touchmove', function (e) {
+    if (e.touches.length === 1 && touch && touch.x !== undefined) {
+      var dx = e.touches[0].clientX - touch.x, dy = e.touches[0].clientY - touch.y;
+      touch.x = e.touches[0].clientX;
+      touch.y = e.touches[0].clientY;
+      touch.moved += Math.abs(dx) + Math.abs(dy);
+      camState.tYaw -= dx * 0.006;
+      camState.tPitch = Math.max(0.12, Math.min(1.38, camState.tPitch + dy * 0.005));
+    } else if (e.touches.length === 2 && touch && touch.pinch) {
+      var d = pinchDist(e);
+      camState.tR = Math.min(maxR, Math.max(minR, camState.tR * touch.pinch / d));
+      touch.pinch = d;
+    }
+    e.preventDefault();
+  }, { passive: false });
+  dom.addEventListener('touchend', function (e) {
+    if (touch && touch.x !== undefined && touch.moved < 8) {
+      var id = castNode(touch.x, touch.y);
+      if (id >= 0) onPick(id);
+    }
+    touch = null;
+    e.preventDefault();
+  }, { passive: false });
+
+  window.addEventListener('resize', function () {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // ---------- Main loop ----------
+  function frame() {
+    requestAnimationFrame(frame);
+    var dt = Math.min(clock.getDelta(), 0.1);
+    acc += dt;
+    var guard = 0;
+    while (acc >= STEP && guard < 12) { simStep(); acc -= STEP; guard++; }
+    updateScoutVisual();
+    updateMarkersVisual();
+    updateNodeVisuals();
+    updateCamera(dt);
+    updateHUD();
+    renderer.render(scene, camera);
+    exportState();
+  }
+
+  refreshEdges();
+  updateHUD();
+  frame();
+  console.log('[Scout Network] ready \u2014 ' + NODES.length + ' posts, ' + EDGES.length + ' trails, ' + JAMMED_IDS.length + ' jammed at start, ' + JAM_SCHEDULE.length + ' scheduled jam changes, ' + PRIORITY_IDS.length + ' priority, limit ' + TIME_LIMIT + 's, report lag ' + SECS_PER_HOP + 's/hop, three.js r' + THREE.REVISION);
+};
+</script>
+<script>
+(function () {
+  var PRIMARY = './assets/_shared/three/build/three.min.js';
+  var FALLBACK = './vendor/three/three.module.min.js';
+  function showFatal() {
+    var f = document.getElementById('fatal');
+    if (f) f.classList.remove('hidden');
+  }
+  function boot(T) {
+    try {
+      window.__bootScoutNetwork(T);
+    } catch (err) {
+      var m = document.getElementById('fatalMsg');
+      if (m) m.textContent = 'Init error: ' + (err && err.message ? err.message : String(err));
+      showFatal();
+    }
+  }
+  function tryFallback() {
+    if (window.__scoutBooted) return;
+    var s = document.createElement('script');
+    s.type = 'module';
+    s.textContent = "import * as T from '" + FALLBACK + "'; window.THREE = T; window.dispatchEvent(new Event('scout-three-fallback'));";
+    var done = false;
+    s.onerror = function () {
+      if (!done && !window.__scoutBooted) { done = true; showFatal(); }
+    };
+    document.head.appendChild(s);
+    window.addEventListener('scout-three-fallback', function () {
+      if (!done && window.THREE) { done = true; boot(window.THREE); }
+    }, { once: true });
+    setTimeout(function () {
+      if (!window.__scoutBooted && !done) { done = true; showFatal(); }
+    }, 6000);
+  }
+  var s = document.createElement('script');
+  s.src = PRIMARY;
+  s.onload = function () {
+    if (window.THREE && !window.__scoutBooted) boot(window.THREE);
+    else if (!window.THREE) tryFallback();
+  };
+  s.onerror = function () { tryFallback(); };
+  document.head.appendChild(s);
+})();
+</script>
+</body>
+</html>

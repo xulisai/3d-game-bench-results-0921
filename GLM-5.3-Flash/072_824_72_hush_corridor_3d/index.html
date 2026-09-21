@@ -1,0 +1,2485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HUSH CORRIDOR</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; overflow:hidden; background:#030607;
+    font-family:"Courier New", ui-monospace, Menlo, monospace; color:#c9e4d6; }
+  canvas { display:block; }
+
+  #vignette { position:fixed; inset:0; pointer-events:none; z-index:5;
+    background:radial-gradient(ellipse at center, rgba(0,0,0,0) 46%, rgba(0,0,0,0.42) 78%, rgba(0,0,0,0.72) 100%); }
+  #vignette.chase { animation:vpulse 1.1s ease-in-out infinite; }
+  @keyframes vpulse { 0%,100%{opacity:1} 50%{opacity:.7} }
+
+  #hud { position:fixed; inset:0; z-index:10; pointer-events:none; }
+  #topleft { position:absolute; top:18px; left:22px; font-size:17px; letter-spacing:3px;
+    display:flex; align-items:center; gap:16px; text-shadow:0 0 8px rgba(0,0,0,.9); }
+  #strikes { display:inline-flex; gap:6px; }
+  #strikes i { font-style:normal; width:20px; height:20px; line-height:19px; text-align:center;
+    border:1px solid rgba(200,228,214,.4); color:rgba(200,228,214,.22); font-size:12px; }
+  #strikes i::after { content:"✕"; }
+  #strikes i.hit { color:#ff4a30; border-color:#ff4a30; text-shadow:0 0 10px rgba(255,74,48,.8); animation:pop .3s ease-out; }
+  @keyframes pop { from { transform:scale(1.8); } to { transform:scale(1); } }
+  #timer { position:absolute; top:18px; right:24px; font-size:17px; letter-spacing:3px; text-shadow:0 0 8px rgba(0,0,0,.9); }
+  #cross { position:absolute; left:50%; top:50%; width:4px; height:4px; margin:-2px 0 0 -2px; border-radius:50%;
+    background:rgba(210,235,222,.6); box-shadow:0 0 6px rgba(0,0,0,.8); }
+  #msg { position:absolute; left:0; right:0; bottom:96px; text-align:center; font-size:15px; letter-spacing:3px;
+    color:#e6d9c8; opacity:0; transition:opacity .35s; text-shadow:0 0 10px rgba(0,0,0,.9); }
+  #hint { position:absolute; left:0; right:0; bottom:62px; text-align:center; font-size:14px; letter-spacing:3px;
+    color:#9fd8c0; opacity:0; transition:opacity .2s; text-shadow:0 0 10px rgba(0,0,0,.9); }
+  #state { position:absolute; left:0; right:0; bottom:22px; text-align:center; font-size:14px; letter-spacing:7px;
+    color:#9fd8c0; text-shadow:0 0 10px rgba(0,0,0,.9); }
+  #state.chase { color:#ff5a3c; animation:stpulse .5s ease-in-out infinite; }
+  #state.search { color:#e8b34c; }
+  @keyframes stpulse { 0%,100%{opacity:1} 50%{opacity:.55} }
+  #state2 { position:absolute; left:0; right:0; bottom:44px; text-align:center; font-size:12px;
+    letter-spacing:4px; color:#ff5a3c; text-shadow:0 0 10px rgba(0,0,0,.9); display:none; }
+
+  #hiddenTag { position:absolute; top:48px; left:50%; transform:translateX(-50%); font-size:14px;
+    letter-spacing:6px; color:#8cf7c0; border:1px solid rgba(140,247,192,.45); padding:4px 16px;
+    background:rgba(6,14,10,.65); display:none; text-shadow:0 0 10px rgba(0,0,0,.9); }
+  #alarmTag { position:absolute; top:18px; left:50%; transform:translateX(-50%); font-size:14px;
+    letter-spacing:6px; color:#ff4a30; border:1px solid rgba(255,74,48,.55); padding:4px 16px;
+    background:rgba(20,4,2,.7); display:none; animation:stpulse .5s ease-in-out infinite; }
+  #slats { position:fixed; inset:0; z-index:6; pointer-events:none; display:none;
+    background:
+      linear-gradient(180deg, #04070a 0%, #04070a 25%, rgba(4,7,10,0) 25%, rgba(4,7,10,0) 75%, #04070a 75%, #04070a 100%),
+      repeating-linear-gradient(180deg, #070c0a 0px, #070c0a 30px, rgba(150,175,162,0.14) 30px, rgba(150,175,162,0.14) 32px, rgba(7,12,10,0) 32px, rgba(7,12,10,0) 48px); }
+  #breathWrap { position:absolute; left:50%; bottom:118px; transform:translateX(-50%); width:340px; height:12px;
+    border:1px solid rgba(200,228,214,.55); background:rgba(4,8,7,.65); display:none; }
+  #breathFill { height:100%; width:100%; background:#9fd8c0; }
+  #lightsTag { position:absolute; top:48px; left:22px; font-size:11px; letter-spacing:2px;
+    color:#9fd8c0; text-shadow:0 0 8px rgba(0,0,0,.9); }
+  .board { display:grid; grid-template-columns:auto auto; gap:6px 30px; justify-content:center;
+    font-size:15px; letter-spacing:3px; margin:8px auto 22px; }
+  .board .rk { text-align:right; color:#9db8ab; }
+  .board .rv { text-align:left; color:#e8f6ec; }
+  .board .rv.rtS { color:#8cf7c0; font-size:34px; }
+  .board .rv.rtA { color:#d5ece0; font-size:34px; }
+  .board .rv.rtB { color:#e8b34c; font-size:34px; }
+  .board .rv.rtC { color:#ff5a3c; font-size:34px; }
+
+  #flash { position:fixed; inset:0; z-index:15; pointer-events:none; opacity:0;
+    background:radial-gradient(circle at center, rgba(150,10,5,.5) 0%, rgba(60,0,0,.85) 100%); }
+
+  .overlay { position:fixed; inset:0; z-index:30; display:flex; align-items:center; justify-content:center;
+    text-align:center; background:rgba(3,8,7,.8); }
+  .overlay.hidden { display:none; }
+  #over.overlay { background:rgba(16,3,2,.88); }
+  #won.overlay { background:rgba(2,12,9,.88); }
+  .panel { max-width:680px; padding:34px 44px; }
+  h1 { font-size:56px; letter-spacing:16px; margin:0 0 8px; color:#ddf2e6;
+    text-shadow:0 0 30px rgba(110,220,170,.3), 0 2px 0 #0a120e; font-weight:700; }
+  h2 { font-size:44px; letter-spacing:10px; margin:0 0 14px; }
+  h2.bad { color:#ff5a3c; text-shadow:0 0 26px rgba(255,60,30,.4); }
+  h2.good { color:#8cf7c0; text-shadow:0 0 26px rgba(110,255,180,.35); }
+  .premise { font-size:15px; line-height:1.65; letter-spacing:.6px; color:#b9d2c5; margin:10px auto 18px; max-width:580px; }
+  .goal { font-size:15px; letter-spacing:2px; color:#e8f6ec; border:1px solid rgba(160,220,190,.35);
+    padding:10px 18px; display:inline-block; margin:0 0 20px; background:rgba(10,20,16,.5); }
+  .controls { display:grid; grid-template-columns:auto auto; gap:4px 22px; justify-content:center;
+    font-size:13px; letter-spacing:1.5px; margin:0 0 24px; color:#9db8ab; }
+  .controls span:nth-child(odd) { color:#d5ece0; text-align:right; }
+  .controls span:nth-child(even) { text-align:left; }
+  .begin { font-size:17px; letter-spacing:4px; color:#e8f6ec; }
+  .blink { animation:blink 1.25s step-end infinite; }
+  @keyframes blink { 50% { opacity:.25; } }
+  .small { margin-top:14px; font-size:12px; letter-spacing:1.5px; color:#7fa192; }
+  .stats { font-size:16px; letter-spacing:3px; margin:6px 0 22px; color:#d5ece0; }
+  #fatal { background:#100404; color:#ff8f7a; font-size:15px; letter-spacing:1px; }
+</style>
+</head>
+<body>
+<div id="vignette"></div>
+<div id="slats"></div>
+
+<div id="hud">
+  <div id="topleft"><span id="keys">KEYS 0/6</span><span id="strikes"><i></i><i></i><i></i></span></div>
+  <div id="timer">00:00</div>
+  <div id="hiddenTag">HIDDEN</div>
+  <div id="alarmTag">ALARM</div>
+  <div id="cross"></div>
+  <div id="msg"></div>
+  <div id="hint"></div>
+  <div id="breathWrap"><div id="breathFill"></div></div>
+  <div id="lightsTag">LIGHTS ON</div>
+  <div id="state">PATROL</div>
+  <div id="state2"></div>
+</div>
+
+<div id="flash"></div>
+
+<div id="ready" class="overlay">
+  <div class="panel">
+    <h1>HUSH CORRIDOR</h1>
+    <p class="premise">The last night shift ended years ago, yet something gaunt still walks the ring corridor,
+      listening at every door. Find the six brass keys, unlock the west exit, and be gone before it learns
+      the sound of your footsteps.</p>
+    <div class="goal">Find 6 keys. Unlock the exit. Do not be caught three times.</div>
+    <div class="controls">
+      <span>MOUSE</span><span>Look around</span>
+      <span>W A S D / ARROWS</span><span>Move</span>
+      <span>SHIFT</span><span>Run (hold)</span>
+      <span>E</span><span>Take a key &middot; Hide in locker &middot; Unlock exit</span>
+      <span>SPACE (hold)</span><span>Hold your breath while hidden</span>
+      <span>ENTER</span><span>Begin &middot; Resume</span>
+      <span>ESC</span><span>Pause &mdash; releases the mouse</span>
+      <span>R</span><span>Restart from Ready</span>
+    </div>
+    <div class="begin blink">Press Enter to Begin</div>
+    <div class="small">Clicking also begins and captures the mouse.</div>
+  </div>
+</div>
+
+<div id="paused" class="overlay hidden">
+  <div class="panel">
+    <h2>PAUSED</h2>
+    <p class="premise">Paused — click or press Enter to resume</p>
+    <div class="small">R restarts from Ready.</div>
+  </div>
+</div>
+
+<div id="over" class="overlay hidden">
+  <div class="panel">
+    <h2 class="bad">GAME OVER</h2>
+    <p class="premise">It caught you three times. The corridor keeps its quiet.</p>
+    <div class="stats" id="overStats"></div>
+    <div class="begin">Press Enter or R to return to Ready</div>
+  </div>
+</div>
+
+<div id="won" class="overlay hidden">
+  <div class="panel">
+    <h2 class="good">YOU ESCAPED</h2>
+    <p class="premise">The stairwell swallows the light behind you. Whatever walks the corridor walks it alone tonight.</p>
+    <div class="board" id="boardRows"></div>
+    <div class="begin">Press Enter or R to return to Ready</div>
+  </div>
+</div>
+
+<div id="fatal" class="overlay hidden"><div class="panel" id="fatalMsg"></div></div>
+
+<script src="./assets/_shared/three/build/three.min.js"></script>
+<script type="module">
+(function () {
+  'use strict';
+
+  function fatal(msg) {
+    var el = document.getElementById('fatal');
+    document.getElementById('fatalMsg').textContent = 'Failed to start: ' + msg;
+    el.classList.remove('hidden');
+  }
+
+  function boot(THREE) {
+    try { init(THREE); }
+    catch (e) { fatal(e && e.message ? e.message : String(e)); throw e; }
+
+    function init(THREE) {
+      // ---------- compat & tiny helpers ----------
+      var REV = parseInt(THREE.REVISION, 10) || 0;
+      var PHYS = REV >= 152; // physical light units from r152 onward (legacy switch may still exist)
+      var LSCALE = PHYS ? 16 : 1.2;
+
+      function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+      function lerp(a, b, t) { return a + (b - a) * t; }
+      function frac(x) { return x - Math.floor(x); }
+      function h1(n) { return frac(Math.sin(n * 127.1 + 13.7) * 43758.5453123); } // deterministic pseudo-noise
+      function mmss(t) {
+        var m = Math.floor(t / 60), s = Math.floor(t % 60);
+        return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+      }
+      function distVol(d) { return clamp((18 - d) / 15, 0, 1); } // full at 3 m, linear to silence at 18 m, no occlusion
+      function mmssd(t) {
+        var m = Math.floor(t / 60), s = Math.floor(t % 60), d = Math.floor((t - Math.floor(t)) * 10);
+        return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s + '.' + d;
+      }
+
+      function texToSRGB(t) {
+        if (THREE.SRGBColorSpace !== undefined && 'colorSpace' in t) t.colorSpace = THREE.SRGBColorSpace;
+        else if (THREE.sRGBEncoding !== undefined) t.encoding = THREE.sRGBEncoding;
+        return t;
+      }
+
+      // ---------- renderer / scene / camera ----------
+      var renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (PHYS && ('useLegacyLights' in renderer)) renderer.useLegacyLights = false;
+      if (!PHYS && ('physicallyCorrectLights' in renderer)) renderer.physicallyCorrectLights = false;
+      if ('outputColorSpace' in renderer) renderer.outputColorSpace = (THREE.SRGBColorSpace !== undefined ? THREE.SRGBColorSpace : 'srgb');
+      else if (THREE.sRGBEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
+      if (THREE.ACESFilmicToneMapping !== undefined) {
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.15;
+      }
+      document.body.appendChild(renderer.domElement);
+      var canvas = renderer.domElement;
+
+      var scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x04090b);
+      scene.fog = new THREE.Fog(0x04090b, 6, 30);
+
+      var camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.05, 80);
+      camera.rotation.order = 'YXZ';
+      scene.add(camera);
+
+      window.addEventListener('resize', function () {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // ---------- canvas textures ----------
+      function makeWallTex() {
+        var c = document.createElement('canvas'); c.width = 256; c.height = 256;
+        var g = c.getContext('2d');
+        g.fillStyle = '#b3c2b2'; g.fillRect(0, 0, 256, 256);
+        g.fillStyle = 'rgba(90,110,100,0.10)'; g.fillRect(0, 0, 256, 26);
+        for (var i = 0; i < 170; i++) {
+          var x = h1(i * 3.1) * 256, y = h1(i * 7.7 + 2) * 256, r = 2 + h1(i * 1.3 + 5) * 14;
+          g.fillStyle = 'rgba(40,56,50,' + (0.03 + h1(i * 2.9) * 0.06).toFixed(3) + ')';
+          g.beginPath(); g.arc(x, y, r, 0, 6.2832); g.fill();
+        }
+        for (var s = 0; s < 16; s++) {
+          var sx = h1(s * 13.3 + 1) * 256, w = 2 + h1(s * 3.7) * 5, y0 = h1(s * 5.1) * 90, hg = 110 + h1(s * 9.9) * 140;
+          var gr = g.createLinearGradient(0, y0, 0, y0 + hg);
+          gr.addColorStop(0, 'rgba(96,46,26,' + (0.10 + h1(s * 4.4) * 0.16).toFixed(3) + ')');
+          gr.addColorStop(1, 'rgba(96,46,26,0)');
+          g.fillStyle = gr; g.fillRect(sx, y0, w, hg);
+        }
+        var gb = g.createLinearGradient(0, 190, 0, 256);
+        gb.addColorStop(0, 'rgba(20,26,22,0)'); gb.addColorStop(1, 'rgba(20,26,22,0.45)');
+        g.fillStyle = gb; g.fillRect(0, 190, 256, 66);
+        g.fillStyle = 'rgba(10,14,12,0.5)'; g.fillRect(0, 0, 2, 256); g.fillRect(0, 0, 256, 2);
+        var t = new THREE.CanvasTexture(c);
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        return texToSRGB(t);
+      }
+
+      function makeFloorTex() {
+        var c = document.createElement('canvas'); c.width = 512; c.height = 512;
+        var g = c.getContext('2d');
+        g.fillStyle = '#2c3835'; g.fillRect(0, 0, 512, 512);
+        for (var i = 0; i < 260; i++) {
+          var x = h1(i * 5.3) * 512, y = h1(i * 9.1 + 4) * 512, r = 2 + h1(i * 2.2 + 7) * 20;
+          g.fillStyle = 'rgba(12,18,16,' + (0.04 + h1(i * 3.3) * 0.07).toFixed(3) + ')';
+          g.beginPath(); g.arc(x, y, r, 0, 6.2832); g.fill();
+        }
+        for (var s = 0; s < 9; s++) { // rust stains
+          var rx = h1(s * 17.7) * 512, ry = h1(s * 6.1) * 512, rr = 14 + h1(s * 8.8) * 40;
+          g.fillStyle = 'rgba(110,58,38,' + (0.08 + h1(s * 4.9) * 0.10).toFixed(3) + ')';
+          g.beginPath(); g.arc(rx, ry, rr, 0, 6.2832); g.fill();
+        }
+        g.strokeStyle = 'rgba(8,12,10,0.65)'; g.lineWidth = 3;
+        g.strokeRect(0, 0, 256, 256); g.strokeRect(256, 256, 256, 256);
+        g.beginPath(); g.moveTo(256, 0); g.lineTo(256, 512); g.moveTo(0, 256); g.lineTo(512, 256); g.stroke();
+        var t = new THREE.CanvasTexture(c);
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        return texToSRGB(t);
+      }
+
+      function makeCeilTex() {
+        var c = document.createElement('canvas'); c.width = 256; c.height = 256;
+        var g = c.getContext('2d');
+        g.fillStyle = '#232b28'; g.fillRect(0, 0, 256, 256);
+        for (var i = 0; i < 90; i++) {
+          g.fillStyle = 'rgba(10,14,12,' + (0.04 + h1(i * 3.9) * 0.08).toFixed(3) + ')';
+          g.fillRect(h1(i * 2.7) * 256, h1(i * 5.9) * 256, 4 + h1(i * 1.7) * 26, 3 + h1(i * 4.1) * 10);
+        }
+        g.strokeStyle = 'rgba(6,9,8,0.8)'; g.lineWidth = 4;
+        g.strokeRect(0, 0, 256, 256);
+        g.beginPath(); g.moveTo(128, 0); g.lineTo(128, 256); g.moveTo(0, 128); g.lineTo(256, 128); g.stroke();
+        var t = new THREE.CanvasTexture(c);
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        return texToSRGB(t);
+      }
+
+      function makeGlowTex() {
+        var c = document.createElement('canvas'); c.width = 64; c.height = 64;
+        var g = c.getContext('2d');
+        var gr = g.createRadialGradient(32, 32, 2, 32, 32, 30);
+        gr.addColorStop(0, 'rgba(255,244,200,0.9)');
+        gr.addColorStop(0.4, 'rgba(200,180,90,0.35)');
+        gr.addColorStop(1, 'rgba(200,180,90,0)');
+        g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+        return new THREE.CanvasTexture(c);
+      }
+
+      var wallTex = makeWallTex(), floorTex = makeFloorTex(), ceilTex = makeCeilTex(), glowTex = makeGlowTex();
+      var maxAniso = (renderer.capabilities && renderer.capabilities.getMaxAnisotropy) ? renderer.capabilities.getMaxAnisotropy() : 1;
+      floorTex.repeat.set(20, 14); floorTex.anisotropy = maxAniso;
+      ceilTex.repeat.set(20, 14);
+
+      // ---------- materials ----------
+      var M = {
+        wallBase: new THREE.MeshPhongMaterial({ map: wallTex, shininess: 14, specular: 0x1c2320 }),
+        floor: new THREE.MeshPhongMaterial({ map: floorTex, shininess: 22, specular: 0x22302a }),
+        ceil: new THREE.MeshLambertMaterial({ map: ceilTex }),
+        metal: new THREE.MeshPhongMaterial({ color: 0x4a554f, shininess: 24, specular: 0x2a332e }),
+        metalDark: new THREE.MeshPhongMaterial({ color: 0x2a3230, shininess: 30, specular: 0x222c28 }),
+        rust: new THREE.MeshPhongMaterial({ color: 0x6e3a26, shininess: 8, specular: 0x33201a }),
+        rustDark: new THREE.MeshPhongMaterial({ color: 0x4e2c1c, shininess: 6, specular: 0x221612 }),
+        pale: new THREE.MeshLambertMaterial({ color: 0xaebdb2 }),
+        mattress: new THREE.MeshLambertMaterial({ color: 0xb6c4b8 }),
+        pillow: new THREE.MeshLambertMaterial({ color: 0xd3dcd2 }),
+        paper: new THREE.MeshLambertMaterial({ color: 0xcdd2c2 }),
+        brass: new THREE.MeshPhongMaterial({ color: 0xc9a04a, emissive: 0x6a4d15, shininess: 60, specular: 0xffd98a }),
+        glass: new THREE.MeshPhongMaterial({ color: 0x1a2320, shininess: 90, specular: 0x9fb8ac }),
+        dark: new THREE.MeshLambertMaterial({ color: 0x10161a }),
+        plastic: new THREE.MeshLambertMaterial({ color: 0x3e5450 }),
+        skin: new THREE.MeshLambertMaterial({ color: 0xcfc4ae, emissive: 0x191512 }),
+        cloth: new THREE.MeshLambertMaterial({ color: 0x2f3631 }),
+        rag: new THREE.MeshLambertMaterial({ color: 0x5a3220 }),
+        door: new THREE.MeshPhongMaterial({ color: 0x5a3226, shininess: 16, specular: 0x3a2418 }),
+        bulbOff: new THREE.MeshBasicMaterial({ color: 0x2a332e })
+      };
+      function signMat() { var m = new THREE.MeshBasicMaterial({ color: 0x0a120e }); if ('toneMapped' in m) m.toneMapped = false; return m; }
+      function glowMat(color) {
+        var m = new THREE.SpriteMaterial({ map: glowTex, color: color || 0xbfe8d2, transparent: true, opacity: 0.5,
+          blending: THREE.AdditiveBlending, depthWrite: false });
+        if ('toneMapped' in m) m.toneMapped = false;
+        return m;
+      }
+
+      // ---------- colliders & wall builder ----------
+      var colliders = [];
+      function addColl(x1, x2, z1, z2, sight) {
+        var c = { x1: x1, x2: x2, z1: z1, z2: z2, sight: !!sight, off: false };
+        colliders.push(c); return c;
+      }
+      function addWall(x1, x2, z1, z2, y1, y2, sight) {
+        var sx = x2 - x1, sy = y2 - y1, sz = z2 - z1;
+        var mat = M.wallBase.clone();
+        var t = wallTex.clone(); t.needsUpdate = true;
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.repeat.set(Math.max(sx, sz) / 2.6, sy / 2.6);
+        mat.map = t;
+        var mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
+        mesh.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2);
+        scene.add(mesh);
+        // colliders are 2D footprints, so wall pieces entirely above head height (door headers)
+        // must not become movement blockers; sight uses the same head-height rule
+        if (y1 < 1.5) addColl(x1, x2, z1, z2, sight !== false);
+        return mesh;
+      }
+
+      // ---------- architecture ----------
+      // Outer shell (west wall split by exit doorway z -6..-2)
+      addWall(-20, -19.7, -14, -6, 0, 3);
+      addWall(-20, -19.7, -2, 14, 0, 3);
+      addWall(-20, -19.7, -6, -2, 2.4, 3, false); // exit header
+      addWall(19.7, 20, -14, 14, 0, 3);
+      addWall(-20, 20, -14, -13.7, 0, 3);
+      addWall(-20, 20, 13.7, 14, 0, 3);
+
+      // Central service core (solid)
+      // core, cut by the two maintenance shafts: solid everywhere except the two L-shaped
+      // passages hugging the NW and SW corners (each with a door gap in both faces it meets)
+      var CORE_PIECES = [
+        [-7.2, 12, -6, 6],        // main east block
+        [-10.5, -7.2, -4.6, 4.6], // block between the shaft legs and landings
+        [-11.5, -8.8, -6, -5.9],  // north edge strip (west of shaft A's door gap)
+        [-11.5, -8.8, 5.9, 6],    // south edge strip (west of shaft B's door gap)
+        [-12, -11.5, -2.2, 2.2],  // west partition between the two west door gaps
+        [-12, -11.5, 3.8, 6],     // west partition north of shaft A's west door
+        [-12, -11.5, -6, -3.8],   // west partition south of shaft B's west door
+        [-11.5, -10.5, 3.8, 6],   // leg end block, shaft A
+        [-11.5, -10.5, -6, -3.8]  // leg end block, shaft B
+      ];
+      for (var cp = 0; cp < CORE_PIECES.length; cp++) {
+        var pc = CORE_PIECES[cp];
+        var coreMesh = new THREE.Mesh(new THREE.BoxGeometry(pc[1] - pc[0], 3, pc[3] - pc[2]), M.wallBase.clone());
+        coreMesh.material.map = wallTex.clone(); coreMesh.material.map.needsUpdate = true;
+        coreMesh.material.map.wrapS = coreMesh.material.map.wrapT = THREE.RepeatWrapping;
+        coreMesh.material.map.repeat.set(Math.max(pc[1] - pc[0], pc[3] - pc[2]) / 2.6, 1.2);
+        coreMesh.position.set((pc[0] + pc[1]) / 2, 1.5, (pc[2] + pc[3]) / 2);
+        scene.add(coreMesh);
+        addColl(pc[0], pc[1], pc[2], pc[3], true);
+      }
+
+      // North band (rooms z -12..-10, sealed behind, front wall z -10..-9.7)
+      addWall(-19.7, 16, -13.7, -12, 0, 3);
+      addWall(-19.7, -16, -12, -10, 0, 3);
+      addWall(-9, -7, -12, -10, 0, 3);
+      addWall(-1, 1, -12, -10, 0, 3);
+      addWall(8, 16, -12, -10, 0, 3);
+      addWall(-19.7, -13.3, -10, -9.7, 0, 3);
+      addWall(-11.7, -4.8, -10, -9.7, 0, 3);
+      addWall(-3.2, 3.7, -10, -9.7, 0, 3);
+      addWall(5.3, 16, -10, -9.7, 0, 3);
+      addWall(-13.3, -11.7, -10, -9.7, 2.2, 3, false);
+      addWall(-4.8, -3.2, -10, -9.7, 2.2, 3, false);
+      addWall(3.7, 5.3, -10, -9.7, 2.2, 3, false);
+
+      // South band (rooms z 10..12, sealed behind, front wall z 9.7..10)
+      addWall(-19.7, 16, 12, 13.7, 0, 3);
+      addWall(-19.7, -16, 10, 12, 0, 3);
+      addWall(-9, -7, 10, 12, 0, 3);
+      addWall(-1, 1, 10, 12, 0, 3);
+      addWall(8, 16, 10, 12, 0, 3);
+      addWall(-19.7, -13.3, 9.7, 10, 0, 3);
+      addWall(-11.7, -4.8, 9.7, 10, 0, 3);
+      addWall(-3.2, 3.7, 9.7, 10, 0, 3);
+      addWall(5.3, 16, 9.7, 10, 0, 3);
+      addWall(-13.3, -11.7, 9.7, 10, 2.2, 3, false);
+      addWall(-4.8, -3.2, 9.7, 10, 2.2, 3, false);
+      addWall(3.7, 5.3, 9.7, 10, 2.2, 3, false);
+
+      // Sealed east block
+      addWall(16, 19.7, -13.7, 13.7, 0, 3);
+
+      // Stairwell stub beyond the exit door
+      addWall(-22.6, -22.3, -7, -1, -1.2, 3);
+      addWall(-22.6, -20, -7, -6.7, -1.2, 3);
+      addWall(-22.6, -20, -1.3, -1, -1.2, 3);
+
+      // Floors & ceilings
+      var floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(40, 28), M.floor);
+      floorMesh.rotation.x = -Math.PI / 2; scene.add(floorMesh);
+      var stubFloor = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 5.4), M.dark);
+      stubFloor.rotation.x = -Math.PI / 2; stubFloor.position.set(-21.15, 0, -4); scene.add(stubFloor);
+      var ceilMesh = new THREE.Mesh(new THREE.PlaneGeometry(40, 28), M.ceil);
+      ceilMesh.rotation.x = Math.PI / 2; ceilMesh.position.y = 3; scene.add(ceilMesh);
+      var stubCeil = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 6), M.ceil);
+      stubCeil.rotation.x = Math.PI / 2; stubCeil.position.set(-21.3, 3, -4); scene.add(stubCeil);
+
+      // Stair pit in the stub
+      var pitFloor = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 6), M.dark);
+      pitFloor.rotation.x = -Math.PI / 2; pitFloor.position.set(-21.3, -1.2, -4); scene.add(pitFloor);
+      for (var st = 0; st < 5; st++) {
+        var topY = -0.02 - 0.2 * st;
+        var step = new THREE.Mesh(new THREE.BoxGeometry(0.38, topY + 1.2, 5.4), M.metalDark);
+        step.position.set(-20.4 - 0.38 * st - 0.19, (topY - 1.2) / 2, -4);
+        scene.add(step);
+      }
+
+      // ---------- lights ----------
+      scene.add(new THREE.HemisphereLight(0x2a3c36, 0x0b0f0d, 0.42));
+      function pointLight(x, y, z, color, mult, dist) {
+        var li = new THREE.PointLight(color, mult * (PHYS ? 15 : 1.2), dist, 2);
+        li.position.set(x, y, z); scene.add(li); return li;
+      }
+      function fixture(x, z, w, d, bright) {
+        var em = new THREE.MeshBasicMaterial({ color: bright ? 0xd8f0e4 : 0x8fa89c });
+        if ('toneMapped' in em) em.toneMapped = false;
+        var f = new THREE.Mesh(new THREE.BoxGeometry(w, 0.06, d), M.metalDark);
+        f.position.set(x, 2.97, z); scene.add(f);
+        var p = new THREE.Mesh(new THREE.BoxGeometry(w * 0.86, 0.02, d * 0.86), em);
+        p.position.set(x, 2.955, z); scene.add(p);
+        return p;
+      }
+      function deadFixture(x, z) {
+        var f = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.06, 0.5), M.metalDark);
+        f.position.set(x, 2.97, z); f.rotation.z = 0.05; scene.add(f);
+        var p2 = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.02, 0.42), M.bulbOff);
+        p2.position.set(x, 2.945, z); p2.rotation.z = 0.05; scene.add(p2);
+      }
+      var corridorCol = 0xd2e8da, roomCol = 0xbcd8c8, exitCol = 0x9fffc4;
+      // north corridor steady lights moved to the emergency schedule below
+      pointLight(14, 2.8, 0, corridorCol, 0.9, 10); fixture(14, 0, 0.24, 1.1, true);
+      pointLight(-8, 2.8, 8, corridorCol, 1, 11); fixture(-8, 8, 1.1, 0.24, true);
+      pointLight(4, 2.8, 8, corridorCol, 1, 11); fixture(4, 8, 1.1, 0.24, true);
+      pointLight(-16, 2.8, -4, corridorCol, 0.85, 10); fixture(-16, -4, 1.1, 0.24, true);
+      pointLight(-16, 2.8, 4, corridorCol, 0.85, 10); fixture(-16, 4, 1.1, 0.24, true);
+      pointLight(-19.2, 2.5, -4, exitCol, 1.2, 7);
+      deadFixture(-12.5, -11); // Records — dark room
+      pointLight(-4, 2.6, -11, roomCol, 0.75, 8); fixture(-4, -11, 0.8, 0.5, false);
+      deadFixture(4.5, -11); // Archives B — dark room
+      pointLight(-12.5, 2.6, 11, roomCol, 0.75, 8); fixture(-12.5, 11, 0.8, 0.5, false);
+      pointLight(-4, 2.6, 11, roomCol, 0.75, 8); fixture(-4, 11, 0.8, 0.5, false);
+      deadFixture(4.5, 11); // Storage — dark room
+      pointLight(-21.2, 2.3, -4, exitCol, 0.7, 6);
+      var playerLight = new THREE.PointLight(0xaebfb4, PHYS ? 2.2 : 0.18, 5, 2);
+      camera.add(playerLight);
+
+      // ---------- signage (canvas text on real 3D panels) ----------
+      function makeSign(text, w, fs, green) {
+        var cw = clamp(text.length * 58 + 90, 300, 1024);
+        var c = document.createElement('canvas'); c.width = cw; c.height = 128;
+        var g = c.getContext('2d');
+        g.fillStyle = green ? '#0c2a1a' : '#0f1c16'; g.fillRect(0, 0, cw, 128);
+        g.strokeStyle = green ? '#79e8ae' : '#a8d2ba'; g.lineWidth = 6; g.strokeRect(5, 5, cw - 10, 118);
+        g.fillStyle = green ? '#a9f7cd' : '#c6e6d2';
+        g.font = '700 ' + fs + 'px "Arial Narrow","Helvetica Neue",Arial,sans-serif';
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText(text, cw / 2, 70);
+        var tex = texToSRGB(new THREE.CanvasTexture(c)); tex.anisotropy = maxAniso;
+        var face = new THREE.MeshBasicMaterial({ map: tex });
+        if ('toneMapped' in face) face.toneMapped = false;
+        var side = signMat();
+        return new THREE.Mesh(new THREE.BoxGeometry(w, 0.42, 0.07), [side, side, side, side, face, side]);
+      }
+      function placeSign(text, w, x, y, z, rotY, fs, green) {
+        var s = makeSign(text, w, fs || 64, green);
+        s.position.set(x, y, z); s.rotation.y = rotY; scene.add(s); return s;
+      }
+      placeSign('RECORDS', 1.7, -12.5, 2.58, -9.64, 0);
+      placeSign('PHARMACY', 2.1, -4, 2.58, -9.64, 0);
+      placeSign('ARCHIVES B', 2.1, 4.5, 2.58, -9.64, 0);
+      placeSign('WARD', 1.3, -12.5, 2.58, 9.64, Math.PI);
+      placeSign('OPERATING THEATRE', 2.7, -4, 2.58, 9.64, Math.PI, 46);
+      placeSign('STORAGE', 1.7, 4.5, 2.58, 9.64, Math.PI);
+      placeSign('EXIT', 1.0, -19.63, 2.72, -4, Math.PI / 2, 76, true);
+      placeSign('EXIT', 1.0, -20.07, 2.72, -4, -Math.PI / 2, 76, true);
+      placeSign('STAIRWELL', 1.6, -22.27, 2.4, -4, Math.PI / 2, 58, true);
+
+      // ---------- ceiling pipes ----------
+      var pipeMatA = M.rust, pipeMatB = M.metalDark;
+      function pipeX(x1, x2, y, z, r, mat) {
+        var m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, x2 - x1, 10), mat);
+        m.rotation.z = Math.PI / 2; m.position.set((x1 + x2) / 2, y, z); scene.add(m);
+      }
+      function pipeZ(z1, z2, x, y, r, mat) {
+        var m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, z2 - z1, 10), mat);
+        m.rotation.x = Math.PI / 2; m.position.set(x, y, (z1 + z2) / 2); scene.add(m);
+      }
+      pipeX(-19, 15, 2.62, -7.2, 0.08, pipeMatA);
+      pipeX(-19, 15, 2.72, -7.45, 0.05, pipeMatB);
+      pipeX(-19, 15, 2.62, 7.2, 0.08, pipeMatA);
+      pipeX(-19, 15, 2.72, 7.45, 0.05, pipeMatB);
+      pipeZ(-9, 9, 14.8, 2.62, 0.08, pipeMatA);
+      pipeZ(-9, 9, -18.9, 2.55, 0.07, pipeMatA);
+      for (var bx = -18; bx <= 14; bx += 3.4) {
+        var b1 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.32, 0.06), M.metalDark);
+        b1.position.set(bx, 2.82, -7.2); scene.add(b1);
+        var b2 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.32, 0.06), M.metalDark);
+        b2.position.set(bx, 2.82, 7.2); scene.add(b2);
+      }
+      for (var bz = -8; bz <= 8; bz += 3.4) {
+        var b3 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.32, 0.06), M.metalDark);
+        b3.position.set(14.8, 2.82, bz); scene.add(b3);
+      }
+      // core-face pipes & valves
+      pipeX(-11.5, 11.5, 1.35, -6.14, 0.05, pipeMatB);
+      pipeX(-11.5, 11.5, 1.7, -6.16, 0.065, pipeMatA);
+      pipeX(-11.5, 11.5, 2.05, -6.14, 0.04, pipeMatB);
+      pipeX(-11.5, 11.5, 1.5, 6.14, 0.06, pipeMatA);
+      pipeX(-11.5, 11.5, 1.9, 6.14, 0.045, pipeMatB);
+      function valve(x, y, z) {
+        var v = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.025, 8, 16), M.rust);
+        v.position.set(x, y, z); scene.add(v);
+        var sp = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.03, 0.02), M.rust);
+        sp.position.set(x, y, z); scene.add(sp);
+      }
+      valve(-4, 1.7, -6.07); valve(6, 2.05, -6.07); valve(-2, 1.5, 6.07);
+      // handrails on core west/east faces
+      pipeZ(-5.5, 5.5, -12.16, 0.9, 0.03, M.metal);
+      pipeZ(-5.5, 5.5, 12.16, 0.9, 0.03, M.metal);
+
+      // ---------- small prop builders ----------
+      function box(w, h, d, mat, x, y, z) {
+        var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+        m.position.set(x, y, z); return m;
+      }
+      function cyl(r, h, mat, x, y, z, seg) {
+        var m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, seg || 10), mat);
+        m.position.set(x, y, z); return m;
+      }
+      function addGroup(g, x, z, rotY) {
+        g.position.set(x, 0, z); if (rotY) g.rotation.y = rotY; scene.add(g); return g;
+      }
+      function gurney() {
+        var g = new THREE.Group();
+        var legs = [[-0.85, -0.28], [0.85, -0.28], [-0.85, 0.28], [0.85, 0.28]];
+        for (var i = 0; i < 4; i++) {
+          g.add(cyl(0.025, 0.55, M.metal, legs[i][0], 0.34, legs[i][1]));
+          g.add(cyl(0.05, 0.05, M.metalDark, legs[i][0], 0.05, legs[i][1]));
+        }
+        g.add(box(1.95, 0.06, 0.8, M.metal, 0, 0.64, 0));
+        g.add(box(1.9, 0.12, 0.74, M.mattress, 0, 0.73, 0));
+        g.add(box(0.4, 0.07, 0.5, M.pillow, -0.68, 0.82, 0));
+        g.add(box(1.2, 0.26, 0.04, M.metal, 0, 0.85, 0.42));
+        g.add(box(1.2, 0.26, 0.04, M.metal, 0, 0.85, -0.42));
+        g.add(box(1.7, 0.05, 0.06, M.metalDark, 0, 0.3, 0));
+        return g;
+      }
+      function wheelchairMesh() {
+        var g = new THREE.Group();
+        g.add(box(0.48, 0.05, 0.45, M.cloth, 0, 0.52, 0));
+        g.add(box(0.46, 0.55, 0.05, M.cloth, 0, 0.82, 0.22));
+        g.add(box(0.05, 0.06, 0.5, M.metal, -0.26, 0.56, 0));
+        g.add(box(0.05, 0.06, 0.5, M.metal, 0.26, 0.56, 0));
+        g.add(box(0.06, 0.5, 0.06, M.metal, -0.24, 0.28, -0.18));
+        g.add(box(0.06, 0.5, 0.06, M.metal, 0.24, 0.28, -0.18));
+        var wheels = [];
+        for (var s = -1; s <= 1; s += 2) {
+          var holder = new THREE.Group();
+          holder.rotation.y = Math.PI / 2;
+          holder.position.set(s * 0.29, 0.3, 0.05);
+          var spin = new THREE.Group();
+          spin.add(new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.022, 8, 20), M.metalDark));
+          spin.add(new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.03, 0.015), M.metal));
+          spin.add(new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.56, 0.015), M.metal));
+          holder.add(spin);
+          g.add(holder); wheels.push(spin);
+          var cast = cyl(0.06, 0.035, M.metalDark, s * 0.16, 0.06, -0.24);
+          cast.rotation.z = Math.PI / 2; g.add(cast);
+        }
+        g.add(box(0.44, 0.04, 0.1, M.metal, 0, 0.18, -0.32));
+        g.userData.wheels = wheels;
+        return g;
+      }
+      function ivPole(tipped) {
+        var g = new THREE.Group();
+        g.add(cyl(0.18, 0.03, M.metalDark, 0, 0.015, 0));
+        g.add(cyl(0.018, 1.75, M.metal, 0, 0.9, 0));
+        g.add(box(0.22, 0.02, 0.02, M.metal, 0, 1.76, 0));
+        var bag = box(0.13, 0.2, 0.05, new THREE.MeshLambertMaterial({ color: 0xcfe0d5, transparent: true, opacity: 0.55 }), 0.05, 1.6, 0);
+        g.add(bag);
+        if (tipped) { g.rotation.z = 1.42; g.rotation.y = 0.5; g.position.y = 0.16; }
+        return g;
+      }
+      function chartBoard() {
+        var g = new THREE.Group();
+        g.add(box(0.66, 0.9, 0.045, M.metalDark, 0, 0, 0));
+        g.add(box(0.6, 0.84, 0.02, M.pale, 0, 0, 0.03));
+        g.add(box(0.14, 0.05, 0.03, M.metal, 0, 0.42, 0.05));
+        var pages = [];
+        for (var i = 0; i < 3; i++) {
+          var pivot = new THREE.Group();
+          pivot.position.set(-0.14 + i * 0.14, 0.34, 0.05);
+          var page = box(0.12, 0.3, 0.006, M.paper, 0, -0.15, 0);
+          pivot.add(page); g.add(pivot);
+          pages.push(pivot);
+        }
+        g.userData.pages = pages;
+        return g;
+      }
+      function shelfRack(w, h, d) {
+        var g = new THREE.Group();
+        g.add(box(w, 0.05, d, M.metal, 0, 0.03, 0));
+        var ys = [0.55, 1.05, 1.55];
+        if (h > 2) ys.push(2.0);
+        for (var i = 0; i < ys.length; i++) g.add(box(w, 0.04, d, M.metal, 0, ys[i], 0));
+        g.add(box(0.05, h, d, M.metal, -w / 2 + 0.03, h / 2, 0));
+        g.add(box(0.05, h, d, M.metal, w / 2 - 0.03, h / 2, 0));
+        return g;
+      }
+      function cabinet(w, h, d) {
+        var g = new THREE.Group();
+        g.add(box(w, h, d, M.pale, 0, h / 2, 0));
+        var rows = Math.max(2, Math.floor(h / 0.38));
+        for (var i = 0; i < rows; i++) {
+          g.add(box(w - 0.1, 0.02, 0.01, M.metalDark, 0, 0.14 + i * (h - 0.2) / rows, d / 2 + 0.005));
+          g.add(box(0.12, 0.025, 0.03, M.metal, 0, 0.14 + i * (h - 0.2) / rows + 0.1, d / 2 + 0.02));
+        }
+        return g;
+      }
+      function papersPile(x, z, y, n) {
+        var g = new THREE.Group();
+        for (var i = 0; i < (n || 2); i++) {
+          var p = box(0.3, 0.006, 0.22, M.paper, 0, i * 0.007, 0);
+          p.rotation.y = h1(x * 3.7 + z * 1.9 + i * 2.3) * 1.2 - 0.6;
+          g.add(p);
+        }
+        g.position.set(x, y || 0.006, z); scene.add(g);
+      }
+      function tippedStool(x, z, rot) {
+        var g = new THREE.Group();
+        g.add(cyl(0.17, 0.05, M.pale, 0, 0.55, 0));
+        for (var i = 0; i < 3; i++) {
+          var a = i * 2.094;
+          var leg = cyl(0.018, 0.55, M.metal, Math.cos(a) * 0.11, 0.275, Math.sin(a) * 0.11);
+          leg.rotation.z = Math.cos(a) * 0.2; leg.rotation.x = -Math.sin(a) * 0.2;
+          g.add(leg);
+        }
+        g.rotation.set(1.5, rot, 0); g.position.set(x, 0.2, z); scene.add(g);
+        addColl(x - 0.24, x + 0.24, z - 0.24, z + 0.24, false);
+      }
+      function bottlesRow(x0, x1, y, z) {
+        var cols = [0x7fa89a, 0xa8c9b8, 0xc9b46a, 0x9a6a4a];
+        for (var x = x0; x <= x1; x += 0.14) {
+          var mi = Math.floor(h1(x * 7.3 + y) * 4) % 4;
+          var m = new THREE.MeshLambertMaterial({ color: cols[mi] });
+          var b = cyl(0.035, 0.13, m, x, y + 0.065, z, 8);
+          scene.add(b);
+        }
+      }
+
+      // ---------- room dressing ----------
+      // Records
+      var rec = addGroup(shelfRack(4.4, 2.1, 0.5), -12.6, -11.68, 0);
+      for (var i = 0; i < 9; i++) rec.add(box(0.34, 0.26, 0.3, M.rustDark, -1.9 + (i % 5) * 0.42, 0.72 + Math.floor(i / 5) * 0.5, 0.05));
+      addGroup(cabinet(0.55, 1.5, 0.5), -15.45, -10.5, 0);
+      addGroup(cabinet(0.55, 1.5, 0.5), -9.65, -10.5, 0);
+      var recDesk = new THREE.Group();
+      recDesk.add(box(1.5, 0.05, 0.7, M.pale, 0, 0.76, 0));
+      recDesk.add(box(0.05, 0.76, 0.65, M.metal, -0.7, 0.38, 0));
+      recDesk.add(box(0.05, 0.76, 0.65, M.metal, 0.7, 0.38, 0));
+      addGroup(recDesk, -10.6, -11.35, 0);
+      addColl(-11.35, -9.85, -11.7, -11.0, false);
+      papersPile(-10.6, -11.3, 0.79, 3);
+      papersPile(-13.6, -10.6, 0.006, 2);
+      papersPile(-11.2, -10.5, 0.006, 2);
+      papersPile(-9.9, -11.6, 0.006, 2);
+      tippedStool(-13.75, -10.55, 2.1);
+      var recBoard = chartBoard(); recBoard.position.set(-10.2, 1.5, -10.08); recBoard.rotation.y = Math.PI; scene.add(recBoard);
+
+      // Pharmacy
+      var ph = addGroup(shelfRack(5.2, 2.2, 0.45), -4, -11.7, 0);
+      bottlesRow(-6.2, -1.8, 0.57, -11.62);
+      bottlesRow(-6.2, -1.8, 1.07, -11.62);
+      bottlesRow(-5.5, -2.5, 1.57, -11.62);
+      bottlesRow(-5.9, -2.2, 2.02, -11.62);
+      var counter = new THREE.Group();
+      counter.add(box(1.9, 0.9, 0.65, M.pale, 0, 0.45, 0));
+      counter.add(box(2.0, 0.05, 0.75, M.metalDark, 0, 0.93, 0));
+      addGroup(counter, -5.8, -10.55, 0);
+      addColl(-6.8, -4.8, -10.9, -10.2, false);
+      papersPile(-5.8, -10.5, 0.96, 2);
+      papersPile(-2.9, -11.0, 0.006, 2);
+      var phCrate = box(0.55, 0.4, 0.5, M.plastic, -2.4, 0.2, -11.1);
+      phCrate.rotation.y = 0.4; scene.add(phCrate);
+      addColl(-2.65, -2.15, -11.35, -10.85, false);
+      tippedStool(-2.2, -10.45, 1.2);
+
+      // Archives B
+      var a1 = addGroup(shelfRack(2.8, 2.2, 0.5), 2.6, -11.65, 0);
+      var a2 = addGroup(shelfRack(2.2, 2.2, 0.5), 6.1, -11.65, 0);
+      var a3 = addGroup(shelfRack(1.2, 2.0, 0.45), 7.55, -10.7, Math.PI / 2);
+      for (var i = 0; i < 10; i++) {
+        a1.add(box(0.4, 0.3, 0.32, i % 2 ? M.rustDark : M.metalDark, -1.1 + (i % 4) * 0.5, 0.72 + Math.floor(i / 4) * 0.5, 0.04));
+        a2.add(box(0.4, 0.3, 0.32, i % 2 ? M.metalDark : M.rustDark, -1.1 + (i % 4) * 0.5, 0.72 + Math.floor(i / 4) * 0.5, 0.04));
+      }
+      addColl(1.2, 4.0, -11.9, -11.4, false);
+      addColl(5.0, 7.2, -11.9, -11.4, false);
+      addColl(7.33, 7.78, -11.3, -10.1, false);
+      papersPile(3.5, -10.6, 0.006, 3);
+      papersPile(5.8, -10.5, 0.006, 2);
+      papersPile(1.6, -10.9, 0.006, 2);
+
+      // Ward
+      addGroup(gurney(), -14.9, 11.35, 0); addColl(-15.9, -13.9, 10.93, 11.77, false);
+      addGroup(gurney(), -11.6, 11.4, 0); addColl(-12.6, -10.6, 10.98, 11.82, false);
+      addGroup(cabinet(0.56, 0.85, 0.5), -13.1, 11.6, 0);
+      addColl(-13.38, -12.82, 11.32, 11.88, false);
+      addGroup(ivPole(false), -15.5, 10.5, 0); addColl(-15.65, -15.35, 10.35, 10.65, false);
+      addGroup(ivPole(true), -11.0, 10.5, 0); addColl(-11.7, -10.3, 10.35, 10.65, false);
+      papersPile(-12.0, 10.6, 0.006, 2);
+      papersPile(-14.2, 10.6, 0.006, 2);
+
+      // Operating Theatre
+      var opT = new THREE.Group();
+      opT.add(cyl(0.16, 0.78, M.metal, 0, 0.39, 0));
+      opT.add(box(1.9, 0.07, 0.6, M.metal, 0, 0.82, 0));
+      opT.add(box(1.8, 0.06, 0.5, M.mattress, 0, 0.89, 0));
+      addGroup(opT, -4, 11.1, 0); addColl(-4.95, -3.05, 10.8, 11.4, false);
+      var lamp = new THREE.Group();
+      lamp.add(cyl(0.22, 0.06, M.metalDark, 0, 0.03, 0));
+      lamp.add(cyl(0.035, 1.9, M.metal, 0, 0.98, 0));
+      var arm1 = cyl(0.03, 0.9, M.metal, 0.42, 1.92, 0); arm1.rotation.z = Math.PI / 2; lamp.add(arm1);
+      var arm2 = cyl(0.03, 0.5, M.metal, 0.85, 1.75, 0); arm2.rotation.z = Math.PI / 2.6; lamp.add(arm2);
+      var head = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.3, 12, 1, true), M.metal);
+      head.position.set(1.05, 1.45, 0); head.rotation.z = Math.PI; lamp.add(head);
+      var lens = cyl(0.2, 0.02, M.bulbOff, 1.05, 1.31, 0); lamp.add(lens);
+      addGroup(lamp, -5.7, 11.4, 0); addColl(-5.93, -5.47, 11.18, 11.63, false);
+      var tray = new THREE.Group();
+      tray.add(box(0.95, 0.04, 0.5, M.metal, 0, 0.84, 0));
+      tray.add(box(0.06, 0.84, 0.44, M.metal, -0.42, 0.42, 0));
+      tray.add(box(0.06, 0.84, 0.44, M.metal, 0.42, 0.42, 0));
+      tray.add(box(0.3, 0.02, 0.08, M.metalDark, -0.15, 0.87, 0));
+      tray.add(box(0.22, 0.02, 0.06, M.metalDark, 0.2, 0.87, 0.1));
+      addGroup(tray, -2.35, 11.45, 0); addColl(-2.83, -1.87, 11.2, 11.7, false);
+      addGroup(cabinet(0.7, 1.5, 0.5), -6.45, 10.5, 0); addColl(-6.8, -6.1, 10.25, 10.75, false);
+      tippedStool(-2.3, 10.5, 2.3);
+      papersPile(-5.2, 10.6, 0.006, 2);
+      var opCeilLamp = cyl(0.3, 0.06, M.bulbOff, -4, 2.9, 11.1); scene.add(opCeilLamp);
+
+      // Storage
+      var s1 = addGroup(shelfRack(2.2, 2.2, 0.5), 2.3, 10.5, 0);
+      var s2 = addGroup(shelfRack(2.1, 2.2, 0.5), 6.75, 10.5, 0);
+      addColl(1.2, 3.4, 10.25, 10.75, false);
+      addColl(5.7, 7.8, 10.25, 10.75, false);
+      var crates = new THREE.Group();
+      crates.add(box(0.6, 0.5, 0.55, M.plastic, 0, 0.25, 0));
+      crates.add(box(0.55, 0.45, 0.5, M.plastic, 0.12, 0.72, 0.03));
+      crates.add(box(0.5, 0.4, 0.48, M.rustDark, -0.08, 0.71, -0.05));
+      addGroup(crates, 7.35, 11.45, 0.3); addColl(6.9, 7.8, 11.0, 11.9, false);
+      var bucket = cyl(0.17, 0.3, M.metal, 1.75, 0.15, 11.35);
+      scene.add(bucket); addColl(1.57, 1.93, 11.17, 11.53, false);
+      var broom = cyl(0.015, 1.4, M.rustDark, 3.55, 0.68, 10.42);
+      broom.rotation.z = 0.28; scene.add(broom);
+      var tbox = box(0.7, 0.5, 0.55, M.rustDark, 4.6, 0.25, 11.5);
+      tbox.rotation.set(0, 0.5, Math.PI / 2); tbox.position.y = 0.32; scene.add(tbox);
+      addColl(4.2, 5.0, 11.2, 11.8, false);
+      papersPile(3.0, 11.2, 0.006, 2);
+      papersPile(5.6, 10.9, 0.006, 3);
+
+      // ---------- hiding lockers (exactly one per room) ----------
+      var ROOM_BOUNDS = [
+        { x1: -16, x2: -9, z1: -12, z2: -10 },
+        { x1: -7, x2: -1, z1: -12, z2: -10 },
+        { x1: 1, x2: 8, z1: -12, z2: -10 },
+        { x1: -16, x2: -9, z1: 10, z2: 12 },
+        { x1: -7, x2: -1, z1: 10, z2: 12 },
+        { x1: 1, x2: 8, z1: 10, z2: 12 }
+      ];
+      function roomAt(x, z) {
+        for (var ri = 0; ri < 6; ri++) {
+          var rb = ROOM_BOUNDS[ri];
+          if (x >= rb.x1 && x <= rb.x2 && z >= rb.z1 && z <= rb.z2) return ri;
+        }
+        return -1;
+      }
+      var lockerSteel = new THREE.MeshPhongMaterial({ color: 0x54625c, shininess: 26, specular: 0x2e3833 });
+      lockerSteel.side = THREE.DoubleSide; // interior faces frame the hidden view
+      var lockerSteelDark = new THREE.MeshPhongMaterial({ color: 0x35403a, shininess: 20, specular: 0x222a26 });
+      var LOCKER_SPOTS = [
+        { x: -14.6, z: -10.28, rot: Math.PI },      // Records, south wall
+        { x: -1.26, z: -10.9, rot: -Math.PI / 2 },  // Pharmacy, east wall
+        { x: 1.26, z: -10.8, rot: Math.PI / 2 },    // Archives B, west wall
+        { x: -9.26, z: 10.65, rot: -Math.PI / 2 },  // Ward, east wall
+        { x: -1.26, z: 10.9, rot: -Math.PI / 2 },   // Operating Theatre, east wall
+        { x: 1.26, z: 11.5, rot: Math.PI / 2 }      // Storage, west wall
+      ];
+      var lockers = [];
+      for (var lq = 0; lq < 6; lq++) {
+        var lspot = LOCKER_SPOTS[lq];
+        var lgrp = new THREE.Group();
+        // body built from panels so the front is open for the interior camera
+        var lback = new THREE.Mesh(new THREE.BoxGeometry(0.9, 2.0, 0.05), lockerSteel);
+        lback.position.set(0, 1.0, -0.205); lgrp.add(lback);
+        var lsideL = new THREE.Mesh(new THREE.BoxGeometry(0.05, 2.0, 0.42), lockerSteel);
+        lsideL.position.set(-0.425, 1.0, 0); lgrp.add(lsideL);
+        var lsideR = lsideL.clone(); lsideR.position.x = 0.425; lgrp.add(lsideR);
+        var ltop = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.05, 0.42), lockerSteel);
+        ltop.position.set(0, 1.975, 0); lgrp.add(ltop);
+        lgrp.add(box(0.9, 0.06, 0.42, lockerSteelDark, 0, 0.03, 0));
+        var ldoor = new THREE.Group();
+        ldoor.position.set(-0.44, 1.0, 0.25); lgrp.add(ldoor);
+        var ldoorMesh = new THREE.Mesh(new THREE.BoxGeometry(0.86, 1.9, 0.05), lockerSteelDark);
+        ldoorMesh.position.set(0.43, 0, 0); ldoor.add(ldoorMesh);
+        for (var lv = 0; lv < 4; lv++) ldoor.add(box(0.58, 0.04, 0.02, M.dark, 0.38, 0.42 + lv * 0.11, 0.035));
+        ldoor.add(box(0.03, 0.11, 0.03, M.pale, 0.78, -0.08, 0.035));
+        ldoor.add(box(0.8, 0.05, 0.055, lockerSteel, 0.43, 0.86, 0));
+        lgrp.position.set(lspot.x, 0, lspot.z);
+        lgrp.rotation.y = lspot.rot;
+        scene.add(lgrp);
+        var lfx = Math.sin(lspot.rot), lfz = Math.cos(lspot.rot);
+        var lAlongX = Math.abs(lfx) < 0.5; // width runs along x when facing z
+        var lhx = lAlongX ? 0.47 : 0.25, lhz = lAlongX ? 0.25 : 0.47;
+        addColl(lspot.x - lhx, lspot.x + lhx, lspot.z - lhz, lspot.z + lhz, false);
+        lockers.push({ x: lspot.x, z: lspot.z, fx: lfx, fz: lfz, room: lq,
+          outYaw: Math.atan2(-lfx, -lfz),
+          frontX: lspot.x + lfx * 0.8, frontZ: lspot.z + lfz * 0.8,
+          door: ldoor });
+      }
+
+      // ---------- dark rooms: Records, Archives B, Storage (dead lighting) ----------
+      var DARK_ROOMS = [0, 2, 5];
+      function darkRoomAt(x, z) {
+        for (var drd = 0; drd < DARK_ROOMS.length; drd++) {
+          var rbd = ROOM_BOUNDS[DARK_ROOMS[drd]];
+          if (x >= rbd.x1 && x <= rbd.x2 && z >= rbd.z1 && z <= rbd.z2) return DARK_ROOMS[drd];
+        }
+        return -1;
+      }
+      var darkMatCache = {};
+      function darkMat(m) {
+        if (!m || !m.color) return m;
+        if (darkMatCache[m.uuid]) return darkMatCache[m.uuid];
+        var dc = m.clone();
+        dc.color.multiplyScalar(0.3);
+        if (dc.emissive) dc.emissive.multiplyScalar(0.2);
+        if (dc.specular) dc.specular.multiplyScalar(0.4);
+        darkMatCache[m.uuid] = dc;
+        return dc;
+      }
+      // darken every prop rooted inside a dark room (keys are built later and stay bright)
+      for (var sc = 0; sc < scene.children.length; sc++) {
+        var topObj = scene.children[sc];
+        if (darkRoomAt(topObj.position.x, topObj.position.z) < 0) continue;
+        topObj.traverse(function (node) {
+          if (!node.isMesh || !node.material) return;
+          if (Array.isArray(node.material)) {
+            for (var ma = 0; ma < node.material.length; ma++) node.material[ma] = darkMat(node.material[ma]);
+          } else node.material = darkMat(node.material);
+        });
+      }
+      // light-eating liners hugging the dark rooms' inner faces (built after the pass above)
+      for (var drl = 0; drl < DARK_ROOMS.length; drl++) {
+        var rbl = ROOM_BOUNDS[DARK_ROOMS[drl]];
+        var liner = new THREE.Mesh(
+          new THREE.BoxGeometry(rbl.x2 - rbl.x1 - 0.04, 2.98, rbl.z2 - rbl.z1 - 0.04),
+          new THREE.MeshLambertMaterial({ color: 0x232d29, side: THREE.BackSide }));
+        liner.position.set((rbl.x1 + rbl.x2) / 2, 1.5, (rbl.z1 + rbl.z2) / 2);
+        scene.add(liner);
+      }
+
+      // ---------- emergency light schedule (north corridor + the three dark rooms) ----------
+      // one hardcoded clock: every 10 s cycle ON for the first 6 s, OFF for the last 4 s
+      var emergOnMat = new THREE.MeshBasicMaterial({ color: 0xd6ffe0 });
+      if ('toneMapped' in emergOnMat) emergOnMat.toneMapped = false;
+      var emergOffMat = new THREE.MeshBasicMaterial({ color: 0x141b18 });
+      var emergLamps = [];
+      function emergencyLamp(x, y, z, rotY, lightIntensity, lightDist) {
+        var g = new THREE.Group();
+        g.add(box(0.36, 0.2, 0.09, M.metalDark, 0, 0, 0));
+        var face = box(0.3, 0.13, 0.02, emergOffMat, 0, 0, 0.05);
+        g.add(face);
+        g.position.set(x, y, z); g.rotation.y = rotY; scene.add(g);
+        var fx = Math.sin(rotY), fz = Math.cos(rotY);
+        var li = new THREE.PointLight(0xbfe8c8, PHYS ? lightIntensity : lightIntensity / 20, lightDist, 2);
+        li.position.set(x + fx * 0.35, y, z + fz * 0.35); scene.add(li);
+        emergLamps.push({ face: face, light: li, base: li.intensity });
+      }
+      emergencyLamp(-9, 2.4, -6.055, Math.PI, 20, 10);        // north corridor
+      emergencyLamp(0, 2.4, -6.055, Math.PI, 20, 10);
+      emergencyLamp(9, 2.4, -6.055, Math.PI, 20, 10);
+      emergencyLamp(-9.055, 2.4, -11, -Math.PI / 2, 34, 8);   // Records
+      emergencyLamp(7.945, 2.4, -11, -Math.PI / 2, 34, 8);    // Archives B
+      emergencyLamp(7.945, 2.4, 11, -Math.PI / 2, 34, 8);     // Storage
+      // the north corridor's steady lights ride the same schedule (OFF drops it to near-black)
+      var ncLight1 = pointLight(-8, 2.8, -8, corridorCol, 1, 11);
+      var ncPanel1 = fixture(-8, -8, 1.1, 0.24, true);
+      var ncLight2 = pointLight(4, 2.8, -8, corridorCol, 1, 11);
+      var ncPanel2 = fixture(4, -8, 1.1, 0.24, true);
+      ncLight1.userData.base = ncLight1.intensity;
+      ncLight2.userData.base = ncLight2.intensity;
+      var ncPanelBright1 = ncPanel1.material, ncPanelBright2 = ncPanel2.material;
+      var lightsOn = true, lightsCycleT = 0, lastLightsOn = null;
+      function applyLights() {
+        for (var i = 0; i < emergLamps.length; i++) {
+          emergLamps[i].face.material = lightsOn ? emergOnMat : emergOffMat;
+          emergLamps[i].light.intensity = lightsOn ? emergLamps[i].base : 0;
+        }
+        ncLight1.intensity = lightsOn ? ncLight1.userData.base : 0;
+        ncLight2.intensity = lightsOn ? ncLight2.userData.base : 0;
+        ncPanel1.material = lightsOn ? ncPanelBright1 : M.bulbOff;
+        ncPanel2.material = lightsOn ? ncPanelBright2 : M.bulbOff;
+      }
+      applyLights();
+
+      // ---------- alarm lamps (red strobe, every corridor and room) ----------
+      var alarmOnMat = new THREE.MeshBasicMaterial({ color: 0xff3020 });
+      if ('toneMapped' in alarmOnMat) alarmOnMat.toneMapped = false;
+      var alarmOffMat = new THREE.MeshBasicMaterial({ color: 0x1a0d0b });
+      var alarmLamps = [];
+      function alarmLamp(x, z) {
+        scene.add(cyl(0.09, 0.04, M.metalDark, x, 2.93, z));
+        var dome = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), alarmOffMat);
+        dome.scale.set(1, 0.65, 1); dome.position.set(x, 2.9, z); scene.add(dome);
+        var li = new THREE.PointLight(0xff2818, 0, 9, 2);
+        li.position.set(x, 2.55, z); scene.add(li);
+        var rotor = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 0.22),
+          new THREE.MeshBasicMaterial({ color: 0xff3020, transparent: true, opacity: 0.3,
+            blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+        if ('toneMapped' in rotor.material) rotor.material.toneMapped = false;
+        rotor.position.set(x, 2.86, z); rotor.visible = false; scene.add(rotor);
+        alarmLamps.push({ dome: dome, light: li, rotor: rotor, base: PHYS ? 13 : 1.0 });
+      }
+      alarmLamp(-2, -8);     // north corridor
+      alarmLamp(-2, 8);      // south corridor
+      alarmLamp(14, 4);      // east corridor
+      alarmLamp(-16, 0);     // west corridor
+      alarmLamp(-11.2, -11); // Records
+      alarmLamp(-2.7, -11);  // Pharmacy
+      alarmLamp(5.8, -11);   // Archives B
+      alarmLamp(-11.2, 11);  // Ward
+      alarmLamp(-2.7, 11);   // Operating Theatre
+      alarmLamp(5.8, 11);    // Storage
+
+      // ---------- corridor dressing ----------
+      addGroup(gurney(), 6.5, -6.55, 0); addColl(5.5, 7.5, -6.97, -6.13, false);
+      addGroup(wheelchairMesh(), -18.5, 2.5, 1.15); addColl(-18.88, -18.12, 2.12, 2.88, false);
+      addGroup(ivPole(true), 13.0, 7.6, 0); addColl(12.7, 13.3, 6.9, 8.3, false);
+      var cb1 = chartBoard(); cb1.position.set(-6.2, 1.5, 6.05); scene.add(cb1);
+      var cb2 = chartBoard(); cb2.position.set(-0.5, 1.5, 6.05); scene.add(cb2);
+      var cb3 = chartBoard(); cb3.position.set(6.2, 1.5, 6.05); scene.add(cb3);
+      var cb4 = chartBoard(); cb4.position.set(3, 1.5, -6.05); cb4.rotation.y = Math.PI; scene.add(cb4);
+      var chartBoards = [cb1, cb2, cb3, cb4];
+      papersPile(-17.5, -3.2, 0.006, 2); papersPile(-13.2, -7.6, 0.006, 3);
+      papersPile(-2, -7.4, 0.006, 2); papersPile(8.5, -8.8, 0.006, 2);
+      papersPile(10.5, 7.3, 0.006, 3); papersPile(-6.5, 8.6, 0.006, 2);
+      papersPile(12.5, -2.5, 0.006, 2); papersPile(-16, 7.8, 0.006, 2);
+
+      // ---------- dust motes in the exit light shaft ----------
+      var DUST_N = 64;
+      var dustBase = new Float32Array(DUST_N * 3), dustPos = new Float32Array(DUST_N * 3);
+      var dustSp = new Float32Array(DUST_N), dustPh = new Float32Array(DUST_N);
+      for (var di = 0; di < DUST_N; di++) {
+        dustBase[di * 3] = -19.8 + h1(di * 3.3) * 2.6;
+        dustBase[di * 3 + 1] = 0.25 + h1(di * 5.1) * 2.3;
+        dustBase[di * 3 + 2] = -5.5 + h1(di * 7.7) * 3.0;
+        dustSp[di] = 0.25 + h1(di * 9.1) * 0.5;
+        dustPh[di] = h1(di * 11.3) * 6.283;
+        dustPos[di * 3] = dustBase[di * 3];
+        dustPos[di * 3 + 1] = dustBase[di * 3 + 1];
+        dustPos[di * 3 + 2] = dustBase[di * 3 + 2];
+      }
+      var dustGeo = new THREE.BufferGeometry();
+      dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+      var dustMat = new THREE.PointsMaterial({ color: 0xaef0cc, size: 0.035, transparent: true, opacity: 0.5,
+        blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true });
+      if ('toneMapped' in dustMat) dustMat.toneMapped = false;
+      var dust = new THREE.Points(dustGeo, dustMat);
+      dust.frustumCulled = false; scene.add(dust);
+      // faint volumetric shaft planes
+      var shaftMat = new THREE.MeshBasicMaterial({ color: 0x9fe8bb, transparent: true, opacity: 0.05,
+        blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+      var shaft1 = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.9), shaftMat);
+      shaft1.position.set(-18.9, 1.5, -4); shaft1.rotation.y = Math.PI / 2; scene.add(shaft1);
+      var shaft2 = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.9), shaftMat);
+      shaft2.position.set(-18.9, 1.5, -4); scene.add(shaft2);
+
+      // ---------- keys & stands ----------
+      var KEY_SPOTS = [
+        { id: 'K1', x: -10, z: 11.2, y: 0 },    // Ward, by the doorway
+        { id: 'K2', x: -9, z: -8, y: 0 },       // north corridor, directly on the patrol path
+        { id: 'K3', x: -15.5, z: -11.5, y: 0 }, // Records (dark), deepest corner shelf
+        { id: 'K4', x: -2.5, z: 11, y: 0 },     // Operating Theatre, instrument tray
+        { id: 'K5', x: 7.5, z: -11.5, y: 0 },   // Archives B (dark), deepest corner shelf
+        { id: 'K6', x: 6.5, z: 11.3, y: 0.3 }   // Storage (dark), on a crate
+      ];
+      var keys = [];
+      for (var ki = 0; ki < 6; ki++) {
+        var spot = KEY_SPOTS[ki];
+        if (spot.y > 0) {
+          var kcrate = box(0.36, spot.y, 0.36, M.plastic, spot.x, spot.y / 2, spot.z);
+          kcrate.rotation.y = 0.2; scene.add(kcrate);
+        }
+        var stand = new THREE.Group();
+        stand.add(cyl(0.16, 0.03, M.metalDark, 0, 0.015, 0));
+        stand.add(cyl(0.022, 0.9, M.metal, 0, 0.45, 0));
+        stand.add(box(0.14, 0.02, 0.14, M.metalDark, 0, 0.9, 0));
+        addGroup(stand, spot.x, spot.z, h1(ki * 7.7) * 1.5);
+        stand.position.y = spot.y;
+        var kcoll = addColl(spot.x - 0.18, spot.x + 0.18, spot.z - 0.18, spot.z + 0.18, false);
+        kcoll.stand = true; // the hunter shoulder-checks past stands instead of stalling on them
+        var kg = new THREE.Group();
+        kg.add(new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.014, 8, 14), M.brass));
+        var shaft = box(0.17, 0.018, 0.018, M.brass, 0.11, 0, 0); kg.add(shaft);
+        kg.add(box(0.02, 0.05, 0.018, M.brass, 0.16, -0.026, 0));
+        kg.add(box(0.02, 0.035, 0.018, M.brass, 0.12, -0.02, 0));
+        var glow = new THREE.Sprite(glowMat(0xd8b45a));
+        glow.scale.set(0.4, 0.4, 1); kg.add(glow);
+        kg.position.set(spot.x, spot.y + 1.16, spot.z);
+        kg.rotation.y = h1(ki * 3.1) * 3;
+        scene.add(kg);
+        keys.push({ id: spot.id, x: spot.x, z: spot.z, g: kg, taken: false, ph: ki * 1.05, baseY: spot.y });
+      }
+
+      // ---------- exit door & lock slots ----------
+      var doorG1 = new THREE.Group(); doorG1.position.set(-19.83, 1.2, -5.94); scene.add(doorG1);
+      var doorG2 = new THREE.Group(); doorG2.position.set(-19.83, 1.2, -2.06); scene.add(doorG2);
+      function doorPanel(hinge, dir) {
+        var p = new THREE.Mesh(new THREE.BoxGeometry(0.09, 2.34, 1.9), M.door);
+        p.position.set(0, 0, dir * 0.95);
+        hinge.add(p);
+        hinge.add(box(0.1, 0.5, 1.7, M.rustDark, 0, -0.85, dir * 0.95));
+        hinge.add(box(0.11, 0.06, 0.7, M.metal, 0, 0.35, dir * 0.55));
+        hinge.add(box(0.11, 0.5, 0.06, M.metalDark, 0, 0, dir * 0.1));
+        hinge.add(box(0.02, 0.3, 0.24, M.glass, 0.055, 0.6, dir * 0.95));
+        for (var ry = -1; ry <= 1; ry += 2) {
+          for (var rz = -2; rz <= 2; rz += 2) {
+            hinge.add(box(0.11, 0.03, 0.03, M.rustDark, 0, ry * 0.95, dir * (0.95 + rz * 0.4)));
+          }
+        }
+      }
+      doorPanel(doorG1, 1); doorPanel(doorG2, -1);
+      var doorColl = addColl(-19.9, -19.7, -6, -2, true);
+      // lock plate + six chips
+      var plate = box(0.05, 0.36, 2.2, M.metalDark, -19.665, 2.72, -4); scene.add(plate);
+      var chips = [];
+      for (var ci = 0; ci < 6; ci++) {
+        var cz = -5.5 + ci * 0.56;
+        var slotM = box(0.05, 0.16, 0.3, M.dark, -19.63, 2.72, cz); scene.add(slotM);
+        var chip = box(0.03, 0.1, 0.22, M.brass, -19.6, 2.72, cz);
+        chip.visible = false; scene.add(chip);
+        chips.push(chip);
+      }
+
+      // ---------- maintenance shafts: one-way shortcut doors through the core ----------
+      var shortcutDoors = [];
+      function buildShortcutDoor(id, x, z, axis, side) {
+        var alongX = axis === 'z'; // door slab spans x when set into a z-facing wall
+        var pw = alongX ? 1.6 : 0.14, pd = alongX ? 0.14 : 1.6;
+        var panel = new THREE.Mesh(new THREE.BoxGeometry(pw, 2.2, pd), M.door);
+        panel.position.set(x, 1.1, z); scene.add(panel);
+        var plate, i2;
+        if (alongX) { // push plate on the openable face, riveted blank on the other
+          plate = box(0.26, 0.5, 0.03, M.metal, x + 0.45, 1.25, z + side * 0.095);
+          for (i2 = 0; i2 < 6; i2++) scene.add(box(0.05, 0.05, 0.04, M.rustDark,
+            x - 0.5 + (i2 % 3) * 0.5, 0.75 + Math.floor(i2 / 3) * 0.7, z - side * 0.095));
+        } else {
+          plate = box(0.03, 0.5, 0.26, M.metal, x + side * 0.095, 1.25, z + 0.45);
+          for (i2 = 0; i2 < 6; i2++) scene.add(box(0.04, 0.05, 0.05, M.rustDark,
+            x - side * 0.095, 0.75 + Math.floor(i2 / 3) * 0.7, z - 0.5 + (i2 % 3) * 0.5));
+        }
+        scene.add(plate);
+        var coll = alongX ? addColl(x - 0.8, x + 0.8, z - 0.12, z + 0.12, true)
+                          : addColl(x - 0.12, x + 0.12, z - 0.8, z + 0.8, true);
+        shortcutDoors.push({ id: id, x: x, z: z, axis: axis, side: side,
+          open: false, anim: 0, panel: panel, coll: coll });
+      }
+      buildShortcutDoor('A-north', -8, -6, 'z', -1);   // openable from the north corridor
+      buildShortcutDoor('A-west', -12, 3, 'x', 1);     // openable from inside shaft A
+      buildShortcutDoor('B-south', -8, 6, 'z', 1);     // openable from the south corridor
+      buildShortcutDoor('B-west', -12, -3, 'x', 1);    // openable from inside shaft B
+
+      // ---------- hunter ----------
+      var WP_A = [{ x: -14, z: -8 }, { x: 14, z: -8 }, { x: 14, z: 8 }, { x: -14, z: 8 }];
+      // second hunter's east-wing loop: hub -> each room doorway -> inside -> back, with
+      // doorway stops on the way out so straight-line legs never grind along room walls
+      var WP_B = [
+        { x: 14, z: 0 },
+        { x: -4, z: 9.2 }, { x: -4, z: 11 },       // Operating Theatre doorway -> inside
+        { x: 14, z: 0 },
+        { x: 4.5, z: 9.2 }, { x: 4.5, z: 11 },     // Storage doorway -> inside
+        { x: 14, z: 0 },
+        { x: -12.5, z: 9.2 }, { x: -12.5, z: 11 }, // Ward doorway -> inside
+        { x: -12.5, z: 9.2 }
+      ];
+      function makeEnt(cfg) {
+        return {
+          name: cfg.name, WP: cfg.WP,
+          speedPatrol: cfg.speedPatrol, speedChase: cfg.speedChase, searchSpeed: cfg.searchSpeed,
+          sightLossMax: cfg.sightLossMax,
+          range: cfg.range, cos: cfg.cos,
+          stepInt: cfg.stepInt, stepIntChase: cfg.stepIntChase, stepBase: cfg.stepBase,
+          x: cfg.x, z: cfg.z, yaw: cfg.yaw, state: 'PATROL', mode: 'loop', wp: 1,
+          sightLoss: 0, searchT: 0, baseYaw: 0, sees: false, compromised: false,
+          heard: false, heardX: 0, heardZ: 0,
+          arrived: false, goRoom: false, retX: 0, retZ: 0, retCorner: 0, retSeg: 0, retPhase: 0,
+          walkPhase: 0, lean: 0, speedNow: 0, stepT: 0, lastX: cfg.x, lastZ: cfg.z, whisper: null
+        };
+      }
+      var hunterA = makeEnt({ name: 'A', WP: WP_A, x: -14, z: -8, yaw: -Math.PI / 2,
+        speedPatrol: 1.6, speedChase: 5.0, searchSpeed: 2.2, range: 8, cos: 0.5, sightLossMax: 3,
+        stepInt: 0.75, stepIntChase: 0.375, stepBase: 60 });
+      var hunterB = makeEnt({ name: 'B', WP: WP_B, x: 14, z: 0, yaw: Math.PI / 2,
+        speedPatrol: 2.4, speedChase: 5.2, searchSpeed: 2.4, range: 7, cos: Math.cos(Math.PI / 4), sightLossMax: 5,
+        stepInt: 0.62, stepIntChase: 0.31, stepBase: 68 });
+      var ents = [hunterA, hunterB];
+      // corridor-side doorway point for each room, used to walk out of a room without
+      // grinding into concave corners when a search or return begins indoors
+      var ROOM_ESCAPE = [
+        { x: -12.5, z: -9.2 }, { x: -4, z: -9.2 }, { x: 4.5, z: -9.2 },
+        { x: -12.5, z: 9.2 }, { x: -4, z: 9.2 }, { x: 4.5, z: 9.2 }
+      ];
+      var hRoot = new THREE.Group(); scene.add(hRoot);
+      var hBody = new THREE.Group(); hRoot.add(hBody);
+      hBody.add(box(0.34, 0.22, 0.2, M.cloth, 0, 0.98, 0));
+      var legL = new THREE.Group(); legL.position.set(-0.1, 1.0, 0); hBody.add(legL);
+      var legR = new THREE.Group(); legR.position.set(0.1, 1.0, 0); hBody.add(legR);
+      function buildLeg(leg) {
+        leg.add(cyl(0.06, 0.5, M.cloth, 0, -0.25, 0));
+        leg.add(cyl(0.047, 0.45, M.skin, 0, -0.72, 0));
+        leg.add(box(0.09, 0.05, 0.24, M.cloth, 0, -0.965, -0.05));
+      }
+      buildLeg(legL); buildLeg(legR);
+      var spine = new THREE.Group(); spine.position.y = 1.02; hBody.add(spine);
+      var torso = box(0.4, 0.62, 0.24, M.cloth, 0, 0.34, 0);
+      spine.add(torso);
+      spine.add(box(0.42, 0.16, 0.26, M.rag, 0, 0.6, 0.02));
+      spine.add(box(0.09, 0.4, 0.02, M.rag, -0.16, 0.35, -0.13));
+      spine.add(box(0.07, 0.3, 0.02, M.rag, 0.13, 0.3, -0.13));
+      spine.add(box(0.3, 0.35, 0.2, M.rag, 0, -0.06, 0));
+      var armL = new THREE.Group(); armL.position.set(-0.24, 0.6, 0.02); spine.add(armL);
+      var armR = new THREE.Group(); armR.position.set(0.24, 0.6, 0.02); spine.add(armR);
+      function buildArm(arm, side) {
+        arm.add(cyl(0.05, 0.5, M.cloth, 0, -0.25, 0));
+        var elbow = new THREE.Group(); elbow.position.y = -0.5; arm.add(elbow);
+        elbow.add(cyl(0.042, 0.55, M.skin, 0, -0.275, 0));
+        var hand = new THREE.Group(); hand.position.y = -0.55; elbow.add(hand);
+        hand.add(box(0.07, 0.14, 0.045, M.skin, 0, -0.07, 0));
+        for (var f = -1; f <= 1; f++) hand.add(box(0.014, 0.09, 0.02, M.skin, f * 0.022, -0.18, 0));
+        arm.rotation.z = side * -0.08;
+        arm.userData.hand = hand;
+      }
+      buildArm(armL, -1); buildArm(armR, 1);
+      spine.add(cyl(0.05, 0.12, M.skin, 0, 0.7, 0));
+      var headG = new THREE.Group(); headG.position.set(0, 0.78, 0); spine.add(headG);
+      var skull = new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 12), M.skin);
+      skull.scale.set(0.9, 1.3, 1.0); skull.position.y = 0.1; headG.add(skull);
+      headG.add(box(0.09, 0.05, 0.06, M.skin, 0, -0.04, -0.09));
+      var eyeMat = new THREE.MeshBasicMaterial({ color: 0x240c08 });
+      if ('toneMapped' in eyeMat) eyeMat.toneMapped = false;
+      var eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 8), eyeMat); eyeL.position.set(-0.045, 0.12, -0.1); headG.add(eyeL);
+      var eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 8), eyeMat); eyeR.position.set(0.045, 0.12, -0.1); headG.add(eyeR);
+
+      // second hunter: shorter, stooped with a hunched back, dragging left arm, darting head
+      var bSkin = new THREE.MeshLambertMaterial({ color: 0xb5ad98, emissive: 0x14110c });
+      var bCloth = new THREE.MeshLambertMaterial({ color: 0x3a3326 });
+      var bRag = new THREE.MeshLambertMaterial({ color: 0x6b3a1e });
+      var bRoot = new THREE.Group(); scene.add(bRoot);
+      var bBody = new THREE.Group(); bRoot.add(bBody);
+      bBody.add(box(0.32, 0.2, 0.19, bCloth, 0, 0.84, 0));
+      var bLegL = new THREE.Group(); bLegL.position.set(-0.09, 0.86, 0); bBody.add(bLegL);
+      var bLegR = new THREE.Group(); bLegR.position.set(0.09, 0.86, 0); bBody.add(bLegR);
+      function buildStalkerLeg(leg) {
+        leg.add(cyl(0.058, 0.42, bCloth, 0, -0.21, 0));
+        leg.add(cyl(0.044, 0.4, bSkin, 0, -0.61, 0));
+        leg.add(box(0.085, 0.05, 0.22, bCloth, 0, -0.835, -0.04));
+      }
+      buildStalkerLeg(bLegL); buildStalkerLeg(bLegR);
+      var bSpine = new THREE.Group(); bSpine.position.y = 0.88; bBody.add(bSpine);
+      bSpine.add(box(0.38, 0.58, 0.24, bCloth, 0, 0.3, 0));
+      var bHump = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), bRag);
+      bHump.scale.set(1.15, 0.85, 0.9); bHump.position.set(0, 0.42, 0.17); bSpine.add(bHump);
+      bSpine.add(box(0.28, 0.32, 0.19, bRag, 0, -0.04, 0));
+      bSpine.add(box(0.08, 0.34, 0.02, bRag, -0.14, 0.28, -0.12));
+      var bArmL = new THREE.Group(); bArmL.position.set(-0.22, 0.52, 0.02); bSpine.add(bArmL);
+      var bArmR = new THREE.Group(); bArmR.position.set(0.22, 0.52, 0.02); bSpine.add(bArmR);
+      function buildStalkerArmL(arm) { // long left arm that drags along the floor
+        arm.add(cyl(0.046, 0.62, bCloth, 0, -0.31, 0));
+        var el = new THREE.Group(); el.position.y = -0.62; arm.add(el);
+        el.add(cyl(0.038, 0.58, bSkin, 0, -0.29, 0));
+        var hd = new THREE.Group(); hd.position.y = -0.58; el.add(hd);
+        hd.add(box(0.065, 0.13, 0.04, bSkin, 0, -0.065, 0));
+        for (var f2 = -1; f2 <= 1; f2++) hd.add(box(0.013, 0.08, 0.018, bSkin, f2 * 0.02, -0.16, 0));
+        arm.userData.hand = hd;
+      }
+      function buildStalkerArmR(arm) { // shorter right arm, kept close
+        arm.add(cyl(0.044, 0.4, bCloth, 0, -0.2, 0));
+        var el = new THREE.Group(); el.position.y = -0.4; arm.add(el);
+        el.add(cyl(0.036, 0.36, bSkin, 0, -0.18, 0));
+        var hd = new THREE.Group(); hd.position.y = -0.36; el.add(hd);
+        hd.add(box(0.06, 0.11, 0.04, bSkin, 0, -0.055, 0));
+        for (var f3 = -1; f3 <= 1; f3++) hd.add(box(0.012, 0.07, 0.016, bSkin, f3 * 0.019, -0.13, 0));
+        arm.rotation.x = -0.5;
+        arm.userData.hand = hd;
+      }
+      buildStalkerArmL(bArmL); buildStalkerArmR(bArmR);
+      bSpine.add(cyl(0.045, 0.1, bSkin, 0, 0.62, 0));
+      var bHead = new THREE.Group(); bHead.position.set(0, 0.7, 0); bSpine.add(bHead);
+      var bSkull = new THREE.Mesh(new THREE.SphereGeometry(0.105, 12, 10), bSkin);
+      bSkull.scale.set(0.95, 1.2, 0.95); bSkull.position.y = 0.09; bHead.add(bSkull);
+      bHead.add(box(0.08, 0.045, 0.05, bSkin, 0, -0.03, -0.08));
+      var bEyeMat = new THREE.MeshBasicMaterial({ color: 0x2a1404 });
+      if ('toneMapped' in bEyeMat) bEyeMat.toneMapped = false;
+      var bEyeL = new THREE.Mesh(new THREE.SphereGeometry(0.015, 8, 8), bEyeMat); bEyeL.position.set(-0.04, 0.11, -0.088); bHead.add(bEyeL);
+      var bEyeR = new THREE.Mesh(new THREE.SphereGeometry(0.015, 8, 8), bEyeMat); bEyeR.position.set(0.04, 0.11, -0.088); bHead.add(bEyeR);
+
+      // ---------- audio (all synthesized, deterministic) ----------
+      var AC = null, master = null, ambBus = null, proxGain = null, noiseBuf = null, sirenNodes = null;
+      var stepCount = 0;
+      function initAudio() {
+        if (AC) return;
+        var Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        AC = new Ctx();
+        master = AC.createGain(); master.gain.value = 0.85;
+        var comp = AC.createDynamicsCompressor();
+        master.connect(comp); comp.connect(AC.destination);
+        noiseBuf = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate);
+        var d = noiseBuf.getChannelData(0);
+        for (var i = 0; i < d.length; i++) d[i] = (h1(i * 0.37 + 0.11) * 2 - 1) * 0.6;
+        ambBus = AC.createGain(); ambBus.gain.value = 0.0; ambBus.connect(master);
+        var mix = AC.createGain(); mix.gain.value = 1; mix.connect(ambBus);
+        function drone(type, f, g) {
+          var o = AC.createOscillator(); o.type = type; o.frequency.value = f;
+          var og = AC.createGain(); og.gain.value = g;
+          o.connect(og); og.connect(mix); o.start();
+        }
+        drone('sine', 47.5, 0.055); drone('sine', 49.8, 0.042); drone('triangle', 95.2, 0.02);
+        var ambNoise = AC.createBufferSource(); ambNoise.buffer = noiseBuf; ambNoise.loop = true;
+        var abp = AC.createBiquadFilter(); abp.type = 'bandpass'; abp.frequency.value = 380; abp.Q.value = 0.8;
+        var ag = AC.createGain(); ag.gain.value = 0.012;
+        ambNoise.connect(abp); abp.connect(ag); ag.connect(mix); ambNoise.start();
+        var wobble = AC.createGain(); // swap chain so LFO wobbles without fighting the ambBus ramp
+        ambBus.disconnect(); ambBus.connect(wobble); wobble.connect(master);
+        var lfo = AC.createOscillator(); lfo.frequency.value = 0.06;
+        var lfoG = AC.createGain(); lfoG.gain.value = 0.22;
+        lfo.connect(lfoG); lfoG.connect(wobble.gain); lfo.start();
+        var prox = AC.createBufferSource(); prox.buffer = noiseBuf; prox.loop = true; prox.playbackRate.value = 0.5;
+        var plp = AC.createBiquadFilter(); plp.type = 'lowpass'; plp.frequency.value = 85;
+        proxGain = AC.createGain(); proxGain.gain.value = 0;
+        prox.connect(plp); plp.connect(proxGain); proxGain.connect(master); prox.start();
+        // whisper loop: sibilant mutter whose voice changes with the hunter's state
+        function makeWhisper() {
+          var src = AC.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+          src.playbackRate.value = 0.85;
+          var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1700; bp.Q.value = 0.9;
+          var am = AC.createGain(); am.gain.value = 0.5;
+          var lfo = AC.createOscillator(); lfo.frequency.value = 2.3;
+          var lfoG = AC.createGain(); lfoG.gain.value = 0.5;
+          lfo.connect(lfoG); lfoG.connect(am.gain); lfo.start();
+          var volG = AC.createGain(); volG.gain.value = 0;
+          var panN = AC.createStereoPanner ? AC.createStereoPanner() : null;
+          src.connect(bp); bp.connect(am);
+          if (panN) { am.connect(panN); panN.connect(volG); } else am.connect(volG);
+          volG.connect(master);
+          src.start();
+          return { bp: bp, lfo: lfo, pan: panN, vol: volG };
+        }
+        hunterA.whisper = makeWhisper();
+        hunterB.whisper = makeWhisper();
+      }
+      function env(g, t0, a, peak, dur) {
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t0 + a);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      }
+      function sfxStep(run) {
+        if (!AC) return; stepCount++;
+        var t0 = AC.currentTime;
+        var src = AC.createBufferSource(); src.buffer = noiseBuf;
+        src.playbackRate.value = 0.85 + h1(stepCount * 17.3) * 0.35;
+        var bp = AC.createBiquadFilter(); bp.type = 'bandpass';
+        bp.frequency.value = 280 + (stepCount % 2) * 70 + (run ? 160 : 0); bp.Q.value = 1.1;
+        var g = AC.createGain(); env(g, t0, 0.012, run ? 0.5 : 0.3, 0.13);
+        src.connect(bp); bp.connect(g); g.connect(master);
+        src.start(t0); src.stop(t0 + 0.16);
+        var o = AC.createOscillator(); o.type = 'triangle';
+        o.frequency.setValueAtTime(88, t0); o.frequency.exponentialRampToValueAtTime(48, t0 + 0.07);
+        var og = AC.createGain(); env(og, t0, 0.01, run ? 0.16 : 0.1, 0.09);
+        o.connect(og); og.connect(master); o.start(t0); o.stop(t0 + 0.1);
+      }
+      function sfxHunterStep(vol, pan, hard, base) {
+        if (!AC || vol <= 0.004) return;
+        var bs = base || 60;
+        var t0 = AC.currentTime;
+        var o = AC.createOscillator(); o.type = 'sine';
+        o.frequency.setValueAtTime(hard ? bs * 0.83 : bs, t0);
+        o.frequency.exponentialRampToValueAtTime(hard ? bs * 0.47 : bs * 0.57, t0 + 0.2);
+        var g = AC.createGain(); env(g, t0, 0.008, vol * (hard ? 1.1 : 0.85), hard ? 0.3 : 0.24);
+        if (AC.createStereoPanner) { var pn = AC.createStereoPanner(); pn.pan.value = clamp(pan, -1, 1); g.connect(pn); pn.connect(master); }
+        else g.connect(master);
+        o.connect(g); o.start(t0); o.stop(t0 + 0.34);
+        var src = AC.createBufferSource(); src.buffer = noiseBuf; src.playbackRate.value = 0.4;
+        var lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = hard ? 190 : 150;
+        var ng = AC.createGain(); env(ng, t0, 0.005, vol * 0.5, 0.1);
+        src.connect(lp); lp.connect(ng); ng.connect(master); src.start(t0); src.stop(t0 + 0.12);
+      }
+      function sfxChime() {
+        if (!AC) return; var t0 = AC.currentTime;
+        function note(f, dt, g, dur) {
+          var o = AC.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+          var og = AC.createGain(); env(og, t0 + dt, 0.01, g, dur);
+          o.connect(og); og.connect(master); o.start(t0 + dt); o.stop(t0 + dt + dur + 0.05);
+        }
+        note(880, 0, 0.2, 0.45); note(1318.5, 0.07, 0.16, 0.55); note(2637, 0.07, 0.05, 0.4);
+      }
+      function sfxSting() {
+        if (!AC) return; var t0 = AC.currentTime;
+        [196, 207.65, 466].forEach(function (f, i) {
+          var o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+          var g = AC.createGain(); env(g, t0, 0.006, 0.16, 0.65);
+          o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + 0.7);
+        });
+        var sub = AC.createOscillator(); sub.type = 'sine';
+        sub.frequency.setValueAtTime(65, t0); sub.frequency.exponentialRampToValueAtTime(38, t0 + 0.6);
+        var sg = AC.createGain(); env(sg, t0, 0.005, 0.5, 0.75);
+        sub.connect(sg); sg.connect(master); sub.start(t0); sub.stop(t0 + 0.8);
+        var src = AC.createBufferSource(); src.buffer = noiseBuf;
+        var hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 800;
+        var ng = AC.createGain(); env(ng, t0, 0.004, 0.18, 0.18);
+        src.connect(hp); hp.connect(ng); ng.connect(master); src.start(t0); src.stop(t0 + 0.2);
+      }
+      function sfxClunk(i) {
+        if (!AC) return; var t0 = AC.currentTime;
+        var o = AC.createOscillator(); o.type = 'square';
+        o.frequency.value = 132 * (1 - i * 0.012);
+        var lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 280;
+        var g = AC.createGain(); env(g, t0, 0.004, 0.3, 0.08);
+        o.connect(lp); lp.connect(g); g.connect(master); o.start(t0); o.stop(t0 + 0.1);
+        var p = AC.createOscillator(); p.type = 'sine'; p.frequency.value = 1244;
+        var pg = AC.createGain(); env(pg, t0, 0.003, 0.05, 0.09);
+        p.connect(pg); pg.connect(master); p.start(t0); p.stop(t0 + 0.11);
+        var s = AC.createOscillator(); s.type = 'sine'; s.frequency.value = 52;
+        var sg2 = AC.createGain(); env(sg2, t0, 0.004, 0.3, 0.13);
+        s.connect(sg2); sg2.connect(master); s.start(t0); s.stop(t0 + 0.15);
+      }
+      function sfxWin() {
+        if (!AC) return; var t0 = AC.currentTime;
+        [110, 164.8, 220, 329.6].forEach(function (f, i) {
+          var o = AC.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+          var g = AC.createGain();
+          g.gain.setValueAtTime(0.0001, t0);
+          g.gain.linearRampToValueAtTime(0.13, t0 + 2.4);
+          g.gain.setValueAtTime(0.13, t0 + 4.2);
+          g.gain.linearRampToValueAtTime(0.0001, t0 + 7.5);
+          o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + 7.6);
+        });
+        var src = AC.createBufferSource(); src.buffer = noiseBuf;
+        var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = 0.8;
+        var g2 = AC.createGain();
+        g2.gain.setValueAtTime(0.0001, t0);
+        g2.gain.linearRampToValueAtTime(0.035, t0 + 2.6);
+        g2.gain.linearRampToValueAtTime(0.0001, t0 + 6.5);
+        src.connect(bp); bp.connect(g2); g2.connect(master); src.start(t0); src.stop(t0 + 6.6);
+      }
+      function sfxHeartbeat(v) {
+        if (!AC) return; var t0 = AC.currentTime;
+        function thump(dt2, f, g) {
+          var o = AC.createOscillator(); o.type = 'sine';
+          o.frequency.setValueAtTime(f, t0 + dt2);
+          o.frequency.exponentialRampToValueAtTime(f * 0.6, t0 + dt2 + 0.11);
+          var og = AC.createGain(); env(og, t0 + dt2, 0.008, g, 0.13);
+          o.connect(og); og.connect(master); o.start(t0 + dt2); o.stop(t0 + dt2 + 0.16);
+        }
+        thump(0, 56, v); thump(0.14, 48, v * 0.75);
+      }
+      function sfxGasp() {
+        if (!AC) return; var t0 = AC.currentTime;
+        var src = AC.createBufferSource(); src.buffer = noiseBuf; src.playbackRate.value = 1.4;
+        var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.4;
+        bp.frequency.setValueAtTime(500, t0);
+        bp.frequency.exponentialRampToValueAtTime(1700, t0 + 0.22);
+        var g = AC.createGain(); env(g, t0, 0.012, 0.6, 0.3);
+        src.connect(bp); bp.connect(g); g.connect(master); src.start(t0); src.stop(t0 + 0.32);
+        var o = AC.createOscillator(); o.type = 'sawtooth';
+        o.frequency.setValueAtTime(320, t0);
+        o.frequency.exponentialRampToValueAtTime(560, t0 + 0.2);
+        var og = AC.createGain(); env(og, t0, 0.012, 0.18, 0.26);
+        o.connect(og); og.connect(master); o.start(t0); o.stop(t0 + 0.28);
+      }
+      function sfxLockerDoor(open) {
+        if (!AC) return; var t0 = AC.currentTime;
+        var o = AC.createOscillator(); o.type = 'square'; o.frequency.value = 92;
+        var lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 240;
+        var g = AC.createGain(); env(g, t0, 0.005, open ? 0.1 : 0.07, 0.09);
+        o.connect(lp); lp.connect(g); g.connect(master); o.start(t0); o.stop(t0 + 0.11);
+        var src = AC.createBufferSource(); src.buffer = noiseBuf; src.playbackRate.value = 0.7;
+        var hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1200;
+        var ng = AC.createGain(); env(ng, t0, 0.004, open ? 0.05 : 0.035, 0.07);
+        src.connect(hp); hp.connect(ng); ng.connect(master); src.start(t0); src.stop(t0 + 0.09);
+        if (open) { // steel creak as the door swings wide
+          var c = AC.createOscillator(); c.type = 'sawtooth';
+          c.frequency.setValueAtTime(140, t0);
+          c.frequency.linearRampToValueAtTime(310, t0 + 0.28);
+          var cf = AC.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 800; cf.Q.value = 2.5;
+          var cg = AC.createGain(); env(cg, t0 + 0.03, 0.05, 0.05, 0.34);
+          c.connect(cf); cf.connect(cg); cg.connect(master); c.start(t0); c.stop(t0 + 0.4);
+        }
+      }
+      function sfxFlashClick(dead) {
+        if (!AC) return; var t0 = AC.currentTime;
+        var o = AC.createOscillator(); o.type = 'square'; o.frequency.value = dead ? 240 : 1700;
+        var g = AC.createGain(); env(g, t0, 0.002, dead ? 0.12 : 0.08, 0.035);
+        o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + 0.06);
+      }
+      function sfxLockedThud() {
+        if (!AC) return; var t0 = AC.currentTime;
+        var o = AC.createOscillator(); o.type = 'sine';
+        o.frequency.setValueAtTime(110, t0);
+        o.frequency.exponentialRampToValueAtTime(65, t0 + 0.12);
+        var g = AC.createGain(); env(g, t0, 0.005, 0.25, 0.16);
+        o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + 0.18);
+        var src = AC.createBufferSource(); src.buffer = noiseBuf; src.playbackRate.value = 0.5;
+        var lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 200;
+        var ng = AC.createGain(); env(ng, t0, 0.004, 0.12, 0.08);
+        src.connect(lp); lp.connect(ng); ng.connect(master); src.start(t0); src.stop(t0 + 0.1);
+      }
+      function sfxClang() {
+        if (!AC) return; var t0 = AC.currentTime;
+        var freqs = [220, 587, 931, 1397];
+        for (var i = 0; i < freqs.length; i++) {
+          var o = AC.createOscillator(); o.type = 'square';
+          o.frequency.value = freqs[i] * (1 - i * 0.01);
+          var g = AC.createGain(); env(g, t0, 0.004, 0.22 / (i + 1), 0.5 + i * 0.1);
+          o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + 0.75);
+        }
+        var src = AC.createBufferSource(); src.buffer = noiseBuf;
+        var hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 900;
+        var ng = AC.createGain(); env(ng, t0, 0.003, 0.2, 0.12);
+        src.connect(hp); hp.connect(ng); ng.connect(master); src.start(t0); src.stop(t0 + 0.14);
+      }
+      function startSirenBurst() {
+        if (!AC) return;
+        var t0 = AC.currentTime;
+        var o = AC.createOscillator(); o.type = 'sawtooth';
+        o.frequency.setValueAtTime(520, t0);
+        var lfo = AC.createOscillator(); lfo.type = 'triangle'; lfo.frequency.value = 1.6;
+        var lfoG = AC.createGain(); lfoG.gain.value = 210;
+        lfo.connect(lfoG); lfoG.connect(o.frequency);
+        var g = AC.createGain(); g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.2, t0 + 0.1);
+        o.connect(g); g.connect(master);
+        o.start(t0); lfo.start(t0);
+        sirenNodes = { o: o, lfo: lfo, g: g };
+      }
+      function stopSiren() {
+        if (!sirenNodes || !AC) return;
+        var t0 = AC.currentTime;
+        sirenNodes.g.gain.cancelScheduledValues(t0);
+        sirenNodes.g.gain.setValueAtTime(sirenNodes.g.gain.value, t0);
+        sirenNodes.g.gain.linearRampToValueAtTime(0.0001, t0 + 0.4);
+        sirenNodes.o.stop(t0 + 0.5); sirenNodes.lfo.stop(t0 + 0.5);
+        sirenNodes = null;
+      }
+      function sfxAlarmPulse() {
+        if (!AC) return; var t0 = AC.currentTime;
+        var o = AC.createOscillator(); o.type = 'sine'; o.frequency.value = 175;
+        var g = AC.createGain(); env(g, t0, 0.01, 0.07, 0.22);
+        o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + 0.25);
+      }
+      function sfxSqueak() {
+        if (!AC) return; var t0 = AC.currentTime;
+        var o = AC.createOscillator(); o.type = 'sine';
+        o.frequency.setValueAtTime(980, t0); o.frequency.exponentialRampToValueAtTime(810, t0 + 0.16);
+        var g = AC.createGain(); env(g, t0, 0.02, 0.045, 0.2);
+        o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + 0.22);
+      }
+
+      // ---------- game state ----------
+      var SPAWN = { x: -14.5, z: -5 }, SPAWN_YAW = -Math.PI / 2;
+      var WALK = 2.2, RUN = 4.5, EYE = 1.6;
+      var G = { phase: 'ready', elapsed: 0, keys: 0, catches: 0, stack: [], msgUntil: 0, hides: 0 };
+      var p = { x: SPAWN.x, z: SPAWN.z, yaw: SPAWN_YAW, pitch: 0, vx: 0, vz: 0, bobT: 0, bobAmp: 0, stepDist: 0 };
+      var exit = { opening: false, t: 0, done: [false, false, false, false, false, false] };
+      var wheel = { base: { x: -10.9, z: 9.1 }, cur: { x: -10.9, z: 9.1 }, t: 1, cool: 0, mesh: null, coll: null };
+      var hide = { phase: 'none', t: 0, locker: -1, snapped: false };
+      var breath = { max: 10, val: 10, hbActive: false, holding: false };
+      var hbT = 0, hbLeftT = 0, proxHbT = 0;
+      var playerRunNoise = false;
+      var alarm = false, alarmT = 0, alarmPulseT = 0;
+      var wheelMesh = addGroup(wheelchairMesh(), wheel.base.x, wheel.base.z, 2.4);
+      wheel.mesh = wheelMesh;
+      wheel.coll = addColl(wheel.cur.x - 0.38, wheel.cur.x + 0.38, wheel.cur.z - 0.38, wheel.cur.z + 0.38, false);
+
+      window.__arena_state = {
+        phase: 'ready', elapsed: 0,
+        player: { x: SPAWN.x, z: SPAWN.z, yaw: SPAWN_YAW },
+        keysCollected: 0, catches: 0,
+        hunter: { state: 'PATROL', x: hunterA.x, z: hunterA.z, facing: hunterA.yaw, sightLossTimer: 0, seesPlayer: false },
+        hidden: false, breath: 10, hides: 0,
+        lights: 'ON', lightsCycleT: 0, alarm: false, alarmT: 0, rating: null
+      };
+
+      // ---------- UI ----------
+      var elKeys = document.getElementById('keys'), elTimer = document.getElementById('timer');
+      var elState = document.getElementById('state'), elMsg = document.getElementById('msg');
+      var elState2 = document.getElementById('state2');
+      var elHint = document.getElementById('hint'), elFlash = document.getElementById('flash');
+      var elVig = document.getElementById('vignette');
+      var elHidden = document.getElementById('hiddenTag');
+      var elSlats = document.getElementById('slats');
+      var elBreathWrap = document.getElementById('breathWrap');
+      var elBreathFill = document.getElementById('breathFill');
+      var elLights = document.getElementById('lightsTag');
+      var elAlarm = document.getElementById('alarmTag');
+      var strikeEls = document.querySelectorAll('#strikes i');
+      var ovReady = document.getElementById('ready'), ovPaused = document.getElementById('paused');
+      var ovOver = document.getElementById('over'), ovWon = document.getElementById('won');
+      function showOnly(ov) {
+        [ovReady, ovPaused, ovOver, ovWon].forEach(function (o) { o.classList.add('hidden'); });
+        if (ov) ov.classList.remove('hidden');
+      }
+      function msg(t) { elMsg.textContent = t; elMsg.style.opacity = 1; G.msgUntil = G.elapsed + 2.5; }
+      function doFlash() {
+        elFlash.style.transition = 'none'; elFlash.style.opacity = 1;
+        void elFlash.offsetWidth;
+        elFlash.style.transition = 'opacity 0.7s ease-out'; elFlash.style.opacity = 0;
+      }
+      function updateStrikes() {
+        for (var i = 0; i < 3; i++) strikeEls[i].classList.toggle('hit', i < G.catches);
+      }
+      function refreshKeysHUD() { elKeys.textContent = 'KEYS ' + G.keys + '/6'; }
+
+      // ---------- physics ----------
+      function resolveCircle(o, r, skipStands) {
+        for (var iter = 0; iter < 2; iter++) {
+          for (var i = 0; i < colliders.length; i++) {
+            var c = colliders[i]; if (c.off || (skipStands && c.stand)) continue;
+            var cx = clamp(o.x, c.x1, c.x2), cz = clamp(o.z, c.z1, c.z2);
+            var dx = o.x - cx, dz = o.z - cz, d2 = dx * dx + dz * dz;
+            if (d2 < r * r) {
+              if (d2 > 1e-9) {
+                var d = Math.sqrt(d2), push = (r - d) / d;
+                o.x += dx * push; o.z += dz * push;
+              } else {
+                var l = o.x - c.x1, rr = c.x2 - o.x, tt = o.z - c.z1, bb = c.z2 - o.z;
+                var m = Math.min(l, rr, tt, bb);
+                if (m === l) o.x = c.x1 - r; else if (m === rr) o.x = c.x2 + r;
+                else if (m === tt) o.z = c.z1 - r; else o.z = c.z2 + r;
+              }
+            }
+          }
+        }
+      }
+      function segHitsBox(x1, z1, x2, z2, c) {
+        var dx = x2 - x1, dz = z2 - z1, tmin = 0, tmax = 1, s;
+        if (Math.abs(dx) < 1e-9) { if (x1 < c.x1 || x1 > c.x2) return false; }
+        else {
+          var t1 = (c.x1 - x1) / dx, t2 = (c.x2 - x1) / dx;
+          if (t1 > t2) { s = t1; t1 = t2; t2 = s; }
+          tmin = Math.max(tmin, t1); tmax = Math.min(tmax, t2);
+          if (tmin > tmax) return false;
+        }
+        if (Math.abs(dz) < 1e-9) { if (z1 < c.z1 || z1 > c.z2) return false; }
+        else {
+          var u1 = (c.z1 - z1) / dz, u2 = (c.z2 - z1) / dz;
+          if (u1 > u2) { s = u1; u1 = u2; u2 = s; }
+          tmin = Math.max(tmin, u1); tmax = Math.min(tmax, u2);
+          if (tmin > tmax) return false;
+        }
+        return true;
+      }
+      function sightBlocked(x1, z1, x2, z2) {
+        for (var i = 0; i < colliders.length; i++) {
+          var c = colliders[i];
+          if (c.sight && !c.off && segHitsBox(x1, z1, x2, z2, c)) return true;
+        }
+        return false;
+      }
+      function nearestOnLoop(ent) {
+        var W = ent.WP, bi = 0, bd = 1e9, bx = 0, bz = 0;
+        for (var i = 0; i < W.length; i++) {
+          var a = W[i], b = W[(i + 1) % W.length];
+          var vx = b.x - a.x, vz = b.z - a.z;
+          var t = clamp(((ent.x - a.x) * vx + (ent.z - a.z) * vz) / (vx * vx + vz * vz), 0, 1);
+          var px = a.x + vx * t, pz = a.z + vz * t;
+          var d = (ent.x - px) * (ent.x - px) + (ent.z - pz) * (ent.z - pz);
+          if (d < bd) { bd = d; bi = i; bx = px; bz = pz; }
+        }
+        return { x: bx, z: bz, seg: bi };
+      }
+      function nearestWp(ent) {
+        var bi = 0, bd = 1e9;
+        for (var i = 0; i < ent.WP.length; i++) {
+          var d = (ent.x - ent.WP[i].x) * (ent.x - ent.WP[i].x) + (ent.z - ent.WP[i].z) * (ent.z - ent.WP[i].z);
+          if (d < bd) { bd = d; bi = i; }
+        }
+        return { i: bi, x: ent.WP[bi].x, z: ent.WP[bi].z };
+      }
+      function setReturnTarget(ent) {
+        var ri = roomAt(ent.x, ent.z);
+        if (ri >= 0) { ent.retPhase = 1; ent.retX = ROOM_ESCAPE[ri].x; ent.retZ = ROOM_ESCAPE[ri].z; }
+        else { ent.retPhase = 0; var nl = nearestOnLoop(ent); ent.retX = nl.x; ent.retZ = nl.z; ent.retSeg = nl.seg; }
+      }
+
+      // ---------- hunter AI ----------
+      function canSeePlayer(ent) {
+        if (isConcealed()) return false; // a hidden player can never be seen, even point-blank
+        var dx = p.x - ent.x, dz = p.z - ent.z;
+        var d = Math.sqrt(dx * dx + dz * dz);
+        var range = lightsOn ? ent.range : ent.range * 0.5; // OFF phase halves detection range
+        if (d > range || d < 1e-6) return d < 0.8;
+        var fx = -Math.sin(ent.yaw), fz = -Math.cos(ent.yaw);
+        if ((dx * fx + dz * fz) / d < ent.cos) return false; // A: 120-degree cone, B: 80-degree cone
+        return !sightBlocked(ent.x, ent.z, p.x, p.z);
+      }
+      function entTurn(ent, target, rate, dt) {
+        var d = target - ent.yaw;
+        while (d > Math.PI) d -= 2 * Math.PI;
+        while (d < -Math.PI) d += 2 * Math.PI;
+        var step = clamp(d, -rate * dt, rate * dt);
+        ent.yaw += step;
+      }
+      function entMoveToward(ent, tx, tz, speed, dt) {
+        var dx = tx - ent.x, dz = tz - ent.z;
+        var d = Math.sqrt(dx * dx + dz * dz);
+        if (d < 0.05) return true;
+        var mv = Math.min(speed * dt, d);
+        ent.x += dx / d * mv; ent.z += dz / d * mv;
+        var o = { x: ent.x, z: ent.z }; resolveCircle(o, 0.4, true);
+        ent.x = o.x; ent.z = o.z;
+        return d - mv < 0.05;
+      }
+      function entYawTo(ent, tx, tz) { return Math.atan2(-(tx - ent.x), -(tz - ent.z)); }
+      function updateEnt(ent, dt) {
+        var distToPlayer = Math.sqrt((p.x - ent.x) * (p.x - ent.x) + (p.z - ent.z) * (p.z - ent.z));
+        ent.sees = canSeePlayer(ent);
+        if (alarm && ent === hunterA) { // permanent pursuit: it always knows where you are
+          ent.state = 'CHASE'; ent.sightLoss = 0; ent.heard = false;
+          ent.arrived = false; ent.searchT = 0; ent.goRoom = false;
+        }
+        // running noise: heard through walls by any hunter not already chasing, regardless
+        // of facing, cone, or light phase — but never from a player hidden in a locker
+        if (playerRunNoise && !isConcealed() && ent.state !== 'CHASE' && distToPlayer <= 6) {
+          ent.state = 'CHASE'; ent.sightLoss = 0;
+        }
+        if (ent.state === 'PATROL') {
+          if (ent.sees) { ent.state = 'CHASE'; ent.sightLoss = 0; }
+          else if (ent.mode === 'return') {
+            entTurn(ent, entYawTo(ent, ent.retX, ent.retZ), 3.5, dt);
+            if (entMoveToward(ent, ent.retX, ent.retZ, ent.speedPatrol, dt)) {
+              if (ent.retPhase === 1) {
+                ent.retPhase = 0;
+                var nl = nearestOnLoop(ent);
+                ent.retX = nl.x; ent.retZ = nl.z; ent.retSeg = nl.seg;
+              } else {
+                ent.mode = 'loop';
+                ent.wp = (ent.retSeg + 1) % ent.WP.length;
+              }
+            }
+          } else {
+            entTurn(ent, entYawTo(ent, ent.WP[ent.wp].x, ent.WP[ent.wp].z), 3.5, dt);
+            if (entMoveToward(ent, ent.WP[ent.wp].x, ent.WP[ent.wp].z, ent.speedPatrol, dt)) ent.wp = (ent.wp + 1) % ent.WP.length;
+          }
+        } else if (ent.state === 'CHASE') {
+          if (ent.sees) ent.sightLoss = 0;
+          else if (!(alarm && ent === hunterA)) { // pursuit never gives up during the alarm
+            ent.sightLoss += dt;
+            if (ent.sightLoss >= ent.sightLossMax) {
+              // smarter search: walk to the nearest waypoint of the own loop and sweep there
+              ent.state = 'SEARCH'; ent.arrived = false; ent.searchT = 0;
+              ent.compromised = false; ent.heard = false; // giving up the chase drops the clang trail too
+              var ri = roomAt(ent.x, ent.z);
+              if (ri >= 0) { ent.goRoom = true; ent.retX = ROOM_ESCAPE[ri].x; ent.retZ = ROOM_ESCAPE[ri].z; }
+              else {
+                ent.goRoom = false;
+                var nw = nearestWp(ent);
+                ent.retX = nw.x; ent.retZ = nw.z; ent.retCorner = nw.i;
+              }
+            }
+          }
+          if (ent.state === 'CHASE') {
+            if (ent.heard && !ent.sees) { // clang chase: reach the door first
+              entTurn(ent, entYawTo(ent, ent.heardX, ent.heardZ), 12, dt);
+              if (entMoveToward(ent, ent.heardX, ent.heardZ, ent.speedChase, dt)) ent.heard = false;
+            } else {
+              if (ent.sees) ent.heard = false;
+              entTurn(ent, entYawTo(ent, p.x, p.z), 12, dt);
+              entMoveToward(ent, p.x, p.z, ent.speedChase, dt);
+            }
+          }
+        } else if (ent.state === 'SEARCH') {
+          if (ent.sees) { ent.state = 'CHASE'; ent.sightLoss = 0; }
+          else if (!ent.arrived) {
+            entTurn(ent, entYawTo(ent, ent.retX, ent.retZ), 5, dt);
+            if (entMoveToward(ent, ent.retX, ent.retZ, ent.searchSpeed, dt)) {
+              if (ent.goRoom) { // stepped out of the room; now pick the real search spot
+                ent.goRoom = false;
+                var nw2 = nearestWp(ent);
+                ent.retX = nw2.x; ent.retZ = nw2.z; ent.retCorner = nw2.i;
+              } else {
+                ent.arrived = true; ent.searchT = 0; ent.baseYaw = ent.yaw;
+              }
+            }
+          } else {
+            ent.searchT += dt;
+            ent.yaw = ent.baseYaw + 1.15 * Math.sin(ent.searchT * Math.PI / 2);
+            if (ent.searchT >= 6) {
+              ent.state = 'PATROL'; ent.mode = 'loop'; ent.arrived = false;
+              ent.wp = (ent.retCorner + 1) % ent.WP.length;
+            }
+          }
+        }
+        // contact catch: any state, fresh positions; concealment blocks it unless
+        // this hunter was drawn to the locker by a gasp
+        var cdx = p.x - ent.x, cdz = p.z - ent.z;
+        if (cdx * cdx + cdz * cdz < 0.64 && (!isConcealed() || ent.compromised)) onCatch();
+        // movement stats & per-hunter footfalls
+        var mdx = ent.x - ent.lastX, mdz = ent.z - ent.lastZ;
+        var moved = Math.sqrt(mdx * mdx + mdz * mdz);
+        ent.speedNow = dt > 0 ? moved / dt : 0;
+        ent.walkPhase += moved * 3.4;
+        if (ent.speedNow > 0.4) {
+          ent.stepT += dt;
+          var stepInt = ent.state === 'CHASE' ? ent.stepIntChase : ent.stepInt;
+          if (ent.stepT >= stepInt) {
+            ent.stepT = 0;
+            var ang = Math.atan2(ent.x - p.x, ent.z - p.z) - p.yaw;
+            sfxHunterStep(distVol(distToPlayer) * (ent.state === 'CHASE' ? 1.25 : 1), Math.sin(ang), ent.state === 'CHASE', ent.stepBase);
+          }
+        } else ent.stepT = 0;
+        ent.lastX = ent.x; ent.lastZ = ent.z;
+        if (ent.name === 'A') poseHunterA(ent, dt); else poseStalkerB(ent, dt);
+      }
+      function poseHunterA(ent, dt) {
+        hRoot.position.set(ent.x, 0, ent.z);
+        hRoot.rotation.y = ent.yaw;
+        var targetLean = ent.state === 'CHASE' ? 0.12 : 0;
+        ent.lean = lerp(ent.lean, targetLean, clamp(dt * 4, 0, 1));
+        var t = G.elapsed;
+        spine.rotation.x = -0.38 - ent.lean + 0.045 * Math.sin(t * 1.9);
+        headG.rotation.x = 0.55 + 0.06 * Math.sin(t * 1.3);
+        headG.rotation.z = 0.16 * Math.sin(t * 0.83 + 1.7);
+        headG.rotation.y = 0.22 * Math.sin(t * 0.47);
+        var amp = Math.min(1, ent.speedNow / 1.6) * 0.55;
+        var sw = Math.sin(ent.walkPhase) * amp;
+        armL.rotation.x = 0.12 + sw + 0.03 * Math.sin(t * 1.7);
+        armR.rotation.x = 0.12 - sw + 0.03 * Math.sin(t * 1.7 + 0.9);
+        legL.rotation.x = -sw * 0.9; legR.rotation.x = sw * 0.9;
+        if (armL.userData.hand) armL.userData.hand.rotation.x = 0.02 * Math.sin(t * 14);
+        if (armR.userData.hand) armR.userData.hand.rotation.x = 0.02 * Math.sin(t * 14 + 1);
+        eyeMat.color.setHex(ent.state === 'CHASE' ? 0xff3524 : 0x240c08);
+      }
+      function poseStalkerB(ent, dt) {
+        bRoot.position.set(ent.x, 0, ent.z);
+        bRoot.rotation.y = ent.yaw;
+        var targetLean = ent.state === 'CHASE' ? 0.18 : 0;
+        ent.lean = lerp(ent.lean, targetLean, clamp(dt * 4, 0, 1));
+        var t = G.elapsed;
+        bSpine.rotation.x = -0.68 - ent.lean + 0.035 * Math.sin(t * 2.4);
+        bHead.rotation.y = 0.45 * Math.sin(t * 2.9) + 0.18 * Math.sin(t * 7.3); // quick darting head
+        bHead.rotation.z = 0.12 * Math.sin(t * 3.7);
+        bHead.rotation.x = 0.4 + 0.09 * Math.sin(t * 2.1);
+        var amp = Math.min(1, ent.speedNow / 2.4) * 0.6;
+        var sw = Math.sin(ent.walkPhase) * amp;
+        bArmL.rotation.x = 0.62 + 0.06 * Math.sin(t * 1.8); // left arm drags, barely swinging
+        bArmR.rotation.x = 0.05 - sw * 0.9 + 0.04 * Math.sin(t * 2.2);
+        bLegL.rotation.x = -sw * 0.85; bLegR.rotation.x = sw * 0.85;
+        if (bArmL.userData.hand) bArmL.userData.hand.rotation.x = 0.015 * Math.sin(t * 11);
+        bEyeMat.color.setHex(ent.state === 'CHASE' ? 0xffa020 : 0x2a1404);
+      }
+      function updateWhisper(dt) {
+        if (!AC) return;
+        for (var wi = 0; wi < ents.length; wi++) {
+          var ent = ents[wi], w = ent.whisper;
+          if (!w) continue;
+          var dxh = ent.x - p.x, dzh = ent.z - p.z;
+          var d = Math.sqrt(dxh * dxh + dzh * dzh);
+          var volMul = ent.state === 'CHASE' ? 1.0 : (ent.state === 'SEARCH' ? 0.7 : 0.75);
+          w.vol.gain.value = lerp(w.vol.gain.value, distVol(d) * volMul, clamp(dt * 8, 0, 1));
+          if (w.pan) {
+            var bearing = Math.atan2(dxh, dzh) - p.yaw;
+            w.pan.pan.value = clamp(Math.sin(bearing) * 1.35, -1, 1); // hard-panned to its bearing
+          }
+          var t0 = AC.currentTime;
+          if (ent.state === 'CHASE') { // faster, higher rasp
+            w.bp.frequency.setTargetAtTime(2650, t0, 0.15);
+            w.lfo.frequency.setTargetAtTime(4.6, t0, 0.2);
+          } else if (ent.state === 'SEARCH') { // slow drawn-out muttering
+            w.bp.frequency.setTargetAtTime(1150, t0, 0.15);
+            w.lfo.frequency.setTargetAtTime(1.15, t0, 0.2);
+          } else { // low sibilant mutter on patrol
+            w.bp.frequency.setTargetAtTime(1700, t0, 0.15);
+            w.lfo.frequency.setTargetAtTime(2.3, t0, 0.2);
+          }
+        }
+      }
+      function silenceWhispers() {
+        for (var si = 0; si < ents.length; si++) if (ents[si].whisper) ents[si].whisper.vol.gain.value = 0;
+      }
+
+      // ---------- catch / win / keys ----------
+      function onCatch() {
+        if (G.phase !== 'playing') return; // one catch per frame even with both hunters in range
+        if (hide.phase !== 'none') cancelHide();
+        if (exit.opening) cancelUnlock();
+        G.catches++; sfxSting(); doFlash(); updateStrikes();
+        if (G.stack.length) {
+          var i = G.stack.pop();
+          keys[i].taken = false; keys[i].g.visible = true;
+          G.keys = G.stack.length;
+          chips[G.keys].visible = false;
+          refreshKeysHUD();
+          msg('THE LAST KEY SLIPS BACK TO ITS STAND');
+        }
+        if (G.catches >= 3) { gameOver(); return; }
+        p.x = SPAWN.x; p.z = SPAWN.z; p.yaw = SPAWN_YAW; p.pitch = 0;
+        p.vx = 0; p.vz = 0; p.bobT = 0; p.stepDist = 0;
+        for (var ri2 = 0; ri2 < ents.length; ri2++) {
+          var ent = ents[ri2];
+          ent.state = 'PATROL'; ent.mode = 'return'; ent.sightLoss = 0; ent.searchT = 0;
+          ent.arrived = false; ent.compromised = false; ent.lean = 0; ent.heard = false;
+          setReturnTarget(ent);
+        }
+      }
+      function pickKey(i) {
+        keys[i].taken = true; keys[i].g.visible = false;
+        G.stack.push(i); G.keys = G.stack.length;
+        chips[G.keys - 1].visible = true;
+        refreshKeysHUD(); sfxChime();
+        msg('KEY ' + G.keys + ' OF 6 RECOVERED');
+        if (G.keys >= 6) tripAlarm();
+      }
+      function tripAlarm() {
+        if (alarm) return;
+        alarm = true; alarmT = 0; alarmPulseT = 0;
+        startSirenBurst();
+        msg('THE HOSPITAL ALARM TRIPS');
+      }
+      function startUnlock() {
+        exit.opening = true; exit.t = 0;
+        msg('THE SIX LOCKS ANSWER…');
+      }
+      function updateExit(dt) {
+        if (!exit.opening) return;
+        exit.t += dt;
+        // six locks, strictly one by one: each takes exactly 0.5 s, six clunks over 3 s
+        for (var ci = 0; ci < 6; ci++) {
+          var t0 = ci * 0.5, t1 = (ci + 1) * 0.5;
+          if (exit.done[ci]) continue;
+          if (exit.t >= t1) { exit.done[ci] = true; sfxClunk(ci); chips[ci].visible = false; }
+          else if (exit.t > t0) chips[ci].position.y = 2.72 - 0.12 * ((exit.t - t0) / 0.5);
+        }
+        if (exit.t >= 3.0) {
+          var k = clamp((exit.t - 3.0) / 1.7, 0, 1);
+          var e = k * k * (3 - 2 * k);
+          doorG1.rotation.y = -1.92 * e; doorG2.rotation.y = 1.92 * e;
+          if (e > 0.5) doorColl.off = true;
+        }
+      }
+      function gameOver() {
+        G.phase = 'over';
+        document.getElementById('overStats').textContent = 'CATCHES ' + G.catches + ' · TIME ' + mmss(G.elapsed);
+        showOnly(ovOver);
+        stopSiren();
+        silenceWhispers();
+        if (document.pointerLockElement) document.exitPointerLock();
+      }
+      function computeRating() {
+        if (G.elapsed <= 150 && G.catches === 0 && G.hides >= 2) return 'S';
+        if (G.elapsed <= 180 && G.catches <= 1) return 'A';
+        if (G.elapsed <= 240 && G.catches <= 2) return 'B';
+        return 'C';
+      }
+      function win() {
+        G.phase = 'won';
+        stopSiren();
+        var rows = [
+          ['TIME', mmssd(G.elapsed)],
+          ['CATCHES', String(G.catches)],
+          ['TIMES HIDDEN', String(G.hides)],
+          ['RATING', computeRating()]
+        ];
+        var html = '';
+        for (var i = 0; i < rows.length; i++) {
+          html += '<span class="rk">' + rows[i][0] + '</span><span class="rv' +
+            (i === 3 ? ' rt' + rows[i][1] : '') + '">' + rows[i][1] + '</span>';
+        }
+        document.getElementById('boardRows').innerHTML = html;
+        showOnly(ovWon);
+        silenceWhispers();
+        sfxWin();
+        if (proxGain) proxGain.gain.value = 0;
+        if (document.pointerLockElement) document.exitPointerLock();
+      }
+
+      // ---------- reset / begin / pause ----------
+      function reset() {
+        G.phase = 'ready'; G.elapsed = 0; G.keys = 0; G.catches = 0; G.stack.length = 0;
+        for (var i = 0; i < 6; i++) { keys[i].taken = false; keys[i].g.visible = true; chips[i].visible = false; chips[i].position.y = 2.72; }
+        p.x = SPAWN.x; p.z = SPAWN.z; p.yaw = SPAWN_YAW; p.pitch = 0;
+        p.vx = 0; p.vz = 0; p.bobT = 0; p.bobAmp = 0; p.stepDist = 0;
+        hunterA.x = -14; hunterA.z = -8; hunterA.lastX = -14; hunterA.lastZ = -8;
+        hunterA.yaw = -Math.PI / 2; hunterA.state = 'PATROL'; hunterA.mode = 'loop'; hunterA.wp = 1;
+        hunterA.sightLoss = 0; hunterA.searchT = 0; hunterA.sees = false; hunterA.walkPhase = 0; hunterA.stepT = 0;
+        hunterA.lean = 0; hunterA.compromised = false; hunterA.arrived = false; hunterA.goRoom = false; hunterA.retPhase = 0;
+        hunterB.x = 14; hunterB.z = 0; hunterB.lastX = 14; hunterB.lastZ = 0;
+        hunterB.yaw = Math.PI / 2; hunterB.state = 'PATROL'; hunterB.mode = 'loop'; hunterB.wp = 1;
+        hunterB.sightLoss = 0; hunterB.searchT = 0; hunterB.sees = false; hunterB.walkPhase = 0; hunterB.stepT = 0;
+        hunterB.lean = 0; hunterB.compromised = false; hunterB.arrived = false; hunterB.goRoom = false; hunterB.retPhase = 0;
+        exit.opening = false; exit.t = 0;
+        for (var d = 0; d < 6; d++) exit.done[d] = false;
+        doorG1.rotation.y = 0; doorG2.rotation.y = 0; doorColl.off = false;
+        wheel.cur.x = wheel.base.x; wheel.cur.z = wheel.base.z; wheel.t = 1; wheel.cool = 0;
+        wheelMesh.position.set(wheel.base.x, 0, wheel.base.z);
+        wheel.coll.x1 = wheel.base.x - 0.38; wheel.coll.x2 = wheel.base.x + 0.38;
+        wheel.coll.z1 = wheel.base.z - 0.38; wheel.coll.z2 = wheel.base.z + 0.38;
+        hide.phase = 'none'; hide.t = 0; hide.locker = -1; hide.snapped = false;
+        for (var lk = 0; lk < 6; lk++) lockers[lk].door.rotation.y = 0;
+        elSlats.style.display = 'none';
+        breath.val = breath.max; breath.hbActive = false; breath.holding = false;
+        hbT = 0; hbLeftT = 0; G.hides = 0;
+        playerRunNoise = false;
+        lightsOn = true; lightsCycleT = 0; lastLightsOn = null; applyLights();
+        alarm = false; alarmT = 0; alarmPulseT = 0; stopSiren();
+        for (var al2 = 0; al2 < alarmLamps.length; al2++) {
+          alarmLamps[al2].light.intensity = 0;
+          alarmLamps[al2].dome.material = alarmOffMat;
+          alarmLamps[al2].rotor.visible = false;
+        }
+        for (var sd2 = 0; sd2 < shortcutDoors.length; sd2++) {
+          var D2 = shortcutDoors[sd2];
+          D2.open = false; D2.anim = 0; D2.panel.position.y = 1.1; D2.coll.off = false;
+        }
+        camera.position.set(p.x, EYE, p.z);
+        camera.rotation.set(p.pitch, p.yaw, 0);
+        camera.fov = 72; camera.updateProjectionMatrix();
+        refreshKeysHUD(); updateStrikes();
+        elTimer.textContent = '00:00';
+        elState.textContent = 'PATROL'; elState.className = '';
+        elState2.style.display = 'none'; elState2.textContent = '';
+        elMsg.style.opacity = 0; elHint.style.opacity = 0;
+        elHidden.style.display = 'none'; elBreathWrap.style.display = 'none';
+        elAlarm.style.display = 'none';
+        elFlash.style.opacity = 0;
+        elVig.classList.remove('chase');
+        showOnly(ovReady);
+        if (ambBus && AC) { ambBus.gain.cancelScheduledValues(AC.currentTime); ambBus.gain.setValueAtTime(ambBus.gain.value, AC.currentTime); ambBus.gain.linearRampToValueAtTime(0.0001, AC.currentTime + 0.5); }
+        if (proxGain) proxGain.gain.value = 0;
+        silenceWhispers();
+        if (document.pointerLockElement) document.exitPointerLock();
+        updateArenaState();
+      }
+      function begin() {
+        initAudio();
+        if (AC && AC.state === 'suspended') AC.resume();
+        if (ambBus && AC) {
+          ambBus.gain.cancelScheduledValues(AC.currentTime);
+          ambBus.gain.setValueAtTime(Math.max(ambBus.gain.value, 0.0001), AC.currentTime);
+          ambBus.gain.linearRampToValueAtTime(1, AC.currentTime + 2);
+        }
+        G.elapsed = 0; G.phase = 'playing';
+        showOnly(null);
+        try {
+          var pr = canvas.requestPointerLock();
+          if (pr && pr.catch) pr.catch(function () {});
+        } catch (e) {}
+      }
+      function pauseGame() {
+        if (G.phase !== 'playing') return;
+        G.phase = 'paused';
+        held = {};
+        showOnly(ovPaused);
+        if (AC) AC.suspend();
+      }
+      function resumeGame() {
+        if (G.phase !== 'paused') return;
+        if (AC) AC.resume();
+        G.phase = 'playing';
+        showOnly(null);
+        try {
+          var pr = canvas.requestPointerLock();
+          if (pr && pr.catch) pr.catch(function () {});
+        } catch (e) {}
+      }
+
+      // ---------- input ----------
+      var held = {};
+      document.addEventListener('keydown', function (e) {
+        var c = e.code;
+        if (c === 'ArrowUp' || c === 'ArrowDown' || c === 'ArrowLeft' || c === 'ArrowRight' || c === 'Space') e.preventDefault();
+        held[c] = true;
+        if (c === 'Enter' || c === 'NumpadEnter') {
+          if (G.phase === 'ready') begin();
+          else if (G.phase === 'paused') resumeGame();
+          else if (G.phase === 'over' || G.phase === 'won') reset();
+        } else if (c === 'KeyR') {
+          if (G.phase !== 'ready') reset();
+        } else if (c === 'KeyE' && !e.repeat && G.phase === 'playing') {
+          interact();
+        } else if (c === 'Escape' && G.phase === 'playing' && !document.pointerLockElement) {
+          pauseGame();
+        }
+      });
+      document.addEventListener('keyup', function (e) { held[e.code] = false; });
+      document.addEventListener('mousemove', function (e) {
+        if (G.phase === 'playing' && hide.phase === 'none' && document.pointerLockElement === canvas) {
+          p.yaw -= e.movementX * 0.0022;
+          p.pitch = clamp(p.pitch - e.movementY * 0.0022, -1.45, 1.45);
+        }
+      });
+      document.addEventListener('pointerlockchange', function () {
+        if (document.pointerLockElement !== canvas && G.phase === 'playing') pauseGame();
+        else if (document.pointerLockElement === canvas && G.phase === 'paused') resumeGame();
+      });
+      document.addEventListener('pointerlockerror', function () {
+        if (G.phase === 'playing' && document.pointerLockElement !== canvas) pauseGame();
+      });
+      document.addEventListener('mousedown', function () {
+        if (G.phase === 'ready') begin();
+        else if (G.phase === 'paused') resumeGame();
+        else if (G.phase === 'playing' && document.pointerLockElement !== canvas) {
+          try { var pr = canvas.requestPointerLock(); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {}
+        }
+      });
+
+      function interact() {
+        if (isConcealed()) { startExit(); return; }
+        if (hide.phase !== 'none') return;
+        var bi = -1, bd = 1.7 * 1.7;
+        for (var i = 0; i < 6; i++) {
+          if (keys[i].taken) continue;
+          var dx = p.x - keys[i].x, dz = p.z - keys[i].z, d2 = dx * dx + dz * dz;
+          if (d2 < bd) { bd = d2; bi = i; }
+        }
+        if (bi >= 0) { pickKey(bi); return; }
+        var bl = -1, bld = 1.35 * 1.35;
+        for (var wl = 0; wl < 6; wl++) {
+          var LK = lockers[wl];
+          var ddx = p.x - LK.x, ddz = p.z - LK.z, dd2 = ddx * ddx + ddz * ddz;
+          if (dd2 < bld) { bld = dd2; bl = wl; }
+        }
+        if (bl >= 0) { startHide(bl); return; }
+        for (var sd = 0; sd < shortcutDoors.length; sd++) {
+          var D = shortcutDoors[sd];
+          if (D.open) continue;
+          var ddx = p.x - D.x, ddz = p.z - D.z;
+          if (ddx * ddx + ddz * ddz > 1.8 * 1.8) continue;
+          var lateralOk = D.axis === 'z' ? Math.abs(p.x - D.x) < 1.3 : Math.abs(p.z - D.z) < 1.3;
+          if (!lateralOk) continue;
+          var onOpenSide = D.axis === 'z' ? ((p.z - D.z) * D.side < 0) : ((p.x - D.x) * D.side < 0);
+          if (onOpenSide) { openShortcutDoor(D); return; }
+          sfxFlashClick(true);
+          msg('LOCKED FROM THIS SIDE');
+          return;
+        }
+        var dxe = p.x + 19.85, dze = p.z + 4;
+        if (dxe * dxe + dze * dze < 2.2 * 2.2 && !exit.opening) {
+          if (G.keys >= 6) startUnlock();
+          else { sfxLockedThud(); msg('NEED ' + (6 - G.keys) + ' MORE KEYS'); }
+        }
+      }
+
+      // ---------- shortcut doors ----------
+      function openShortcutDoor(D) {
+        D.open = true; D.anim = 0;
+        D.coll.off = true;
+        sfxClang();
+        msg('MAINTENANCE SHAFT OPEN');
+        for (var hi = 0; hi < ents.length; hi++) {
+          var e3 = ents[hi];
+          var dhx = e3.x - D.x, dhz = e3.z - D.z;
+          if (e3.state !== 'CHASE' && dhx * dhx + dhz * dhz <= 64) { // clang carries 8 m
+            e3.state = 'CHASE'; e3.sightLoss = 0;
+            e3.heard = true; e3.heardX = D.x; e3.heardZ = D.z;
+          }
+        }
+      }
+
+      // ---------- hiding lockers: enter/exit + breath minigame ----------
+      function isConcealed() {
+        return hide.phase === 'in' || (hide.phase === 'entering' && hide.snapped);
+      }
+      function easeK(k) { return k * k * (3 - 2 * k); }
+      function startHide(i) {
+        hide.phase = 'entering'; hide.t = 0; hide.locker = i; hide.snapped = false;
+        camera.fov = 72; camera.updateProjectionMatrix();
+        sfxLockerDoor(true);
+      }
+      function startExit() {
+        hide.phase = 'exiting'; hide.t = 0; hide.snapped = false;
+        sfxLockerDoor(true);
+      }
+      function cancelHide() {
+        if (hide.locker >= 0) lockers[hide.locker].door.rotation.y = 0;
+        hide.phase = 'none'; hide.t = 0; hide.locker = -1; hide.snapped = false;
+        elSlats.style.display = 'none';
+        sfxLockerDoor(false);
+        breath.val = breath.max; hbLeftT = 0;
+      }
+      function cancelUnlock() {
+        exit.opening = false; exit.t = 0;
+        for (var cu = 0; cu < 6; cu++) {
+          exit.done[cu] = false;
+          chips[cu].visible = cu < G.keys;
+          chips[cu].position.y = 2.72;
+        }
+        doorG1.rotation.y = 0; doorG2.rotation.y = 0; doorColl.off = false;
+      }
+      function setHiddenCamera(L) {
+        var t = G.elapsed;
+        camera.position.set(L.x - L.fx * 0.04, 1.5 + 0.01 * Math.sin(t * 1.4), L.z - L.fz * 0.04);
+        camera.rotation.set(0.02 * Math.sin(t * 0.8), L.outYaw + 0.008 * Math.sin(t * 0.55), 0);
+      }
+      function updateHide(dt) {
+        var L = lockers[hide.locker];
+        if (!L) { hide.phase = 'none'; return; }
+        hide.t += dt;
+        if (hide.phase === 'entering') {
+          var k = hide.t < 0.35 ? hide.t / 0.35 : Math.max(0, 1 - (hide.t - 0.35) / 0.35);
+          L.door.rotation.y = -2.0 * easeK(k);
+          if (hide.t >= 0.35 && !hide.snapped) {
+            hide.snapped = true;
+            p.x = L.x - L.fx * 0.04; p.z = L.z - L.fz * 0.04;
+            p.yaw = L.outYaw; p.pitch = 0; p.vx = 0; p.vz = 0;
+            elSlats.style.display = 'block';
+            G.hides++;
+          }
+          if (hide.snapped) setHiddenCamera(L);
+          if (hide.t >= 0.7) { hide.phase = 'in'; hide.t = 0; L.door.rotation.y = 0; sfxLockerDoor(false); }
+        } else if (hide.phase === 'in') {
+          L.door.rotation.y = 0;
+          setHiddenCamera(L);
+        } else if (hide.phase === 'exiting') {
+          var k2 = hide.t < 0.35 ? hide.t / 0.35 : Math.max(0, 1 - (hide.t - 0.35) / 0.35);
+          L.door.rotation.y = -2.0 * easeK(k2);
+          if (hide.t >= 0.35 && !hide.snapped) {
+            hide.snapped = true;
+            p.x = L.frontX; p.z = L.frontZ; p.yaw = L.outYaw; p.pitch = 0; p.vx = 0; p.vz = 0;
+            elSlats.style.display = 'none';
+            breath.val = breath.max; hbLeftT = 0;
+          }
+          if (hide.snapped) { camera.position.set(p.x, EYE, p.z); camera.rotation.set(p.pitch, p.yaw, 0); }
+          else setHiddenCamera(L);
+          if (hide.t >= 0.7) { hide.phase = 'none'; hide.t = 0; hide.locker = -1; L.door.rotation.y = 0; sfxLockerDoor(false); }
+        }
+      }
+      function updateBreath(dt) {
+        var concealed = isConcealed();
+        var hbActive = false, hbVol = 0;
+        if (concealed && hide.locker >= 0) {
+          var L = lockers[hide.locker];
+          for (var ei = 0; ei < ents.length; ei++) {
+            var e2 = ents[ei];
+            var dxh = e2.x - L.x, dzh = e2.z - L.z;
+            var dh = Math.sqrt(dxh * dxh + dzh * dzh);
+            if (roomAt(e2.x, e2.z) === L.room || (dh < 4 && e2.speedNow < 0.3)) {
+              hbActive = true;
+              hbVol = Math.max(hbVol, 0.1 + clamp(1 - dh / 6, 0, 1) * 0.3);
+            }
+          }
+        }
+        var holding = hbActive && !!held.Space;
+        if (hbActive) hbLeftT = 0;
+        else if (concealed) {
+          hbLeftT += dt;
+          if (hbLeftT >= 3) breath.val = Math.min(breath.max, breath.val + dt * 10);
+        } else hbLeftT = 0;
+        if (holding && breath.val > 0) {
+          breath.val = Math.max(0, breath.val - dt);
+          if (breath.val <= 0) doGasp();
+        }
+        breath.hbActive = hbActive; breath.holding = holding;
+        if (hbActive && !holding && AC) {
+          hbT -= dt;
+          if (hbT <= 0) { hbT = 0.85; sfxHeartbeat(hbVol); }
+        }
+      }
+      function doGasp() {
+        sfxGasp();
+        var L = lockers[hide.locker];
+        for (var gi = 0; gi < ents.length; gi++) {
+          var dx = ents[gi].x - L.x, dz = ents[gi].z - L.z;
+          if (dx * dx + dz * dz <= 100) { // the gasp carries 10 m — any hunter hears it
+            ents[gi].compromised = true;
+            ents[gi].state = 'CHASE'; ents[gi].sightLoss = 0;
+          }
+        }
+      }
+      // ---------- per-frame update ----------
+      function update(dt) {
+        G.elapsed += dt;
+        // emergency light schedule: 10 s cycle — ON for the first 6 s, OFF for the last 4 s
+        lightsCycleT = G.elapsed % 10;
+        lightsOn = lightsCycleT < 6;
+        if (lightsOn !== lastLightsOn) { lastLightsOn = lightsOn; applyLights(); }
+        playerRunNoise = false;
+        if (hide.phase !== 'none') { updateHide(dt); updateBreath(dt); } else {
+        // player movement (held in place while the six locks work one by one)
+        var locking = exit.opening && exit.t < 3.0;
+        var fw = locking ? 0 : ((held.KeyW || held.ArrowUp ? 1 : 0) - (held.KeyS || held.ArrowDown ? 1 : 0));
+        var rt = locking ? 0 : ((held.KeyD || held.ArrowRight ? 1 : 0) - (held.KeyA || held.ArrowLeft ? 1 : 0));
+        var run = !!(held.ShiftLeft || held.ShiftRight);
+        var tvx = 0, tvz = 0;
+        var darkMul = (darkRoomAt(p.x, p.z) >= 0 && !lightsOn) ? 0.6 : 1; // careful shuffling between lamp cycles
+        if (fw !== 0 || rt !== 0) {
+          var sy = Math.sin(p.yaw), cy = Math.cos(p.yaw);
+          var fx = -sy, fz = -cy, rx = cy, rz = -sy;
+          tvx = fx * fw + rx * rt; tvz = fz * fw + rz * rt;
+          var tl = Math.sqrt(tvx * tvx + tvz * tvz);
+          tvx = tvx / tl * (run ? RUN : WALK) * darkMul;
+          tvz = tvz / tl * (run ? RUN : WALK) * darkMul;
+        }
+        var sm = clamp(dt * 12, 0, 1);
+        p.vx = lerp(p.vx, tvx, sm); p.vz = lerp(p.vz, tvz, sm);
+        p.x += p.vx * dt; p.z += p.vz * dt;
+        var o = { x: p.x, z: p.z }; resolveCircle(o, 0.35);
+        p.x = o.x; p.z = o.z;
+        var spd = Math.sqrt(p.vx * p.vx + p.vz * p.vz);
+        var moving = spd > 0.4;
+        playerRunNoise = run && moving; // running is audible; walking is silent
+        // head bob + footsteps
+        p.bobAmp = lerp(p.bobAmp, moving ? (run ? 0.045 : 0.028) : 0, clamp(dt * 8, 0, 1));
+        if (moving) p.bobT += dt * (run ? 11.4 : 8.2);
+        p.stepDist += spd * dt;
+        if (p.stepDist > (run ? 1.15 : 0.85) && moving) { p.stepDist = 0; sfxStep(run); }
+        camera.position.set(p.x, EYE + Math.sin(p.bobT) * p.bobAmp, p.z);
+        camera.rotation.set(p.pitch, p.yaw, 0);
+        var tf = run && moving ? 76 : 72;
+        if (Math.abs(camera.fov - tf) > 0.05) { camera.fov = lerp(camera.fov, tf, clamp(dt * 6, 0, 1)); camera.updateProjectionMatrix(); }
+        // wheelchair brush
+        wheel.cool = Math.max(0, wheel.cool - dt);
+        var wdx = wheel.cur.x - p.x, wdz = wheel.cur.z - p.z;
+        var wd = Math.sqrt(wdx * wdx + wdz * wdz);
+        if (wd < 0.85 && moving && wheel.cool <= 0 && wheel.t >= 1) {
+          var px2 = wdx / (wd || 1), pz2 = wdz / (wd || 1);
+          wheel.fromX = wheel.cur.x; wheel.fromZ = wheel.cur.z;
+          wheel.toX = wheel.cur.x + px2 * 0.06; wheel.toZ = wheel.cur.z + pz2 * 0.06;
+          wheel.t = 0; wheel.cool = 1.2; sfxSqueak();
+        }
+        if (wheel.t < 1) {
+          wheel.t = Math.min(1, wheel.t + dt / 0.5);
+          var wk = 1 - (1 - wheel.t) * (1 - wheel.t);
+          wheel.cur.x = lerp(wheel.fromX, wheel.toX, wk);
+          wheel.cur.z = lerp(wheel.fromZ, wheel.toZ, wk);
+          wheelMesh.position.set(wheel.cur.x, 0, wheel.cur.z);
+          for (var wI = 0; wI < wheelMesh.userData.wheels.length; wI++) wheelMesh.userData.wheels[wI].rotation.z -= dt * 0.9;
+          wheel.coll.x1 = wheel.cur.x - 0.38; wheel.coll.x2 = wheel.cur.x + 0.38;
+          wheel.coll.z1 = wheel.cur.z - 0.38; wheel.coll.z2 = wheel.cur.z + 0.38;
+        }
+        } // end movement / hidden-locker branch
+        // alarm clock: strobe lamps, siren burst, low pulse
+        if (alarm) {
+          alarmT += dt;
+          var strobeOn = (alarmT % 1) < 0.5;
+          for (var al = 0; al < alarmLamps.length; al++) {
+            var AL = alarmLamps[al];
+            AL.light.intensity = strobeOn ? AL.base : 0;
+            AL.dome.material = strobeOn ? alarmOnMat : alarmOffMat;
+            AL.rotor.visible = strobeOn;
+            AL.rotor.rotation.y = alarmT * 3.1 + al * 0.7;
+          }
+          if (alarmT >= 5 && sirenNodes) stopSiren();
+          if (alarmT >= 5) {
+            alarmPulseT -= dt;
+            if (alarmPulseT <= 0) { alarmPulseT = 1.6; sfxAlarmPulse(); }
+          }
+        }
+        // shortcut door lifts
+        for (var da = 0; da < shortcutDoors.length; da++) {
+          var DD = shortcutDoors[da];
+          if (DD.open && DD.anim < 1) {
+            DD.anim = Math.min(1, DD.anim + dt / 0.45);
+            DD.panel.position.y = 1.1 + 2.25 * easeK(DD.anim);
+          }
+        }
+        // keys idle motion
+        for (var kk = 0; kk < 6; kk++) {
+          if (keys[kk].taken) continue;
+          keys[kk].g.position.y = keys[kk].baseY + 1.16 + 0.04 * Math.sin(G.elapsed * 2 + keys[kk].ph);
+          keys[kk].g.rotation.y += dt * 1.2;
+        }
+        // chart pages sway
+        for (var cb = 0; cb < chartBoards.length; cb++) {
+          var pages = chartBoards[cb].userData.pages;
+          for (var pg = 0; pg < pages.length; pg++) {
+            pages[pg].rotation.x = 0.055 * Math.sin(G.elapsed * 0.8 + cb * 1.7 + pg * 0.9);
+          }
+        }
+        // dust drift
+        for (var di2 = 0; di2 < DUST_N; di2++) {
+          dustPos[di2 * 3] = dustBase[di2 * 3] + 0.3 * Math.sin(G.elapsed * dustSp[di2] + dustPh[di2]);
+          dustPos[di2 * 3 + 1] = dustBase[di2 * 3 + 1] + 0.22 * Math.sin(G.elapsed * dustSp[di2] * 0.8 + dustPh[di2] * 2.1);
+          dustPos[di2 * 3 + 2] = dustBase[di2 * 3 + 2] + 0.3 * Math.cos(G.elapsed * dustSp[di2] * 0.9 + dustPh[di2] * 0.7);
+        }
+        dustGeo.attributes.position.needsUpdate = true;
+        // exit unlock + win
+        updateExit(dt);
+        if (doorColl.off && p.x < -20.45) { win(); return; }
+        // hunters (AI frozen while the scripted unlock plays out)
+        if (!exit.opening) { updateEnt(hunterA, dt); updateEnt(hunterB, dt); }
+        else { poseHunterA(hunterA, dt); poseStalkerB(hunterB, dt); }
+        updateWhisper(dt);
+        // proximity heartbeat: the "it is right here" warning for either hunter, hidden or not;
+        // stacks with the locker heartbeat
+        var proxHB = 0;
+        for (var pi = 0; pi < ents.length; pi++) {
+          var pdxc = p.x - ents[pi].x, pdzc = p.z - ents[pi].z;
+          proxHB = Math.max(proxHB, clamp((5 - Math.sqrt(pdxc * pdxc + pdzc * pdzc)) / 4, 0, 1)); // silent at 5 m, max at 1 m
+        }
+        if (proxHB > 0) {
+          proxHbT -= dt;
+          if (proxHbT <= 0) { proxHbT = 0.75 - 0.3 * proxHB; sfxHeartbeat(0.1 + proxHB * 0.5); }
+        }
+        // audio proximity rumble (nearest hunter)
+        if (proxGain) {
+          var hd = Math.sqrt(Math.min(
+            (p.x - hunterA.x) * (p.x - hunterA.x) + (p.z - hunterA.z) * (p.z - hunterA.z),
+            (p.x - hunterB.x) * (p.x - hunterB.x) + (p.z - hunterB.z) * (p.z - hunterB.z)));
+          var tgt = clamp(1 - hd / 7, 0, 1);
+          proxGain.gain.value = lerp(proxGain.gain.value, tgt * tgt * 0.16, clamp(dt * 5, 0, 1));
+        }
+        // HUD
+        elTimer.textContent = mmss(G.elapsed);
+        var dAh = (p.x - hunterA.x) * (p.x - hunterA.x) + (p.z - hunterA.z) * (p.z - hunterA.z);
+        var dBh = (p.x - hunterB.x) * (p.x - hunterB.x) + (p.z - hunterB.z) * (p.z - hunterB.z);
+        var nearest = dAh <= dBh ? hunterA : hunterB;
+        var other = nearest === hunterA ? hunterB : hunterA;
+        elState.textContent = nearest.state;
+        elState.className = nearest.state === 'CHASE' ? 'chase' : (nearest.state === 'SEARCH' ? 'search' : '');
+        if (other.state === 'CHASE') {
+          elState2.textContent = other === hunterB ? 'HUNTER 2 CHASING' : 'HUNTER 1 CHASING';
+          elState2.style.display = 'block';
+        } else elState2.style.display = 'none';
+        elVig.classList.toggle('chase', nearest.state === 'CHASE' || other.state === 'CHASE');
+        var concealedUI = isConcealed();
+        elHidden.style.display = concealedUI ? 'block' : 'none';
+        elBreathWrap.style.display = (concealedUI && breath.hbActive) ? 'block' : 'none';
+        if (concealedUI && breath.hbActive) {
+          elBreathFill.style.width = (breath.val / breath.max * 100).toFixed(1) + '%';
+          elBreathFill.style.background = breath.val < 3 ? '#c4552f' : '#9fd8c0';
+        }
+        elLights.textContent = 'LIGHTS ' + (lightsOn ? 'ON' : 'OFF');
+        elLights.style.color = lightsOn ? '#9fd8c0' : '#c4552f';
+        elAlarm.style.display = alarm ? 'block' : 'none';
+        var hint = '';
+        if (concealedUI) {
+          hint = breath.hbActive ? 'SPACE — HOLD YOUR BREATH' : 'E — LEAVE THE LOCKER';
+        } else if (hide.phase !== 'none') {
+          hint = '';
+        } else {
+          var bl2 = -1, bld2 = 1.35 * 1.35;
+          for (var wl2 = 0; wl2 < 6; wl2++) {
+            var LK2 = lockers[wl2];
+            var dqx = p.x - LK2.x, dqz = p.z - LK2.z, dq2 = dqx * dqx + dqz * dqz;
+            if (dq2 < bld2) { bld2 = dq2; bl2 = wl2; }
+          }
+          if (bl2 >= 0) hint = 'E — HIDE IN THE LOCKER';
+        }
+        if (hint === '') {
+          var ni = -1, nd = 1.7 * 1.7;
+          for (var hk = 0; hk < 6; hk++) {
+            if (keys[hk].taken) continue;
+            var hx = p.x - keys[hk].x, hz = p.z - keys[hk].z, hd2 = hx * hx + hz * hz;
+            if (hd2 < nd) { nd = hd2; ni = hk; }
+          }
+          if (ni >= 0) hint = 'E — TAKE THE BRASS KEY';
+          else {
+            var ex = p.x + 19.85, ez = p.z + 4;
+            if (ex * ex + ez * ez < 2.4 * 2.4 && !exit.opening) {
+              hint = G.keys >= 6 ? 'E — UNLOCK THE SIX LOCKS' : 'SEALED — IT WANTS SIX KEYS';
+            } else if (exit.opening && exit.t < 3.0) hint = 'THE LOCKS GIVE WAY…';
+          }
+        }
+        elHint.textContent = hint; elHint.style.opacity = hint ? 1 : 0;
+        if (G.elapsed > G.msgUntil) elMsg.style.opacity = 0;
+      }
+
+      function updateArenaState() {
+        var a = window.__arena_state;
+        a.phase = G.phase;
+        a.elapsed = G.elapsed;
+        a.player.x = p.x; a.player.z = p.z; a.player.yaw = p.yaw;
+        a.keysCollected = G.keys;
+        a.catches = G.catches;
+        a.hunters = [
+          { name: 'hunterA', state: hunterA.state, x: hunterA.x, z: hunterA.z, facing: hunterA.yaw,
+            sightLossTimer: hunterA.sightLoss, seesPlayer: !!hunterA.sees },
+          { name: 'hunterB', state: hunterB.state, x: hunterB.x, z: hunterB.z, facing: hunterB.yaw,
+            sightLossTimer: hunterB.sightLoss, seesPlayer: !!hunterB.sees }
+        ];
+        a.hunter.state = hunterA.state;
+        a.hunter.x = hunterA.x; a.hunter.z = hunterA.z;
+        a.hunter.facing = hunterA.yaw;
+        a.hunter.sightLossTimer = hunterA.sightLoss;
+        a.hunter.seesPlayer = !!hunterA.sees;
+        a.hunterDist = Math.sqrt(Math.min(
+          (p.x - hunterA.x) * (p.x - hunterA.x) + (p.z - hunterA.z) * (p.z - hunterA.z),
+          (p.x - hunterB.x) * (p.x - hunterB.x) + (p.z - hunterB.z) * (p.z - hunterB.z)));
+        a.lights = lightsOn ? 'ON' : 'OFF';
+        a.lightsCycleT = lightsCycleT;
+        a.alarm = alarm;
+        a.alarmT = alarmT;
+        a.rating = G.phase === 'won' ? computeRating() : null;
+        a.shortcuts = [
+          { id: 'A-north', open: shortcutDoors[0].open },
+          { id: 'A-west', open: shortcutDoors[1].open },
+          { id: 'B-south', open: shortcutDoors[2].open },
+          { id: 'B-west', open: shortcutDoors[3].open }
+        ];
+        a.hidden = isConcealed();
+        a.breath = breath.val;
+        a.hides = G.hides;
+        a.keySpots = KEY_SPOTS;
+        var kb = {};
+        for (var ki2 = 0; ki2 < 6; ki2++) kb[keys[ki2].id] = !!keys[ki2].taken;
+        a.keysById = kb;
+      }
+
+      // ---------- main loop ----------
+      var lastT = null;
+      function frame(now) {
+        requestAnimationFrame(frame);
+        if (lastT === null) lastT = now;
+        var dt = Math.min((now - lastT) / 1000, 0.05);
+        lastT = now;
+        if (G.phase === 'playing') update(dt);
+        updateArenaState();
+        renderer.render(scene, camera);
+      }
+      reset();
+      requestAnimationFrame(frame);
+    }
+  }
+
+  if (window.THREE) boot(window.THREE);
+  else {
+    import('./vendor/three/three.module.min.js')
+      .then(function (m) { boot(m); })
+      .catch(function (e) { fatal(String(e && e.message ? e.message : e)); });
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,4466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Baseline Open — 3D Tennis</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #070d18;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    #game-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Broadcast Score Graphic */
+    #hud {
+      position: absolute;
+      top: 24px;
+      left: 28px;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 10;
+    }
+    .broadcast-card {
+      background: linear-gradient(135deg, rgba(11, 20, 38, 0.94), rgba(15, 30, 58, 0.90));
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-left: 6px solid #eab308;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.65);
+      border-radius: 8px;
+      padding: 10px 18px;
+      display: flex;
+      flex-direction: column;
+      color: #ffffff;
+      min-width: 270px;
+    }
+    .tourn-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .tourn-title {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.8px;
+      color: #fbbf24;
+      text-transform: uppercase;
+    }
+    .serve-indicator-text {
+      font-size: 11px;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .score-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 30px;
+      font-size: 15px;
+      font-weight: 700;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .score-row:last-child {
+      border-bottom: none;
+    }
+    .player-tag {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .server-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background-color: #facc15;
+      box-shadow: 0 0 10px #facc15;
+      display: inline-block;
+      visibility: hidden;
+    }
+    .server-dot.active {
+      visibility: visible;
+    }
+    .player-name {
+      color: #f8fafc;
+      letter-spacing: 0.5px;
+      font-size: 14px;
+    }
+    .games-count {
+      color: #38bdf8;
+      font-size: 18px;
+      font-weight: 800;
+      margin-left: auto;
+      margin-right: 18px;
+      width: 24px;
+      text-align: center;
+    }
+    .points-tag {
+      color: #ffffff;
+      background: #1d4ed8;
+      padding: 3px 9px;
+      border-radius: 4px;
+      min-width: 40px;
+      text-align: center;
+      font-weight: 800;
+      font-size: 14px;
+      box-shadow: inset 0 1px 1px rgba(255,255,255,0.3);
+    }
+
+    /* In-game Call & Fault Banner */
+    #status-banner {
+      position: absolute;
+      top: 22%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 42px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      color: #ffffff;
+      text-shadow: 0 4px 16px rgba(0,0,0,0.9), 0 0 30px rgba(255,255,255,0.4);
+      padding: 12px 42px;
+      background: rgba(15, 23, 42, 0.90);
+      border-radius: 10px;
+      border: 3px solid #facc15;
+      display: none;
+      z-index: 20;
+      text-transform: uppercase;
+      pointer-events: none;
+      animation: popBanner 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes popBanner {
+      0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
+      100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    }
+    #status-banner.fault {
+      color: #f87171;
+      border-color: #ef4444;
+      text-shadow: 0 4px 16px rgba(0,0,0,0.9), 0 0 25px rgba(239, 68, 68, 0.5);
+    }
+    #status-banner.out {
+      color: #fb923c;
+      border-color: #f97316;
+      text-shadow: 0 4px 16px rgba(0,0,0,0.9), 0 0 25px rgba(249, 115, 22, 0.5);
+    }
+    #status-banner.good {
+      color: #4ade80;
+      border-color: #22c55e;
+      text-shadow: 0 4px 16px rgba(0,0,0,0.9), 0 0 25px rgba(34, 197, 94, 0.5);
+    }
+
+    /* Overlay Screen: Ready / Match End */
+    #overlay {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at center, rgba(15, 23, 42, 0.88) 0%, rgba(2, 6, 23, 0.97) 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      color: #ffffff;
+      backdrop-filter: blur(4px);
+    }
+    .title-banner {
+      font-size: 58px;
+      font-weight: 900;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      background: linear-gradient(90deg, #38bdf8, #facc15, #38bdf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 6px;
+      text-shadow: 0 4px 25px rgba(56, 189, 248, 0.35);
+    }
+    .subtitle {
+      font-size: 15px;
+      font-weight: 700;
+      color: #94a3b8;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 30px;
+    }
+    .instructions-card {
+      background: rgba(30, 41, 59, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+      border-radius: 12px;
+      padding: 26px 36px;
+      max-width: 540px;
+      width: 90%;
+      margin-bottom: 28px;
+      font-size: 14px;
+      line-height: 1.75;
+      color: #e2e8f0;
+    }
+    .instructions-card h3 {
+      font-size: 16px;
+      color: #facc15;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      letter-spacing: 1.2px;
+    }
+    .key-badge {
+      background: #475569;
+      color: #ffffff;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 800;
+      font-size: 13px;
+      border-bottom: 2px solid #334155;
+    }
+    .prompt-text {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: #facc15;
+      animation: pulseText 1.6s infinite ease-in-out;
+      text-transform: uppercase;
+    }
+    @keyframes pulseText {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.55; transform: scale(0.97); }
+    }
+    #mini-guide {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.90);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      padding: 8px 22px;
+      border-radius: 24px;
+      color: #94a3b8;
+      font-size: 12px;
+      letter-spacing: 0.6px;
+      pointer-events: none;
+      z-index: 10;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    }
+    #mini-guide span {
+      color: #facc15;
+      font-weight: 700;
+    }
+
+    /* Serve Clock Pill */
+    .serve-clock-pill {
+      display: none;
+      background: #dc2626;
+      color: #ffffff;
+      font-weight: 900;
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      letter-spacing: 1px;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      box-shadow: 0 0 10px rgba(220, 38, 38, 0.6);
+      animation: pulseClock 1s infinite alternate;
+    }
+    @keyframes pulseClock {
+      0% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0.78; transform: scale(0.96); }
+    }
+
+    .change_ends {
+      background: rgba(30, 58, 138, 0.95) !important;
+      border-color: #60a5fa !important;
+      color: #93c5fd !important;
+    }
+
+    /* Depth Charge Meter near Player */
+    #charge-indicator {
+      position: absolute;
+      pointer-events: none;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      z-index: 20;
+      transform: translate(-50%, -100%);
+    }
+    .charge-track {
+      width: 84px;
+      height: 9px;
+      background: rgba(15, 23, 42, 0.90);
+      border: 1.5px solid rgba(255, 255, 255, 0.7);
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.85);
+      position: relative;
+    }
+    .charge-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #38bdf8, #facc15, #ef4444);
+      border-radius: 4px;
+      transition: width 0.03s linear;
+    }
+    .charge-caption {
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      color: #facc15;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+      margin-top: 3px;
+      text-transform: uppercase;
+    }
+
+    /* Net Zone HUD Indicator */
+    #net-zone-tag {
+      position: absolute;
+      top: 148px;
+      right: 28px;
+      pointer-events: none;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.95), rgba(5, 150, 105, 0.90));
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
+      border-radius: 6px;
+      padding: 6px 14px;
+      z-index: 15;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      animation: pulseNetTag 1.2s infinite ease-in-out;
+    }
+    @keyframes pulseNetTag {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(0.96); opacity: 0.85; }
+    }
+
+    /* Round 5 Stamina Bars */
+    .stamina-track {
+      width: 100%;
+      height: 4px;
+      background: rgba(15, 23, 42, 0.85);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    .stamina-fill {
+      height: 100%;
+      width: 100%;
+      background: #22c55e;
+      transition: width 0.08s linear, background-color 0.2s ease;
+    }
+
+    /* Break Point & Set Point Indicator */
+    #stake-indicator {
+      display: none;
+      background: linear-gradient(135deg, #eab308, #ca8a04);
+      color: #0f172a;
+      font-weight: 900;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      letter-spacing: 1.2px;
+      box-shadow: 0 0 12px rgba(234, 179, 8, 0.7);
+      animation: pulseStake 1s infinite alternate;
+      text-transform: uppercase;
+    }
+    #stake-indicator.set-point {
+      background: linear-gradient(135deg, #ef4444, #b91c1c);
+      color: #ffffff;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.8);
+    }
+    @keyframes pulseStake {
+      0% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0.82; transform: scale(0.96); }
+    }
+
+    .challenges-tag {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: #38bdf8;
+      text-transform: uppercase;
+    }
+
+    /* Hawk-Eye Overlay */
+    #hawkeye-overlay {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none;
+      display: none;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 40px;
+      box-sizing: border-box;
+      z-index: 25;
+      background: radial-gradient(circle, transparent 35%, rgba(15, 23, 42, 0.88) 100%);
+    }
+    .hawkeye-header {
+      background: rgba(15, 23, 42, 0.94);
+      border: 2px solid #38bdf8;
+      color: #38bdf8;
+      font-size: 17px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      padding: 10px 28px;
+      border-radius: 8px;
+      box-shadow: 0 0 25px rgba(56, 189, 248, 0.5);
+      text-transform: uppercase;
+    }
+    .hawkeye-card {
+      background: rgba(15, 23, 42, 0.95);
+      border: 2px solid #facc15;
+      border-radius: 12px;
+      padding: 18px 36px;
+      text-align: center;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.85);
+      animation: popHawkEye 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes popHawkEye {
+      0% { transform: scale(0.85); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .hawkeye-verdict {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      margin-top: 6px;
+    }
+    .hawkeye-verdict.in { color: #4ade80; text-shadow: 0 0 16px rgba(74, 222, 128, 0.7); }
+    .hawkeye-verdict.out { color: #ef4444; text-shadow: 0 0 16px rgba(239, 68, 68, 0.7); }
+    .hawkeye-detail {
+      font-size: 13px;
+      color: #94a3b8;
+      letter-spacing: 1px;
+      margin-top: 5px;
+      text-transform: uppercase;
+    }
+
+    /* Slow-Motion Replay Indicator Pill */
+    #replay-pill {
+      position: absolute;
+      top: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(220, 38, 38, 0.94);
+      color: #ffffff;
+      font-weight: 900;
+      font-size: 13px;
+      padding: 6px 18px;
+      border-radius: 20px;
+      letter-spacing: 2px;
+      border: 1.5px solid rgba(255, 255, 255, 0.65);
+      box-shadow: 0 0 22px rgba(220, 38, 38, 0.85);
+      display: none;
+      align-items: center;
+      gap: 8px;
+      z-index: 30;
+      text-transform: uppercase;
+      animation: pulseReplay 0.8s infinite alternate;
+    }
+    @keyframes pulseReplay {
+      0% { opacity: 1; transform: translateX(-50%) scale(1); }
+      100% { opacity: 0.84; transform: translateX(-50%) scale(0.97); }
+    }
+
+    /* Live Match Statistics Modal */
+    #stats-modal {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(15, 23, 42, 0.97);
+      border: 2px solid #38bdf8;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9);
+      border-radius: 12px;
+      padding: 24px 32px;
+      width: 460px;
+      max-width: 90%;
+      z-index: 35;
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      color: #e2e8f0;
+    }
+    .stats-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 13px;
+    }
+    .stats-table th {
+      color: #94a3b8;
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 8px 10px;
+      border-bottom: 1.5px solid rgba(255, 255, 255, 0.18);
+    }
+    .stats-table td {
+      padding: 9px 10px;
+      text-align: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-weight: 700;
+    }
+    .stats-table td:first-child {
+      text-align: left;
+      color: #facc15;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+  </style>
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+</head>
+<body>
+  <div id="game-container"></div>
+
+  <!-- Slow-Motion Replay Indicator -->
+  <div id="replay-pill">
+    <span style="font-size:16px; color:#ffffff;">&bull;</span> REPLAY &bull; <span style="font-size:11px; opacity:0.85;">ENTER TO SKIP</span>
+  </div>
+
+  <!-- Live Match Statistics Modal -->
+  <div id="stats-modal">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div style="font-size:15px; font-weight:900; color:#38bdf8; letter-spacing:2px; text-transform:uppercase;">LIVE MATCH STATISTICS</div>
+      <div style="font-size:11px; color:#94a3b8; font-weight:700;">PRESS Y TO CLOSE</div>
+    </div>
+    <table class="stats-table">
+      <thead>
+        <tr>
+          <th>METRIC</th>
+          <th>PLAYER (YOU)</th>
+          <th>AI CHAMPION</th>
+        </tr>
+      </thead>
+      <tbody id="stats-tbody">
+        <tr><td>Aces</td><td id="stat-p-aces">0</td><td id="stat-a-aces">0</td></tr>
+        <tr><td>Double Faults</td><td id="stat-p-df">0</td><td id="stat-a-df">0</td></tr>
+        <tr><td>Winners</td><td id="stat-p-win">0</td><td id="stat-a-win">0</td></tr>
+        <tr><td>Break Points Won</td><td id="stat-p-bp">0 / 0</td><td id="stat-a-bp">0 / 0</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- In-game Broadcast HUD -->
+  <div id="hud">
+    <div class="broadcast-card">
+      <div class="tourn-header">
+        <div class="tourn-title">Baseline Open &bull; Center Court</div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div id="stake-indicator">BREAK POINT</div>
+          <div class="serve-clock-pill" id="serve-clock-pill">⏱ <span id="serve-clock-sec">10</span></div>
+          <div class="serve-indicator-text" id="serve-info">1ST SERVE</div>
+        </div>
+      </div>
+      <div class="score-row" style="flex-direction:column; align-items:stretch; gap:2px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+          <div class="player-tag">
+            <span class="server-dot" id="dot-player"></span>
+            <span class="player-name">PLAYER (YOU)</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div class="challenges-tag" id="challenges-count">CHALLENGES: 3</div>
+            <div class="games-count" id="games-player">0</div>
+            <div class="points-tag" id="points-player">0</div>
+          </div>
+        </div>
+        <div class="stamina-track"><div class="stamina-fill" id="stamina-player"></div></div>
+      </div>
+      <div class="score-row" style="flex-direction:column; align-items:stretch; gap:2px; margin-top:4px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+          <div class="player-tag">
+            <span class="server-dot" id="dot-ai"></span>
+            <span class="player-name">AI CHAMPION</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div class="games-count" id="games-ai">0</div>
+            <div class="points-tag" id="points-ai">0</div>
+          </div>
+        </div>
+        <div class="stamina-track"><div class="stamina-fill" id="stamina-ai"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hawk-Eye Electronic Review Overlay -->
+  <div id="hawkeye-overlay">
+    <div class="hawkeye-header">HAWK-EYE ELECTRONIC REVIEW</div>
+    <div class="hawkeye-card">
+      <div id="hawkeye-title" style="font-size:13px; color:#facc15; text-transform:uppercase; letter-spacing:1.5px;">LINE REVIEW</div>
+      <div class="hawkeye-verdict" id="hawkeye-verdict">CALL OVERTURNED — IN</div>
+      <div class="hawkeye-detail" id="hawkeye-detail">BALL TOUCHED LINE BY 0.038m</div>
+    </div>
+  </div>
+
+  <!-- Net Zone Indicator -->
+  <div id="net-zone-tag">NET</div>
+
+  <!-- Depth Charge Indicator near Player -->
+  <div id="charge-indicator">
+    <div class="charge-track">
+      <div class="charge-fill" id="charge-fill"></div>
+    </div>
+    <div class="charge-caption" id="charge-text">TOPSPIN 0%</div>
+  </div>
+
+  <div id="status-banner">FAULT</div>
+
+  <div id="mini-guide">
+    <span>WASD</span> Move &bull; <span>SPACE</span> Toss Serve &bull; <span>J/K/L/I</span> Strokes &bull; <span>C</span> Challenge &bull; <span>Y</span> Stats &bull; <span>ENTER</span> Skip Replay
+  </div>
+
+  <!-- Start / End Overlay -->
+  <div id="overlay">
+    <div class="title-banner" id="overlay-title">Baseline Open</div>
+    <div class="subtitle" id="overlay-subtitle">Grand Slam Championship</div>
+    <div class="instructions-card" id="overlay-instructions">
+      <h3>Match & Rulebook Instructions</h3>
+      <p>&bull; <strong>Set Format & Tiebreak:</strong> Win <strong>6 games</strong> by 2 margin. At 5–5, play continues to 7–5. At <strong>7–7</strong>, the official tiebreak decides the set: initial server serves 1 point from Deuce; thereafter servers alternate every 2 points (starting from Ad, then Deuce). Players change ends every <strong>6 points</strong>. First to 7 by 2 margin wins (recorded as <strong>8–7 (7–x)</strong>).</p>
+      <p>&bull; <strong>Quick Starts:</strong> Press <span class="key-badge">Enter</span> for 0–0. Hold <span class="key-badge">G</span> + <span class="key-badge">Enter</span> for 5–5. Hold <span class="key-badge">T</span> + <span class="key-badge">Enter</span> for 7–7 Tiebreak.</p>
+      <p>&bull; <strong>Live Stats & Replays:</strong> Press <span class="key-badge">Y</span> anytime between points to view live match statistics (Aces, Double Faults, Winners, Break Points). Aces, winners, and successful challenges trigger automated slow-motion replays (skip with <span class="key-badge">Enter</span>).</p>
+      <p>&bull; <strong>Stamina & Hawk-Eye:</strong> Stamina degrades running speed, clean strike zones, drive depth, and first serve velocity. Press <span class="key-badge">C</span> immediately after OUT or FAULT to challenge with 3 electronic reviews.</p>
+    </div>
+    <div class="prompt-text" id="overlay-prompt">Press Enter to Start (Hold T: 7-7 Tiebreak &bull; Hold G: 5-5 Set)</div>
+  </div>
+
+  <script>
+  (function() {
+    'use strict';
+
+    // --- ZERO RANDOMNESS: Deterministic Seeded PRNG ---
+    let _seed = 123456789;
+    function deterministicRandom() {
+      _seed = (_seed * 1664525 + 1013904223) % 4294967296;
+      return _seed / 4294967296;
+    }
+    function resetDeterministicSeed() {
+      _seed = 123456789;
+    }
+
+    // --- WEB AUDIO API (SYNTHETIC SOUNDS) ---
+    let audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtx = new AudioContextClass();
+        }
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playSound(type) {
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime;
+
+      if (type === 'hit' || type === 'hit_topspin') {
+        // Deep resonant topspin impact
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.exponentialRampToValueAtTime(75, now + 0.10);
+        gain.gain.setValueAtTime(0.48, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.11);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.11);
+      } else if (type === 'hit_flat') {
+        // Crisp high-velocity flat crack
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(420, now);
+        osc.frequency.exponentialRampToValueAtTime(110, now + 0.08);
+        gain.gain.setValueAtTime(0.55, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.09);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.09);
+      } else if (type === 'hit_slice') {
+        // Sharp swishing slice cut
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(560, now);
+        osc.frequency.exponentialRampToValueAtTime(190, now + 0.12);
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.13);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.13);
+      } else if (type === 'hit_smash') {
+        // Thunderous overhead smash crack
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(540, now);
+        osc.frequency.exponentialRampToValueAtTime(80, now + 0.12);
+        gain.gain.setValueAtTime(0.70, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.13);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.13);
+      } else if (type === 'hit_volley') {
+        // Tight compact punch impact
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(380, now);
+        osc.frequency.exponentialRampToValueAtTime(140, now + 0.06);
+        gain.gain.setValueAtTime(0.50, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.07);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.07);
+      } else if (type === 'hit_lob') {
+        // Soft high-arching scoop ping
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(480, now);
+        osc.frequency.exponentialRampToValueAtTime(240, now + 0.14);
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.15);
+      } else if (type === 'challenge') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.linearRampToValueAtTime(1200, now + 0.25);
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.28);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.28);
+      } else if (type === 'overturn') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.setValueAtTime(554.37, now + 0.12);
+        osc.frequency.setValueAtTime(659.25, now + 0.24);
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.5);
+      } else if (type === 'confirm') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(280, now);
+        osc.frequency.setValueAtTime(220, now + 0.15);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.4);
+      } else if (type === 'bounce') {
+        // Low court thud
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(130, now);
+        osc.frequency.exponentialRampToValueAtTime(45, now + 0.07);
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.08);
+      } else if (type === 'net') {
+        // Dull net mesh impact
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(90, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + 0.12);
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.12);
+      } else if (type === 'call') {
+        // Umpire beep/call tone
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.setValueAtTime(330, now + 0.12);
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.25);
+      } else if (type === 'cheer') {
+        // Crowd cheer swell
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(520, now);
+        osc.frequency.exponentialRampToValueAtTime(660, now + 0.3);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.linearRampToValueAtTime(0.2, now + 0.2);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.8);
+      }
+    }
+
+    // --- TENNIS COURT DIMENSIONS (Meters) ---
+    // Standard Tennis Court:
+    // Full Length: 23.77m (half length = 11.885m, Z from -11.885 to +11.885)
+    // Singles Width: 8.23m (half width = 4.115m, X from -4.115 to +4.115)
+    // Doubles Width: 10.97m (half width = 5.485m, X from -5.485 to +5.485)
+    // Service Line: 6.40m from net (Z = +/- 6.40m)
+    // Net Height: 0.914m (3 ft) at center strap, 1.07m (3.5 ft) at posts
+    // Net Posts: X = +/- 5.95m at Z = 0
+    const COURT = {
+      length: 23.77,
+      halfLength: 11.885,
+      singlesWidth: 8.23,
+      halfSinglesWidth: 4.115,
+      doublesWidth: 10.97,
+      halfDoublesWidth: 5.485,
+      serviceDist: 6.40,
+      netHeightCenter: 0.914,
+      netHeightPost: 1.07,
+      netPostX: 5.95,
+      lineWidth: 0.05,
+      ballRadius: 0.095
+    };
+
+    // --- SCENE & RENDERER SETUP ---
+    const container = document.getElementById('game-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a1424);
+    scene.fog = new THREE.FogExp2(0x0a1424, 0.0065);
+
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'default' });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+    } catch (e) {
+      console.warn('WebGL context creation note:', e);
+    }
+
+    const camera = new THREE.PerspectiveCamera(46, window.innerWidth / window.innerHeight, 0.1, 320);
+
+    // --- LIGHTING ---
+    const ambientLight = new THREE.AmbientLight(0xdbeafe, 0.68);
+    scene.add(ambientLight);
+
+    const sunLight = new THREE.DirectionalLight(0xffffff, 1.25);
+    sunLight.position.set(16, 36, 14);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.camera.near = 5;
+    sunLight.shadow.camera.far = 85;
+    sunLight.shadow.camera.left = -24;
+    sunLight.shadow.camera.right = 24;
+    sunLight.shadow.camera.top = 24;
+    sunLight.shadow.camera.bottom = -24;
+    sunLight.shadow.bias = -0.0004;
+    scene.add(sunLight);
+
+    const fillLight = new THREE.DirectionalLight(0x93c5fd, 0.42);
+    fillLight.position.set(-16, 22, -16);
+    scene.add(fillLight);
+
+    // --- STADIUM & COURT BUILDER ---
+    const courtGroup = new THREE.Group();
+    scene.add(courtGroup);
+
+    // Procedural canvas textures
+    function createTexture(width, height, drawFn) {
+      const c = document.createElement('canvas');
+      c.width = width;
+      c.height = height;
+      const ctx = c.getContext('2d');
+      drawFn(ctx, width, height);
+      const tex = new THREE.CanvasTexture(c);
+      return tex;
+    }
+
+    // Court Floor: Outer Apron (Forest Green Hardcourt) and Inner Court (Deep US Open Blue)
+    const apronMat = new THREE.MeshStandardMaterial({ color: 0x1f4d3d, roughness: 0.88, metalness: 0.08 });
+    const innerCourtMat = new THREE.MeshStandardMaterial({ color: 0x1d589e, roughness: 0.78, metalness: 0.06 });
+    const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+    // Apron floor: 24m wide x 44m long
+    const apronGeo = new THREE.PlaneGeometry(24, 44);
+    const apronMesh = new THREE.Mesh(apronGeo, apronMat);
+    apronMesh.rotation.x = -Math.PI / 2;
+    apronMesh.receiveShadow = true;
+    courtGroup.add(apronMesh);
+
+    // Inner court area: 10.97m x 23.77m
+    const innerCourtGeo = new THREE.PlaneGeometry(COURT.doublesWidth, COURT.length);
+    const innerCourtMesh = new THREE.Mesh(innerCourtGeo, innerCourtMat);
+    innerCourtMesh.rotation.x = -Math.PI / 2;
+    innerCourtMesh.position.y = 0.002;
+    innerCourtMesh.receiveShadow = true;
+    courtGroup.add(innerCourtMesh);
+
+    // Markings helper
+    function createCourtLine(w, l, x, z) {
+      const geo = new THREE.PlaneGeometry(w, l);
+      const mesh = new THREE.Mesh(geo, lineMat);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(x, 0.004, z);
+      mesh.receiveShadow = true;
+      courtGroup.add(mesh);
+      return mesh;
+    }
+
+    // Baseline near & far (width = doubles width)
+    createCourtLine(COURT.doublesWidth, COURT.lineWidth, 0, COURT.halfLength);
+    createCourtLine(COURT.doublesWidth, COURT.lineWidth, 0, -COURT.halfLength);
+
+    // Center marks at baselines (0.10m long, 0.05m wide)
+    createCourtLine(COURT.lineWidth, 0.25, 0, COURT.halfLength - 0.125);
+    createCourtLine(COURT.lineWidth, 0.25, 0, -COURT.halfLength + 0.125);
+
+    // Doubles sidelines
+    createCourtLine(COURT.lineWidth, COURT.length, -COURT.halfDoublesWidth, 0);
+    createCourtLine(COURT.lineWidth, COURT.length, COURT.halfDoublesWidth, 0);
+
+    // Singles sidelines
+    createCourtLine(COURT.lineWidth, COURT.length, -COURT.halfSinglesWidth, 0);
+    createCourtLine(COURT.lineWidth, COURT.length, COURT.halfSinglesWidth, 0);
+
+    // Service lines (singles width)
+    createCourtLine(COURT.singlesWidth, COURT.lineWidth, 0, COURT.serviceDist);
+    createCourtLine(COURT.singlesWidth, COURT.lineWidth, 0, -COURT.serviceDist);
+
+    // Center service line (between the two service lines)
+    createCourtLine(COURT.lineWidth, COURT.serviceDist * 2, 0, 0);
+
+    // --- 3D NET ---
+    const netGroup = new THREE.Group();
+    scene.add(netGroup);
+
+    // Net posts (cylinders)
+    const postGeo = new THREE.CylinderGeometry(0.045, 0.045, COURT.netHeightPost, 16);
+    const postMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5, metalness: 0.8 });
+    const postLeft = new THREE.Mesh(postGeo, postMat);
+    postLeft.position.set(-COURT.netPostX, COURT.netHeightPost / 2, 0);
+    postLeft.castShadow = true;
+    netGroup.add(postLeft);
+
+    const postRight = new THREE.Mesh(postGeo, postMat);
+    postRight.position.set(COURT.netPostX, COURT.netHeightPost / 2, 0);
+    postRight.castShadow = true;
+    netGroup.add(postRight);
+
+    // Net mesh texture
+    const netMeshTex = createTexture(64, 64, (ctx, w, h) => {
+      ctx.fillStyle = 'rgba(0,0,0,0.1)';
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, 0); ctx.lineTo(w, h);
+      ctx.moveTo(w, 0); ctx.lineTo(0, h);
+      ctx.stroke();
+      ctx.strokeRect(0, 0, w, h);
+    });
+    netMeshTex.wrapS = THREE.RepeatWrapping;
+    netMeshTex.wrapT = THREE.RepeatWrapping;
+    netMeshTex.repeat.set(80, 8);
+
+    const netClothGeo = new THREE.PlaneGeometry(COURT.netPostX * 2, COURT.netHeightCenter, 32, 4);
+    // Slight curve down in center (catenary curve)
+    const netPositions = netClothGeo.attributes.position;
+    for (let i = 0; i < netPositions.count; i++) {
+      const x = netPositions.getX(i);
+      const y = netPositions.getY(i);
+      const factor = Math.pow(x / COURT.netPostX, 2);
+      const addedH = factor * (COURT.netHeightPost - COURT.netHeightCenter);
+      netPositions.setY(i, y + addedH);
+    }
+    netClothGeo.computeVertexNormals();
+
+    const netClothMat = new THREE.MeshStandardMaterial({
+      map: netMeshTex,
+      transparent: true,
+      opacity: 0.86,
+      side: THREE.DoubleSide,
+      roughness: 0.9
+    });
+    const netCloth = new THREE.Mesh(netClothGeo, netClothMat);
+    netCloth.position.set(0, COURT.netHeightCenter / 2, 0);
+    netCloth.castShadow = true;
+    netGroup.add(netCloth);
+
+    // Top white tape
+    const tapeGeo = new THREE.BoxGeometry(COURT.netPostX * 2, 0.05, 0.04);
+    const tapeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+    const netTape = new THREE.Mesh(tapeGeo, tapeMat);
+    netTape.position.set(0, (COURT.netHeightCenter + COURT.netHeightPost) / 2 * 0.96, 0);
+    netTape.castShadow = true;
+    netGroup.add(netTape);
+
+    // Center white strap
+    const strapGeo = new THREE.BoxGeometry(0.06, COURT.netHeightCenter, 0.042);
+    const strapMesh = new THREE.Mesh(strapGeo, tapeMat);
+    strapMesh.position.set(0, COURT.netHeightCenter / 2, 0);
+    netGroup.add(strapMesh);
+
+    // --- VENUE OBJECTS: UMPIRE CHAIR, STANDS, LINE JUDGES, BALL KIDS, SCOREBOARD ---
+    // 1. Umpire Chair with seat and ladder
+    const umpireChair = new THREE.Group();
+    const metalMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7, roughness: 0.3 });
+    const seatMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.5 });
+    // Chair legs
+    const chairLegGeo = new THREE.CylinderGeometry(0.03, 0.03, 2.8);
+    const leg1 = new THREE.Mesh(chairLegGeo, metalMat); leg1.position.set(-0.35, 1.4, -0.35);
+    const leg2 = new THREE.Mesh(chairLegGeo, metalMat); leg2.position.set(0.35, 1.4, -0.35);
+    const leg3 = new THREE.Mesh(chairLegGeo, metalMat); leg3.position.set(-0.35, 1.4, 0.35);
+    const leg4 = new THREE.Mesh(chairLegGeo, metalMat); leg4.position.set(0.35, 1.4, 0.35);
+    umpireChair.add(leg1, leg2, leg3, leg4);
+    // Ladder rungs
+    for (let r = 0.5; r <= 2.2; r += 0.4) {
+      const rungGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.7);
+      const rung = new THREE.Mesh(rungGeo, metalMat);
+      rung.rotation.z = Math.PI / 2;
+      rung.position.set(0, r, 0.35);
+      umpireChair.add(rung);
+    }
+    // High seat platform & seat
+    const platformGeo = new THREE.BoxGeometry(0.8, 0.06, 0.8);
+    const platform = new THREE.Mesh(platformGeo, seatMat);
+    platform.position.set(0, 2.4, 0);
+    const chairBack = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, 0.08), seatMat);
+    chairBack.position.set(0, 2.75, -0.36);
+    umpireChair.add(platform, chairBack);
+    // Canopy over chair
+    const canopyPole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.2), metalMat);
+    canopyPole.position.set(0, 3.0, -0.36);
+    const canopyRoof = new THREE.Mesh(new THREE.ConeGeometry(0.7, 0.3, 4), new THREE.MeshStandardMaterial({ color: 0xf59e0b }));
+    canopyRoof.rotation.y = Math.PI / 4;
+    canopyRoof.position.set(0, 3.6, -0.1);
+    umpireChair.add(canopyPole, canopyRoof);
+
+    // Place umpire chair beside net post (X = 7.2, Z = 0)
+    umpireChair.position.set(7.2, 0, 0);
+    umpireChair.rotation.y = -Math.PI / 2;
+    umpireChair.castShadow = true;
+    scene.add(umpireChair);
+
+    // 2. Scoreboard structure
+    const scoreboardGroup = new THREE.Group();
+    const sbPoleGeo = new THREE.CylinderGeometry(0.1, 0.1, 4.5);
+    const sbPole = new THREE.Mesh(sbPoleGeo, metalMat);
+    sbPole.position.set(0, 2.25, 0);
+    const sbBoardGeo = new THREE.BoxGeometry(4.0, 2.0, 0.22);
+    const sbBoardMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.2 });
+    const sbBoard = new THREE.Mesh(sbBoardGeo, sbBoardMat);
+    sbBoard.position.set(0, 4.2, 0);
+
+    // Scoreboard screen display (512x256)
+    const sbCanvas = document.createElement('canvas');
+    sbCanvas.width = 512;
+    sbCanvas.height = 256;
+    const sbCtx = sbCanvas.getContext('2d');
+    const sbTex = new THREE.CanvasTexture(sbCanvas);
+    const sbScreenMat = new THREE.MeshBasicMaterial({ map: sbTex });
+    const sbScreen = new THREE.Mesh(new THREE.PlaneGeometry(3.8, 1.8), sbScreenMat);
+    sbScreen.position.set(0, 4.2, 0.12);
+
+    scoreboardGroup.add(sbPole, sbBoard, sbScreen);
+    // Positioned readable from the chase camera looking across court
+    scoreboardGroup.position.set(8.8, 0, -13.5);
+    scoreboardGroup.rotation.y = -Math.PI / 4.2;
+    scene.add(scoreboardGroup);
+
+    function updateScoreboardDisplay(pName, aName, pGames, aGames, pPts, aPts, srv) {
+      sbCtx.fillStyle = '#060f1e';
+      sbCtx.fillRect(0, 0, 512, 256);
+      sbCtx.strokeStyle = '#eab308';
+      sbCtx.lineWidth = 6;
+      sbCtx.strokeRect(6, 6, 500, 244);
+
+      sbCtx.fillStyle = '#facc15';
+      sbCtx.font = 'bold 22px -apple-system, Arial';
+      sbCtx.fillText('BASELINE OPEN 2026', 135, 44);
+
+      // Headers
+      sbCtx.fillStyle = '#94a3b8';
+      sbCtx.font = 'bold 18px -apple-system, Arial';
+      sbCtx.fillText('PLAYER', 32, 82);
+      sbCtx.fillText('SET', 360, 82);
+      sbCtx.fillText('PTS', 430, 82);
+
+      // Divider line
+      sbCtx.strokeStyle = 'rgba(255,255,255,0.15)';
+      sbCtx.lineWidth = 2;
+      sbCtx.beginPath();
+      sbCtx.moveTo(30, 95); sbCtx.lineTo(482, 95);
+      sbCtx.stroke();
+
+      // Row 1: Player
+      sbCtx.fillStyle = '#ffffff';
+      sbCtx.font = 'bold 24px -apple-system, Arial';
+      sbCtx.fillText((srv === 'player' ? '● ' : '   ') + 'YOU', 30, 138);
+      sbCtx.fillStyle = '#38bdf8';
+      sbCtx.fillText(pGames.toString(), 370, 138);
+      sbCtx.fillStyle = '#facc15';
+      sbCtx.fillText(pPts.toString(), 430, 138);
+
+      // Row 2: AI
+      sbCtx.fillStyle = '#ffffff';
+      sbCtx.font = 'bold 24px -apple-system, Arial';
+      sbCtx.fillText((srv === 'ai' ? '● ' : '   ') + 'AI CHAMP', 30, 198);
+      sbCtx.fillStyle = '#38bdf8';
+      sbCtx.fillText(aGames.toString(), 370, 198);
+      sbCtx.fillStyle = '#facc15';
+      sbCtx.fillText(aPts.toString(), 430, 198);
+
+      sbTex.needsUpdate = true;
+    }
+
+    // 3. Surrounding Stadium Stands & Crowd
+    const standsGroup = new THREE.Group();
+    const tierMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.92 });
+    const seatColorPalette = [0x0284c7, 0x0369a1, 0x075985, 0xe11d48, 0x2563eb];
+
+    function createStand(width, depth, tiers, x, z, rotY) {
+      const stand = new THREE.Group();
+      for (let t = 0; t < tiers; t++) {
+        const stepGeo = new THREE.BoxGeometry(width, 0.6, depth / tiers);
+        const step = new THREE.Mesh(stepGeo, tierMat);
+        step.position.set(0, t * 0.6 + 0.3, -depth / 2 + (t + 0.5) * (depth / tiers));
+        step.castShadow = true;
+        step.receiveShadow = true;
+        stand.add(step);
+
+        // Crowd heads along step
+        const count = Math.floor(width / 0.85);
+        for (let i = 0; i < count; i++) {
+          const cX = -width / 2 + 0.45 + i * 0.85 + ((i % 3) * 0.04);
+          const cY = t * 0.6 + 0.65;
+          const cZ = step.position.z;
+          const bodyGeo = new THREE.CylinderGeometry(0.18, 0.22, 0.4, 8);
+          const bMat = new THREE.MeshStandardMaterial({ color: seatColorPalette[(i + t) % seatColorPalette.length] });
+          const body = new THREE.Mesh(bodyGeo, bMat);
+          body.position.set(cX, cY, cZ);
+
+          const headGeo = new THREE.SphereGeometry(0.12, 8, 8);
+          const hMat = new THREE.MeshStandardMaterial({ color: 0xfcd34d });
+          const head = new THREE.Mesh(headGeo, hMat);
+          head.position.set(cX, cY + 0.3, cZ);
+          stand.add(body, head);
+        }
+      }
+      stand.position.set(x, 0, z);
+      stand.rotation.y = rotY;
+      standsGroup.add(stand);
+    }
+
+    // North & South stands
+    createStand(34, 10, 8, 0, -27, 0);
+    createStand(34, 10, 8, 0, 27, Math.PI);
+    // East & West stands
+    createStand(48, 10, 8, -17.5, 0, Math.PI / 2);
+    createStand(48, 10, 8, 17.5, 0, -Math.PI / 2);
+
+    scene.add(standsGroup);
+
+    // 4. Line Judges and Ball Kids
+    function createOfficial(x, z, rotY, isBallKid = false) {
+      const g = new THREE.Group();
+      const uniformMat = new THREE.MeshStandardMaterial({
+        color: isBallKid ? 0xf59e0b : 0x0284c7,
+        roughness: 0.6
+      });
+      const skinMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.8 });
+      const pantsMat = new THREE.MeshStandardMaterial({ color: 0x1e293b });
+
+      // Torso
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.5, 0.22), uniformMat);
+      torso.position.y = 0.95;
+      torso.castShadow = true;
+      g.add(torso);
+
+      // Legs
+      const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.7), pantsMat);
+      legL.position.set(-0.1, 0.35, 0);
+      const legR = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.7), pantsMat);
+      legR.position.set(0.1, 0.35, 0);
+      g.add(legL, legR);
+
+      // Head
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 12), skinMat);
+      head.position.y = 1.35;
+      head.castShadow = true;
+      g.add(head);
+
+      // Cap
+      const cap = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.08, 12), uniformMat);
+      cap.position.set(0, 1.45, 0.03);
+      g.add(cap);
+
+      g.position.set(x, 0, z);
+      g.rotation.y = rotY;
+      scene.add(g);
+      return g;
+    }
+
+    // Line judges behind baselines and sidelines
+    createOfficial(0, -15.2, 0);
+    createOfficial(-COURT.halfSinglesWidth, -14.6, 0);
+    createOfficial(COURT.halfSinglesWidth, -14.6, 0);
+
+    createOfficial(0, 15.2, Math.PI);
+    createOfficial(-COURT.halfSinglesWidth, 14.6, Math.PI);
+    createOfficial(COURT.halfSinglesWidth, 14.6, Math.PI);
+
+    // Ball kids at net posts & back fence
+    createOfficial(-7.2, 0.4, Math.PI / 2, true);
+    createOfficial(7.2, -0.4, -Math.PI / 2, true);
+    createOfficial(-8.2, 14.0, 0.8, true);
+    createOfficial(8.2, 14.0, -0.8, true);
+    createOfficial(-8.2, -14.0, 2.3, true);
+    createOfficial(8.2, -14.0, -2.3, true);
+
+    // --- HUMANOID PLAYER BUILDER ---
+    function createHumanoidPlayer(isUser) {
+      const root = new THREE.Group();
+
+      const shirtColor = isUser ? 0x2563eb : 0xdc2626; // Blue for User, Red for AI
+      const shortsColor = isUser ? 0xffffff : 0x18181b;
+      const skinColor = isUser ? 0xfecba1 : 0xe0a97c;
+
+      const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.6 });
+      const shortsMat = new THREE.MeshStandardMaterial({ color: shortsColor, roughness: 0.7 });
+      const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.8 });
+      const shoeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 });
+      const racketMat = new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.8, roughness: 0.2 });
+
+      // Torso Group
+      const torsoGroup = new THREE.Group();
+      torsoGroup.position.y = 0.95;
+      root.add(torsoGroup);
+
+      const chest = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.45, 0.24), shirtMat);
+      chest.castShadow = true;
+      torsoGroup.add(chest);
+
+      // Head & Neck
+      const headGroup = new THREE.Group();
+      headGroup.position.set(0, 0.38, 0);
+      torsoGroup.add(headGroup);
+
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 16), skinMat);
+      head.castShadow = true;
+      headGroup.add(head);
+
+      // Headband
+      const headband = new THREE.Mesh(new THREE.TorusGeometry(0.132, 0.02, 8, 24), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+      headband.rotation.x = Math.PI / 2;
+      headGroup.add(headband);
+
+      // Pelvis / Shorts
+      const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.22, 0.22), shortsMat);
+      pelvis.position.y = -0.3;
+      pelvis.castShadow = true;
+      torsoGroup.add(pelvis);
+
+      // Right Arm (Primary Racket Arm)
+      const rightShoulder = new THREE.Group();
+      rightShoulder.position.set(0.28, 0.16, 0);
+      torsoGroup.add(rightShoulder);
+
+      const rightArmUpper = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.32), shirtMat);
+      rightArmUpper.position.y = -0.16;
+      rightShoulder.add(rightArmUpper);
+
+      const rightElbow = new THREE.Group();
+      rightElbow.position.y = -0.32;
+      rightShoulder.add(rightElbow);
+
+      const rightForearm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.3), skinMat);
+      rightForearm.position.y = -0.15;
+      rightElbow.add(rightForearm);
+
+      const rightHand = new THREE.Group();
+      rightHand.position.y = -0.3;
+      rightElbow.add(rightHand);
+
+      const handMeshR = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), skinMat);
+      rightHand.add(handMeshR);
+
+      // Racket attached to right hand
+      const racketGroup = new THREE.Group();
+      racketGroup.position.set(0, -0.05, 0.12);
+      racketGroup.rotation.x = Math.PI / 2;
+
+      // Handle
+      const racketHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.02, 0.38), racketMat);
+      racketHandle.position.y = -0.18;
+      racketGroup.add(racketHandle);
+
+      // Head loop
+      const racketHead = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.016, 8, 24), racketMat);
+      racketHead.position.y = 0.18;
+      racketHead.scale.set(0.75, 1.0, 1.0);
+      racketGroup.add(racketHead);
+
+      // Strings (transparent plane with grid)
+      const stringTex = createTexture(64, 64, (ctx, w, h) => {
+        ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(4, 4, 56, 56);
+        ctx.beginPath();
+        for (let i = 12; i < 64; i += 12) {
+          ctx.moveTo(i, 4); ctx.lineTo(i, 60);
+          ctx.moveTo(4, i); ctx.lineTo(60, i);
+        }
+        ctx.stroke();
+      });
+      const racketStrings = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.32), new THREE.MeshBasicMaterial({
+        map: stringTex,
+        transparent: true,
+        opacity: 0.8,
+        side: THREE.DoubleSide
+      }));
+      racketStrings.position.y = 0.18;
+      racketGroup.add(racketStrings);
+
+      rightHand.add(racketGroup);
+
+      // Left Arm (Second hand for two-handed backhand)
+      const leftShoulder = new THREE.Group();
+      leftShoulder.position.set(-0.28, 0.16, 0);
+      torsoGroup.add(leftShoulder);
+
+      const leftArmUpper = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.32), shirtMat);
+      leftArmUpper.position.y = -0.16;
+      leftShoulder.add(leftArmUpper);
+
+      const leftElbow = new THREE.Group();
+      leftElbow.position.y = -0.32;
+      leftShoulder.add(leftElbow);
+
+      const leftForearm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.3), skinMat);
+      leftForearm.position.y = -0.15;
+      leftElbow.add(leftForearm);
+
+      const leftHand = new THREE.Group();
+      leftHand.position.y = -0.3;
+      leftElbow.add(leftHand);
+
+      const handMeshL = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), skinMat);
+      leftHand.add(handMeshL);
+
+      // Legs
+      const leftHip = new THREE.Group();
+      leftHip.position.set(-0.14, 0.65, 0);
+      root.add(leftHip);
+
+      const leftThigh = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.065, 0.38), shortsMat);
+      leftThigh.position.y = -0.19;
+      leftThigh.castShadow = true;
+      leftHip.add(leftThigh);
+
+      const leftKnee = new THREE.Group();
+      leftKnee.position.y = -0.38;
+      leftHip.add(leftKnee);
+
+      const leftShin = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.38), skinMat);
+      leftShin.position.y = -0.19;
+      leftShin.castShadow = true;
+      leftKnee.add(leftShin);
+
+      const leftFoot = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.09, 0.24), shoeMat);
+      leftFoot.position.set(0, -0.38, 0.05);
+      leftFoot.castShadow = true;
+      leftKnee.add(leftFoot);
+
+      // Right Leg
+      const rightHip = new THREE.Group();
+      rightHip.position.set(0.14, 0.65, 0);
+      root.add(rightHip);
+
+      const rightThigh = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.065, 0.38), shortsMat);
+      rightThigh.position.y = -0.19;
+      rightThigh.castShadow = true;
+      rightHip.add(rightThigh);
+
+      const rightKnee = new THREE.Group();
+      rightKnee.position.y = -0.38;
+      rightHip.add(rightKnee);
+
+      const rightShin = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.38), skinMat);
+      rightShin.position.y = -0.19;
+      rightShin.castShadow = true;
+      rightKnee.add(rightShin);
+
+      const rightFoot = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.09, 0.24), shoeMat);
+      rightFoot.position.set(0, -0.38, 0.05);
+      rightFoot.castShadow = true;
+      rightKnee.add(rightFoot);
+
+      return {
+        root,
+        torsoGroup,
+        headGroup,
+        rightShoulder,
+        rightElbow,
+        rightHand,
+        racketGroup,
+        leftShoulder,
+        leftElbow,
+        leftHand,
+        leftHip,
+        leftKnee,
+        rightHip,
+        rightKnee
+      };
+    }
+
+    const playerMesh = createHumanoidPlayer(true);
+    const aiMesh = createHumanoidPlayer(false);
+    scene.add(playerMesh.root);
+    scene.add(aiMesh.root);
+
+    // Initial position
+    playerMesh.root.position.set(0, 0, 11.5);
+    aiMesh.root.position.set(0, 0, -11.5);
+    aiMesh.root.rotation.y = Math.PI;
+
+    // --- BALL & GROUND SHADOW ---
+    const ballGeo = new THREE.SphereGeometry(COURT.ballRadius, 24, 24);
+    // Tennis ball optic yellow felt texture
+    const ballTex = createTexture(128, 128, (ctx, w, h) => {
+      ctx.fillStyle = '#ccff00';
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(32, 64, 40, -Math.PI / 2, Math.PI / 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(96, 64, 40, Math.PI / 2, 3 * Math.PI / 2);
+      ctx.stroke();
+    });
+    const ballMat = new THREE.MeshStandardMaterial({
+      map: ballTex,
+      roughness: 0.65,
+      metalness: 0.04
+    });
+    const ballMesh = new THREE.Mesh(ballGeo, ballMat);
+    ballMesh.castShadow = true;
+    scene.add(ballMesh);
+
+    // Ball projected ground shadow for clear depth perception
+    const shadowGeo = new THREE.CircleGeometry(0.16, 24);
+    const shadowMat = new THREE.MeshBasicMaterial({
+      color: 0x060f1b,
+      transparent: true,
+      opacity: 0.55
+    });
+    const ballShadow = new THREE.Mesh(shadowGeo, shadowMat);
+    ballShadow.rotation.x = -Math.PI / 2;
+    ballShadow.position.y = 0.005;
+    scene.add(ballShadow);
+
+    // 3D Visual Charge Ring on Court Floor
+    const chargeRingGeo = new THREE.RingGeometry(0.55, 0.72, 32);
+    const chargeRingMat = new THREE.MeshBasicMaterial({
+      color: 0xfacc15,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false
+    });
+    const chargeRingMesh = new THREE.Mesh(chargeRingGeo, chargeRingMat);
+    chargeRingMesh.rotation.x = -Math.PI / 2;
+    chargeRingMesh.position.y = 0.008;
+    chargeRingMesh.visible = false;
+    scene.add(chargeRingMesh);
+
+    // 3D Hawk-Eye Ball Impact Mark
+    const hawkEyeMarkGeo = new THREE.CircleGeometry(0.14, 32);
+    const hawkEyeMarkMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false
+    });
+    const hawkEyeMarkMesh = new THREE.Mesh(hawkEyeMarkGeo, hawkEyeMarkMat);
+    hawkEyeMarkMesh.rotation.x = -Math.PI / 2;
+    hawkEyeMarkMesh.position.y = 0.012;
+    hawkEyeMarkMesh.visible = false;
+    scene.add(hawkEyeMarkMesh);
+
+    // --- GAME STATE VARIABLES ---
+    const STATE = {
+      // Phase: ready, serve_toss, rally, point_end, game_end, match_end, change_ends, challenge_review
+      phase: 'ready',
+      server: 'player', // 'player' | 'ai'
+      serveNumber: 1, // 1 or 2
+      serveActive: false, // True while serve is in flight before first bounce
+      returnStruck: false, // True once receiver hits the return
+      tossActive: false,
+      tossTimer: 0,
+      tossApexTime: 0.52,
+
+      // Scoring
+      playerPoints: 0,
+      aiPoints: 0,
+      playerGames: 0,
+      aiGames: 0,
+      advantage: null, // 'player' | 'ai' | null
+      winner: null, // 'player' | 'ai' | null
+
+      // Ball Physics & Aerodynamics
+      ball: {
+        pos: new THREE.Vector3(0, 1.2, 11.5),
+        vel: new THREE.Vector3(0, 0, 0),
+        bounceCount: 0,
+        bouncesThisCrossing: 0,
+        lastHitter: null, // 'player' | 'ai'
+        inFlight: false,
+        hitCooldown: 0,
+        spinType: 'topspin', // 'topspin' | 'flat' | 'slice' | 'serve'
+        magnusY: 0, // downward (-) for topspin dip, upward (+) for slice lift
+        bounceRestitution: 0.72,
+        bounceKick: 0,
+        bounceFriction: 0.88
+      },
+
+      // Round 2 & 3 Shot Vocabulary & Depth State
+      currentShot: {
+        type: 'none', // 'topspin' | 'flat' | 'slice' | 'serve' | 'none'
+        classification: 'none', // 'groundstroke' | 'volley' | 'smash' | 'lob' | 'serve' | 'none'
+        hitter: null, // 'player' | 'ai' | null
+        contactQuality: 'none', // 'CLEAN' | 'STRETCHED' | 'none'
+        chargeValue: 0 // 0.0 to 1.0
+      },
+      lastContactQuality: 'none',
+      lastShotType: 'NONE',
+
+      // Player Depth Charging
+      playerCharge: {
+        active: false,
+        strokeType: 'topspin', // 'topspin' | 'flat' | 'slice' | 'lob'
+        startTime: 0,
+        value: 0, // 0.0 to 1.0
+        pendingStroke: null // { strokeType, chargeValue, time }
+      },
+
+      strokeTagTimer: 0,
+
+      // Landing info for calls, challenges & export
+      lastLanding: {
+        position: { x: 0, y: 0, z: 0 },
+        exactPosition: { x: 0, y: 0, z: 0 },
+        inOut: null, // 'IN' | 'OUT'
+        instantCall: null, // 'IN' | 'OUT' | 'FAULT'
+        reviewVerdict: null, // 'IN' | 'OUT'
+        isOverturned: false,
+        disputeReason: null,
+        hitter: null,
+        prevScoreSnapshot: null
+      },
+
+      // Player dynamics
+      player: {
+        pos: new THREE.Vector3(0, 0, 11.5),
+        vel: new THREE.Vector3(0, 0, 0),
+        speed: 7.2,
+        swingState: 'none',
+        swingTimer: 0,
+        swingDuration: 0.44,
+        inNetZone: false
+      },
+
+      // AI dynamics
+      ai: {
+        pos: new THREE.Vector3(0, 0, -11.5),
+        targetPos: new THREE.Vector3(0, 0, -11.5),
+        vel: new THREE.Vector3(0, 0, 0),
+        speed: 6.8,
+        swingState: 'none',
+        swingTimer: 0,
+        swingDuration: 0.44,
+        serveDelay: 0,
+        inNetZone: false,
+        strategy: 'baseline'
+      },
+
+      pointEndTimer: 0,
+      bannerTimer: 0,
+
+      // Round 4 Set Format, Changing Ends & Serve Clock
+      playerEnd: 'south', // 'south' | 'north'
+      changeEndsTimer: 0,
+      isTiebreak: false,
+      tiebreakPoints: { player: 0, ai: 0 },
+      serveClock: 20.0,
+      timeViolationWarnings: { player: 0, ai: 0 },
+
+      // Round 5 Stamina & Hawk-Eye Challenges
+      playerStamina: 100.0,
+      aiStamina: 100.0,
+      challengesRemaining: 3,
+      canChallenge: false,
+      reviewTimer: 0,
+
+      // Round 6 Presentation, Complete Tiebreak Rules, Match Stats & Replay
+      tiebreakInitialServer: 'player',
+      isReplayActive: false,
+      replayTimer: 0,
+      replayDuration: 3.0,
+      replayBuffer: [],
+      activeReplayFrames: [],
+      replayPlaybackProgress: 0,
+      strokeRecordIndex: 0,
+      lastTerminalCaption: '',
+      currentPointIsBreakPoint: null,
+      statsVisible: false
+    };
+
+    // --- LIVE MATCH STATISTICS ---
+    const STATS = {
+      player: {
+        aces: 0,
+        doubleFaults: 0,
+        winners: 0,
+        breakPointsWon: 0,
+        breakPointsPlayed: 0
+      },
+      ai: {
+        aces: 0,
+        doubleFaults: 0,
+        winners: 0,
+        breakPointsWon: 0,
+        breakPointsPlayed: 0
+      }
+    };
+
+    // --- CONTROLS INPUT ---
+    const keys = {
+      w: false,
+      a: false,
+      s: false,
+      d: false,
+      space: false,
+      j: false,
+      k: false,
+      l: false,
+      i: false,
+      c: false,
+      y: false,
+      t: false,
+      g: false,
+      enter: false,
+      r: false
+    };
+
+    window.addEventListener('keydown', (e) => {
+      initAudio();
+      const k = e.key ? e.key.toLowerCase() : '';
+      const code = e.code ? e.code.toLowerCase() : '';
+
+      if (k === 'w' || code === 'keyw' || k === 'arrowup') keys.w = true;
+      if (k === 'a' || code === 'keya' || k === 'arrowleft') keys.a = true;
+      if (k === 's' || code === 'keys' || k === 'arrowdown') keys.s = true;
+      if (k === 'd' || code === 'keyd' || k === 'arrowright') keys.d = true;
+      if (k === ' ' || k === 'space' || k === 'spacebar' || code === 'space') {
+        keys.space = true;
+        onSpacePress();
+      }
+      if (k === 'j' || code === 'keyj') {
+        keys.j = true;
+        onStrokePress('topspin');
+      }
+      if (k === 'k' || code === 'keyk') {
+        keys.k = true;
+        onStrokePress('flat');
+      }
+      if (k === 'l' || code === 'keyl') {
+        keys.l = true;
+        onStrokePress('slice');
+      }
+      if (k === 'i' || code === 'keyi') {
+        keys.i = true;
+        onStrokePress('lob');
+      }
+      if (k === 'c' || code === 'keyc') {
+        keys.c = true;
+        onChallengePress();
+      }
+      if (k === 'y' || code === 'keyy') {
+        keys.y = true;
+        toggleStatsModal();
+      }
+      if (k === 't' || code === 'keyt') {
+        keys.t = true;
+      }
+      if (k === 'g' || code === 'keyg') {
+        keys.g = true;
+      }
+      if (k === 'enter' || code === 'enter') {
+        if (STATE.isReplayActive) {
+          skipReplay();
+          return;
+        }
+        onEnterPress();
+      }
+      if (k === 'r' || code === 'keyr') {
+        onResetPress();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const k = e.key ? e.key.toLowerCase() : '';
+      const code = e.code ? e.code.toLowerCase() : '';
+
+      if (k === 'w' || code === 'keyw' || k === 'arrowup') keys.w = false;
+      if (k === 'a' || code === 'keya' || k === 'arrowleft') keys.a = false;
+      if (k === 's' || code === 'keys' || k === 'arrowdown') keys.s = false;
+      if (k === 'd' || code === 'keyd' || k === 'arrowright') keys.d = false;
+      if (k === ' ' || k === 'space' || k === 'spacebar' || code === 'space') keys.space = false;
+      if (k === 'j' || code === 'keyj') {
+        keys.j = false;
+        onStrokeRelease('topspin');
+      }
+      if (k === 'k' || code === 'keyk') {
+        keys.k = false;
+        onStrokeRelease('flat');
+      }
+      if (k === 'l' || code === 'keyl') {
+        keys.l = false;
+        onStrokeRelease('slice');
+      }
+      if (k === 'i' || code === 'keyi') {
+        keys.i = false;
+        onStrokeRelease('lob');
+      }
+      if (k === 'c' || code === 'keyc') {
+        keys.c = false;
+      }
+      if (k === 'y' || code === 'keyy') {
+        keys.y = false;
+      }
+      if (k === 't' || code === 'keyt') {
+        keys.t = false;
+      }
+      if (k === 'g' || code === 'keyg') {
+        keys.g = false;
+      }
+    });
+
+    // --- BANNER UI HELPER ---
+    const bannerEl = document.getElementById('status-banner');
+    function showBanner(text, type = 'good', duration = 1.4) {
+      bannerEl.textContent = text;
+      bannerEl.className = type;
+      bannerEl.style.display = 'block';
+      STATE.bannerTimer = duration;
+      if (type === 'fault' || type === 'out') {
+        playSound('call');
+        STATE.lastTerminalCaption = text;
+      }
+    }
+
+    // --- LIVE STATISTICS MODAL ---
+    function toggleStatsModal() {
+      const modal = document.getElementById('stats-modal');
+      if (!modal) return;
+      STATE.statsVisible = !STATE.statsVisible;
+      if (STATE.statsVisible) {
+        updateStatsModalDisplay();
+        modal.style.display = 'flex';
+      } else {
+        modal.style.display = 'none';
+      }
+    }
+
+    function updateStatsModalDisplay() {
+      const pAces = document.getElementById('stat-p-aces');
+      const aAces = document.getElementById('stat-a-aces');
+      const pDf = document.getElementById('stat-p-df');
+      const aDf = document.getElementById('stat-a-df');
+      const pWin = document.getElementById('stat-p-win');
+      const aWin = document.getElementById('stat-a-win');
+      const pBp = document.getElementById('stat-p-bp');
+      const aBp = document.getElementById('stat-a-bp');
+
+      if (pAces) pAces.textContent = STATS.player.aces;
+      if (aAces) aAces.textContent = STATS.ai.aces;
+      if (pDf) pDf.textContent = STATS.player.doubleFaults;
+      if (aDf) aDf.textContent = STATS.ai.doubleFaults;
+      if (pWin) pWin.textContent = STATS.player.winners;
+      if (aWin) aWin.textContent = STATS.ai.winners;
+      if (pBp) pBp.textContent = `${STATS.player.breakPointsWon} / ${STATS.player.breakPointsPlayed}`;
+      if (aBp) aBp.textContent = `${STATS.ai.breakPointsWon} / ${STATS.ai.breakPointsPlayed}`;
+    }
+
+    // --- TENNIS POINT SCORING SYSTEM ---
+    const pointNames = ['0', '15', '30', '40'];
+
+    function getPointsDisplay(pPts, aPts, adv) {
+      if (pPts >= 3 && aPts >= 3) {
+        if (pPts === aPts) {
+          return { player: '40', ai: '40', deuce: true };
+        } else if (pPts > aPts) {
+          return { player: 'AD', ai: '40', deuce: false };
+        } else {
+          return { player: '40', ai: 'AD', deuce: false };
+        }
+      }
+      return {
+        player: pointNames[Math.min(pPts, 3)],
+        ai: pointNames[Math.min(aPts, 3)],
+        deuce: false
+      };
+    }
+
+    function evaluatePointStakes() {
+      const pG = STATE.playerGames;
+      const aG = STATE.aiGames;
+      const isServerPlayer = (STATE.server === 'player');
+      const receiver = isServerPlayer ? 'ai' : 'player';
+
+      let isBreakPoint = false;
+      let isSetPoint = false;
+
+      if (STATE.isTiebreak) {
+        const pPts = STATE.tiebreakPoints.player;
+        const aPts = STATE.tiebreakPoints.ai;
+        if (pPts >= 6 && pPts - aPts >= 1) isSetPoint = true;
+        if (aPts >= 6 && aPts - pPts >= 1) isSetPoint = true;
+      } else {
+        const pPts = STATE.playerPoints;
+        const aPts = STATE.aiPoints;
+
+        let canPlayerWinGame = false;
+        if (pPts >= 3 && pPts - aPts >= 1 && STATE.advantage !== 'ai') {
+          if (pPts >= 3 && aPts >= 3) {
+            canPlayerWinGame = (STATE.advantage === 'player');
+          } else {
+            canPlayerWinGame = true;
+          }
+        }
+
+        let canAIWinGame = false;
+        if (aPts >= 3 && aPts - pPts >= 1 && STATE.advantage !== 'player') {
+          if (pPts >= 3 && aPts >= 3) {
+            canAIWinGame = (STATE.advantage === 'ai');
+          } else {
+            canAIWinGame = true;
+          }
+        }
+
+        if (receiver === 'player' && canPlayerWinGame) isBreakPoint = true;
+        if (receiver === 'ai' && canAIWinGame) isBreakPoint = true;
+
+        if (canPlayerWinGame) {
+          if (pG + 1 >= 6 && (pG + 1) - aG >= 2) isSetPoint = true;
+        }
+        if (canAIWinGame) {
+          if (aG + 1 >= 6 && (aG + 1) - pG >= 2) isSetPoint = true;
+        }
+      }
+
+      return { isBreakPoint, isSetPoint };
+    }
+
+    function updateStakeDisplay() {
+      const stake = evaluatePointStakes();
+      const stakeEl = document.getElementById('stake-indicator');
+      const isPreServe = (STATE.phase === 'serve_toss' && !STATE.tossActive && !STATE.ball.inFlight);
+
+      if (stakeEl) {
+        if (isPreServe && (stake.isSetPoint || stake.isBreakPoint)) {
+          stakeEl.style.display = 'inline-block';
+          if (stake.isSetPoint) {
+            stakeEl.textContent = 'SET POINT';
+            stakeEl.className = 'set-point';
+          } else {
+            stakeEl.textContent = 'BREAK POINT';
+            stakeEl.className = '';
+          }
+        } else {
+          stakeEl.style.display = 'none';
+        }
+      }
+      return stake;
+    }
+
+    function updateHUD() {
+      let playerPtsText, aiPtsText;
+
+      if (STATE.isTiebreak) {
+        playerPtsText = String(STATE.tiebreakPoints.player);
+        aiPtsText = String(STATE.tiebreakPoints.ai);
+        document.getElementById('serve-info').textContent = (STATE.serveNumber === 1 ? 'TB 1ST' : 'TB 2ND');
+      } else {
+        const ptsDisp = getPointsDisplay(STATE.playerPoints, STATE.aiPoints, STATE.advantage);
+        playerPtsText = ptsDisp.player;
+        aiPtsText = ptsDisp.ai;
+        document.getElementById('serve-info').textContent = (STATE.serveNumber === 1 ? '1ST SERVE' : '2ND SERVE');
+      }
+
+      document.getElementById('points-player').textContent = playerPtsText;
+      document.getElementById('points-ai').textContent = aiPtsText;
+      document.getElementById('games-player').textContent = STATE.playerGames;
+      document.getElementById('games-ai').textContent = STATE.aiGames;
+
+      // Update Stamina Bars
+      const pStamEl = document.getElementById('stamina-player');
+      const aStamEl = document.getElementById('stamina-ai');
+      if (pStamEl) {
+        pStamEl.style.width = STATE.playerStamina.toFixed(1) + '%';
+        pStamEl.style.backgroundColor = (STATE.playerStamina < 30 ? '#ef4444' : (STATE.playerStamina < 60 ? '#facc15' : '#22c55e'));
+      }
+      if (aStamEl) {
+        aStamEl.style.width = STATE.aiStamina.toFixed(1) + '%';
+        aStamEl.style.backgroundColor = (STATE.aiStamina < 30 ? '#ef4444' : (STATE.aiStamina < 60 ? '#facc15' : '#22c55e'));
+      }
+
+      // Update Challenges Count
+      const chalEl = document.getElementById('challenges-count');
+      if (chalEl) {
+        chalEl.textContent = 'CHALLENGES: ' + STATE.challengesRemaining;
+      }
+
+      // Update Stake Indicator (Break Point / Set Point)
+      updateStakeDisplay();
+
+      const dotP = document.getElementById('dot-player');
+      const dotA = document.getElementById('dot-ai');
+      if (STATE.server === 'player') {
+        dotP.classList.add('active');
+        dotA.classList.remove('active');
+      } else {
+        dotA.classList.add('active');
+        dotP.classList.remove('active');
+      }
+
+      // Update physical scoreboard in stadium
+      updateScoreboardDisplay(
+        'YOU',
+        'AI CHAMP',
+        STATE.playerGames,
+        STATE.aiGames,
+        playerPtsText,
+        aiPtsText,
+        STATE.server
+      );
+
+      updateStatsModalDisplay();
+      updateArenaState();
+    }
+
+    // Complete Tiebreak Server and Side calculation
+    function getTiebreakServerAndSide() {
+      const N = STATE.tiebreakPoints.player + STATE.tiebreakPoints.ai;
+      const initialServer = STATE.tiebreakInitialServer || 'player';
+      const otherServer = (initialServer === 'player') ? 'ai' : 'player';
+
+      if (N === 0) {
+        return { server: initialServer, isDeuce: true };
+      }
+      const pairIndex = Math.floor((N - 1) / 2);
+      const server = (pairIndex % 2 === 0) ? otherServer : initialServer;
+      const isDeuce = (((N - 1) % 2) === 1);
+      return { server, isDeuce };
+    }
+
+    // Determine whether server serves from Deuce (right) or Ad (left) side
+    function isDeuceSide() {
+      if (STATE.isTiebreak) {
+        return getTiebreakServerAndSide().isDeuce;
+      }
+      return ((STATE.playerPoints + STATE.aiPoints) % 2) === 0;
+    }
+
+    // Reset players & ball for next serve
+    function setupPositionsForServe() {
+      if (STATE.isTiebreak) {
+        const tbInfo = getTiebreakServerAndSide();
+        STATE.server = tbInfo.server;
+      }
+
+      const deuce = isDeuceSide();
+      const isServerPlayer = (STATE.server === 'player');
+      const serverEnd = isServerPlayer ? STATE.playerEnd : (STATE.playerEnd === 'south' ? 'north' : 'south');
+
+      let srvX, srvZ, recX, recZ;
+      if (serverEnd === 'south') {
+        srvX = deuce ? 2.1 : -2.1;
+        srvZ = 12.0;
+        recX = deuce ? -2.1 : 2.1;
+        recZ = -11.8;
+      } else {
+        srvX = deuce ? -2.1 : 2.1;
+        srvZ = -12.0;
+        recX = deuce ? 2.1 : -2.1;
+        recZ = 11.8;
+      }
+
+      const sOffZ = (serverEnd === 'south') ? -0.2 : 0.2;
+
+      if (isServerPlayer) {
+        STATE.player.pos.set(srvX, 0, srvZ);
+        STATE.ai.pos.set(recX, 0, recZ);
+        STATE.ai.targetPos.copy(STATE.ai.pos);
+        STATE.ball.pos.set(srvX + 0.25, 0.95, srvZ + sOffZ);
+      } else {
+        STATE.ai.pos.set(srvX, 0, srvZ);
+        STATE.ai.targetPos.copy(STATE.ai.pos);
+        STATE.player.pos.set(recX, 0, recZ);
+        STATE.ball.pos.set(srvX + 0.25, 0.95, srvZ + sOffZ);
+        STATE.ai.serveDelay = 1.1; // AI pauses briefly before tossing
+      }
+
+      STATE.ball.vel.set(0, 0, 0);
+      STATE.ball.inFlight = false;
+      STATE.ball.bounceCount = 0;
+      STATE.ball.bouncesThisCrossing = 0;
+      STATE.ball.lastHitter = null;
+      STATE.serveActive = false;
+      STATE.returnStruck = false;
+      STATE.tossActive = false;
+      STATE.tossTimer = 0;
+      STATE.player.swingState = 'none';
+      STATE.ai.swingState = 'none';
+      STATE.canChallenge = false;
+      STATE.serveClock = 20.0; // Reset serve clock on new point
+
+      // Stamina slight recovery between points
+      STATE.playerStamina = Math.min(100.0, STATE.playerStamina + 5.5);
+      STATE.aiStamina = Math.min(100.0, STATE.aiStamina + 5.5);
+
+      const clockEl = document.getElementById('serve-clock-pill');
+      if (clockEl) clockEl.style.display = 'none';
+
+      updateHUD();
+    }
+
+    function awardPoint(winner, reason = '') {
+      if (STATE.phase === 'point_end' || STATE.phase === 'game_end' || STATE.phase === 'match_end' || STATE.phase === 'change_ends' || STATE.phase === 'challenge_review') return;
+
+      // Save score snapshot prior to point award for Hawk-Eye challenge reversibility
+      STATE.lastLanding.prevScoreSnapshot = {
+        playerPoints: STATE.playerPoints,
+        aiPoints: STATE.aiPoints,
+        playerGames: STATE.playerGames,
+        aiGames: STATE.aiGames,
+        advantage: STATE.advantage,
+        isTiebreak: STATE.isTiebreak,
+        tiebreakPoints: { ...STATE.tiebreakPoints },
+        server: STATE.server
+      };
+
+      if (reason === 'OUT' || reason === 'FAULT' || reason === 'DOUBLE FAULT') {
+        STATE.canChallenge = true;
+      } else {
+        STATE.canChallenge = false;
+      }
+
+      // Track break point conversion
+      if (STATE.currentPointIsBreakPoint === winner) {
+        STATS[winner].breakPointsWon++;
+        STATE.currentPointIsBreakPoint = null;
+      }
+
+      STATE.phase = 'point_end';
+      STATE.pointEndTimer = 2.4;
+      STATE.ball.inFlight = false;
+      STATE.serveActive = false;
+
+      // Handle Tiebreak vs Regular Game
+      if (STATE.isTiebreak) {
+        STATE.tiebreakPoints[winner]++;
+        const pPts = STATE.tiebreakPoints.player;
+        const aPts = STATE.tiebreakPoints.ai;
+        const totalTBPoints = pPts + aPts;
+
+        // First to 7 points with a margin of at least 2 wins tiebreak and set
+        if (pPts >= 7 && pPts - aPts >= 2) {
+          STATE.playerGames = 8;
+          STATE.aiGames = 7;
+          endMatch('player');
+          return;
+        } else if (aPts >= 7 && aPts - pPts >= 2) {
+          STATE.playerGames = 7;
+          STATE.aiGames = 8;
+          endMatch('ai');
+          return;
+        }
+
+        // Change ends after every 6 completed points in tiebreak
+        if (totalTBPoints % 6 === 0) {
+          STATE.phase = 'change_ends';
+          STATE.changeEndsTimer = 3.0;
+          showBanner('CHANGE OF ENDS', 'change_ends', 3.0);
+          STATE.playerEnd = (STATE.playerEnd === 'south' ? 'north' : 'south');
+          STATE.playerStamina = Math.min(100.0, STATE.playerStamina + 20.0);
+          STATE.aiStamina = Math.min(100.0, STATE.aiStamina + 20.0);
+        }
+
+        const tbInfo = getTiebreakServerAndSide();
+        STATE.server = tbInfo.server;
+        STATE.serveNumber = 1;
+        updateHUD();
+        return;
+      }
+
+      // Regular Game Scoring
+      if (winner === 'player') {
+        if (STATE.playerPoints >= 3 && STATE.aiPoints >= 3) {
+          if (STATE.advantage === 'player') {
+            winGame('player');
+            return;
+          } else if (STATE.advantage === 'ai') {
+            STATE.advantage = null;
+            showBanner('DEUCE', 'good', 1.5);
+          } else {
+            STATE.advantage = 'player';
+            showBanner('ADVANTAGE PLAYER', 'good', 1.5);
+          }
+        } else {
+          STATE.playerPoints++;
+          if (STATE.playerPoints > 3 && STATE.playerPoints - STATE.aiPoints >= 2) {
+            winGame('player');
+            return;
+          }
+        }
+      } else {
+        // AI won point
+        if (STATE.playerPoints >= 3 && STATE.aiPoints >= 3) {
+          if (STATE.advantage === 'ai') {
+            winGame('ai');
+            return;
+          } else if (STATE.advantage === 'player') {
+            STATE.advantage = null;
+            showBanner('DEUCE', 'fault', 1.5);
+          } else {
+            STATE.advantage = 'ai';
+            showBanner('ADVANTAGE AI', 'fault', 1.5);
+          }
+        } else {
+          STATE.aiPoints++;
+          if (STATE.aiPoints > 3 && STATE.aiPoints - STATE.playerPoints >= 2) {
+            winGame('ai');
+            return;
+          }
+        }
+      }
+
+      STATE.serveNumber = 1;
+      updateHUD();
+    }
+
+    function winGame(winner) {
+      STATE.phase = 'game_end';
+      STATE.pointEndTimer = 2.4;
+      playSound('cheer');
+
+      if (winner === 'player') {
+        STATE.playerGames++;
+        showBanner('GAME PLAYER!', 'good', 2.0);
+      } else {
+        STATE.aiGames++;
+        showBanner('GAME AI CHAMPION!', 'fault', 2.0);
+      }
+
+      // Reset game points
+      STATE.playerPoints = 0;
+      STATE.aiPoints = 0;
+      STATE.advantage = null;
+      STATE.serveNumber = 1;
+
+      const pG = STATE.playerGames;
+      const aG = STATE.aiGames;
+
+      // Set Win Check:
+      // First to 6 games with margin >= 2.
+      // From 5-5, play continues to 7-5.
+      // At 7-7, tiebreak begins!
+      if (pG >= 6 && pG - aG >= 2) {
+        endMatch('player');
+        return;
+      } else if (aG >= 6 && aG - pG >= 2) {
+        endMatch('ai');
+        return;
+      } else if (pG === 7 && aG === 7) {
+        STATE.isTiebreak = true;
+        STATE.tiebreakPoints = { player: 0, ai: 0 };
+        STATE.tiebreakInitialServer = (STATE.server === 'player') ? 'ai' : 'player';
+        showBanner('TIEBREAK DECIDER', 'good', 2.5);
+      }
+
+      // Alternate server between games
+      STATE.server = (STATE.server === 'player') ? 'ai' : 'player';
+
+      // Change of ends after every 2 completed games
+      const totalGames = pG + aG;
+      if (totalGames % 2 === 0) {
+        STATE.phase = 'change_ends';
+        STATE.changeEndsTimer = 3.0;
+        showBanner('CHANGE OF ENDS', 'change_ends', 3.0);
+        STATE.playerEnd = (STATE.playerEnd === 'south' ? 'north' : 'south');
+        // Faster stamina recovery during change of ends
+        STATE.playerStamina = Math.min(100.0, STATE.playerStamina + 20.0);
+        STATE.aiStamina = Math.min(100.0, STATE.aiStamina + 20.0);
+      }
+
+      updateHUD();
+    }
+
+    function handleServeClockViolation() {
+      const violator = STATE.server;
+      if (!STATE.timeViolationWarnings[violator]) {
+        STATE.timeViolationWarnings[violator] = 1;
+        showBanner('TIME VIOLATION — WARNING', 'fault', 2.5);
+        playSound('call');
+        STATE.serveClock = 20.0;
+      } else {
+        if (STATE.serveNumber === 1) {
+          showBanner('TIME VIOLATION — FAULT', 'fault', 2.0);
+          playSound('call');
+          STATE.serveNumber = 2;
+          STATE.serveClock = 20.0;
+          updateHUD();
+        } else {
+          showBanner('TIME VIOLATION — POINT PENALTY', 'fault', 2.5);
+          playSound('call');
+          const receiver = (STATE.server === 'player') ? 'ai' : 'player';
+          awardPoint(receiver, 'TIME VIOLATION');
+        }
+      }
+    }
+
+    // --- HAWK-EYE ELECTRONIC REVIEW SYSTEM ---
+    function evaluateLandingCalls(exactX, exactZ, isServe, serverOrHitter) {
+      // Instant call snaps to 0.25-unit grid
+      const snappedX = Math.round(exactX / 0.25) * 0.25;
+      const snappedZ = Math.round(exactZ / 0.25) * 0.25;
+
+      let instantGood, reviewGood;
+      if (isServe) {
+        instantGood = checkServiceIn(snappedX, snappedZ, serverOrHitter);
+        reviewGood = checkServiceIn(exactX, exactZ, serverOrHitter);
+      } else {
+        instantGood = checkCourtIn(snappedX, snappedZ, serverOrHitter);
+        reviewGood = checkCourtIn(exactX, exactZ, serverOrHitter);
+      }
+
+      const instantCall = instantGood ? 'IN' : (isServe ? 'FAULT' : 'OUT');
+      const reviewVerdict = reviewGood ? 'IN' : (isServe ? 'FAULT' : 'OUT');
+      const isOverturned = (instantCall !== reviewVerdict);
+
+      return {
+        exactPosition: { x: exactX, y: 0.08, z: exactZ },
+        snappedPosition: { x: snappedX, y: 0.08, z: snappedZ },
+        instantCall,
+        reviewVerdict,
+        isOverturned
+      };
+    }
+
+    function onChallengePress() {
+      if (STATE.phase !== 'point_end') return;
+      if (!STATE.canChallenge) return;
+      if (STATE.challengesRemaining <= 0) return;
+
+      STATE.canChallenge = false;
+      STATE.phase = 'challenge_review';
+      STATE.reviewTimer = 3.6;
+      playSound('challenge');
+
+      const landing = STATE.lastLanding;
+      const exact = landing.exactPosition;
+
+      // Position 3D Hawk-Eye ball impact mark
+      hawkEyeMarkMesh.position.set(exact.x, 0.015, exact.z);
+      hawkEyeMarkMesh.visible = true;
+      hawkEyeMarkMat.opacity = 0.95;
+      hawkEyeMarkMat.color.setHex(landing.isOverturned ? 0x22c55e : 0xef4444);
+
+      // Show Hawk-Eye HUD overlay
+      const hawkeyeEl = document.getElementById('hawkeye-overlay');
+      const titleEl = document.getElementById('hawkeye-title');
+      const verdictEl = document.getElementById('hawkeye-verdict');
+      const detailEl = document.getElementById('hawkeye-detail');
+
+      if (hawkeyeEl && verdictEl && detailEl) {
+        hawkeyeEl.style.display = 'flex';
+        titleEl.textContent = (landing.disputeReason === 'fault') ? 'SERVICE LINE REVIEW' : 'BASELINE / SIDELINE REVIEW';
+
+        if (landing.isOverturned) {
+          verdictEl.textContent = 'CALL OVERTURNED — IN';
+          verdictEl.className = 'hawkeye-verdict in';
+          detailEl.textContent = 'BALL TOUCHED LINE BY 0.038m';
+        } else {
+          verdictEl.textContent = (landing.disputeReason === 'fault') ? 'CALL CONFIRMED — FAULT' : 'CALL CONFIRMED — OUT';
+          verdictEl.className = 'hawkeye-verdict out';
+          detailEl.textContent = 'NO LINE CONTACT • CHALLENGE FAILED';
+        }
+      }
+
+      updateArenaState();
+    }
+
+    function resolveChallengeReview() {
+      const landing = STATE.lastLanding;
+      const hawkeyeEl = document.getElementById('hawkeye-overlay');
+      if (hawkeyeEl) hawkeyeEl.style.display = 'none';
+      hawkEyeMarkMesh.visible = false;
+
+      if (landing.isOverturned) {
+        // Challenge SUCCESSFUL! User keeps challenge count
+        playSound('overturn');
+        STATE.lastTerminalCaption = 'OVERTURNED — IN';
+        showBanner('CALL OVERTURNED — IN', 'good', 2.2);
+
+        if (landing.disputeReason === 'fault') {
+          // Corrected serve fault: serve was good, replay point with original serve number
+          STATE.serveNumber = landing.prevServeNumber || 1;
+          STATE.phase = 'serve_toss';
+          setupPositionsForServe();
+        } else {
+          // Corrected OUT on rally ball: award point to hitter
+          if (landing.prevScoreSnapshot) {
+            restoreScoreSnapshot(landing.prevScoreSnapshot);
+          }
+          STATE.phase = 'rally';
+          awardPoint(landing.hitter, 'OVERTURNED WINNER');
+          startSlowMotionReplay('overturned_challenge');
+        }
+      } else {
+        // Challenge FAILED! Consumes one challenge
+        STATE.challengesRemaining = Math.max(0, STATE.challengesRemaining - 1);
+        playSound('confirm');
+        showBanner('CALL CONFIRMED — OUT', 'fault', 2.0);
+
+        // Proceed to next point
+        STATE.phase = (STATE.server === 'player') ? 'serve_toss' : 'rally';
+        setupPositionsForServe();
+      }
+
+      updateHUD();
+    }
+
+    function restoreScoreSnapshot(snap) {
+      STATE.playerPoints = snap.playerPoints;
+      STATE.aiPoints = snap.aiPoints;
+      STATE.playerGames = snap.playerGames;
+      STATE.aiGames = snap.aiGames;
+      STATE.advantage = snap.advantage;
+      STATE.isTiebreak = snap.isTiebreak;
+      STATE.tiebreakPoints = { ...snap.tiebreakPoints };
+      STATE.server = snap.server;
+    }
+
+    // --- SLOW-MOTION REPLAY SYSTEM ---
+    function startSlowMotionReplay(reason) {
+      if (STATE.replayBuffer.length < 10) return;
+      STATE.isReplayActive = true;
+      STATE.phase = 'replay';
+      STATE.replayTimer = 3.0;
+
+      const startIdx = Math.max(0, STATE.strokeRecordIndex - 5);
+      STATE.activeReplayFrames = STATE.replayBuffer.slice(startIdx);
+      STATE.replayPlaybackProgress = 0;
+
+      const pill = document.getElementById('replay-pill');
+      if (pill) pill.style.display = 'flex';
+
+      // Dynamic elevated replay camera
+      const exact = STATE.lastLanding.exactPosition || STATE.lastLanding.position;
+      camera.position.set(7.5, 3.4, exact.z * 0.45);
+      camera.lookAt(exact.x * 0.5, 0.6, exact.z);
+      updateArenaState();
+    }
+
+    function skipReplay() {
+      if (!STATE.isReplayActive) return;
+      STATE.isReplayActive = false;
+      const pill = document.getElementById('replay-pill');
+      if (pill) pill.style.display = 'none';
+
+      STATE.phase = (STATE.server === 'player') ? 'serve_toss' : 'rally';
+      setupPositionsForServe();
+    }
+
+    function endMatch(winner) {
+      STATE.phase = 'match_end';
+      STATE.winner = winner;
+      playSound('cheer');
+
+      const overlay = document.getElementById('overlay');
+      const title = document.getElementById('overlay-title');
+      const subtitle = document.getElementById('overlay-subtitle');
+      const inst = document.getElementById('overlay-instructions');
+      const prompt = document.getElementById('overlay-prompt');
+
+      if (winner === 'player') {
+        title.textContent = 'CHAMPION!';
+        subtitle.textContent = 'YOU WON THE BASELINE OPEN';
+      } else {
+        title.textContent = 'RUNNER UP';
+        subtitle.textContent = 'AI CHAMPION WON THE MATCH';
+      }
+
+      let scoreFormatted;
+      if (STATE.isTiebreak) {
+        const loserTB = (winner === 'player') ? STATE.tiebreakPoints.ai : STATE.tiebreakPoints.player;
+        if (winner === 'player') {
+          scoreFormatted = `8&ndash;7 (7&ndash;${loserTB})`;
+        } else {
+          scoreFormatted = `7&ndash;8 (${loserTB}&ndash;7)`;
+        }
+      } else {
+        scoreFormatted = `${STATE.playerGames}&ndash;${STATE.aiGames}`;
+      }
+
+      inst.innerHTML = `
+        <h3>Match-End Summary & Statistics</h3>
+        <p style="font-size: 24px; font-weight: 900; color: #facc15; margin: 12px 0; letter-spacing: 1px; text-align: center;">
+          Final Score: ${scoreFormatted}
+        </p>
+        <table class="stats-table" style="margin-top: 10px;">
+          <thead>
+            <tr><th>METRIC</th><th>PLAYER (YOU)</th><th>AI CHAMPION</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Aces</td><td>${STATS.player.aces}</td><td>${STATS.ai.aces}</td></tr>
+            <tr><td>Double Faults</td><td>${STATS.player.doubleFaults}</td><td>${STATS.ai.doubleFaults}</td></tr>
+            <tr><td>Winners</td><td>${STATS.player.winners}</td><td>${STATS.ai.winners}</td></tr>
+            <tr><td>Break Points Won</td><td>${STATS.player.breakPointsWon} / ${STATS.player.breakPointsPlayed}</td><td>${STATS.ai.breakPointsWon} / ${STATS.ai.breakPointsPlayed}</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top: 14px; text-align: center;">Press <span class="key-badge">R</span> to restart the championship at 0-0.</p>
+      `;
+      prompt.textContent = 'Press R to Reset';
+      overlay.style.display = 'flex';
+      updateHUD();
+      updateArenaState();
+    }
+
+    function onEnterPress() {
+      if (STATE.phase === 'ready') {
+        document.getElementById('overlay').style.display = 'none';
+
+        if (keys.t) {
+          // Quick start at 7-7 (instant tiebreak)
+          STATE.playerGames = 7;
+          STATE.aiGames = 7;
+          STATE.isTiebreak = true;
+          STATE.tiebreakPoints = { player: 0, ai: 0 };
+          STATE.tiebreakInitialServer = 'player';
+          STATE.playerEnd = 'south';
+        } else if (keys.g) {
+          // Quick start at 5-5
+          STATE.playerGames = 5;
+          STATE.aiGames = 5;
+          STATE.isTiebreak = false;
+          STATE.playerEnd = 'south';
+        } else {
+          // Normal start at 0-0
+          STATE.playerGames = 0;
+          STATE.aiGames = 0;
+          STATE.isTiebreak = false;
+          STATE.playerEnd = 'south';
+        }
+
+        STATE.phase = (STATE.server === 'player') ? 'serve_toss' : 'rally';
+        setupPositionsForServe();
+      }
+    }
+
+    function onResetPress() {
+      resetDeterministicSeed();
+      STATE.phase = 'ready';
+      STATE.server = 'player';
+      STATE.serveNumber = 1;
+      STATE.playerPoints = 0;
+      STATE.aiPoints = 0;
+      STATE.playerGames = 0;
+      STATE.aiGames = 0;
+      STATE.isTiebreak = false;
+      STATE.tiebreakPoints = { player: 0, ai: 0 };
+      STATE.tiebreakInitialServer = 'player';
+      STATE.playerEnd = 'south';
+      STATE.serveClock = 20.0;
+      STATE.timeViolationWarnings = { player: 0, ai: 0 };
+      STATE.playerStamina = 100.0;
+      STATE.aiStamina = 100.0;
+      STATE.challengesRemaining = 3;
+      STATE.canChallenge = false;
+      STATE.reviewTimer = 0;
+      STATE.isReplayActive = false;
+      STATE.replayTimer = 0;
+      STATE.replayBuffer = [];
+      STATE.activeReplayFrames = [];
+      STATE.lastTerminalCaption = '';
+      STATE.currentPointIsBreakPoint = null;
+      STATE.statsVisible = false;
+
+      // Zero out live statistics
+      STATS.player.aces = 0;
+      STATS.player.doubleFaults = 0;
+      STATS.player.winners = 0;
+      STATS.player.breakPointsWon = 0;
+      STATS.player.breakPointsPlayed = 0;
+      STATS.ai.aces = 0;
+      STATS.ai.doubleFaults = 0;
+      STATS.ai.winners = 0;
+      STATS.ai.breakPointsWon = 0;
+      STATS.ai.breakPointsPlayed = 0;
+
+      STATE.advantage = null;
+      STATE.winner = null;
+      STATE.ball.inFlight = false;
+      STATE.serveActive = false;
+      STATE.returnStruck = false;
+      STATE.ball.spinType = 'topspin';
+      STATE.ball.magnusY = 0;
+      STATE.ball.bounceRestitution = 0.72;
+      STATE.ball.bounceKick = 0;
+      STATE.ball.bounceFriction = 0.88;
+      STATE.currentShot = {
+        type: 'none',
+        classification: 'none',
+        hitter: null,
+        contactQuality: 'none',
+        chargeValue: 0
+      };
+      STATE.lastContactQuality = 'none';
+      STATE.lastShotType = 'NONE';
+      STATE.player.inNetZone = false;
+      STATE.ai.inNetZone = false;
+      STATE.ai.strategy = 'baseline';
+      STATE.ball.bouncesThisCrossing = 0;
+      STATE.playerCharge = {
+        active: false,
+        strokeType: 'topspin',
+        startTime: 0,
+        value: 0,
+        pendingStroke: null
+      };
+      STATE.strokeTagTimer = 0;
+
+      const netTagEl = document.getElementById('net-zone-tag');
+      if (netTagEl) netTagEl.style.display = 'none';
+      const chargeEl = document.getElementById('charge-indicator');
+      if (chargeEl) chargeEl.style.display = 'none';
+      const clockEl = document.getElementById('serve-clock-pill');
+      if (clockEl) clockEl.style.display = 'none';
+      const hawkeyeEl = document.getElementById('hawkeye-overlay');
+      if (hawkeyeEl) hawkeyeEl.style.display = 'none';
+      const statsModal = document.getElementById('stats-modal');
+      if (statsModal) statsModal.style.display = 'none';
+      const replayPill = document.getElementById('replay-pill');
+      if (replayPill) replayPill.style.display = 'none';
+      hawkEyeMarkMesh.visible = false;
+
+      setupPositionsForServe();
+
+      const overlay = document.getElementById('overlay');
+      document.getElementById('overlay-title').textContent = 'Baseline Open';
+      document.getElementById('overlay-subtitle').textContent = 'Grand Slam Championship';
+      document.getElementById('overlay-instructions').innerHTML = `
+        <h3>Match & Rulebook Instructions</h3>
+        <p>&bull; <strong>Set Format & Tiebreak:</strong> Win <strong>6 games</strong> by 2 margin. At 5–5, play continues to 7–5. At <strong>7–7</strong>, the official tiebreak decides the set: initial server serves 1 point from Deuce; thereafter servers alternate every 2 points (starting from Ad, then Deuce). Players change ends every <strong>6 points</strong>. First to 7 by 2 margin wins (recorded as <strong>8–7 (7–x)</strong>).</p>
+        <p>&bull; <strong>Quick Starts:</strong> Press <span class="key-badge">Enter</span> for 0–0. Hold <span class="key-badge">G</span> + <span class="key-badge">Enter</span> for 5–5. Hold <span class="key-badge">T</span> + <span class="key-badge">Enter</span> for 7–7 Tiebreak.</p>
+        <p>&bull; <strong>Live Stats & Replays:</strong> Press <span class="key-badge">Y</span> anytime between points to view live match statistics (Aces, Double Faults, Winners, Break Points). Aces, winners, and successful challenges trigger automated slow-motion replays (skip with <span class="key-badge">Enter</span>).</p>
+        <p>&bull; <strong>Stamina & Hawk-Eye:</strong> Stamina degrades running speed, clean strike zones, drive depth, and first serve velocity. Press <span class="key-badge">C</span> immediately after OUT or FAULT to challenge with 3 electronic reviews.</p>
+      `;
+      document.getElementById('overlay-prompt').textContent = 'Press Enter to Start (Hold T: 7-7 Tiebreak • Hold G: 5-5 Set)';
+      overlay.style.display = 'flex';
+      updateHUD();
+    }
+
+    // --- SERVING & TOSS MECHANICS ---
+    function onSpacePress() {
+      if (STATE.phase === 'ready' || STATE.phase === 'point_end' || STATE.phase === 'game_end' || STATE.phase === 'match_end') return;
+      if (STATE.server !== 'player') return;
+      if (STATE.ball.inFlight) return;
+
+      if (!STATE.tossActive) {
+        // Toss ball straight up
+        STATE.tossActive = true;
+        STATE.tossTimer = 0;
+        STATE.ball.pos.set(STATE.player.pos.x + 0.25, 1.1, STATE.player.pos.z - 0.2);
+        STATE.ball.vel.set(0, 5.1, 0); // Reaches apex ~2.42m at 0.52s
+        updateArenaState();
+      }
+    }
+
+    function executeServe(isPlayer, aimLeft, aimRight) {
+      const isSecondServe = (STATE.serveNumber === 2);
+      // Precision Tuning: Second serve speed rises from 80% to 85% of first-serve speed
+      const speedMultiplier = isSecondServe ? 0.85 : 1.0;
+      const deuce = isDeuceSide();
+      const serverEnd = isPlayer ? STATE.playerEnd : (STATE.playerEnd === 'south' ? 'north' : 'south');
+
+      let targetX = 0;
+      let targetZ = 0;
+
+      if (serverEnd === 'south') {
+        // Server at South, hits into North (Z in [-6.40, 0])
+        if (deuce) {
+          // AI Deuce court: X in [-4.115, 0]
+          if (isPlayer) {
+            targetX = aimLeft ? -3.55 : (aimRight ? -0.55 : -2.05);
+          } else {
+            const mod = (STATE.playerPoints * 3 + STATE.aiPoints * 7 + STATE.aiGames + STATE.playerGames) % 3;
+            targetX = (mod === 0 ? -3.55 : (mod === 1 ? -0.55 : -2.05));
+          }
+        } else {
+          // AI Ad court: X in [0, 4.115]
+          if (isPlayer) {
+            targetX = aimLeft ? 0.55 : (aimRight ? 3.55 : 2.05);
+          } else {
+            const mod = (STATE.playerPoints * 3 + STATE.aiPoints * 7 + STATE.aiGames + STATE.playerGames) % 3;
+            targetX = (mod === 0 ? 3.55 : (mod === 1 ? 0.55 : 2.05));
+          }
+        }
+        targetZ = -5.0;
+      } else {
+        // Server at North, hits into South (Z in [0, 6.40])
+        if (deuce) {
+          // Player Deuce court: X in [0, 4.115]
+          if (isPlayer) {
+            targetX = aimLeft ? 0.55 : (aimRight ? 3.55 : 2.05);
+          } else {
+            const mod = (STATE.playerPoints * 3 + STATE.aiPoints * 7 + STATE.aiGames + STATE.playerGames) % 3;
+            targetX = (mod === 0 ? 3.55 : (mod === 1 ? 0.55 : 2.05));
+          }
+        } else {
+          // Player Ad court: X in [-4.115, 0]
+          if (isPlayer) {
+            targetX = aimLeft ? -3.55 : (aimRight ? -0.55 : -2.05);
+          } else {
+            const mod = (STATE.playerPoints * 3 + STATE.aiPoints * 7 + STATE.aiGames + STATE.playerGames) % 3;
+            targetX = (mod === 0 ? -3.55 : (mod === 1 ? -0.55 : -2.05));
+          }
+        }
+        targetZ = 5.0;
+      }
+
+      // Timing check for serve contact
+      let timingQuality = 1.0;
+      let isMistimed = false;
+      let mistimedEarly = false;
+
+      if (isPlayer) {
+        const diff = STATE.tossTimer - STATE.tossApexTime;
+        const absDiff = Math.abs(diff);
+
+        if (absDiff <= 0.08) {
+          timingQuality = 1.0; // Perfect apex hit
+        } else if (absDiff <= 0.18) {
+          timingQuality = 0.86; // Decent contact
+        } else {
+          // Badly mistimed
+          isMistimed = true;
+          mistimedEarly = (diff < 0);
+          timingQuality = 0.65;
+        }
+      }
+
+      const dx = targetX - STATE.ball.pos.x;
+      const dz = targetZ - STATE.ball.pos.z;
+      const flightTime = 0.66 / timingQuality;
+
+      // Stamina decay on first serve below 30%
+      const serverStamina = isPlayer ? STATE.playerStamina : STATE.aiStamina;
+      let staminaServeMultiplier = 1.0;
+      if (!isSecondServe && serverStamina < 30.0) {
+        staminaServeMultiplier = (0.75 + 0.25 * (serverStamina / 30.0));
+      }
+
+      let vx = (dx / flightTime) * speedMultiplier * staminaServeMultiplier;
+      let vz = (dz / flightTime) * speedMultiplier * staminaServeMultiplier;
+      const g = 9.81;
+
+      // Parabolic vertical arc: higher safer arc for second serve
+      let arcBonus = isSecondServe ? 1.45 : 0.35;
+
+      if (isMistimed) {
+        if (mistimedEarly) {
+          arcBonus = -1.6;
+          vz *= 0.85;
+        } else {
+          arcBonus = 2.4;
+          vz *= 1.35;
+        }
+      }
+
+      const vy = (0.08 - STATE.ball.pos.y + 0.5 * g * flightTime * flightTime) / flightTime + arcBonus;
+
+      // Drain stamina for serving
+      if (isPlayer) {
+        STATE.playerStamina = Math.max(0, STATE.playerStamina - 3.2);
+      } else {
+        STATE.aiStamina = Math.max(0, STATE.aiStamina - 3.2);
+      }
+
+      const stake = evaluatePointStakes();
+      if (stake.isBreakPoint) {
+        const receiver = (STATE.server === 'player') ? 'ai' : 'player';
+        STATE.currentPointIsBreakPoint = receiver;
+        STATS[receiver].breakPointsPlayed++;
+      } else {
+        STATE.currentPointIsBreakPoint = null;
+      }
+      STATE.strokeRecordIndex = STATE.replayBuffer.length;
+
+      STATE.ball.vel.set(vx, vy, vz);
+      STATE.ball.inFlight = true;
+      STATE.ball.bounceCount = 0;
+      STATE.ball.lastHitter = isPlayer ? 'player' : 'ai';
+      STATE.ball.hitCooldown = 0.35;
+      STATE.ball.spinType = 'serve';
+      STATE.ball.magnusY = 0;
+      STATE.ball.bounceRestitution = 0.72;
+      STATE.ball.bounceKick = 0;
+      STATE.ball.bounceFriction = 0.88;
+      STATE.currentShot = {
+        type: 'serve',
+        classification: 'serve',
+        hitter: isPlayer ? 'player' : 'ai',
+        contactQuality: isMistimed ? 'STRETCHED' : 'CLEAN',
+        chargeValue: isSecondServe ? 0.85 : 1.0
+      };
+      STATE.lastContactQuality = isMistimed ? 'STRETCHED' : 'CLEAN';
+      STATE.lastShotType = 'SERVE';
+      STATE.serveActive = true;
+      STATE.returnStruck = false;
+      STATE.tossActive = false;
+      STATE.ball.bouncesThisCrossing = 0;
+      STATE.phase = 'rally';
+
+      playSound('hit');
+
+      if (isPlayer) {
+        triggerSwing(STATE.player, 'serve');
+      } else {
+        triggerSwing(STATE.ai, 'serve');
+      }
+
+      updateArenaState();
+    }
+
+    // --- STRIKE MECHANICS & PRECISION TUNING ---
+    function showStrokeHUDTag(strokeName, quality) {
+      // Per-shot HUD tag permanently removed in Round 4
+    }
+
+    function canPlayerHitBall() {
+      const p = STATE.player.pos;
+      const b = STATE.ball.pos;
+
+      const distHoriz = Math.hypot(b.x - p.x, b.z - p.z);
+      const dy = b.y;
+
+      const isPlayerSouth = (STATE.playerEnd === 'south');
+      const localZ = isPlayerSouth ? -(b.z - p.z) : (b.z - p.z);
+
+      // Max reachable bounds: cannot connect across a visible gap
+      if (distHoriz > 2.35) return false;
+      if (dy < 0.12 || dy > 2.75) return false;
+      if (localZ < -0.80 || localZ > 1.60) return false;
+
+      // Ball must be approaching or in player's half
+      if (isPlayerSouth && b.z < -0.5) return false;
+      if (!isPlayerSouth && b.z > 0.5) return false;
+
+      return true;
+    }
+
+    function evaluateContactQuality(pPos, bPos, isUser, isVolley = false) {
+      let localX, localY, localZ;
+
+      const playerEnd = isUser ? STATE.playerEnd : (STATE.playerEnd === 'south' ? 'north' : 'south');
+      const stamina = isUser ? STATE.playerStamina : STATE.aiStamina;
+      const isTired = (stamina < 30.0);
+
+      if (playerEnd === 'south') {
+        localX = bPos.x - pPos.x;
+        localY = bPos.y;
+        localZ = -(bPos.z - pPos.z);
+      } else {
+        localX = -(bPos.x - pPos.x);
+        localY = bPos.y;
+        localZ = (bPos.z - pPos.z);
+      }
+
+      const absLocalX = Math.abs(localX);
+
+      if (isVolley) {
+        // Volley reach window: narrowed by 1/3 (1.18m), further shrunken below 30% stamina (0.88m)
+        const maxReach = isTired ? 0.88 : 1.18;
+        const isComfortableReach = (absLocalX >= 0.48 && absLocalX <= maxReach);
+        const isComfortableHeight = (localY >= 0.52 && localY <= 1.50);
+        const isComfortableDepth = (localZ >= -0.15 && localZ <= 0.65);
+        return (isComfortableReach && isComfortableHeight && isComfortableDepth) ? 'CLEAN' : 'STRETCHED';
+      } else {
+        // Groundstrokes: clean strike zone shrinks below 30% stamina (1.15m vs 1.55m)
+        const maxReach = isTired ? 1.15 : 1.55;
+        const isComfortableReach = (absLocalX >= 0.48 && absLocalX <= maxReach);
+        const isComfortableHeight = (localY >= 0.45 && localY <= 1.65);
+        const isComfortableDepth = (localZ >= -0.18 && localZ <= 0.75);
+        return (isComfortableReach && isComfortableHeight && isComfortableDepth) ? 'CLEAN' : 'STRETCHED';
+      }
+    }
+
+    function onStrokePress(strokeType) {
+      if (STATE.phase === 'ready' || STATE.phase === 'point_end' || STATE.phase === 'game_end' || STATE.phase === 'match_end' || STATE.phase === 'change_ends') return;
+
+      // 1. Tossed serve in the air
+      if (STATE.server === 'player' && STATE.tossActive && !STATE.ball.inFlight) {
+        executeServe(true, keys.a, keys.d);
+        return;
+      }
+
+      // 2. Immediate hit if ball is already inside reachable strike zone
+      if (STATE.ball.inFlight && STATE.ball.hitCooldown <= 0) {
+        if (canPlayerHitBall()) {
+          executePlayerStrike(strokeType, 0.08); // Quick tap depth
+          return;
+        }
+      }
+
+      // 3. Otherwise start charging depth as incoming ball approaches
+      STATE.playerCharge.active = true;
+      STATE.playerCharge.strokeType = strokeType;
+      STATE.playerCharge.startTime = performance.now() / 1000;
+      STATE.playerCharge.value = 0;
+      STATE.playerCharge.pendingStroke = null;
+    }
+
+    function onStrokeRelease(strokeType) {
+      if (STATE.playerCharge.active && STATE.playerCharge.strokeType === strokeType) {
+        const finalCharge = STATE.playerCharge.value;
+        STATE.playerCharge.active = false;
+        STATE.playerCharge.pendingStroke = {
+          strokeType: strokeType,
+          chargeValue: finalCharge,
+          time: performance.now() / 1000
+        };
+      }
+    }
+
+    // Retain onJPress for backwards compatibility
+    function onJPress() {
+      onStrokePress('topspin');
+    }
+
+    function executePlayerStrike(strokeType, chargeValue) {
+      const pPos = STATE.player.pos;
+      const bPos = STATE.ball.pos;
+      const b = STATE.ball;
+
+      const isPlayerSouth = (STATE.playerEnd === 'south');
+      const isHighDescending = (bPos.y >= 1.75 && b.vel.y < -0.25);
+      const isNetZone = (Math.abs(pPos.z) <= 6.30 && Math.abs(pPos.z) >= 0.40);
+      const isNoBounce = (b.bouncesThisCrossing === 0);
+      const isVolley = (isNetZone && isNoBounce);
+
+      const quality = evaluateContactQuality(pPos, bPos, true, isVolley);
+      const ballOnRight = isPlayerSouth ? (bPos.x >= pPos.x) : (bPos.x <= pPos.x);
+
+      let classification = 'groundstroke';
+      let strokeName = strokeType.toUpperCase();
+      let swingType;
+
+      if (strokeType === 'flat' && isHighDescending) {
+        classification = 'smash';
+        strokeName = 'SMASH';
+        swingType = 'smash';
+      } else if (strokeType === 'lob') {
+        classification = 'lob';
+        strokeName = 'LOB';
+        swingType = ballOnRight ? 'forehand' : 'backhand';
+      } else if (isVolley) {
+        classification = 'volley';
+        strokeName = 'VOLLEY';
+        swingType = ballOnRight ? 'forehand_volley' : 'backhand_volley';
+      } else {
+        classification = 'groundstroke';
+        if (strokeType === 'slice') {
+          swingType = ballOnRight ? 'forehand_slice' : 'backhand_slice';
+        } else {
+          swingType = ballOnRight ? 'forehand' : 'backhand';
+        }
+      }
+
+      triggerSwing(STATE.player, swingType);
+
+      // Horizontal aim follows keys held: A = left on screen, D = right on screen
+      let targetX = 0;
+      if (keys.a) targetX = isPlayerSouth ? -2.7 : 2.7;
+      else if (keys.d) targetX = isPlayerSouth ? 2.7 : -2.7;
+      else targetX = 0;
+
+      const normCharge = THREE.MathUtils.clamp(chargeValue, 0.0, 1.0);
+      let effectiveCharge = normCharge;
+
+      if (quality === 'STRETCHED') {
+        effectiveCharge = Math.min(normCharge, 0.32);
+      }
+
+      let targetDist, targetZ, flightTime, netClearance, magnusY, restitutionY, bounceKick, bounceFriction;
+      let soundName = 'hit';
+
+      if (classification === 'smash') {
+        // OVERHEAD SMASH: 1.6x flat speed, steep downward drive, kicks up above head height
+        soundName = 'hit_smash';
+        magnusY = 0;
+        restitutionY = 0.88;
+        bounceKick = 3.6;
+        bounceFriction = 0.90;
+        flightTime = 0.36;
+
+        if (quality === 'STRETCHED') targetX *= 0.20;
+
+        targetDist = 8.5 + effectiveCharge * 2.0;
+        targetZ = isPlayerSouth ? -targetDist : targetDist;
+      } else if (classification === 'lob') {
+        // LOB: High towering arc clearing net player
+        soundName = 'hit_lob';
+        magnusY = 0;
+        restitutionY = 0.70;
+        bounceKick = 0;
+        bounceFriction = 0.88;
+
+        if (quality === 'STRETCHED') {
+          targetX *= 0.20;
+          targetDist = 5.20 + Math.min(normCharge, 0.25) * 3.5;
+          netClearance = 2.85;
+          flightTime = 1.05;
+        } else {
+          targetDist = 6.40 + effectiveCharge * 4.40;
+          netClearance = 5.40;
+          flightTime = 1.35 + (1.0 - effectiveCharge) * 0.25;
+        }
+        targetZ = isPlayerSouth ? -targetDist : targetDist;
+      } else if (classification === 'volley') {
+        // VOLLEY: Precision Tuning: max depth shortened to 2/3 baseline (~7.90m)
+        soundName = 'hit_volley';
+        magnusY = 0;
+        restitutionY = 0.68;
+        bounceKick = 0;
+        bounceFriction = 0.88;
+
+        const maxVolleyDist = 7.90;
+        const minVolleyDist = 3.80;
+        targetDist = minVolleyDist + effectiveCharge * (maxVolleyDist - minVolleyDist);
+
+        if (quality === 'STRETCHED') {
+          targetX *= 0.15;
+          targetDist = Math.min(targetDist, 5.50);
+          flightTime = 0.82;
+          netClearance = 2.10;
+        } else {
+          if (bPos.y < 0.95) {
+            netClearance = Math.max(1.35, bPos.y + 0.40);
+            flightTime = 0.70 + (1.0 - effectiveCharge) * 0.15;
+          } else {
+            netClearance = 1.15;
+            flightTime = 0.52 + (1.0 - effectiveCharge) * 0.12;
+          }
+        }
+        targetZ = isPlayerSouth ? -targetDist : targetDist;
+      } else {
+        // GROUNDSTROKE (topspin, flat, slice)
+        if (quality === 'STRETCHED') targetX *= 0.20;
+
+        targetDist = 6.40 + effectiveCharge * 4.20;
+        // Below 30% stamina, full-hold depth on drives caps below the deep zone (<8.91m)
+        if (STATE.playerStamina < 30.0) {
+          targetDist = Math.min(targetDist, 8.20);
+        }
+        targetZ = isPlayerSouth ? -targetDist : targetDist;
+
+        if (strokeType === 'topspin') {
+          soundName = 'hit_topspin';
+          flightTime = 0.74 + (1.0 - effectiveCharge) * 0.12;
+          netClearance = (quality === 'STRETCHED') ? 2.25 : 1.65;
+          magnusY = (quality === 'STRETCHED') ? -2.2 : -5.8;
+          restitutionY = (quality === 'STRETCHED') ? 0.72 : 0.84;
+          bounceKick = (quality === 'STRETCHED') ? 0.6 : 1.45;
+          bounceFriction = 0.85;
+        } else if (strokeType === 'flat') {
+          soundName = 'hit_flat';
+          flightTime = 0.58 + (1.0 - effectiveCharge) * 0.12;
+          netClearance = (quality === 'STRETCHED') ? 2.15 : 1.15;
+          magnusY = 0.0;
+          restitutionY = 0.75;
+          bounceKick = 0.0;
+          bounceFriction = 0.90;
+        } else { // slice
+          soundName = 'hit_slice';
+          flightTime = 0.94 + (1.0 - effectiveCharge) * 0.16;
+          netClearance = (quality === 'STRETCHED') ? 2.20 : 1.25;
+          magnusY = (quality === 'STRETCHED') ? 2.0 : 3.8;
+          restitutionY = (quality === 'STRETCHED') ? 0.42 : 0.35;
+          bounceKick = 0.0;
+          bounceFriction = 0.86;
+        }
+
+        if (quality === 'STRETCHED') {
+          flightTime *= 1.35;
+          netClearance = Math.max(netClearance, 2.20);
+        }
+      }
+
+      const vz = (targetZ - bPos.z) / flightTime;
+      const vx = (targetX - bPos.x) / flightTime;
+      const tNet = (0 - bPos.z) / vz;
+      const gEff = 9.81 - magnusY;
+      let vy;
+
+      if (classification === 'smash') {
+        vy = (0.08 - bPos.y) / (flightTime * 0.65) - 2.8;
+      } else {
+        vy = (netClearance - bPos.y + 0.5 * gEff * tNet * tNet) / tNet;
+        if (classification === 'volley' && bPos.y < 0.95) {
+          vy = Math.max(vy, 1.2);
+        }
+      }
+
+      // Stamina drainage for strokes: smashes and drives drain more than volleys/slices
+      if (classification === 'smash') STATE.playerStamina = Math.max(0, STATE.playerStamina - 5.5);
+      else if (classification === 'lob') STATE.playerStamina = Math.max(0, STATE.playerStamina - 2.2);
+      else if (classification === 'volley') STATE.playerStamina = Math.max(0, STATE.playerStamina - 1.5);
+      else STATE.playerStamina = Math.max(0, STATE.playerStamina - (2.5 + effectiveCharge * 2.5));
+
+      b.vel.set(vx, vy, vz);
+      b.bounceCount = 0;
+      b.bouncesThisCrossing = 0;
+      b.lastHitter = 'player';
+      b.hitCooldown = 0.35;
+      b.spinType = strokeType;
+      b.magnusY = magnusY;
+      b.bounceRestitution = restitutionY;
+      b.bounceKick = bounceKick;
+      b.bounceFriction = bounceFriction;
+
+      STATE.returnStruck = true;
+      STATE.strokeRecordIndex = STATE.replayBuffer.length;
+      STATE.currentShot.type = strokeType;
+      STATE.currentShot.classification = classification;
+      STATE.currentShot.hitter = 'player';
+      STATE.currentShot.contactQuality = quality;
+      STATE.currentShot.chargeValue = normCharge;
+      STATE.lastContactQuality = quality;
+      STATE.lastShotType = strokeName;
+
+      // Reset player charge state
+      STATE.playerCharge.active = false;
+      STATE.playerCharge.value = 0;
+      STATE.playerCharge.pendingStroke = null;
+
+      playSound(soundName);
+      updateArenaState();
+    }
+
+    function triggerSwing(character, type) {
+      character.swingState = type;
+      character.swingTimer = 0;
+      if (type === 'forehand_volley' || type === 'backhand_volley') {
+        character.swingDuration = 0.22;
+      } else if (type === 'smash') {
+        character.swingDuration = 0.38;
+      } else {
+        character.swingDuration = 0.44;
+      }
+    }
+
+    // --- CHECK SERVICE BOX IN/OUT ---
+    function checkServiceIn(x, z, server) {
+      const deuce = isDeuceSide();
+      const margin = COURT.ballRadius;
+      const isServerPlayer = (server === 'player');
+      const serverEnd = isServerPlayer ? STATE.playerEnd : (STATE.playerEnd === 'south' ? 'north' : 'south');
+
+      if (serverEnd === 'south') {
+        // Server at South (Z > 0), hits into North (Z in [-6.40, 0])
+        if (z < -COURT.serviceDist - margin || z > margin) return false;
+        if (deuce) {
+          return (x >= -COURT.halfSinglesWidth - margin && x <= margin);
+        } else {
+          return (x >= -margin && x <= COURT.halfSinglesWidth + margin);
+        }
+      } else {
+        // Server at North (Z < 0), hits into South (Z in [0, 6.40])
+        if (z < -margin || z > COURT.serviceDist + margin) return false;
+        if (deuce) {
+          return (x >= -margin && x <= COURT.halfSinglesWidth + margin);
+        } else {
+          return (x >= -COURT.halfSinglesWidth - margin && x <= margin);
+        }
+      }
+    }
+
+    // Check singles court In/Out
+    function checkCourtIn(x, z, hitter) {
+      const margin = COURT.ballRadius;
+      if (Math.abs(x) > COURT.halfSinglesWidth + margin) return false;
+
+      const isHitterPlayer = (hitter === 'player');
+      const hitterEnd = isHitterPlayer ? STATE.playerEnd : (STATE.playerEnd === 'south' ? 'north' : 'south');
+
+      if (hitterEnd === 'south') {
+        // Hitter at South (Z > 0), opponent at North (Z in [-11.885, 0])
+        return (z <= margin && z >= -COURT.halfLength - margin);
+      } else {
+        // Hitter at North (Z < 0), opponent at South (Z in [0, 11.885])
+        return (z >= -margin && z <= COURT.halfLength + margin);
+      }
+    }
+
+    // --- BALL & NET COLLISION & PHYSICS ---
+    function updateBallPhysics(dt) {
+      const b = STATE.ball;
+      if (!b.inFlight && !STATE.tossActive) return;
+
+      // Handle serve toss physics exclusively here
+      if (STATE.tossActive && !b.inFlight) {
+        STATE.tossTimer += dt;
+        b.vel.y -= 9.81 * dt;
+        b.pos.y += b.vel.y * dt;
+
+        // If toss dropped without being struck
+        if (b.pos.y <= 0.25) {
+          STATE.tossActive = false;
+          b.vel.set(0, 0, 0);
+          const sPos = (STATE.server === 'player') ? STATE.player.pos : STATE.ai.pos;
+          const sOffZ = (STATE.server === 'player') ? -0.2 : 0.2;
+          b.pos.set(sPos.x + 0.25, 0.95, sPos.z + sOffZ);
+          if (STATE.server === 'player') {
+            showBanner('MISSED TOSS', 'fault', 1.2);
+          }
+        }
+        return;
+      }
+
+      if (b.hitCooldown > 0) {
+        b.hitCooldown -= dt;
+      }
+
+      const g = 9.81;
+      const magnus = b.magnusY || 0;
+      b.vel.y -= (g - magnus) * dt;
+      b.pos.x += b.vel.x * dt;
+      b.pos.y += b.vel.y * dt;
+      b.pos.z += b.vel.z * dt;
+
+      // Net Interaction: Net is at Z = 0, posts at X = +/- 5.95, height 0.914m at center to 1.07m at posts
+      const prevZ = b.pos.z - b.vel.z * dt;
+      if ((prevZ < 0 && b.pos.z >= 0) || (prevZ > 0 && b.pos.z <= 0)) {
+        b.bouncesThisCrossing = 0; // Net crossed: reset bounce counter for incoming side
+        if (Math.abs(b.pos.x) <= COURT.netPostX) {
+          const factor = Math.pow(b.pos.x / COURT.netPostX, 2);
+          const currentNetH = COURT.netHeightCenter + factor * (COURT.netHeightPost - COURT.netHeightCenter);
+
+          if (b.pos.y < currentNetH - 0.04) {
+            // Ball driven into mesh: slows and drops on hitter's side!
+            playSound('net');
+            b.vel.z = -b.vel.z * 0.12;
+            b.vel.x *= 0.2;
+            b.vel.y = Math.min(b.vel.y, 0.4);
+            b.pos.z = prevZ; // Keep on hitter's side
+
+            if (STATE.serveActive) {
+              if (STATE.serveNumber === 1) {
+                showBanner('FAULT', 'fault', 1.6);
+                STATE.serveNumber = 2;
+                STATE.serveActive = false;
+                STATE.phase = 'point_end';
+                STATE.pointEndTimer = 1.8;
+                b.inFlight = false;
+                updateHUD();
+              } else {
+                STATS[STATE.server].doubleFaults++;
+                showBanner('DOUBLE FAULT', 'fault', 2.0);
+                STATE.serveActive = false;
+                const receiver = (STATE.server === 'player') ? 'ai' : 'player';
+                awardPoint(receiver, 'DOUBLE FAULT');
+              }
+            } else {
+              showBanner('NET', 'fault', 1.2);
+              const opponent = (b.lastHitter === 'player') ? 'ai' : 'player';
+              awardPoint(opponent, 'NET');
+            }
+            return;
+          } else if (b.pos.y <= currentNetH + 0.05) {
+            // Tape-clipping ball: deflects deterministically by its trajectory!
+            playSound('net');
+            b.vel.z *= 0.82;
+            b.vel.y = Math.max(b.vel.y * 0.6, 1.25);
+            b.vel.x += (b.vel.x >= 0 ? 0.32 : -0.32);
+          }
+        }
+      }
+
+      // Ground Bounce Collision
+      const ballRadius = COURT.ballRadius;
+      if (b.pos.y <= ballRadius) {
+        b.pos.y = ballRadius;
+        const restY = (b.bounceRestitution !== undefined) ? b.bounceRestitution : 0.72;
+        const kickY = (b.bounceKick !== undefined) ? b.bounceKick : 0;
+        const fric = (b.bounceFriction !== undefined) ? b.bounceFriction : 0.88;
+
+        b.vel.y = -b.vel.y * restY + kickY;
+        b.vel.x *= fric;
+        b.vel.z *= fric;
+        b.bounceCount++;
+        b.bouncesThisCrossing++;
+        b.bounceKick = 0; // Upward kick impulse applied on initial bounce
+        b.magnusY *= 0.3; // Flight spin dissipates significantly after ground impact
+
+        playSound('bounce');
+        STATE.lastLanding.position = { x: b.pos.x, y: b.pos.y, z: b.pos.z };
+
+        // First bounce on either side
+        if (b.bounceCount === 1) {
+          if (STATE.serveActive) {
+            const calls = evaluateLandingCalls(b.pos.x, b.pos.z, true, STATE.server);
+            STATE.lastLanding.exactPosition = { ...calls.exactPosition };
+            STATE.lastLanding.position = { ...calls.exactPosition };
+            STATE.lastLanding.instantCall = calls.instantCall;
+            STATE.lastLanding.reviewVerdict = calls.reviewVerdict;
+            STATE.lastLanding.isOverturned = calls.isOverturned;
+            STATE.lastLanding.disputeReason = 'fault';
+            STATE.lastLanding.prevServeNumber = STATE.serveNumber;
+            STATE.lastLanding.hitter = (STATE.server === 'player') ? 'player' : 'ai';
+            STATE.lastLanding.inOut = calls.instantCall;
+
+            const isGood = (calls.instantCall === 'IN');
+
+            if (isGood) {
+              STATE.serveActive = false; // Serve is good! Rally proceeds
+            } else {
+              // FAULT
+              if (STATE.serveNumber === 1) {
+                showBanner('FAULT', 'fault', 1.6);
+                STATE.serveNumber = 2;
+                STATE.serveActive = false;
+                STATE.phase = 'point_end';
+                STATE.pointEndTimer = 2.4;
+                STATE.canChallenge = true;
+                b.inFlight = false;
+                updateHUD();
+              } else {
+                STATS[STATE.server].doubleFaults++;
+                showBanner('DOUBLE FAULT', 'fault', 2.0);
+                STATE.serveActive = false;
+                const receiver = (STATE.server === 'player') ? 'ai' : 'player';
+                awardPoint(receiver, 'DOUBLE FAULT');
+              }
+              return;
+            }
+          } else {
+            // Regular rally shot bounce
+            const calls = evaluateLandingCalls(b.pos.x, b.pos.z, false, b.lastHitter);
+            STATE.lastLanding.exactPosition = { ...calls.exactPosition };
+            STATE.lastLanding.position = { ...calls.exactPosition };
+            STATE.lastLanding.instantCall = calls.instantCall;
+            STATE.lastLanding.reviewVerdict = calls.reviewVerdict;
+            STATE.lastLanding.isOverturned = calls.isOverturned;
+            STATE.lastLanding.disputeReason = 'out';
+            STATE.lastLanding.hitter = b.lastHitter;
+            STATE.lastLanding.inOut = calls.instantCall;
+
+            const isGood = (calls.instantCall === 'IN');
+
+            if (!isGood) {
+              showBanner('OUT', 'out', 1.6);
+              const opponent = (b.lastHitter === 'player') ? 'ai' : 'player';
+              awardPoint(opponent, 'OUT');
+              return;
+            }
+          }
+        } else if (b.bounceCount >= 2) {
+          // Second bounce: point ends immediately
+          const loser = (b.pos.z > 0) ? (STATE.playerEnd === 'south' ? 'player' : 'ai') : (STATE.playerEnd === 'south' ? 'ai' : 'player');
+          const winner = (loser === 'player') ? 'ai' : 'player';
+
+          if (!STATE.returnStruck && b.lastHitter === STATE.server) {
+            // Ace: Serve landed good and receiver never touched the ball
+            STATS[STATE.server].aces++;
+            showBanner('ACE!', 'good', 1.8);
+            awardPoint(winner, 'ACE');
+            startSlowMotionReplay('ace');
+            return;
+          } else if (STATE.returnStruck && b.lastHitter !== null) {
+            // Winner: Non-serve shot landed good and opponent never reached/touched it
+            STATS[b.lastHitter].winners++;
+            showBanner('WINNER!', 'good', 1.8);
+            awardPoint(winner, 'WINNER');
+            startSlowMotionReplay('winner');
+            return;
+          }
+
+          awardPoint(winner, 'DOUBLE BOUNCE');
+          return;
+        }
+      }
+    }
+
+    // --- AI LOGIC (DETERMINISTIC & COMPETITIVE) ---
+    function updateAI(dt) {
+      if (STATE.phase === 'ready' || STATE.phase === 'point_end' || STATE.phase === 'game_end' || STATE.phase === 'match_end') return;
+
+      const ai = STATE.ai;
+      const b = STATE.ball;
+
+      // AI Serving Turn
+      if (STATE.server === 'ai' && !b.inFlight) {
+        if (ai.serveDelay > 0) {
+          ai.serveDelay -= dt;
+          return;
+        }
+
+        if (!STATE.tossActive) {
+          // AI tosses
+          STATE.tossActive = true;
+          STATE.tossTimer = 0;
+          b.pos.set(ai.pos.x + 0.25, 1.1, ai.pos.z + 0.2);
+          b.vel.set(0, 5.1, 0);
+          return;
+        } else {
+          // Toss in the air: AI hits at apex
+          if (STATE.tossTimer >= STATE.tossApexTime) {
+            executeServe(false, false, false);
+          }
+          return;
+        }
+      }
+
+      // AI Movement & Rally Returns
+      const isAISouth = (STATE.playerEnd !== 'south');
+      const aiBaselineZ = isAISouth ? 11.6 : -11.6;
+      const aiNetZ = isAISouth ? 2.6 : -2.6;
+
+      if (b.inFlight) {
+        // If ball traveling toward AI side
+        const towardAI = isAISouth ? (b.vel.z > 0.1) : (b.vel.z < -0.1);
+        if (towardAI) {
+          const isLobClearing = (ai.strategy === 'at_net' || Math.abs(ai.pos.z) <= 6.30) &&
+            (isAISouth ? (b.pos.z > ai.pos.z + 0.4 || (b.vel.z > 1.8 && (b.pos.z + b.vel.z * 0.35) > ai.pos.z)) :
+                         (b.pos.z < ai.pos.z - 0.4 || (b.vel.z < -1.8 && (b.pos.z + b.vel.z * 0.35) < ai.pos.z)));
+          if (isLobClearing) {
+            ai.strategy = 'retreating';
+          }
+
+          if (ai.strategy === 'retreating') {
+            ai.targetPos.z = aiBaselineZ;
+            ai.targetPos.x = THREE.MathUtils.clamp(b.pos.x, -COURT.halfSinglesWidth, COURT.halfSinglesWidth);
+          } else if (ai.strategy === 'at_net') {
+            ai.targetPos.z = aiNetZ;
+            ai.targetPos.x = THREE.MathUtils.clamp(b.pos.x * 0.65, -COURT.halfSinglesWidth * 0.75, COURT.halfSinglesWidth * 0.75);
+          } else {
+            const timeToAI = (aiBaselineZ - b.pos.z) / b.vel.z;
+            if (timeToAI > 0 && timeToAI < 3.2) {
+              const predX = b.pos.x + b.vel.x * timeToAI;
+              ai.targetPos.x = THREE.MathUtils.clamp(predX, -COURT.halfDoublesWidth, COURT.halfDoublesWidth);
+              ai.targetPos.z = aiBaselineZ;
+            }
+          }
+        } else {
+          // Ball traveling toward user
+          if (ai.strategy === 'at_net') {
+            ai.targetPos.z = aiNetZ;
+            ai.targetPos.x = 0;
+          } else {
+            ai.targetPos.x = 0;
+            ai.targetPos.z = isAISouth ? 11.5 : -11.5;
+          }
+        }
+
+        // Smooth movement towards target
+        const dx = ai.targetPos.x - ai.pos.x;
+        const dz = ai.targetPos.z - ai.pos.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist > 0.05) {
+          const moveDist = Math.min(dist, ai.speed * dt);
+          const vx = (dx / dist) * (moveDist / Math.max(dt, 0.001));
+          const vz = (dz / dist) * (moveDist / Math.max(dt, 0.001));
+          ai.pos.x += (dx / dist) * moveDist;
+          ai.pos.z += (dz / dist) * moveDist;
+          ai.vel.set(vx, 0, vz);
+        } else {
+          ai.vel.set(0, 0, 0);
+        }
+
+        // AI Return Strike Check
+        const inAIHalf = isAISouth ? (b.pos.z > 0.4) : (b.pos.z < -0.4);
+        if (b.hitCooldown <= 0 && inAIHalf) {
+          const distToBall = Math.hypot(ai.pos.x - b.pos.x, ai.pos.z - b.pos.z);
+          // AI can return within reachable bounds: distance <= 2.35m, height between 0.15m and 2.75m
+          if (distToBall <= 2.35 && b.pos.y >= 0.15 && b.pos.y <= 2.75) {
+            const aiQuality = evaluateContactQuality(ai.pos, b.pos, false);
+            const aiAbsLocalX = Math.abs(b.pos.x - ai.pos.x);
+            const isUserAtNet = (Math.abs(STATE.player.pos.z) <= 6.30);
+            const isUserHuggingNet = (Math.abs(STATE.player.pos.z) <= 3.20);
+            const isNoBounce = (b.bouncesThisCrossing === 0);
+            const isHighDescending = (b.pos.y >= 1.75 && b.vel.y < -0.25);
+            const isAINetZone = (Math.abs(ai.pos.z) <= 6.30);
+
+            let aiStroke = 'topspin';
+            let aiClassification = 'groundstroke';
+            let aiCharge = 0.90;
+            let soundName = 'hit_topspin';
+            let targetX = 0;
+
+            // 1. AI stationed at the net
+            if (isAINetZone && isNoBounce) {
+              if (isHighDescending) {
+                // Short/hanging lob: AI smashes it!
+                aiClassification = 'smash';
+                aiStroke = 'flat';
+                aiCharge = 1.0;
+                soundName = 'hit_smash';
+                targetX = (STATE.player.pos.x >= 0) ? -2.8 : 2.8;
+              } else {
+                // Volley out of the air
+                aiClassification = 'volley';
+                aiStroke = 'flat';
+                aiCharge = 0.75;
+                soundName = 'hit_volley';
+                targetX = (STATE.player.pos.x >= 0) ? -2.7 : 2.7;
+              }
+            } else if (isUserAtNet) {
+              // 2. AI facing user at net: Passing shot or Lob
+              if (isUserHuggingNet) {
+                // User hugging net closely: Lob over user
+                aiClassification = 'lob';
+                aiStroke = 'lob';
+                aiCharge = 0.92;
+                soundName = 'hit_lob';
+                targetX = (STATE.player.pos.x >= 0) ? -2.4 : 2.4;
+              } else {
+                // User in net zone: Sharp passing shot down open sideline
+                aiClassification = 'groundstroke';
+                aiStroke = 'flat';
+                aiCharge = 0.95;
+                soundName = 'hit_flat';
+                targetX = (STATE.player.pos.x >= 0) ? -3.55 : 3.55;
+              }
+            } else {
+              // 3. Neutral baseline rally choices
+              if (aiAbsLocalX > 1.40 || b.pos.y < 0.48) {
+                aiClassification = 'groundstroke';
+                aiStroke = 'slice';
+                aiCharge = 0.65;
+                soundName = 'hit_slice';
+              } else if (Math.abs(b.pos.z) < 8.5 && b.pos.y > 0.95) {
+                aiClassification = 'groundstroke';
+                aiStroke = 'flat';
+                aiCharge = 0.95;
+                soundName = 'hit_flat';
+              } else {
+                aiClassification = 'groundstroke';
+                aiStroke = 'topspin';
+                soundName = 'hit_topspin';
+                if (Math.abs(STATE.player.pos.z) > 14.2) {
+                  aiCharge = 0.18; // Deliberate drop shot
+                } else {
+                  aiCharge = 0.90; // Deep baseline ball
+                }
+              }
+              // Open court targeting
+              if (STATE.player.pos.x > 1.2) targetX = -2.8;
+              else if (STATE.player.pos.x < -1.2) targetX = 2.8;
+              else targetX = (b.pos.x < 0 ? 2.3 : -2.3);
+            }
+
+            // If user is pinned deep, AI advances to net zone to volley the reply
+            if (Math.abs(STATE.player.pos.z) >= 12.5 && aiClassification === 'groundstroke' && aiCharge >= 0.85) {
+              ai.strategy = 'at_net';
+            } else if (aiClassification !== 'smash' && aiClassification !== 'volley') {
+              ai.strategy = 'baseline';
+            }
+
+            // Swing pose selection
+            const ballOnRight = isAISouth ? (b.pos.x >= ai.pos.x) : (b.pos.x <= ai.pos.x);
+            let aiSwing;
+            if (aiClassification === 'smash') {
+              aiSwing = 'smash';
+            } else if (aiClassification === 'volley') {
+              aiSwing = ballOnRight ? 'forehand_volley' : 'backhand_volley';
+            } else if (aiStroke === 'slice') {
+              aiSwing = ballOnRight ? 'forehand_slice' : 'backhand_slice';
+            } else {
+              aiSwing = ballOnRight ? 'forehand' : 'backhand';
+            }
+            triggerSwing(ai, aiSwing);
+
+            // Stretched contact adjustments
+            let effectiveCharge = aiCharge;
+            if (aiQuality === 'STRETCHED') {
+              effectiveCharge = Math.min(aiCharge, 0.32);
+              if (aiClassification === 'volley') targetX *= 0.15;
+              else targetX *= 0.20;
+            }
+
+            // Trajectory parameters
+            let targetDist, targetZ, flightTime, netClearance, magnusY, restitutionY, bounceKick, bounceFriction;
+
+            if (aiClassification === 'smash') {
+              magnusY = 0;
+              restitutionY = 0.88;
+              bounceKick = 3.6;
+              bounceFriction = 0.90;
+              flightTime = 0.36;
+              targetDist = 8.5 + effectiveCharge * 2.0;
+              targetZ = isAISouth ? -targetDist : targetDist;
+            } else if (aiClassification === 'lob') {
+              magnusY = 0;
+              restitutionY = 0.70;
+              bounceKick = 0;
+              bounceFriction = 0.88;
+              if (aiQuality === 'STRETCHED') {
+                targetDist = 5.20 + Math.min(effectiveCharge, 0.25) * 3.5;
+                netClearance = 2.85;
+                flightTime = 1.05;
+              } else {
+                targetDist = 6.40 + effectiveCharge * 4.40;
+                netClearance = 5.40;
+                flightTime = 1.35 + (1.0 - effectiveCharge) * 0.25;
+              }
+              targetZ = isAISouth ? -targetDist : targetDist;
+            } else if (aiClassification === 'volley') {
+              magnusY = 0;
+              restitutionY = 0.68;
+              bounceKick = 0;
+              bounceFriction = 0.88;
+              // Precision Tuning: Volley max depth shortened to 2/3 baseline (~7.90m)
+              const maxVolleyDist = 7.90;
+              const minVolleyDist = 3.80;
+              targetDist = minVolleyDist + effectiveCharge * (maxVolleyDist - minVolleyDist);
+              if (aiQuality === 'STRETCHED') {
+                targetDist = Math.min(targetDist, 5.50);
+                flightTime = 0.82;
+                netClearance = 2.10;
+              } else {
+                if (b.pos.y < 0.95) {
+                  netClearance = Math.max(1.35, b.pos.y + 0.40);
+                  flightTime = 0.70 + (1.0 - effectiveCharge) * 0.15;
+                } else {
+                  netClearance = 1.15;
+                  flightTime = 0.52 + (1.0 - effectiveCharge) * 0.12;
+                }
+              }
+              targetZ = isAISouth ? -targetDist : targetDist;
+            } else {
+              targetDist = 6.40 + effectiveCharge * 4.20;
+              targetZ = isAISouth ? -targetDist : targetDist;
+              if (aiStroke === 'topspin') {
+                flightTime = 0.74 + (1.0 - effectiveCharge) * 0.12;
+                netClearance = (aiQuality === 'STRETCHED') ? 2.25 : 1.65;
+                magnusY = (aiQuality === 'STRETCHED') ? -2.2 : -5.8;
+                restitutionY = (aiQuality === 'STRETCHED') ? 0.72 : 0.84;
+                bounceKick = (aiQuality === 'STRETCHED') ? 0.6 : 1.45;
+                bounceFriction = 0.85;
+              } else if (aiStroke === 'flat') {
+                flightTime = 0.58 + (1.0 - effectiveCharge) * 0.12;
+                netClearance = (aiQuality === 'STRETCHED') ? 2.15 : 1.15;
+                magnusY = 0.0;
+                restitutionY = 0.75;
+                bounceKick = 0.0;
+                bounceFriction = 0.90;
+              } else {
+                flightTime = 0.94 + (1.0 - effectiveCharge) * 0.16;
+                netClearance = (aiQuality === 'STRETCHED') ? 2.20 : 1.25;
+                magnusY = (aiQuality === 'STRETCHED') ? 2.0 : 3.8;
+                restitutionY = (aiQuality === 'STRETCHED') ? 0.42 : 0.35;
+                bounceKick = 0.0;
+                bounceFriction = 0.86;
+              }
+              if (aiQuality === 'STRETCHED') {
+                flightTime *= 1.35;
+                netClearance = Math.max(netClearance, 2.20);
+              }
+            }
+
+            const vx = (targetX - b.pos.x) / flightTime;
+            const vz = (targetZ - b.pos.z) / flightTime;
+            const tNet = (0 - b.pos.z) / vz;
+            const gEff = 9.81 - magnusY;
+            let vy;
+
+            if (aiClassification === 'smash') {
+              vy = (0.08 - b.pos.y) / (flightTime * 0.65) - 2.8;
+            } else {
+              vy = (netClearance - b.pos.y + 0.5 * gEff * tNet * tNet) / tNet;
+              if (aiClassification === 'volley' && b.pos.y < 0.95) {
+                vy = Math.max(vy, 1.2);
+              }
+            }
+
+            // Stamina cost for AI strokes
+            if (aiClassification === 'smash') STATE.aiStamina = Math.max(0, STATE.aiStamina - 5.5);
+            else if (aiClassification === 'lob') STATE.aiStamina = Math.max(0, STATE.aiStamina - 2.2);
+            else if (aiClassification === 'volley') STATE.aiStamina = Math.max(0, STATE.aiStamina - 1.5);
+            else STATE.aiStamina = Math.max(0, STATE.aiStamina - (2.5 + effectiveCharge * 2.5));
+
+            b.vel.set(vx, vy, vz);
+            b.bounceCount = 0;
+            b.bouncesThisCrossing = 0;
+            b.lastHitter = 'ai';
+            b.hitCooldown = 0.35;
+            b.spinType = aiStroke;
+            b.magnusY = magnusY;
+            b.bounceRestitution = restitutionY;
+            b.bounceKick = bounceKick;
+            b.bounceFriction = bounceFriction;
+
+            STATE.returnStruck = true;
+            STATE.strokeRecordIndex = STATE.replayBuffer.length;
+            STATE.currentShot = {
+              type: aiStroke,
+              classification: aiClassification,
+              hitter: 'ai',
+              contactQuality: aiQuality,
+              chargeValue: aiCharge
+            };
+
+            playSound(soundName);
+            updateArenaState();
+          }
+        }
+      }
+    }
+
+    // --- USER MOVEMENT ---
+    function updatePlayerMovement(dt) {
+      if (STATE.phase === 'ready' || STATE.phase === 'point_end' || STATE.phase === 'game_end' || STATE.phase === 'match_end' || STATE.phase === 'change_ends') return;
+
+      const p = STATE.player;
+      let mx = 0;
+      let mz = 0;
+
+      const isPlayerSouth = (STATE.playerEnd === 'south');
+
+      if (isPlayerSouth) {
+        if (keys.w) mz -= 1; // forward toward net (-Z)
+        if (keys.s) mz += 1; // back (+Z)
+        if (keys.a) mx -= 1; // left (-X)
+        if (keys.d) mx += 1; // right (+X)
+      } else {
+        if (keys.w) mz += 1; // forward toward net (+Z)
+        if (keys.s) mz -= 1; // back (-Z)
+        if (keys.a) mx += 1; // left on screen facing net (+X)
+        if (keys.d) mx -= 1; // right on screen facing net (-X)
+      }
+
+      if (mx !== 0 && mz !== 0) {
+        const inv = 1 / Math.SQRT2;
+        mx *= inv;
+        mz *= inv;
+      }
+
+      const staminaRatio = Math.max(0, Math.min(1.0, STATE.playerStamina / 100.0));
+      // Maximum running speed drops smoothly as stamina falls
+      const currentSpeed = p.speed * (0.62 + 0.38 * staminaRatio);
+
+      p.pos.x += mx * currentSpeed * dt;
+      p.pos.z += mz * currentSpeed * dt;
+
+      if (mx !== 0 || mz !== 0) {
+        STATE.playerStamina = Math.max(0, STATE.playerStamina - 4.5 * dt);
+      }
+
+      // User moves freely within their end including court apron and net zone
+      p.pos.x = THREE.MathUtils.clamp(p.pos.x, -7.8, 7.8);
+      if (isPlayerSouth) {
+        p.pos.z = THREE.MathUtils.clamp(p.pos.z, 0.45, 16.5);
+      } else {
+        p.pos.z = THREE.MathUtils.clamp(p.pos.z, -16.5, -0.45);
+      }
+
+      p.inNetZone = (Math.abs(p.pos.z) <= 6.30 && Math.abs(p.pos.z) >= 0.40);
+      STATE.ai.inNetZone = (Math.abs(STATE.ai.pos.z) <= 6.30 && Math.abs(STATE.ai.pos.z) >= 0.40);
+
+      const netTagEl = document.getElementById('net-zone-tag');
+      if (netTagEl) {
+        netTagEl.style.display = (p.inNetZone && (STATE.phase === 'rally' || STATE.phase === 'serve_toss')) ? 'flex' : 'none';
+      }
+
+      p.vel.set(mx * p.speed, 0, mz * p.speed);
+    }
+
+    // --- ANIMATIONS & POSES ---
+    let animTime = 0;
+    function updatePlayerPoses(character, pData, isUser, dt) {
+      const root = character.root;
+      root.position.copy(pData.pos);
+
+      // Orientation: User and AI face toward the net
+      if (isUser) {
+        root.rotation.y = (STATE.playerEnd === 'south') ? 0 : Math.PI;
+      } else {
+        root.rotation.y = (STATE.playerEnd === 'south') ? Math.PI : 0;
+      }
+
+      const isMoving = pData.vel ? (Math.hypot(pData.vel.x, pData.vel.z) > 0.5) : false;
+      const swing = pData.swingState;
+
+      // Match-End Ceremony Poses
+      if (STATE.phase === 'match_end') {
+        const isWinner = (STATE.winner === 'player' && isUser) || (STATE.winner === 'ai' && !isUser);
+        if (isWinner) {
+          // Arms raised high in victory celebration
+          character.rightShoulder.rotation.set(-Math.PI * 0.95, 0.20, 0.35);
+          character.leftShoulder.rotation.set(-Math.PI * 0.95, -0.20, -0.35);
+          character.racketGroup.rotation.set(Math.PI * 0.80, 0, 0);
+          character.headGroup.rotation.x = -0.25;
+        } else {
+          // Loser walks slowly to net area with head down
+          const targetZ = isUser ? (STATE.playerEnd === 'south' ? 2.5 : -2.5) : (STATE.playerEnd === 'south' ? -2.5 : 2.5);
+          pData.pos.z = THREE.MathUtils.lerp(pData.pos.z, targetZ, dt * 1.5);
+          character.headGroup.rotation.x = 0.35;
+          character.rightShoulder.rotation.set(0.2, 0, 0);
+          character.leftShoulder.rotation.set(0.2, 0, 0);
+        }
+        return;
+      }
+
+      if (isMoving) {
+        // Running cycle
+        const freq = 12.0;
+        const legAngle = Math.sin(animTime * freq) * 0.55;
+
+        character.leftHip.rotation.x = legAngle;
+        character.rightHip.rotation.x = -legAngle;
+        character.leftKnee.rotation.x = Math.max(0, -legAngle * 0.8);
+        character.rightKnee.rotation.x = Math.max(0, legAngle * 0.8);
+
+        if (swing === 'none') {
+          character.leftShoulder.rotation.x = -legAngle * 0.6;
+          character.rightShoulder.rotation.x = legAngle * 0.4;
+        }
+      } else {
+        // Athletic Ready Stance
+        const breathe = Math.sin(animTime * 3.2) * 0.025;
+        character.torsoGroup.position.y = 0.95 + breathe;
+        character.leftHip.rotation.x = -0.15;
+        character.rightHip.rotation.x = -0.15;
+        character.leftKnee.rotation.x = 0.25;
+        character.rightKnee.rotation.x = 0.25;
+
+        if (swing === 'none') {
+          // Ready stance: racket held forward in front with both hands
+          character.rightShoulder.rotation.set(-0.4, 0.2, 0.2);
+          character.rightElbow.rotation.set(-0.9, 0, 0);
+          character.racketGroup.rotation.set(Math.PI / 2.6, 0.2, 0);
+
+          character.leftShoulder.rotation.set(-0.4, -0.3, -0.2);
+          character.leftElbow.rotation.set(-0.8, 0.3, 0);
+        }
+      }
+
+      // Swings: Distinct Forehand, Two-handed Backhand, and Serve
+      if (swing !== 'none') {
+        pData.swingTimer += dt;
+        const progress = Math.min(pData.swingTimer / pData.swingDuration, 1.0);
+
+        if (swing === 'forehand') {
+          // One-handed Forehand: Backswing (0->0.35) -> Contact (0.35->0.6) -> Follow-through (0.6->1.0)
+          if (progress < 0.35) {
+            const t = progress / 0.35;
+            character.torsoGroup.rotation.y = THREE.MathUtils.lerp(0, 0.55, t);
+            character.rightShoulder.rotation.set(-0.2, 0.85 * t, -0.6 * t);
+            character.rightElbow.rotation.set(-0.4, 0, 0);
+            character.racketGroup.rotation.set(Math.PI / 2 + 0.35 * t, 0.4 * t, 0);
+            character.leftShoulder.rotation.set(-0.4, -0.2, -0.4); // Balance arm forward
+          } else if (progress < 0.6) {
+            const t = (progress - 0.35) / 0.25;
+            character.torsoGroup.rotation.y = THREE.MathUtils.lerp(0.55, -0.3, t);
+            character.rightShoulder.rotation.set(THREE.MathUtils.lerp(-0.2, -1.25, t), THREE.MathUtils.lerp(0.85, -0.45, t), 0);
+            character.rightElbow.rotation.set(-0.6, 0, 0);
+          } else {
+            const t = (progress - 0.6) / 0.4;
+            character.torsoGroup.rotation.y = THREE.MathUtils.lerp(-0.3, 0, t);
+            character.rightShoulder.rotation.set(THREE.MathUtils.lerp(-1.25, -0.4, t), THREE.MathUtils.lerp(-0.45, 0.2, t), 0);
+          }
+        } else if (swing === 'backhand') {
+          // TWO-HANDED BACKHAND: Both hands firmly on the racket throughout!
+          if (progress < 0.35) {
+            const t = progress / 0.35;
+            character.torsoGroup.rotation.y = THREE.MathUtils.lerp(0, -0.7, t);
+            // Right arm pulls across chest
+            character.rightShoulder.rotation.set(-0.45, -0.75 * t, 0.45 * t);
+            character.rightElbow.rotation.set(-0.7, 0, 0);
+            // Left arm reaches across to grip handle with right hand!
+            character.leftShoulder.rotation.set(-0.45, -0.65 * t, -0.35 * t);
+            character.leftElbow.rotation.set(-1.0, 0.2 * t, 0);
+            character.racketGroup.rotation.set(Math.PI / 2 + 0.3 * t, -0.4 * t, 0);
+          } else if (progress < 0.6) {
+            const t = (progress - 0.35) / 0.25;
+            character.torsoGroup.rotation.y = THREE.MathUtils.lerp(-0.7, 0.55, t);
+            // Both arms drive together through contact
+            character.rightShoulder.rotation.set(THREE.MathUtils.lerp(-0.45, -1.35, t), THREE.MathUtils.lerp(-0.75, 0.5, t), 0);
+            character.leftShoulder.rotation.set(THREE.MathUtils.lerp(-0.45, -1.25, t), THREE.MathUtils.lerp(-0.65, 0.4, t), 0);
+          } else {
+            const t = (progress - 0.6) / 0.4;
+            character.torsoGroup.rotation.y = THREE.MathUtils.lerp(0.55, 0, t);
+            character.rightShoulder.rotation.set(THREE.MathUtils.lerp(-1.35, -0.4, t), THREE.MathUtils.lerp(0.5, 0.2, t), 0);
+            character.leftShoulder.rotation.set(THREE.MathUtils.lerp(-1.25, -0.4, t), THREE.MathUtils.lerp(0.4, -0.3, t), 0);
+          }
+        } else if (swing === 'forehand_slice') {
+          // Visible HIGH-TO-LOW cutting motion on forehand side
+          if (progress < 0.35) {
+            // Racket prepares high above right shoulder
+            const t = progress / 0.35;
+            character.torsoGroup.rotation.y = THREE.MathUtils.lerp(0, 0.45, t);
+            character.rightShoulder.rotation.set(
+              THREE.MathUtils.lerp(-0.4, -1.25, t),
+              THREE.MathUtils.lerp(0.2, 0.70, t),
+              THREE.MathUtils.lerp(0.2, -0.65, t)
+            );
+            character.rightElbow.rotation.set(-0.35, 0, 0);
+            character.racketGroup.rotation.set(Math.PI / 1.7, 0.4 * t, -0.3 * t);
+            character.leftShoulder.rotation.set(-0.3, -0.2, -0.3);
+          } else if (progress < 0.65) {
+            // Chops downward and forward across the ball
+            const t = (progress - 0.35) / 0.30;
+            character.torsoGroup.rotation.y = THREE.MathUtils.lerp(0.45, -0.25, t);
+            character.rightShoulder.rotation.set(
+              THREE.MathUtils.lerp(-1.25, 0.25, t),
+              THREE.MathUtils.lerp(0.70, -0.30, t),
+              THREE.MathUtils.lerp(-0.65, 0.1, t)
+            );
+            character.rightElbow.rotation.set(-0.55, 0, 0);
+            character.racketGroup.rotation.set(
+              THREE.MathUtils.lerp(Math.PI / 1.7, Math.PI / 2.3, t),
+              THREE.MathUtils.lerp(0.4, 0.15, t),
+              0
+            );
+          } else {
+            // Finishes low out in front
+            const t = (progress - 0.65) / 0.35;
+            character.torsoGroup.rotation.y = THREE.MathUtils.lerp(-0.25, 0, t);
+            character.rightShoulder.rotation.set(
+              THREE.MathUtils.lerp(0.25, -0.4, t),
+              THREE.MathUtils.lerp(-0.30, 0.2, t),
+              0.1 * (1 - t)
+            );
+          }
+        } else if (swing === 'backhand_slice') {
+          // Visible HIGH-TO-LOW cutting motion on backhand side
+          if (progress < 0.35) {
+            // Racket prepares high at left shoulder/ear
+            const t = progress / 0.35;
+            character.torsoGroup.rotation.y = THREE.MathUtils.lerp(0, -0.65, t);
+            character.rightShoulder.rotation.set(
+              THREE.MathUtils.lerp(-0.4, -1.30, t),
+              THREE.MathUtils.lerp(0.2, -0.65, t),
+              THREE.MathUtils.lerp(0.2, 0.55, t)
+            );
+            character.rightElbow.rotation.set(-0.6, 0, 0);
+            character.racketGroup.rotation.set(Math.PI / 1.6, -0.4 * t, 0.3 * t);
+          } else if (progress < 0.65) {
+            // Chops downward diagonally across front of body
+            const t = (progress - 0.35) / 0.30;
+            character.torsoGroup.rotation.y = THREE.MathUtils.lerp(-0.65, 0.40, t);
+            character.rightShoulder.rotation.set(
+              THREE.MathUtils.lerp(-1.30, 0.20, t),
+              THREE.MathUtils.lerp(-0.65, 0.45, t),
+              0
+            );
+            character.racketGroup.rotation.set(
+              THREE.MathUtils.lerp(Math.PI / 1.6, Math.PI / 2.3, t),
+              THREE.MathUtils.lerp(-0.4, 0.1, t),
+              0
+            );
+          } else {
+            // Finishes low and extended
+            const t = (progress - 0.65) / 0.35;
+            character.torsoGroup.rotation.y = THREE.MathUtils.lerp(0.40, 0, t);
+            character.rightShoulder.rotation.set(
+              THREE.MathUtils.lerp(0.20, -0.4, t),
+              THREE.MathUtils.lerp(0.45, 0.2, t),
+              0
+            );
+          }
+        } else if (swing === 'forehand_volley') {
+          // Compact punch forward, no backswing and no follow-through loop
+          const punchT = Math.sin(progress * Math.PI);
+          character.torsoGroup.rotation.y = THREE.MathUtils.lerp(0, 0.20, punchT);
+          character.rightShoulder.rotation.set(-0.6 - 0.25 * punchT, 0.25, 0.15);
+          character.rightElbow.rotation.set(-0.6 + 0.35 * punchT, 0, 0);
+          character.racketGroup.rotation.set(Math.PI / 2.3, 0.2, 0);
+          character.leftShoulder.rotation.set(-0.35, -0.2, -0.2);
+        } else if (swing === 'backhand_volley') {
+          // Compact backhand punch forward
+          const punchT = Math.sin(progress * Math.PI);
+          character.torsoGroup.rotation.y = THREE.MathUtils.lerp(0, -0.25, punchT);
+          character.rightShoulder.rotation.set(-0.65 - 0.20 * punchT, -0.35, 0.25);
+          character.rightElbow.rotation.set(-0.7 + 0.40 * punchT, 0, 0);
+          character.racketGroup.rotation.set(Math.PI / 2.3, -0.2, 0);
+        } else if (swing === 'smash') {
+          // Overhead smash pose: reaching high above head and driving downward
+          if (progress < 0.40) {
+            const t = progress / 0.40;
+            character.torsoGroup.position.y = 0.95 + 0.25 * t;
+            character.rightShoulder.rotation.set(-Math.PI * 0.98 * t, 0.15 * t, 0);
+            character.rightElbow.rotation.set(-0.2 * (1 - t), 0, 0);
+            character.racketGroup.rotation.set(Math.PI * 0.95 * t, 0, 0);
+            character.leftShoulder.rotation.set(-Math.PI * 0.65 * t, -0.2, -0.2);
+          } else {
+            const t = (progress - 0.40) / 0.60;
+            character.torsoGroup.position.y = 0.95 + 0.25 * (1 - t);
+            character.rightShoulder.rotation.set(
+              THREE.MathUtils.lerp(-Math.PI * 0.98, -0.25, t),
+              THREE.MathUtils.lerp(0.15, -0.35, t),
+              0
+            );
+            character.racketGroup.rotation.set(
+              THREE.MathUtils.lerp(Math.PI * 0.95, Math.PI / 2, t),
+              0,
+              0
+            );
+          }
+        } else if (swing === 'serve') {
+          // Serve motion: Racket extends high above head
+          if (progress < 0.45) {
+            const t = progress / 0.45;
+            character.rightShoulder.rotation.set(-Math.PI * 0.95 * t, 0.2, 0);
+            character.racketGroup.rotation.set(Math.PI * t, 0, 0);
+          } else {
+            const t = (progress - 0.45) / 0.55;
+            character.rightShoulder.rotation.set(THREE.MathUtils.lerp(-Math.PI * 0.95, -0.4, t), 0.2, 0);
+          }
+        }
+
+        if (progress >= 1.0) {
+          pData.swingState = 'none';
+          character.torsoGroup.rotation.y = 0;
+        }
+      }
+    }
+
+    // --- CAMERA SYSTEM ---
+    // Broadcast-style chase camera:
+    // Low behind and above user's baseline. Follows user smoothly, keeping ball, both players, and far court readable.
+    // During serve, cut to serve view behind the server, then blend smoothly back once return is struck.
+    const camTarget = new THREE.Vector3();
+    const camPosTarget = new THREE.Vector3();
+
+    function updateCamera(dt) {
+      if (STATE.phase === 'replay') return; // Dedicated replay camera angle
+
+      const isServePhase = (STATE.phase === 'serve_toss' || (!STATE.returnStruck && STATE.ball.vel.z !== 0 && STATE.ball.bounceCount === 0));
+
+      const isPlayerSouth = (STATE.playerEnd === 'south');
+      const isServerPlayer = (STATE.server === 'player');
+      const serverEnd = isServerPlayer ? STATE.playerEnd : (isPlayerSouth ? 'north' : 'south');
+
+      if (isServePhase) {
+        if (serverEnd === 'south') {
+          // Serve view from South behind server looking North (-Z)
+          camPosTarget.set(STATE.player.pos.x * 0.5, 3.8, isServerPlayer ? (STATE.player.pos.z + 5.4) : 17.5);
+          camTarget.set(0, 1.2, -6.5);
+        } else {
+          // Serve view from North behind server looking South (+Z)
+          camPosTarget.set(STATE.player.pos.x * 0.5, 3.8, isServerPlayer ? (STATE.player.pos.z - 5.4) : -17.5);
+          camTarget.set(0, 1.2, 6.5);
+        }
+      } else {
+        // Broadcast Chase Camera: follows user from user's current end
+        const followX = STATE.player.pos.x * 0.48;
+        if (isPlayerSouth) {
+          const followZ = Math.max(11.0, STATE.player.pos.z + 7.8);
+          const camY = 5.4 + Math.max(0, (6.4 - STATE.player.pos.z) * 0.22);
+          camPosTarget.set(followX, camY, followZ);
+          camTarget.set(STATE.ball.pos.x * 0.22, 1.3, Math.min(-1.5, STATE.ball.pos.z * 0.4));
+        } else {
+          const followZ = Math.min(-11.0, STATE.player.pos.z - 7.8);
+          const camY = 5.4 + Math.max(0, (6.4 - Math.abs(STATE.player.pos.z)) * 0.22);
+          camPosTarget.set(followX, camY, followZ);
+          camTarget.set(STATE.ball.pos.x * 0.22, 1.3, Math.max(1.5, STATE.ball.pos.z * 0.4));
+        }
+      }
+
+      // Smooth camera interpolation
+      const smoothFactor = Math.min(dt * 4.6, 1.0);
+      camera.position.lerp(camPosTarget, smoothFactor);
+
+      const currentLook = new THREE.Vector3();
+      camera.getWorldDirection(currentLook);
+      const targetLook = camTarget.clone().sub(camera.position).normalize();
+      currentLook.lerp(targetLook, smoothFactor);
+      camera.lookAt(camera.position.clone().add(currentLook));
+    }
+
+    // --- STATE EXPORT: window.__arena_state ---
+    function updateArenaState() {
+      STATE.player.inNetZone = (Math.abs(STATE.player.pos.z) <= 6.30 && Math.abs(STATE.player.pos.z) >= 0.40);
+      STATE.ai.inNetZone = (Math.abs(STATE.ai.pos.z) <= 6.30 && Math.abs(STATE.ai.pos.z) >= 0.40);
+
+      const netTagEl = document.getElementById('net-zone-tag');
+      if (netTagEl) {
+        netTagEl.style.display = (STATE.player.inNetZone && (STATE.phase === 'rally' || STATE.phase === 'serve_toss')) ? 'flex' : 'none';
+      }
+
+      let playerPtsText, aiPtsText;
+      if (STATE.isTiebreak) {
+        playerPtsText = String(STATE.tiebreakPoints.player);
+        aiPtsText = String(STATE.tiebreakPoints.ai);
+      } else {
+        const ptsDisp = getPointsDisplay(STATE.playerPoints, STATE.aiPoints, STATE.advantage);
+        playerPtsText = ptsDisp.player;
+        aiPtsText = ptsDisp.ai;
+      }
+
+      const currentShotObj = Object.freeze({
+        type: STATE.currentShot.type,
+        classification: STATE.currentShot.classification || 'none',
+        hitter: STATE.currentShot.hitter,
+        contactQuality: STATE.currentShot.contactQuality,
+        chargeValue: Number(STATE.currentShot.chargeValue.toFixed(3)),
+        spinParameters: Object.freeze({
+          spinType: STATE.ball.spinType,
+          magnusY: Number((STATE.ball.magnusY || 0).toFixed(3)),
+          bounceRestitution: Number((STATE.ball.bounceRestitution || 0.72).toFixed(3)),
+          bounceKick: Number((STATE.ball.bounceKick || 0).toFixed(3))
+        })
+      });
+
+      const spinParamsObj = Object.freeze({
+        spinType: STATE.ball.spinType,
+        magnusY: Number((STATE.ball.magnusY || 0).toFixed(3)),
+        bounceRestitution: Number((STATE.ball.bounceRestitution || 0.72).toFixed(3)),
+        bounceKick: Number((STATE.ball.bounceKick || 0).toFixed(3))
+      });
+
+      const currentChargeValue = STATE.playerCharge.active
+        ? Number(STATE.playerCharge.value.toFixed(3))
+        : (STATE.playerCharge.pendingStroke ? Number(STATE.playerCharge.pendingStroke.chargeValue.toFixed(3)) : Number(STATE.currentShot.chargeValue.toFixed(3)));
+
+      const stake = updateStakeDisplay();
+
+      const exactLandingObj = Object.freeze({
+        x: Number((STATE.lastLanding.exactPosition ? STATE.lastLanding.exactPosition.x : STATE.lastLanding.position.x).toFixed(3)),
+        y: Number((STATE.lastLanding.exactPosition ? STATE.lastLanding.exactPosition.y : STATE.lastLanding.position.y).toFixed(3)),
+        z: Number((STATE.lastLanding.exactPosition ? STATE.lastLanding.exactPosition.z : STATE.lastLanding.position.z).toFixed(3))
+      });
+
+      window.__arena_state = Object.freeze({
+        ball: Object.freeze({
+          position: Object.freeze({
+            x: Number(STATE.ball.pos.x.toFixed(3)),
+            y: Number(STATE.ball.pos.y.toFixed(3)),
+            z: Number(STATE.ball.pos.z.toFixed(3))
+          }),
+          velocity: Object.freeze({
+            x: Number(STATE.ball.vel.x.toFixed(3)),
+            y: Number(STATE.ball.vel.y.toFixed(3)),
+            z: Number(STATE.ball.vel.z.toFixed(3))
+          }),
+          bounceCount: STATE.ball.bounceCount
+        }),
+        lastLanding: Object.freeze({
+          position: exactLandingObj,
+          exactPosition: exactLandingObj,
+          inOut: STATE.lastLanding.instantCall || STATE.lastLanding.inOut,
+          instantCall: STATE.lastLanding.instantCall || STATE.lastLanding.inOut,
+          reviewVerdict: STATE.lastLanding.reviewVerdict
+        }),
+        player: Object.freeze({
+          position: Object.freeze({
+            x: Number(STATE.player.pos.x.toFixed(3)),
+            y: Number(STATE.player.pos.y.toFixed(3)),
+            z: Number(STATE.player.pos.z.toFixed(3))
+          }),
+          inNetZone: Boolean(STATE.player.inNetZone),
+          end: STATE.playerEnd
+        }),
+        ai: Object.freeze({
+          position: Object.freeze({
+            x: Number(STATE.ai.pos.x.toFixed(3)),
+            y: Number(STATE.ai.pos.y.toFixed(3)),
+            z: Number(STATE.ai.pos.z.toFixed(3))
+          }),
+          inNetZone: Boolean(STATE.ai.inNetZone),
+          end: (STATE.playerEnd === 'south' ? 'north' : 'south')
+        }),
+        score: Object.freeze({
+          playerPoints: playerPtsText,
+          aiPoints: aiPtsText,
+          playerGames: STATE.playerGames,
+          aiGames: STATE.aiGames,
+          isTiebreak: Boolean(STATE.isTiebreak),
+          tiebreakScore: STATE.isTiebreak ? Object.freeze({
+            player: STATE.tiebreakPoints.player,
+            ai: STATE.tiebreakPoints.ai
+          }) : null
+        }),
+        server: STATE.server,
+        serveNumber: STATE.serveNumber,
+        matchPhase: STATE.phase,
+        serveClock: Number(STATE.serveClock.toFixed(1)),
+        playerEnd: STATE.playerEnd,
+        currentEnd: Object.freeze({
+          player: STATE.playerEnd,
+          ai: (STATE.playerEnd === 'south' ? 'north' : 'south')
+        }),
+
+        // Round 5 Stamina, Stakes & Challenges
+        playerStamina: Number(STATE.playerStamina.toFixed(1)),
+        aiStamina: Number(STATE.aiStamina.toFixed(1)),
+        isBreakPoint: Boolean(stake.isBreakPoint),
+        isSetPoint: Boolean(stake.isSetPoint),
+        challengesRemaining: STATE.challengesRemaining,
+
+        // Round 6 Presentation, Complete Tiebreak, Statistics & Replay
+        tiebreakServingPattern: Object.freeze({
+          initialServer: STATE.tiebreakInitialServer,
+          currentServer: STATE.server,
+          pointsInTiebreak: STATE.isTiebreak ? (STATE.tiebreakPoints.player + STATE.tiebreakPoints.ai) : 0,
+          pairPointIndex: STATE.isTiebreak ? (((STATE.tiebreakPoints.player + STATE.tiebreakPoints.ai - 1) % 2) + 1) : 0,
+          servingSide: isDeuceSide() ? 'deuce' : 'ad',
+          pointsUntilChangeEnds: STATE.isTiebreak ? (6 - ((STATE.tiebreakPoints.player + STATE.tiebreakPoints.ai) % 6)) : 0
+        }),
+        liveStatistics: Object.freeze({
+          player: Object.freeze({ ...STATS.player }),
+          ai: Object.freeze({ ...STATS.ai })
+        }),
+        isReplayActive: Boolean(STATE.isReplayActive),
+
+        currentShot: currentShotObj,
+        classification: STATE.currentShot.classification || 'none',
+        shotType: STATE.currentShot.type,
+        contactQuality: STATE.currentShot.contactQuality,
+        chargeValue: currentChargeValue,
+        spinParameters: spinParamsObj
+      });
+
+      window.__game = {
+        STATE,
+        STATS,
+        keys,
+        executePlayerStrike,
+        executeServe,
+        onStrokePress,
+        onStrokeRelease,
+        onChallengePress,
+        resolveChallengeReview,
+        startSlowMotionReplay,
+        skipReplay,
+        toggleStatsModal,
+        updateStatsModalDisplay,
+        getTiebreakServerAndSide,
+        evaluateLandingCalls,
+        evaluateContactQuality,
+        evaluatePointStakes,
+        updateStakeDisplay,
+        canPlayerHitBall,
+        updateAI,
+        updateBallPhysics,
+        updatePlayerMovement,
+        updateCamera,
+        updateArenaState,
+        updateHUD,
+        setupPositionsForServe,
+        awardPoint,
+        winGame,
+        endMatch,
+        onEnterPress,
+        onResetPress,
+        handleServeClockViolation,
+        camera
+      };
+    }
+
+    // --- MAIN GAME LOOP ---
+    let lastTimestamp = performance.now();
+    function animate(now) {
+      requestAnimationFrame(animate);
+
+      const currentTime = (typeof now === 'number' && !isNaN(now)) ? now : performance.now();
+      const dt = Math.min(Math.max((currentTime - lastTimestamp) / 1000, 0.001), 0.05);
+      lastTimestamp = currentTime;
+      animTime += dt;
+
+      try {
+        // Record rolling position buffer for Slow-Motion Replays
+        if (STATE.phase === 'rally' || STATE.phase === 'serve_toss') {
+          STATE.replayBuffer.push({
+            ballPos: { x: STATE.ball.pos.x, y: STATE.ball.pos.y, z: STATE.ball.pos.z },
+            playerPos: { x: STATE.player.pos.x, y: STATE.player.pos.y, z: STATE.player.pos.z },
+            aiPos: { x: STATE.ai.pos.x, y: STATE.ai.pos.y, z: STATE.ai.pos.z },
+            playerSwing: STATE.player.swingState,
+            aiSwing: STATE.ai.swingState
+          });
+          if (STATE.replayBuffer.length > 240) {
+            STATE.replayBuffer.shift();
+          }
+        }
+
+        // Handle Status Banner Timer
+        if (STATE.bannerTimer > 0) {
+          STATE.bannerTimer -= dt;
+          if (STATE.bannerTimer <= 0) {
+            bannerEl.style.display = 'none';
+          }
+        }
+
+        // Handle Change of Ends Intermission (3s duration)
+        if (STATE.phase === 'change_ends') {
+          STATE.changeEndsTimer -= dt;
+          if (STATE.changeEndsTimer <= 0) {
+            STATE.phase = (STATE.server === 'player') ? 'serve_toss' : 'rally';
+            setupPositionsForServe();
+          }
+        }
+
+        // Handle Hawk-Eye Challenge Electronic Review Sequence
+        if (STATE.phase === 'challenge_review') {
+          STATE.reviewTimer -= dt;
+          const exact = STATE.lastLanding.exactPosition || STATE.lastLanding.position;
+          const camZOffset = (STATE.playerEnd === 'south') ? 0.75 : -0.75;
+          camera.position.set(exact.x, 4.8, exact.z + camZOffset);
+          camera.lookAt(exact.x, 0, exact.z);
+
+          if (STATE.reviewTimer <= 0) {
+            resolveChallengeReview();
+          }
+        }
+
+        // Handle Slow-Motion Replay Sequence (~3s at 0.35x speed)
+        if (STATE.phase === 'replay') {
+          STATE.replayTimer -= dt;
+
+          if (STATE.activeReplayFrames && STATE.activeReplayFrames.length > 0) {
+            const totalFrames = STATE.activeReplayFrames.length;
+            STATE.replayPlaybackProgress += (dt * 0.35) / 1.0;
+            const frameIdx = Math.min(totalFrames - 1, Math.floor(STATE.replayPlaybackProgress * totalFrames));
+            const f = STATE.activeReplayFrames[frameIdx];
+
+            ballMesh.position.set(f.ballPos.x, f.ballPos.y, f.ballPos.z);
+            ballShadow.position.set(f.ballPos.x, 0.005, f.ballPos.z);
+            playerMesh.root.position.set(f.playerPos.x, f.playerPos.y, f.playerPos.z);
+            aiMesh.root.position.set(f.aiPos.x, f.aiPos.y, f.aiPos.z);
+          }
+
+          if (STATE.replayTimer <= 0) {
+            skipReplay();
+          }
+        }
+
+        // Handle Serve Clock: counts down while waiting for serve to begin (pauses during replay)
+        if (STATE.phase === 'serve_toss' && !STATE.tossActive && !STATE.ball.inFlight && !STATE.isReplayActive) {
+          STATE.serveClock -= dt;
+          const sec = Math.max(0, Math.ceil(STATE.serveClock));
+          const clockEl = document.getElementById('serve-clock-pill');
+          const clockSecEl = document.getElementById('serve-clock-sec');
+          if (clockEl && clockSecEl) {
+            if (sec <= 10) {
+              clockEl.style.display = 'inline-flex';
+              clockSecEl.textContent = (sec < 10 ? '0' : '') + sec;
+            } else {
+              clockEl.style.display = 'none';
+            }
+          }
+
+          if (STATE.serveClock <= 0) {
+            handleServeClockViolation();
+          }
+        } else {
+          const clockEl = document.getElementById('serve-clock-pill');
+          if (clockEl && clockEl.style.display !== 'none') {
+            clockEl.style.display = 'none';
+          }
+        }
+
+        // Update Player Depth Charge
+        if (STATE.playerCharge.active) {
+          const nowSec = currentTime / 1000;
+          const elapsed = Math.max(0, nowSec - STATE.playerCharge.startTime);
+          STATE.playerCharge.value = Math.min(1.0, elapsed / 0.50);
+        }
+
+        // Check for Contact while holding or pending stroke
+        const inPlayerReachHalf = (STATE.playerEnd === 'south') ? (STATE.ball.pos.z > -0.6) : (STATE.ball.pos.z < 0.6);
+        if (STATE.ball.inFlight && STATE.ball.hitCooldown <= 0 && inPlayerReachHalf) {
+          if (canPlayerHitBall()) {
+            if (STATE.playerCharge.active) {
+              executePlayerStrike(STATE.playerCharge.strokeType, STATE.playerCharge.value);
+            } else if (STATE.playerCharge.pendingStroke) {
+              const pStroke = STATE.playerCharge.pendingStroke;
+              const nowSec = currentTime / 1000;
+              if (nowSec - pStroke.time <= 1.5) {
+                executePlayerStrike(pStroke.strokeType, pStroke.chargeValue);
+              } else {
+                STATE.playerCharge.pendingStroke = null;
+              }
+            }
+          }
+        }
+
+        // Handle Point End Intermission
+        if (STATE.phase === 'point_end' || STATE.phase === 'game_end') {
+          STATE.pointEndTimer -= dt;
+          if (STATE.pointEndTimer <= 0) {
+            STATE.phase = (STATE.server === 'player') ? 'serve_toss' : 'rally';
+            setupPositionsForServe();
+          }
+        }
+
+        if (STATE.phase !== 'replay' && STATE.phase !== 'match_end') {
+          // Physics updates
+          updatePlayerMovement(dt);
+          updateAI(dt);
+          updateBallPhysics(dt);
+        }
+
+        // Sync 3D Visuals
+        if (STATE.phase !== 'replay') {
+          ballMesh.position.copy(STATE.ball.pos);
+          ballShadow.position.set(STATE.ball.pos.x, 0.005, STATE.ball.pos.z);
+        }
+        const shadowScale = Math.max(0.2, 1.0 - (STATE.ball.pos.y / 5.2));
+        ballShadow.scale.set(shadowScale, shadowScale, 1);
+        shadowMat.opacity = Math.max(0.12, 0.55 - (STATE.ball.pos.y / 6.0));
+
+        // Sync 3D Charge Ring on Court Floor
+        if (STATE.playerCharge.active) {
+          chargeRingMesh.visible = true;
+          chargeRingMesh.position.set(STATE.player.pos.x, 0.008, STATE.player.pos.z);
+          const rScale = 0.7 + STATE.playerCharge.value * 0.7;
+          chargeRingMesh.scale.set(rScale, rScale, 1);
+          chargeRingMat.opacity = 0.35 + STATE.playerCharge.value * 0.55;
+          if (STATE.playerCharge.strokeType === 'topspin') {
+            chargeRingMat.color.setHex(0xfacc15);
+          } else if (STATE.playerCharge.strokeType === 'flat') {
+            chargeRingMat.color.setHex(0xef4444);
+          } else {
+            chargeRingMat.color.setHex(0x38bdf8);
+          }
+        } else {
+          chargeRingMesh.visible = false;
+          chargeRingMat.opacity = 0;
+        }
+
+        // Sync 2D Charge Indicator
+        const chargeEl = document.getElementById('charge-indicator');
+        const chargeFill = document.getElementById('charge-fill');
+        const chargeText = document.getElementById('charge-text');
+        if (chargeEl && chargeFill && chargeText) {
+          if (STATE.playerCharge.active) {
+            chargeEl.style.display = 'flex';
+            const pHead = STATE.player.pos.clone().add(new THREE.Vector3(0, 2.1, 0)).project(camera);
+            const scrX = (pHead.x * 0.5 + 0.5) * window.innerWidth;
+            const scrY = (-pHead.y * 0.5 + 0.5) * window.innerHeight;
+            chargeEl.style.left = scrX + 'px';
+            chargeEl.style.top = scrY + 'px';
+            const pct = Math.min(100, Math.round(STATE.playerCharge.value * 100));
+            chargeFill.style.width = pct + '%';
+            chargeText.textContent = `${STATE.playerCharge.strokeType.toUpperCase()} ${pct}%`;
+          } else {
+            chargeEl.style.display = 'none';
+          }
+        }
+
+        updatePlayerPoses(playerMesh, STATE.player, true, dt);
+        updatePlayerPoses(aiMesh, STATE.ai, false, dt);
+
+        updateCamera(dt);
+      } catch (err) {
+        window.__anim_err = err.message + ' ' + err.stack;
+      }
+
+      updateArenaState();
+
+      if (renderer) {
+        try {
+          renderer.render(scene, camera);
+        } catch (e) {
+          // Gracefully continue physics and state updates if headless GPU context is lost
+        }
+      }
+    }
+
+    // --- WINDOW RESIZE ---
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      if (renderer) {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+    });
+
+    // Initial setup
+    setupPositionsForServe();
+    updateHUD();
+    camera.position.set(0, 5.4, 20.5);
+    camera.lookAt(0, 1.4, -2.5);
+
+    requestAnimationFrame(animate);
+
+    // Headless / Background Execution Safeguard:
+    // Ensures physical loop and state update execute even if requestAnimationFrame is paused
+    setInterval(() => {
+      const now = performance.now();
+      if (now - lastTimestamp >= 24) {
+        animate(now);
+      }
+    }, 16);
+  })();
+  </script>
+</body>
+</html>

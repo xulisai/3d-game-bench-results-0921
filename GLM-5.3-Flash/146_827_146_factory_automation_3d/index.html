@@ -1,0 +1,2308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Factory Automation</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#1a212a;
+    font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif; }
+  #scene { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  .hidden { display:none !important; }
+
+  /* ---------- HUD ---------- */
+  #hud { position:fixed; inset:0; pointer-events:none; z-index:5; color:#eef3f8; }
+  .panel { position:absolute; background:rgba(11,16,23,0.78); border:1px solid rgba(150,172,198,0.28);
+    border-radius:10px; padding:10px 16px; box-shadow:0 6px 22px rgba(0,0,0,0.35); }
+  .label { font-size:11px; letter-spacing:2px; color:#9fb0c2; font-weight:700; }
+  #p-time { top:16px; left:16px; min-width:150px; }
+  #hud-time { font:700 34px/1.15 'Cascadia Mono',Consolas,Menlo,monospace; color:#f4f7fb; }
+  #hud-time.low { color:#ff6b57; animation:blink 0.8s steps(2,start) infinite; }
+  @keyframes blink { 50% { opacity:0.45; } }
+  #hud-score { font:700 22px/1.2 'Cascadia Mono',Consolas,Menlo,monospace; color:#ffd97a; }
+  #p-order { top:16px; left:50%; transform:translateX(-50%); text-align:center; }
+  .bigrow { font:800 19px/1.45 'Cascadia Mono',Consolas,Menlo,monospace; color:#ffffff; }
+  .orderline { font:600 13px/1.6 'Cascadia Mono',Consolas,Menlo,monospace; color:#dfe7ef; max-width:470px; }
+  #p-order .sub { font-size:12px; color:#9fb0c2; margin-top:2px; letter-spacing:1px; }
+  #right-col { position:absolute; top:16px; right:16px; display:flex; flex-direction:column; gap:10px; }
+  #right-col .panel { position:static; }
+  #p-furnace { min-width:230px; }
+  #p-furnace .row { font:600 16px/1.5 'Cascadia Mono',Consolas,Menlo,monospace; }
+  #p-belts .row { font:600 13px/1.7 'Cascadia Mono',Consolas,Menlo,monospace; }
+  #p-sorters { min-width:230px; }
+  #sorter-rows .row { font:600 13px/1.7 'Cascadia Mono',Consolas,Menlo,monospace; }
+  #rule-editor { position:fixed; inset:0; z-index:12; display:flex; align-items:center; justify-content:center;
+    background:rgba(7,10,15,0.45); }
+  #rule-editor .card { max-width:540px; text-align:left; padding:26px 34px 22px; }
+  #rule-editor h2 { margin:0 0 10px; font-size:22px; letter-spacing:2px; color:#ffb547; }
+  #rule-line { font:700 15px 'Cascadia Mono',Consolas,monospace; color:#ffe9b0; background:rgba(0,0,0,0.35);
+    border:1px solid rgba(150,172,198,0.25); border-radius:8px; padding:10px 12px; margin-bottom:14px; word-break:break-all; }
+  .rrow { display:flex; align-items:center; gap:12px; margin:8px 0; }
+  .rrow span { width:110px; text-align:right; color:#9fb0c2; font-size:13px; letter-spacing:1px; flex:none; }
+  .rrow select, .rrow input { flex:1; background:#1a222d; color:#eef3f8; border:1px solid #4a5a6e; border-radius:6px;
+    padding:6px 8px; font:600 14px 'Cascadia Mono',Consolas,monospace; }
+  #rule-error { min-height:18px; color:#ff6b57; font-weight:700; font-size:14px; margin:6px 0; }
+  #rule-editor button { background:#243043; color:#ffd97a; border:1px solid #4a5a6e; border-radius:8px;
+    padding:8px 22px; font:700 15px 'Segoe UI',Arial,sans-serif; cursor:pointer; margin-right:10px; }
+  #rule-editor button:hover { background:#31415c; }
+  #rule-conds { flex:1; min-width:0; }
+  .condrow { display:flex; gap:6px; margin:4px 0; }
+  .condrow select, .condrow input { flex:1; min-width:0; background:#1a222d; color:#eef3f8; border:1px solid #4a5a6e;
+    border-radius:6px; padding:5px 6px; font:600 13px 'Cascadia Mono',Consolas,monospace; }
+  .condrow button { background:#3a2530; color:#ff9d8a; border:1px solid #6e4a52; border-radius:6px;
+    cursor:pointer; padding:4px 9px; font:700 12px Arial, sans-serif; flex:none; }
+  #p-carry { bottom:22px; left:50%; transform:translateX(-50%); text-align:center; min-width:280px; }
+  #hud-msg { min-height:22px; font:700 17px/1.4 'Segoe UI',Arial,sans-serif; color:#ffd257;
+    text-shadow:0 1px 3px rgba(0,0,0,0.8); }
+  #hud-carry { display:flex; align-items:center; justify-content:center; gap:10px;
+    font:700 20px/1.4 'Cascadia Mono',Consolas,Menlo,monospace; color:#ffffff; margin-top:2px; }
+  #hud-carry-dot { width:15px; height:15px; border-radius:4px; background:#5a6470;
+    border:1px solid rgba(255,255,255,0.35); }
+  #hud-hint { min-height:18px; font-size:13px; color:#b9c6d4; margin-top:3px; letter-spacing:0.5px; }
+  #p-controls { bottom:22px; left:16px; font-size:12px; color:#aebccb; letter-spacing:0.5px; }
+  #p-controls b { color:#ffd97a; font-weight:700; }
+
+  /* ---------- Overlays ---------- */
+  .overlay { position:fixed; inset:0; z-index:10; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(ellipse at center, rgba(10,15,22,0.40) 0%, rgba(7,10,15,0.80) 100%); }
+  .card { background:rgba(13,19,27,0.94); border:1px solid rgba(140,165,195,0.32); border-radius:16px;
+    padding:34px 48px 30px; max-width:660px; text-align:center; color:#eef3f8;
+    box-shadow:0 24px 80px rgba(0,0,0,0.55); }
+  .card h1 { margin:0; font-size:44px; letter-spacing:4px; color:#f4f7fb; }
+  .card h1 span { color:#ffb547; }
+  .rule { height:4px; width:120px; margin:12px auto 14px; background:linear-gradient(90deg,#ff7a2a,#ffb547); border-radius:2px; }
+  .obj { font-size:19px; color:#ffcf7d; margin:0 0 4px; font-weight:600; }
+  .flavor { font-size:13px; color:#9fb0c2; margin:0 0 20px; }
+  .controls { display:inline-grid; grid-template-columns:auto auto; gap:9px 18px; text-align:left;
+    margin:0 auto 22px; font-size:15px; color:#c9d6e4; align-items:center; }
+  kbd { background:#242e3b; border:1px solid #4a5a6e; border-bottom-width:3px; border-radius:6px;
+    padding:2px 9px; font:600 13px 'Cascadia Mono',Consolas,monospace; color:#ffd97a; white-space:nowrap; }
+  .start-hint { font-size:18px; font-weight:800; letter-spacing:2px; color:#ffd97a;
+    animation:pulse 1.5s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+  #end-title { margin:0; font-size:40px; letter-spacing:3px; }
+  #end-sub { color:#9fb0c2; font-size:14px; margin:8px 0 18px; }
+  .stats { display:grid; grid-template-columns:auto auto; gap:8px 26px; justify-content:center;
+    font-size:17px; margin-bottom:16px; text-align:left; }
+  .stats .k { color:#9fb0c2; }
+  .stats .v { font:700 17px 'Cascadia Mono',Consolas,monospace; color:#ffffff; text-align:right; }
+  #end-grade { font-size:86px; font-weight:900; line-height:1; margin:2px 0 4px; color:#ffd257; }
+  .grade-label { font-size:11px; letter-spacing:3px; color:#9fb0c2; font-weight:700; }
+  .err { color:#ff8d7a; font-size:15px; }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<div id="hud" class="hidden">
+  <div class="panel" id="p-order">
+    <div class="label">ORDERS</div>
+    <div class="orderline" id="hud-order-req">Order 1/10: 3 iron ingots, 0 copper ingots, 2 iron plates</div>
+    <div class="bigrow" id="hud-order-time">Order time: 180 s</div>
+    <div class="orderline" id="hud-completed">Completed: 0</div>
+    <div class="orderline" id="hud-failed">Failed: 0</div>
+    <div class="orderline" id="hud-score-cum">Score: 0</div>
+  </div>
+  <div id="right-col">
+    <div class="panel" id="p-furnace">
+      <div class="label">IRON FURNACE</div>
+      <div class="row" id="hud-f-ore">Iron ore: 0</div>
+      <div class="row" id="hud-f-smelt">Idle</div>
+      <div class="row" id="hud-f-ingots">Ingots: 0</div>
+      <div class="label" style="margin-top:8px;">COPPER FURNACE</div>
+      <div class="row" id="hud-cf-ore">Copper ore: 0</div>
+      <div class="row" id="hud-cf-smelt">Idle</div>
+      <div class="row" id="hud-cf-ingots">Ingots: 0</div>
+      <div class="label" style="margin-top:8px;">PLATE PRESS</div>
+      <div class="row" id="hud-pm-ore">Iron ore: 0</div>
+      <div class="row" id="hud-pm-smelt">Idle</div>
+      <div class="row" id="hud-pm-ingots">Plates: 0</div>
+    </div>
+    <div class="panel" id="p-belts">
+      <div class="label">CONVEYORS</div>
+      <div class="row" id="hud-belts">Belts placed: 0</div>
+      <div class="row" id="hud-autospawn">Auto-spawn enabled: No</div>
+      <div class="row" id="hud-buildmode">Build mode: OFF</div>
+      <div class="row" id="hud-sorters">Sorters placed: 0</div>
+      <div class="row" id="hud-counter">Counter: 0</div>
+    </div>
+    <div class="panel" id="p-sorters">
+      <div class="label">SORTER TALLIES</div>
+      <div id="sorter-rows"></div>
+    </div>
+  </div>
+  <div class="panel" id="p-carry">
+    <div id="hud-msg"></div>
+    <div id="hud-carry"><span id="hud-carry-dot"></span><span id="hud-carry-text">Carrying: nothing</span></div>
+    <div id="hud-hint"></div>
+  </div>
+  <div class="panel" id="p-controls">
+    <b>WASD</b> Move &nbsp;&middot;&nbsp; <b>E</b> Pick up &nbsp;&middot;&nbsp; <b>F</b> Deposit &nbsp;&middot;&nbsp; <b>B</b> Build &nbsp;&middot;&nbsp; <b>G</b> Unjam &nbsp;&middot;&nbsp; <b>R</b> Reset counter
+  </div>
+</div>
+
+<div id="title-card" class="overlay">
+  <div class="card">
+    <h1>FACTORY <span>AUTOMATION</span></h1>
+    <div class="rule"></div>
+    <p class="obj">Resolve 10 factory orders in sequence &mdash; each with its own 180 s timer</p>
+    <p class="flavor">Machine outputs reset between orders. Build one universal network &mdash; rules can only be edited between orders.</p>
+    <div class="controls">
+      <span><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></span><span>Move</span>
+      <span><kbd>E</kbd></span><span>Pick up ore at a node</span>
+      <span><kbd>F</kbd></span><span>Deposit ore at the furnace or onto a belt</span>
+      <span><kbd>B</kbd> + <kbd>CLICK</kbd></span><span>Lay belts; click a belt to insert a sorter</span>
+      <span><kbd>CLICK</kbd> sorter</span><span>Edit its routing rule</span>
+      <span><kbd>G</kbd></span><span>Clear a furnace jam (8 s)</span>
+      <span><kbd>R</kbd></span><span>Reset counter (in round) / Restart (after round)</span>
+      <span><kbd>ENTER</kbd></span><span>Start the round</span>
+    </div>
+    <div class="start-hint">PRESS ENTER TO START</div>
+  </div>
+</div>
+
+<div id="end-card" class="overlay hidden">
+  <div class="card">
+    <h1 id="end-title">Round Complete</h1>
+    <div class="rule"></div>
+    <p id="end-sub">All 10 orders resolved.</p>
+    <div class="stats">
+      <span class="k">Orders completed</span><span class="v" id="end-ingots">0</span>
+      <span class="k">Orders failed</span><span class="v" id="end-time">0</span>
+      <span class="k">Final score</span><span class="v" id="end-score">0</span>
+    </div>
+    <div class="grade-label">GRADE</div>
+    <div id="end-grade">S</div>
+    <div class="start-hint" style="margin-top:10px;">PRESS R TO RESTART</div>
+  </div>
+</div>
+
+<div id="rule-editor" class="hidden">
+  <div class="card">
+    <h2>SORTER RULE</h2>
+    <div id="rule-line"></div>
+    <div class="rrow"><span>CONDITIONS</span><div id="rule-conds"></div></div>
+    <div class="rrow"><span></span><button id="rule-add">+ Add condition</button></div>
+    <div class="rrow"><span>OUTPUT</span><select id="rule-output"><option value="A">A</option><option value="B">B</option></select></div>
+    <div class="rrow"><span>ELSE OUTPUT</span><select id="rule-else"><option value="A">A</option><option value="B">B</option></select></div>
+    <div class="rrow"><span>RAW RULE</span><input id="rule-raw" type="text" spellcheck="false"></div>
+    <div id="rule-error"></div>
+    <button id="rule-save">Save</button>
+    <button id="rule-cancel">Cancel</button>
+    <div class="flavor" style="margin:12px 0 0; text-align:left;">Exact string match only &mdash; e.g. IF item.type == "iron_ore" THEN output_A ELSE output_B</div>
+  </div>
+</div>
+
+<script src="./assets/_shared/three/build/three.min.js"></script>
+<script>
+'use strict';
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  if (!window.THREE) {
+    $('title-card').innerHTML = '<div class="card"><h1>Factory <span>Automation</span></h1>' +
+      '<div class="rule"></div><p class="err">Could not load three.js from ./assets/_shared/three/build/three.min.js</p></div>';
+    return;
+  }
+
+  try {
+
+  /* ============================== constants ============================== */
+  var STEP = 1 / 60;
+  var ORDER_TIME = 180;
+  var PAUSE_TIME = 2.0;
+  var SMELT_TIME = 5.0;
+  var SMELT_TIME_COPPER = 4.5;
+  var SMELT_TIME_PLATE = 6.0;
+  var SMELT_INPUT = 2;
+  var JAM_TIME = 8.0;
+  var PLAYER_SPEED = 6.0;
+  var PLAYER_RADIUS = 0.45;
+  var PICKUP_RANGE = 2.0;
+  var DEPOSIT_RANGE = 2.6;
+  var BELT_SPEED = 2.0;
+  var BELT_TILE = 1.0;
+  var BELT_WIDTH = 1.5;
+  var BELT_PLACE_RANGE = 2.0;
+  var BELT_SINK_RANGE = 1.0;
+  var MIN_BELT_LENGTH = 0.25;
+  var NODE_SPAWN_INTERVAL = 3.0;
+  var SPAWN_RANGE = 2.0;
+  var REV = parseInt(THREE.REVISION, 10) || 0;
+
+  var NODES = [
+    { type: 'iron_ore',   x: -15, z: -15 },
+    { type: 'copper_ore', x:  15, z: -15 },
+    { type: 'coal',       x:   0, z:  15 }
+  ];
+  var ORE = {
+    iron_ore:   { color: 0x9aa2ac, css: '#9aa2ac', rough: 0.38, metal: 0.55, bar: '#9aa2ac' },
+    copper_ore: { color: 0xc8732f, css: '#d0762e', rough: 0.55, metal: 0.25, bar: '#d0762e' },
+    coal:       { color: 0x1f2226, css: '#3a3f46', rough: 0.28, metal: 0.12, bar: '#4a5058' }
+  };
+  var NODE_LABELS = { iron_ore: 'IRON ORE', copper_ore: 'COPPER ORE', coal: 'COAL' };
+  function generateOrders() {
+    var seed = 67890;
+    function rand() {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    }
+    var list = [];
+    for (var i = 0; i < 10; i++) {
+      list.push({
+        ironIngots: Math.floor(rand() * 4) + 1,
+        copperIngots: Math.floor(rand() * 4),
+        ironPlates: Math.floor(rand() * 4),
+        status: 'pending'
+      });
+    }
+    return list;
+  }
+
+  /* ============================== helpers ============================== */
+  function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function angDiff(to, from) {
+    var d = (to - from) % (Math.PI * 2);
+    if (d > Math.PI) d -= Math.PI * 2;
+    if (d < -Math.PI) d += Math.PI * 2;
+    return d;
+  }
+  function setText(el, s) { if (el.__t !== s) { el.__t = s; el.textContent = s; } }
+  function std(color, roughness, metalness, extra) {
+    var p = { color: color, roughness: roughness === undefined ? 0.85 : roughness, metalness: metalness || 0 };
+    if (extra) { for (var k in extra) p[k] = extra[k]; }
+    return new THREE.MeshStandardMaterial(p);
+  }
+  function box(w, h, d, mat, x, y, z) {
+    var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true;
+    return m;
+  }
+  function cyl(rt, rb, h, seg, mat, x, y, z) {
+    var m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat);
+    m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true;
+    return m;
+  }
+
+  /* ============================== renderer / scene ============================== */
+  var canvas = $('scene');
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  if ('outputColorSpace' in renderer && THREE.SRGBColorSpace) renderer.outputColorSpace = THREE.SRGBColorSpace;
+  else if ('outputEncoding' in renderer && THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.08;
+  var legacyLights = false;
+  if ('useLegacyLights' in renderer) { try { renderer.useLegacyLights = true; legacyLights = true; } catch (e) {} }
+  var LIGHT_SCALE = (!legacyLights && REV >= 155) ? Math.PI : 1;
+  var MAX_ANISO = renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 4;
+
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x2c3540);
+  scene.fog = new THREE.Fog(0x2c3540, 58, 125);
+
+  var camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 220);
+  camera.position.set(0, 10, -22);
+  camera.lookAt(0, 1.7, -4.8);
+
+  var hemi = new THREE.HemisphereLight(0x9db4cc, 0x54493c, 0.9);
+  scene.add(hemi);
+  var sun = new THREE.DirectionalLight(0xffe2bd, 1.6);
+  sun.position.set(18, 26, 10);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -38; sun.shadow.camera.right = 38;
+  sun.shadow.camera.top = 38; sun.shadow.camera.bottom = -38;
+  sun.shadow.camera.near = 2; sun.shadow.camera.far = 90;
+  sun.shadow.bias = -0.0006;
+  sun.shadow.normalBias = 0.03;
+  scene.add(sun);
+
+  /* ============================== textures ============================== */
+  function srgb(tex) {
+    if (THREE.SRGBColorSpace && 'colorSpace' in tex) tex.colorSpace = THREE.SRGBColorSpace;
+    else if (THREE.sRGBEncoding !== undefined && 'encoding' in tex) tex.encoding = THREE.sRGBEncoding;
+  }
+  function canvasTexture(w, h, draw) {
+    var c = document.createElement('canvas'); c.width = w; c.height = h;
+    var g = c.getContext('2d'); draw(g, w, h);
+    var t = new THREE.CanvasTexture(c);
+    t.anisotropy = MAX_ANISO; srgb(t);
+    return t;
+  }
+  function labelTexture(text, barColor) {
+    return canvasTexture(640, 160, function (g) {
+      g.clearRect(0, 0, 640, 160);
+      g.font = '900 92px Arial, sans-serif';
+      g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+      g.strokeStyle = 'rgba(12,16,22,0.9)'; g.lineWidth = 14;
+      g.strokeText(text, 320, 70);
+      g.fillStyle = '#f2f6fa'; g.fillText(text, 320, 70);
+      g.fillStyle = barColor || '#e6b83c'; g.fillRect(230, 126, 180, 12);
+    });
+  }
+  function boardTexture(text, fg, bg, border) {
+    return canvasTexture(512, 144, function (g) {
+      g.fillStyle = bg; g.fillRect(0, 0, 512, 144);
+      g.strokeStyle = border; g.lineWidth = 8; g.strokeRect(8, 8, 496, 128);
+      g.font = '900 72px Arial, sans-serif';
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillStyle = fg; g.fillText(text, 256, 78);
+    });
+  }
+  function makeLiveBoard(w, h) {
+    var c = document.createElement('canvas'); c.width = w; c.height = h;
+    var g = c.getContext('2d');
+    var t = new THREE.CanvasTexture(c);
+    t.anisotropy = MAX_ANISO; srgb(t);
+    function draw(lines) {
+      g.fillStyle = '#141a22'; g.fillRect(0, 0, w, h);
+      g.strokeStyle = '#8fa2b8'; g.lineWidth = 8; g.strokeRect(8, 8, w - 16, h - 16);
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.font = '700 44px Consolas, Menlo, monospace';
+      var ys = [h * 0.25, h * 0.52, h * 0.79];
+      for (var i = 0; i < lines.length && i < 3; i++) {
+        g.fillStyle = lines[i].color;
+        g.fillText(lines[i].text, w / 2, ys[i]);
+      }
+      t.needsUpdate = true;
+    }
+    return { tex: t, draw: draw };
+  }
+  var ironBoard = makeLiveBoard(512, 210);
+  var copperBoard = makeLiveBoard(512, 210);
+
+  /* ============================== floor ============================== */
+  var floorTex = canvasTexture(1024, 1024, function (g) {
+    g.fillStyle = '#59626e'; g.fillRect(0, 0, 1024, 1024);
+    var i, j;
+    for (i = 0; i < 8; i++) for (j = 0; j < 8; j++) {
+      if ((i * 7 + j * 13) % 5 === 0) { g.fillStyle = 'rgba(255,255,255,0.035)'; g.fillRect(i * 128, j * 128, 128, 128); }
+      if ((i * 11 + j * 5) % 7 === 0) { g.fillStyle = 'rgba(10,14,20,0.06)'; g.fillRect(i * 128, j * 128, 128, 128); }
+    }
+    g.strokeStyle = 'rgba(28,36,46,0.6)'; g.lineWidth = 3;
+    for (i = 0; i <= 8; i++) {
+      g.beginPath(); g.moveTo(i * 128, 0); g.lineTo(i * 128, 1024); g.stroke();
+      g.beginPath(); g.moveTo(0, i * 128); g.lineTo(1024, i * 128); g.stroke();
+    }
+    g.fillStyle = 'rgba(20,26,34,0.5)';
+    for (i = 0; i <= 8; i++) for (j = 0; j <= 8; j++) {
+      g.beginPath(); g.arc(i * 128, j * 128, 4, 0, Math.PI * 2); g.fill();
+    }
+  });
+  var floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(50, 50),
+    new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.94, metalness: 0.02 })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  /* ============================== ground decals ============================== */
+  function groundDecal(tex, w, h, x, z, rotY) {
+    var geo = new THREE.PlaneGeometry(w, h);
+    geo.rotateX(-Math.PI / 2);
+    if (rotY) geo.rotateY(rotY);
+    var m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+      map: tex, transparent: true, roughness: 0.95, metalness: 0, depthWrite: false
+    }));
+    m.position.set(x, 0.02, z);
+    m.receiveShadow = true;
+    m.renderOrder = 1;
+    scene.add(m);
+    return m;
+  }
+  var hazardTex = canvasTexture(512, 512, function (g) {
+    g.fillStyle = '#d9a92f'; g.fillRect(0, 0, 512, 512);
+    g.save(); g.translate(256, 256); g.rotate(-Math.PI / 4);
+    g.fillStyle = '#191d22';
+    for (var x = -560; x <= 560; x += 104) g.fillRect(x, -560, 52, 1120);
+    g.restore();
+    g.globalCompositeOperation = 'destination-out';
+    g.fillRect(80, 80, 352, 352);
+    g.globalCompositeOperation = 'source-over';
+  });
+  var chevronTex = canvasTexture(128, 128, function (g) {
+    g.clearRect(0, 0, 128, 128);
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    for (var k = 0; k < 2; k++) {
+      var y0 = 86 - k * 30;
+      g.beginPath(); g.moveTo(26, y0); g.lineTo(64, y0 - 34); g.lineTo(102, y0);
+      g.strokeStyle = 'rgba(12,16,22,0.85)'; g.lineWidth = 24; g.stroke();
+      g.strokeStyle = '#e6b83c'; g.lineWidth = 13; g.stroke();
+    }
+  });
+  groundDecal(hazardTex, 6.4, 6.4, 0, 0, 0);
+  function addArrow(x, z, rotY) {
+    var geo = new THREE.PlaneGeometry(1.15, 1.15);
+    geo.rotateX(-Math.PI / 2);
+    if (rotY) geo.rotateY(rotY);
+    var m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+      map: chevronTex, transparent: true, roughness: 0.95, metalness: 0, depthWrite: false
+    }));
+    m.position.set(x, 0.025, z);
+    m.receiveShadow = true; m.renderOrder = 2;
+    scene.add(m);
+  }
+  [-12.0, -9.6, -7.2].forEach(function (d) { addArrow(d, d, -Math.PI * 0.75); });
+  [-12.0, -9.6, -7.2].forEach(function (d) { addArrow(-d, d, Math.PI * 0.75); });
+  [10.4, 8.2, 6.0].forEach(function (z) { addArrow(0, z, 0); });
+
+  /* ============================== walls ============================== */
+  (function buildWalls() {
+    var wallMat = std(0x4d5a6e, 0.85, 0.05);
+    var trimMat = std(0x5d6d80, 0.8, 0.1);
+    var wainMat = std(0x394453, 0.9, 0);
+    var ribMat = std(0x414e60, 0.85, 0.05);
+    var H = 5, T = 0.8;
+    function wb(w, h, d, x, y, z, mat) {
+      var m = box(w, h, d, mat, x, y, z); scene.add(m); return m;
+    }
+    wb(51.6, H, T, 0, H / 2, -25.4, wallMat);
+    wb(51.6, H, T, 0, H / 2, 25.4, wallMat);
+    wb(T, H, 50, -25.4, H / 2, 0, wallMat);
+    wb(T, H, 50, 25.4, H / 2, 0, wallMat);
+    wb(51.6, 1.1, 0.1, 0, 0.55, -24.97, wainMat);
+    wb(51.6, 1.1, 0.1, 0, 0.55, 24.97, wainMat);
+    wb(0.1, 1.1, 50, -24.97, 0.55, 0, wainMat);
+    wb(0.1, 1.1, 50, 24.97, 0.55, 0, wainMat);
+    wb(51.9, 0.35, 1.0, 0, H + 0.1, -25.4, trimMat);
+    wb(51.9, 0.35, 1.0, 0, H + 0.1, 25.4, trimMat);
+    wb(1.0, 0.35, 50.9, -25.4, H + 0.1, 0, trimMat);
+    wb(1.0, 0.35, 50.9, 25.4, H + 0.1, 0, trimMat);
+    var x, z;
+    for (x = -24; x <= 24.01; x += 2.4) {
+      wb(0.16, 4.3, 0.12, x, 2.35, -24.94, ribMat);
+      wb(0.16, 4.3, 0.12, x, 2.35, 24.94, ribMat);
+    }
+    for (z = -23.8; z <= 23.81; z += 2.4) {
+      wb(0.12, 4.3, 0.16, -24.94, 2.35, z, ribMat);
+      wb(0.12, 4.3, 0.16, 24.94, 2.35, z, ribMat);
+    }
+    var corners = [[-25.4, -25.4], [25.4, -25.4], [-25.4, 25.4], [25.4, 25.4]];
+    for (var i = 0; i < corners.length; i++) {
+      wb(1.3, H + 0.6, 1.3, corners[i][0], (H + 0.6) / 2, corners[i][1], trimMat);
+    }
+  })();
+
+  /* ============================== ore materials ============================== */
+  for (var t in ORE) {
+    ORE[t].mat = std(ORE[t].color, ORE[t].rough, ORE[t].metal, { flatShading: true });
+  }
+
+  /* ============================== iron furnace ============================== */
+  var furnLight = new THREE.PointLight(0xff7a2a, 0.45, 17, 2);
+  furnLight.position.set(0, 1.5, -2.7);
+  scene.add(furnLight);
+
+  var glowMat = new THREE.MeshStandardMaterial({
+    color: 0x140b06, emissive: 0xff6a1c, emissiveIntensity: 0.35, roughness: 0.6, metalness: 0
+  });
+  (function buildFurnace() {
+    var steel = std(0x5a6c7e, 0.62, 0.35);
+    var steelDark = std(0x39434e, 0.7, 0.3);
+    var brick = std(0x8c4f3c, 0.9, 0);
+    var brickWarm = std(0x96543e, 0.9, 0);
+    var band = std(0x76879a, 0.55, 0.45);
+    var g = new THREE.Group();
+
+    g.add(box(3.9, 0.55, 3.9, brick, 0, 0.275, 0));
+    g.add(box(3.6, 3.05, 3.6, steel, 0, 2.075, 0));
+    g.add(box(3.68, 0.14, 3.68, band, 0, 1.15, 0));
+    g.add(box(3.68, 0.14, 3.68, band, 0, 3.3, 0));
+    g.add(box(4.0, 0.25, 4.0, steelDark, 0, 3.725, 0));
+
+    var chim = cyl(0.48, 0.52, 2.35, 14, brick, 1.25, 5.025, 1.25);
+    g.add(chim);
+    g.add(cyl(0.58, 0.58, 0.28, 14, band, 1.25, 6.06, 1.25));
+
+    g.add(box(0.36, 1.45, 0.25, brickWarm, -0.87, 1.275, -1.8));
+    g.add(box(0.36, 1.45, 0.25, brickWarm, 0.87, 1.275, -1.8));
+    g.add(box(2.1, 0.35, 0.25, brickWarm, 0, 2.175, -1.8));
+    g.add(box(1.5, 1.5, 0.1, std(0x0c0e11, 1, 0), 0, 1.28, -1.78));
+    var glowPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.16), glowMat);
+    glowPlane.position.set(0, 1.28, -1.72);
+    g.add(glowPlane);
+    g.add(box(1.7, 0.35, 0.12, steelDark, 0, 2.62, -1.8));
+
+    g.add(box(0.5, 0.7, 0.06, std(0x2b343f, 0.8, 0.2), 1.77, 1.6, 0.6));
+    g.add(box(0.5, 0.7, 0.06, std(0x2b343f, 0.8, 0.2), 1.77, 1.6, -0.6));
+
+    g.add(box(1.5, 0.12, 0.5, band, -1.35, 0.72, -1.75));
+    var ingotMat = std(0xc9d2da, 0.3, 0.7);
+    var ingots = [
+      box(0.62, 0.16, 0.3, ingotMat, -1.68, 0.86, -1.75),
+      box(0.62, 0.16, 0.3, ingotMat, -1.02, 0.86, -1.75),
+      box(0.62, 0.16, 0.3, ingotMat, -1.35, 1.02, -1.75)
+    ];
+    ingots.forEach(function (im) { g.add(im); });
+
+    var board = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.6, 0.65),
+      new THREE.MeshStandardMaterial({ map: boardTexture('IRON FURNACE', '#f4f7fb', '#1d242e', '#93a2b4'), roughness: 0.8, metalness: 0.05 })
+    );
+    board.position.set(0, 2.75, -1.83);
+    board.rotation.y = Math.PI;
+    g.add(board);
+
+    scene.add(g);
+  })();
+
+  var SPARK_N = 6;
+  function makeSmoke(n) {
+    var arr = [];
+    for (var i = 0; i < n; i++) {
+      var sm = new THREE.Mesh(new THREE.SphereGeometry(0.4, 10, 8),
+        new THREE.MeshStandardMaterial({ color: 0x959ca6, transparent: true, opacity: 0.4, roughness: 1, metalness: 0, depthWrite: false }));
+      sm.visible = false; sm.renderOrder = 3;
+      scene.add(sm); arr.push(sm);
+    }
+    return arr;
+  }
+  var smoke = makeSmoke(7);
+  var smoke2 = makeSmoke(7);
+  var sparks = [];
+  for (var pi = 0; pi < SPARK_N; pi++) {
+    var sp = new THREE.Mesh(new THREE.TetrahedronGeometry(0.07),
+      new THREE.MeshBasicMaterial({ color: 0xffc36b, transparent: true, opacity: 1 }));
+    sp.visible = false; sp.renderOrder = 3;
+    scene.add(sp); sparks.push(sp);
+  }
+
+  /* ============================== copper furnace ============================== */
+  var cfLight = new THREE.PointLight(0xff9a4a, 0.4, 16, 2);
+  cfLight.position.set(10, 1.5, -2.7);
+  scene.add(cfLight);
+  var glowCopperMat = new THREE.MeshStandardMaterial({
+    color: 0x06110a, emissive: 0x3fd97a, emissiveIntensity: 0.3, roughness: 0.6, metalness: 0
+  });
+  (function buildCopperFurnace() {
+    var copperBody = std(0xa2622f, 0.55, 0.45);
+    var copperTrim = std(0xc98a4a, 0.5, 0.5);
+    var copperDark = std(0x7a4423, 0.6, 0.4);
+    var g = new THREE.Group();
+    g.position.set(10, 0, 0);
+    g.add(box(3.9, 0.5, 3.9, std(0x3a4450, 0.8, 0.3), 0, 0.25, 0));
+    g.add(box(3.4, 2.7, 3.4, copperBody, 0, 1.85, 0));
+    g.add(box(3.5, 0.12, 3.5, copperTrim, 0, 1.0, 0));
+    g.add(box(3.5, 0.12, 3.5, copperTrim, 0, 2.4, 0));
+    var roof = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 2.5, 1.1, 4), copperDark);
+    roof.position.y = 3.75; roof.rotation.y = Math.PI / 4;
+    roof.castShadow = true; roof.receiveShadow = true;
+    g.add(roof);
+    var hopper = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.5, 0.9, 4), copperTrim);
+    hopper.position.y = 4.6; hopper.rotation.y = Math.PI / 4;
+    hopper.castShadow = true;
+    g.add(hopper);
+    g.add(box(0.55, 1.9, 0.55, copperDark, 1.15, 4.25, 1.15));
+    g.add(box(0.78, 0.2, 0.78, copperTrim, 1.15, 5.28, 1.15));
+    g.add(box(1.0, 0.8, 0.12, std(0x0c0e11, 1, 0), 0, 1.3, -1.72));
+    var win = new THREE.Mesh(new THREE.PlaneGeometry(0.82, 0.6), glowCopperMat);
+    win.position.set(0, 1.3, -1.65);
+    g.add(win);
+    g.add(box(0.7, 0.1, 1.5, copperTrim, 1.85, 0.85, 0));
+    var cIngotMat = std(0xd98a4a, 0.35, 0.65);
+    g.add(box(0.3, 0.15, 0.6, cIngotMat, 1.85, 0.97, -0.45));
+    g.add(box(0.3, 0.15, 0.6, cIngotMat, 1.85, 0.97, 0.25));
+    g.add(box(0.3, 0.15, 0.6, cIngotMat, 1.85, 1.12, -0.1));
+    var lbl = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.65),
+      new THREE.MeshStandardMaterial({ map: boardTexture('COPPER FURNACE', '#f4f7fb', '#241a10', '#c98a4a'), roughness: 0.8, metalness: 0.05 }));
+    lbl.position.set(0, 3.02, -1.83); lbl.rotation.y = Math.PI;
+    g.add(lbl);
+    scene.add(g);
+  })();
+  (function buildCopperBoardPost() {
+    var steelD = std(0x4c5866, 0.7, 0.3);
+    [-2.6, 2.6].forEach(function (dx) {
+      scene.add(box(0.24, 3.55, 0.24, steelD, 10 + dx, 1.775, -3.3));
+    });
+    scene.add(box(5.6, 0.3, 0.3, steelD, 10, 3.5, -3.3));
+    var board = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.9, 1.2),
+      new THREE.MeshStandardMaterial({ map: copperBoard.tex, roughness: 0.8, metalness: 0.05 })
+    );
+    board.position.set(10, 2.55, -3.3);
+    board.rotation.y = Math.PI;
+    scene.add(board);
+  })();
+
+  /* ============================== iron plate machine ============================== */
+  var pmLight = new THREE.PointLight(0xffc27a, 0.3, 14, 2);
+  pmLight.position.set(-10, 2, -2.2);
+  scene.add(pmLight);
+  var pressRam = null;
+  var pressLampMat = new THREE.MeshStandardMaterial({
+    color: 0x0a120c, emissive: 0x3fd97a, emissiveIntensity: 0.25, roughness: 0.5, metalness: 0
+  });
+  (function buildPlatePress() {
+    var frameMat = std(0x4a5563, 0.6, 0.45);
+    var darkMat = std(0x333d49, 0.7, 0.4);
+    var amberMat = std(0xd9a92f, 0.55, 0.4);
+    var g = new THREE.Group();
+    g.position.set(-10, 0, 0);
+    g.add(box(3.6, 0.4, 3.6, darkMat, 0, 0.2, 0));
+    g.add(box(0.55, 3.3, 0.8, frameMat, -1.35, 2.05, 0));
+    g.add(box(0.55, 3.3, 0.8, frameMat, 1.35, 2.05, 0));
+    g.add(box(3.5, 0.75, 1.0, frameMat, 0, 3.85, 0));
+    g.add(cyl(0.14, 0.14, 0.75, 10, amberMat, -0.7, 3.35, 0));
+    g.add(cyl(0.14, 0.14, 0.75, 10, amberMat, 0.7, 3.35, 0));
+    pressRam = new THREE.Group();
+    pressRam.position.set(0, 2.35, 0);
+    pressRam.add(box(1.7, 0.55, 1.15, frameMat, 0, 0, 0));
+    pressRam.add(box(1.25, 0.22, 0.9, amberMat, 0, -0.38, 0));
+    g.add(pressRam);
+    g.add(box(1.9, 0.5, 1.3, darkMat, 0, 0.65, 0));
+    var lamp = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.18, 0.3), pressLampMat);
+    lamp.position.set(0, 4.35, 0);
+    g.add(lamp);
+    var hop = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.4, 0.75, 4), amberMat);
+    hop.position.set(0.9, 1.7, -1.45); hop.rotation.y = Math.PI / 4;
+    hop.castShadow = true;
+    g.add(hop);
+    g.add(box(0.7, 0.1, 1.4, frameMat, -1.6, 0.65, 0.3));
+    var plateMat = std(0xc9d2da, 0.35, 0.7);
+    g.add(box(0.55, 0.07, 0.4, plateMat, -1.6, 0.74, 0.05));
+    g.add(box(0.55, 0.07, 0.4, plateMat, -1.6, 0.74, 0.55));
+    g.add(box(0.55, 0.07, 0.4, plateMat, -1.6, 0.81, 0.3));
+    var lbl = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 0.6),
+      new THREE.MeshStandardMaterial({ map: boardTexture('PLATE PRESS', '#f4f7fb', '#1d242e', '#d9a92f'), roughness: 0.8, metalness: 0.05 }));
+    lbl.position.set(0, 2.6, -0.55);
+    lbl.rotation.y = Math.PI;
+    g.add(lbl);
+    scene.add(g);
+    groundDecal(labelTexture('PLATE PRESS', '#d9a92f'), 3.0, 0.75, -10, -3.95, Math.PI);
+  })();
+
+  /* ============================== ore nodes + labels ============================== */
+  var ROCKS = [
+    { s: 1.15, x: 0.0,   y: 0.60, z: 0.05,  ry: 0.4 },
+    { s: 0.80, x: 0.66,  y: 0.40, z: 0.56,  ry: 1.9 },
+    { s: 0.78, x: -0.64, y: 0.38, z: -0.50, ry: 2.9 },
+    { s: 0.55, x: 0.44,  y: 0.28, z: -0.68, ry: 5.1 }
+  ];
+  var VEINS = [
+    { s: 0.42, x: 0.52,  y: 0.86, z: 0.34 },
+    { s: 0.34, x: -0.60, y: 0.64, z: 0.26 },
+    { s: 0.38, x: 0.10,  y: 1.02, z: -0.44 },
+    { s: 0.30, x: -0.28, y: 0.46, z: 0.62 },
+    { s: 0.32, x: 0.62,  y: 0.42, z: -0.46 },
+    { s: 0.26, x: -0.64, y: 0.92, z: -0.30 }
+  ];
+  var rockMats = [std(0x6a645c, 0.95, 0, { flatShading: true }), std(0x6e675e, 0.95, 0, { flatShading: true }), std(0x736c62, 0.95, 0, { flatShading: true })];
+  var postMat = std(0x5a6572, 0.8, 0.2);
+
+  NODES.forEach(function (n, idx) {
+    var grp = new THREE.Group();
+    grp.position.set(n.x, 0, n.z);
+    grp.rotation.y = idx * 0.9;
+    grp.scale.setScalar(1 + (idx - 1) * 0.04);
+    ROCKS.forEach(function (r) {
+      var m = new THREE.Mesh(new THREE.DodecahedronGeometry(r.s, 0), rockMats[idx]);
+      m.position.set(r.x, r.y, r.z);
+      m.rotation.set(0.15 * idx, r.ry + idx * 0.7, 0.1);
+      m.scale.y = 0.78;
+      m.castShadow = true; m.receiveShadow = true;
+      grp.add(m);
+    });
+    VEINS.forEach(function (v, k) {
+      var m = new THREE.Mesh(new THREE.DodecahedronGeometry(v.s * (1 + idx * 0.06), 0), ORE[n.type].mat);
+      m.position.set(v.x * (1 + idx * 0.05), v.y, v.z * (1 - idx * 0.04));
+      m.rotation.set(k * 1.1, k * 2.3, k * 0.7);
+      m.castShadow = true;
+      grp.add(m);
+    });
+    for (var k = 0; k < 7; k++) {
+      var a = k * 0.897 + idx * 0.4;
+      var mm = new THREE.Mesh(new THREE.DodecahedronGeometry(0.15, 0), ORE[n.type].mat);
+      mm.position.set(Math.cos(a) * 1.18, 0.1, Math.sin(a) * 1.18);
+      mm.rotation.set(a, a * 1.3, 0);
+      mm.castShadow = true;
+      grp.add(mm);
+    }
+    scene.add(grp);
+
+    var isCoal = n.type === 'coal';
+    var bz = isCoal ? 12.3 : -12.3;
+    var faceDir = isCoal ? Math.PI : 0;
+    var signMat = new THREE.MeshStandardMaterial({
+      map: boardTexture(NODE_LABELS[n.type], '#f4f7fb', '#1d242e', ORE[n.type].css), roughness: 0.8, metalness: 0.05
+    });
+    [-1, 1].forEach(function (s) {
+      var post = box(0.1, 2.0, 0.1, postMat, n.x + s * 1.05, 1.0, bz);
+      scene.add(post);
+    });
+    var p2 = new THREE.Mesh(new THREE.PlaneGeometry(2.7, 0.74), signMat);
+    p2.position.set(n.x, 2.15, bz);
+    p2.rotation.y = faceDir;
+    scene.add(p2);
+
+    groundDecal(labelTexture(NODE_LABELS[n.type], ORE[n.type].bar), 3.2, 0.8, n.x, isCoal ? 11.7 : -11.7, faceDir);
+  });
+  groundDecal(labelTexture('IRON FURNACE', '#e6b83c'), 3.4, 0.85, 0, -3.95, Math.PI);
+
+  /* ============================== furnace status board (live) ============================== */
+  var statusPanel = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.9, 1.2),
+    new THREE.MeshStandardMaterial({ map: ironBoard.tex, roughness: 0.8, metalness: 0.05 })
+  );
+  statusPanel.position.set(0, 2.85, -3.4);
+  statusPanel.rotation.y = Math.PI;
+  scene.add(statusPanel);
+
+  /* ============================== SMELTING gantry sign ============================== */
+  (function buildGantry() {
+    var steelD = std(0x4c5866, 0.7, 0.3);
+    [-3.2, 3.2].forEach(function (x) {
+      scene.add(box(0.24, 4.7, 0.24, steelD, x, 2.35, -3.4));
+    });
+    scene.add(box(7.2, 0.32, 0.32, steelD, 0, 4.72, -3.4));
+    var chainMat = std(0x2f3844, 0.6, 0.4);
+    [-1.0, 1.0].forEach(function (x) {
+      scene.add(box(0.05, 0.24, 0.05, chainMat, x, 4.44, -3.4));
+    });
+    var sign = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.9, 0.79),
+      new THREE.MeshStandardMaterial({ map: boardTexture('SMELTING', '#ffb547', '#241a10', '#e6b83c'), roughness: 0.8, metalness: 0.05 })
+    );
+    sign.position.set(0, 3.93, -3.4);
+    sign.rotation.y = Math.PI;
+    scene.add(sign);
+    [-1.2, 1.2].forEach(function (x) {
+      scene.add(box(0.05, 1.1, 0.05, chainMat, x, 4.0, -3.4));
+    });
+  })();
+
+  /* ============================== props ============================== */
+  var OBSTACLES = [];
+  function addObstacle(cx, cz, hx, hz) {
+    OBSTACLES.push({ minX: cx - hx, maxX: cx + hx, minZ: cz - hz, maxZ: cz + hz });
+  }
+  NODES.forEach(function (n) { addObstacle(n.x, n.z, 1.4, 1.4); });
+  addObstacle(0, 0, 2.0, 2.0);
+
+  (function buildPillars() {
+    var mat = std(0x55616f, 0.7, 0.25);
+    var cap = std(0x687684, 0.6, 0.3);
+    var spots = [[-21, -21], [21, -21], [-21, 21], [21, 21], [-22, 0], [22, 0], [0, 22], [0, -22]];
+    spots.forEach(function (p) {
+      scene.add(box(1.15, 0.3, 1.15, cap, p[0], 0.15, p[1]));
+      scene.add(box(0.8, 5.6, 0.8, mat, p[0], 3.1, p[1]));
+      scene.add(box(1.1, 0.28, 1.1, cap, p[0], 6.14, p[1]));
+      addObstacle(p[0], p[1], 0.45, 0.45);
+    });
+  })();
+
+  (function buildPipes() {
+    var pipeMat = std(0x7c8896, 0.5, 0.5);
+    var bracketMat = std(0x3c4859, 0.8, 0.3);
+    function run(alongX, fixed, len) {
+      var geo = new THREE.CylinderGeometry(0.16, 0.16, len, 10);
+      var m = new THREE.Mesh(geo, pipeMat);
+      m.castShadow = true;
+      if (alongX) { m.rotation.z = Math.PI / 2; m.position.set(0, 4.3, fixed); }
+      else { m.rotation.x = Math.PI / 2; m.position.set(fixed, 4.3, 0); }
+      scene.add(m);
+      for (var s = -20; s <= 20.01; s += 8) {
+        var b;
+        if (alongX) b = box(0.12, 0.5, 0.12, bracketMat, s, 4.35, fixed + (fixed > 0 ? -0.28 : 0.28));
+        else b = box(0.12, 0.5, 0.12, bracketMat, fixed + (fixed > 0 ? -0.28 : 0.28), 4.35, s);
+        scene.add(b);
+      }
+    }
+    run(true, 24.4, 48);
+    run(true, -24.4, 48);
+    run(false, 24.4, 48);
+    run(false, -24.4, 48);
+    [[-24.4, 24.4], [24.4, 24.4], [-24.4, -24.4], [24.4, -24.4]].forEach(function (c) {
+      var e = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), pipeMat);
+      e.position.set(c[0], 4.3, c[1]); e.castShadow = true;
+      scene.add(e);
+    });
+    var valve = box(0.35, 0.35, 0.35, std(0x8c4f3c, 0.7, 0.3), 8, 4.3, 24.15);
+    scene.add(valve);
+  })();
+
+  (function buildCrates() {
+    var wood = std(0xa07a4c, 0.9, 0);
+    var woodDark = std(0x8a6740, 0.9, 0);
+    var palletMat = std(0x8f6d45, 0.95, 0);
+    function pallet(x, z) {
+      scene.add(box(2.4, 0.14, 2.4, palletMat, x, 0.07, z));
+      [-0.8, 0, 0.8].forEach(function (dz) {
+        scene.add(box(2.3, 0.05, 0.5, woodDark, x, 0.165, z + dz));
+      });
+    }
+    function crate(x, y, z, s, ry) {
+      var m = box(s, s * 0.92, s, wood, x, y + s * 0.46, z);
+      m.rotation.y = ry || 0;
+      scene.add(m);
+      scene.add(box(s * 1.03, 0.09, s * 1.03, woodDark, x, y + s * 0.92, z));
+    }
+    pallet(-20.5, 17.5);
+    crate(-20.9, 0.19, 17.2, 1.1, 0.2);
+    crate(-20.1, 0.19, 18.0, 0.9, -0.3);
+    crate(-20.9, 1.21, 17.2, 0.85, 0.6);
+    addObstacle(-20.5, 17.5, 1.25, 1.25);
+    pallet(21, -6);
+    crate(21.2, 0.19, -6.2, 1.2, 0.1);
+    crate(20.6, 0.19, -5.4, 0.95, -0.4);
+    addObstacle(21, -6, 1.15, 1.15);
+    var bMatA = std(0x51704f, 0.6, 0.4);
+    var bMatB = std(0x6e5a41, 0.6, 0.4);
+    var hoop = std(0x2f3a45, 0.6, 0.5);
+    function barrel(x, z, mat) {
+      scene.add(cyl(0.42, 0.42, 1.1, 12, mat, x, 0.55, z));
+      scene.add(cyl(0.45, 0.45, 0.08, 12, hoop, x, 0.3, z));
+      scene.add(cyl(0.45, 0.45, 0.08, 12, hoop, x, 0.82, z));
+      addObstacle(x, z, 0.5, 0.5);
+    }
+    barrel(17.2, 18.4, bMatA);
+    barrel(18.0, 18.9, bMatB);
+  })();
+
+  (function buildScrapChute() {
+    var g = new THREE.Group();
+    g.position.set(0, 0, -20);
+    var pit = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.06, 2.2), std(0x0b0d10, 1, 0));
+    pit.position.y = 0.03; pit.receiveShadow = true;
+    g.add(pit);
+    var rimMat = std(0x3c4859, 0.8, 0.3);
+    g.add(box(2.6, 0.22, 0.3, rimMat, 0, 0.11, -1.15));
+    g.add(box(2.6, 0.22, 0.3, rimMat, 0, 0.11, 1.15));
+    g.add(box(0.3, 0.22, 2.0, rimMat, -1.15, 0.11, 0));
+    g.add(box(0.3, 0.22, 2.0, rimMat, 1.15, 0.11, 0));
+    scene.add(g);
+    groundDecal(labelTexture('SCRAP CHUTE', '#8fa2b8'), 3.0, 0.75, 0, -17.9, 0);
+  })();
+
+  (function buildToolRack() {
+    var frame = std(0x4a5563, 0.8, 0.25);
+    var toolSteel = std(0x99a3ad, 0.4, 0.6);
+    var toolWood = std(0x9a7448, 0.85, 0);
+    scene.add(box(0.1, 1.9, 0.1, frame, -24.35, 0.95, 4.9));
+    scene.add(box(0.1, 1.9, 0.1, frame, -24.35, 0.95, 7.1));
+    scene.add(box(0.08, 1.4, 2.5, frame, -24.3, 1.15, 6));
+    scene.add(box(0.05, 0.55, 0.1, toolSteel, -24.2, 1.2, 5.5));
+    scene.add(box(0.06, 0.14, 0.24, toolSteel, -24.2, 1.5, 5.5));
+    scene.add(box(0.05, 0.5, 0.05, toolWood, -24.2, 1.15, 6.3));
+    scene.add(box(0.09, 0.12, 0.28, toolSteel, -24.2, 1.44, 6.3));
+    scene.add(box(0.05, 0.45, 0.09, toolSteel, -24.2, 1.1, 6.9));
+    OBSTACLES.push({ minX: -24.6, maxX: -23.95, minZ: 4.75, maxZ: 7.25 });
+  })();
+
+  /* sign post obstacles */
+  NODES.forEach(function (n) {
+    var isCoal = n.type === 'coal';
+    var bz = isCoal ? 12.3 : -12.3;
+    addObstacle(n.x - 1.05, bz, 0.16, 0.16);
+    addObstacle(n.x + 1.05, bz, 0.16, 0.16);
+  });
+  addObstacle(-3.2, -3.4, 0.28, 0.28);
+  addObstacle(3.2, -3.4, 0.28, 0.28);
+  addObstacle(10, 0, 2.0, 2.0);
+  addObstacle(-10, 0, 1.9, 1.9);
+  var baseObstacleCount = OBSTACLES.length;
+
+  /* ============================== conveyor belts ============================== */
+  var beltTex = canvasTexture(128, 128, function (g) {
+    g.fillStyle = '#23282e'; g.fillRect(0, 0, 128, 128);
+    g.fillStyle = '#3a424c';
+    [18, 58, 98].forEach(function (y) { g.fillRect(0, y, 128, 12); });
+    g.fillStyle = '#e6b83c';
+    g.fillRect(4, 0, 4, 128);
+    g.fillRect(120, 0, 4, 128);
+  });
+  beltTex.wrapS = THREE.RepeatWrapping;
+  beltTex.wrapT = THREE.RepeatWrapping;
+
+  var chunkGeo = new THREE.DodecahedronGeometry(0.27, 0);
+  var beltFrameMat = std(0x39434e, 0.7, 0.3);
+  var rollerMat = std(0x2b333d, 0.55, 0.4);
+
+  var marker = new THREE.Mesh(
+    new THREE.RingGeometry(0.4, 0.58, 24),
+    new THREE.MeshBasicMaterial({ color: 0xe6b83c, transparent: true, opacity: 0.9, depthWrite: false })
+  );
+  marker.geometry.rotateX(-Math.PI / 2);
+  marker.position.y = 0.07;
+  marker.renderOrder = 3;
+  marker.visible = false;
+  scene.add(marker);
+
+  var raycaster = new THREE.Raycaster();
+  var floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  NODES.forEach(function (n) { n.acc = 0; });
+
+  function buildBeltVisuals(b) {
+    var midx = (b.sx + b.ex) / 2, midz = (b.sz + b.ez) / 2;
+    var yaw = Math.atan2(b.ex - b.sx, b.ez - b.sz);
+    var frame = box(BELT_WIDTH + 0.2, 0.1, b.len + 0.36, beltFrameMat, midx, 0.05, midz);
+    frame.rotation.y = yaw;
+    scene.add(frame);
+    var t = beltTex.clone();
+    t.needsUpdate = true;
+    t.repeat.set(1, b.len / BELT_TILE);
+    var top = new THREE.Mesh(new THREE.PlaneGeometry(BELT_WIDTH, b.len),
+      new THREE.MeshStandardMaterial({ map: t, roughness: 0.85, metalness: 0.1 }));
+    top.geometry.rotateX(-Math.PI / 2);
+    top.rotation.y = yaw;
+    top.position.set(midx, 0.105, midz);
+    top.receiveShadow = true;
+    scene.add(top);
+    var rGeo = new THREE.CylinderGeometry(0.14, 0.14, BELT_WIDTH, 10);
+    rGeo.rotateZ(Math.PI / 2);
+    var r1 = new THREE.Mesh(rGeo, rollerMat);
+    r1.rotation.y = yaw; r1.position.set(b.sx, 0.14, b.sz); r1.castShadow = true;
+    scene.add(r1);
+    var r2 = new THREE.Mesh(rGeo, rollerMat);
+    r2.rotation.y = yaw; r2.position.set(b.ex, 0.14, b.ez); r2.castShadow = true;
+    scene.add(r2);
+    b.tex = t;
+    b.visuals = [frame, top, r1, r2];
+  }
+  function removeBeltVisuals(b) {
+    for (var i = 0; i < b.visuals.length; i++) scene.remove(b.visuals[i]);
+    b.tex.dispose();
+  }
+  function clearBeltsAndItems() {
+    for (var i = 0; i < sim.belts.length; i++) removeBeltVisuals(sim.belts[i]);
+    sim.belts.length = 0;
+    for (var j = 0; j < sim.items.length; j++) scene.remove(sim.items[j].mesh);
+    sim.items.length = 0;
+  }
+  function createBelt(sx, sz, ex, ez) {
+    var dx = ex - sx, dz = ez - sz;
+    var len = Math.sqrt(dx * dx + dz * dz);
+    if (len < MIN_BELT_LENGTH) { setMessage('Belt too short', 1.2); return null; }
+    var b = { sx: sx, sz: sz, ex: ex, ez: ez, len: len, dirx: dx / len, dirz: dz / len, visuals: null, tex: null };
+    buildBeltVisuals(b);
+    sim.belts.push(b);
+    setMessage('Belt placed', 1.2);
+    return b;
+  }
+  function nearestBeltStartToNode(n) {
+    var best = null, bestD2 = (SPAWN_RANGE + 1e-4) * (SPAWN_RANGE + 1e-4);
+    for (var i = 0; i < sim.belts.length; i++) {
+      var b = sim.belts[i];
+      var dx = b.sx - n.x, dz = b.sz - n.z;
+      var d2 = dx * dx + dz * dz;
+      if (d2 <= bestD2) { bestD2 = d2; best = b; }
+    }
+    return best;
+  }
+  function projOnBelt(b, px, pz) {
+    var t = (px - b.sx) * b.dirx + (pz - b.sz) * b.dirz;
+    return clamp(t, 0, b.len);
+  }
+  function distToBelt2(b, px, pz) {
+    var t = projOnBelt(b, px, pz);
+    var dx = px - (b.sx + b.dirx * t), dz = pz - (b.sz + b.dirz * t);
+    return dx * dx + dz * dz;
+  }
+  function nearestBeltWithin(px, pz, range) {
+    var best = null, bestD2 = range * range;
+    for (var i = 0; i < sim.belts.length; i++) {
+      var d2 = distToBelt2(sim.belts[i], px, pz);
+      if (d2 <= bestD2) { bestD2 = d2; best = sim.belts[i]; }
+    }
+    return best;
+  }
+  function makeItem(type) {
+    var it = { belt: null, type: type, d: 0, state: 'belt', fx: 0, fz: 0, rot: (sim.items.length * 1.31) % (Math.PI * 2) };
+    it.mesh = new THREE.Mesh(chunkGeo, ORE[type].mat);
+    it.mesh.castShadow = true;
+    it.mesh.rotation.y = it.rot;
+    scene.add(it.mesh);
+    sim.items.push(it);
+    return it;
+  }
+  function spawnItem(b, type, d) {
+    var it = makeItem(type);
+    it.belt = b;
+    it.d = d;
+    return it;
+  }
+  function dropItem(type, x, z) {
+    var it = makeItem(type);
+    it.state = 'floor';
+    it.fx = x;
+    it.fz = z;
+    return it;
+  }
+  function removeItem(idx) {
+    scene.remove(sim.items[idx].mesh);
+    sim.items.splice(idx, 1);
+  }
+  function dropItemAt(it) {
+    it.state = 'floor';
+    it.fx = it.belt.ex;
+    it.fz = it.belt.ez;
+    it.belt = null;
+  }
+  function transportItems(dt) {
+    var SINK2 = (BELT_SINK_RANGE + 1e-4) * (BELT_SINK_RANGE + 1e-4);
+    for (var i = sim.items.length - 1; i >= 0; i--) {
+      var it = sim.items[i];
+      if (it.state !== 'belt') continue;
+      it.d += BELT_SPEED * dt;
+      if (it.d < it.belt.len) continue;
+      it.d = it.belt.len;
+      var ex = it.belt.ex, ez = it.belt.ez, type = it.type;
+      if (it.belt.toSorter) {
+        var so = it.belt.toSorter;
+        var port = evalSorter(so, type);
+        if (port === 'A') so.tallyA += 1; else so.tallyB += 1;
+        var ob = portBelt(so, port);
+        removeItem(i);
+        if (ob) spawnItem(ob, type, 0);
+        else dropItem(type, port === 'A' ? so.portA.x : so.portB.x, port === 'A' ? so.portA.z : so.portB.z);
+        if (type === 'iron_ore') sim.counter += 1;
+        continue;
+      }
+      if (ex * ex + ez * ez <= SINK2) {
+        if (type === 'iron_ore') {
+          sim.furnace.ironOre += 1;
+          setMessage('Belt delivered iron_ore', 1.0);
+        } else {
+          jamFurnace(sim.furnace, type, 'Iron furnace');
+        }
+        removeItem(i);
+        continue;
+      }
+      var dxc = ex - 10, dzc = ez;
+      if (dxc * dxc + dzc * dzc <= SINK2) {
+        if (type === 'copper_ore') {
+          sim.cf.input += 1;
+          setMessage('Belt delivered copper_ore', 1.0);
+        } else {
+          jamFurnace(sim.cf, type, 'Copper furnace');
+        }
+        removeItem(i);
+        continue;
+      }
+      var dxp = ex + 10, dzp = ez;
+      if (dxp * dxp + dzp * dzp <= SINK2) {
+        if (type === 'iron_ore') {
+          sim.pm.input += 1;
+          setMessage('Belt delivered iron_ore', 1.0);
+        } else {
+          jamFurnace(sim.pm, type, 'Plate press');
+        }
+        removeItem(i);
+        continue;
+      }
+      var dxs = ex, dzs = ez + 20;
+      if (dxs * dxs + dzs * dzs <= SINK2) {
+        removeItem(i);
+        continue;
+      }
+      dropItemAt(it);
+    }
+  }
+  function nodeSpawnTick(dt) {
+    for (var i = 0; i < NODES.length; i++) {
+      var n = NODES[i];
+      n.acc += dt;
+      while (n.acc >= NODE_SPAWN_INTERVAL) {
+        n.acc -= NODE_SPAWN_INTERVAL;
+        var b = nearestBeltStartToNode(n);
+        if (b) spawnItem(b, n.type, 0);
+      }
+    }
+  }
+  function handleFloorClick(x, z) {
+    if (!sim.buildMode || sim.phase !== 'playing') return;
+    x = clamp(x, -24.8, 24.8);
+    z = clamp(z, -24.8, 24.8);
+    if (sim.pendingStart) {
+      var st = sim.pendingStart;
+      sim.pendingStart = null;
+      marker.visible = false;
+      var nb = createBelt(st.x, st.z, x, z);
+      if (nb && st.sorter) nb.fromPort = { sorter: st.sorter, port: st.port };
+      return;
+    }
+    var pend = null, pd2 = 0.81;
+    for (var i = 0; i < sim.sorters.length; i++) {
+      var so = sim.sorters[i];
+      var dxa = x - so.portA.x, dza = z - so.portA.z, da = dxa * dxa + dza * dza;
+      if (da <= pd2) { pd2 = da; pend = { x: so.portA.x, z: so.portA.z, sorter: so, port: 'A' }; }
+      var dxb = x - so.portB.x, dzb = z - so.portB.z, db = dxb * dxb + dzb * dzb;
+      if (db <= pd2) { pd2 = db; pend = { x: so.portB.x, z: so.portB.z, sorter: so, port: 'B' }; }
+    }
+    if (pend) {
+      sim.pendingStart = pend;
+      marker.position.set(pend.x, 0.07, pend.z);
+      marker.visible = true;
+      return;
+    }
+    var bb = null, bd2 = 0.64;
+    for (var j = 0; j < sim.belts.length; j++) {
+      var d2 = distToBelt2(sim.belts[j], x, z);
+      if (d2 <= bd2) { bd2 = d2; bb = sim.belts[j]; }
+    }
+    if (bb) {
+      insertSorterOnBelt(bb, clamp(projOnBelt(bb, x, z), 0.4, bb.len));
+      return;
+    }
+    sim.pendingStart = { x: x, z: z };
+    marker.position.set(x, 0.07, z);
+    marker.visible = true;
+  }
+  function toggleBuild() {
+    if (sim.phase !== 'playing') return;
+    sim.buildMode = !sim.buildMode;
+    sim.pendingStart = null;
+    marker.visible = false;
+    canvas.style.cursor = sim.buildMode ? 'crosshair' : 'default';
+    setMessage(sim.buildMode ? 'Build mode ON' : 'Build mode OFF', 1.2);
+  }
+  function updateBeltVisuals() {
+    for (var i = 0; i < sim.belts.length; i++) {
+      sim.belts[i].tex.offset.y = (BELT_SPEED * sim.simTime / BELT_TILE) % 1;
+    }
+    for (var j = 0; j < sim.items.length; j++) {
+      var it = sim.items[j];
+      if (it.state === 'belt') {
+        it.mesh.position.set(it.belt.sx + it.belt.dirx * it.d, 0.34, it.belt.sz + it.belt.dirz * it.d);
+      } else {
+        it.mesh.position.set(it.fx, 0.2, it.fz);
+      }
+    }
+    if (sim.pendingStart && sim.buildMode) {
+      var sc = 1 + 0.08 * Math.sin(sim.simTime * 4);
+      marker.scale.set(sc, 1, sc);
+    }
+  }
+
+  /* ============================== sorters ============================== */
+  function sorterLetterTex(letter, bg) {
+    return canvasTexture(128, 128, function (g) {
+      g.fillStyle = bg; g.fillRect(0, 0, 128, 128);
+      g.strokeStyle = '#eef3f8'; g.lineWidth = 6; g.strokeRect(6, 6, 116, 116);
+      g.font = '900 84px Arial, sans-serif';
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillStyle = '#ffffff'; g.fillText(letter, 64, 70);
+    });
+  }
+  var sorterHousingMat = std(0xb07c28, 0.6, 0.35);
+  var sorterDarkMat = std(0x39434e, 0.7, 0.3);
+  var sorterLegMat = std(0x2f3844, 0.7, 0.4);
+  function buildSorterVisuals(s) {
+    var vis = [];
+    var yaw = Math.atan2(s.dirx, s.dirz);
+    var px = s.dirz, pz = -s.dirx;
+    function add(m) { scene.add(m); vis.push(m); return m; }
+    [[-0.55, -0.55], [0.55, -0.55], [-0.55, 0.55], [0.55, 0.55]].forEach(function (c) {
+      add(box(0.14, 0.8, 0.14, sorterLegMat, s.x + c[0] * px + c[1] * s.dirx, 0.4, s.z + c[0] * pz + c[1] * s.dirz));
+    });
+    var body = box(1.5, 0.7, 1.5, sorterHousingMat, s.x, 1.12, s.z);
+    body.rotation.y = yaw;
+    add(body);
+    var top = box(1.6, 0.1, 1.6, sorterDarkMat, s.x, 1.52, s.z);
+    top.rotation.y = yaw;
+    add(top);
+    var inCh = box(0.85, 0.4, 0.7, sorterDarkMat, s.x - s.dirx * 0.85, 0.95, s.z - s.dirz * 0.85);
+    inCh.rotation.y = yaw;
+    add(inCh);
+    var outA = box(0.85, 0.4, 0.7, sorterDarkMat, s.x + px * 0.85, 0.95, s.z + pz * 0.85);
+    outA.rotation.y = yaw + Math.PI / 2;
+    add(outA);
+    var outB = box(0.85, 0.4, 0.7, sorterDarkMat, s.x - px * 0.85, 0.95, s.z - pz * 0.85);
+    outB.rotation.y = yaw - Math.PI / 2;
+    add(outB);
+    var plateA = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.5),
+      new THREE.MeshStandardMaterial({ map: sorterLetterTex('A', '#2e7d32'), roughness: 0.7 }));
+    plateA.position.set(s.x + px * 0.76, 1.16, s.z + pz * 0.76);
+    plateA.rotation.y = Math.atan2(px, pz);
+    add(plateA);
+    var plateB = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.5),
+      new THREE.MeshStandardMaterial({ map: sorterLetterTex('B', '#1565c0'), roughness: 0.7 }));
+    plateB.position.set(s.x - px * 0.76, 1.16, s.z - pz * 0.76);
+    plateB.rotation.y = Math.atan2(-px, -pz);
+    add(plateB);
+    s.visuals = vis;
+  }
+  function insertSorterOnBelt(b, t) {
+    var x = b.sx + b.dirx * t, z = b.sz + b.dirz * t;
+    for (var i = 0; i < sim.sorters.length; i++) {
+      var dx = sim.sorters[i].x - x, dz = sim.sorters[i].z - z;
+      if (dx * dx + dz * dz < 1.44) { setMessage('Sorter already here', 1.2); return null; }
+    }
+    var s = {
+      x: x, z: z, dirx: b.dirx, dirz: b.dirz,
+      rule: { conditions: [{ field: 'type', op: '==', value: 'iron_ore' }], output: 'A', elseOutput: 'B' },
+      tallyA: 0, tallyB: 0,
+      portA: { x: x + b.dirz * 0.95, z: z - b.dirx * 0.95 },
+      portB: { x: x - b.dirz * 0.95, z: z + b.dirx * 0.95 },
+      visuals: null
+    };
+    buildSorterVisuals(s);
+    s.visuals.push(groundDecal(sorterLetterTex('A', '#2e7d32'), 0.9, 0.9, s.portA.x, s.portA.z, 0));
+    s.visuals.push(groundDecal(sorterLetterTex('B', '#1565c0'), 0.9, 0.9, s.portB.x, s.portB.z, 0));
+    OBSTACLES.push({ minX: x - 0.8, maxX: x + 0.8, minZ: z - 0.8, maxZ: z + 0.8 });
+    b.toSorter = s;
+    for (var j = 0; j < sim.items.length; j++) {
+      var it = sim.items[j];
+      if (it.state === 'belt' && it.belt === b && it.d > t) it.d = t;
+    }
+    b.ex = x; b.ez = z; b.len = t;
+    removeBeltVisuals(b);
+    buildBeltVisuals(b);
+    sim.sorters.push(s);
+    setMessage('Sorter placed \u2014 draw belts from ports A and B', 2.0);
+    return s;
+  }
+  function portBelt(s, port) {
+    for (var i = 0; i < sim.belts.length; i++) {
+      var b = sim.belts[i];
+      if (b.fromPort && b.fromPort.sorter === s && b.fromPort.port === port) return b;
+    }
+    return null;
+  }
+  function sorterNear(x, z, r) {
+    var best = null, bestD2 = r * r;
+    for (var i = 0; i < sim.sorters.length; i++) {
+      var dx = sim.sorters[i].x - x, dz = sim.sorters[i].z - z;
+      var d2 = dx * dx + dz * dz;
+      if (d2 <= bestD2) { bestD2 = d2; best = sim.sorters[i]; }
+    }
+    return best;
+  }
+  function tryOpenRuleEditor(x, z) {
+    var s = sorterNear(x, z, 1.1);
+    if (!s) return;
+    if (sim.orderActive) { setMessage('Rules locked during an order', 1.2); return; }
+    openRuleEditor(s);
+  }
+  function evalSorter(s, type) {
+    var conds = s.rule.conditions;
+    var match = true;
+    for (var i = 0; i < conds.length; i++) {
+      var c = conds[i];
+      if (c.field === 'counter') {
+        var v = sim.counter, ok2;
+        if (c.op === '==') ok2 = v === c.value;
+        else if (c.op === '!=') ok2 = v !== c.value;
+        else if (c.op === '<') ok2 = v < c.value;
+        else if (c.op === '<=') ok2 = v <= c.value;
+        else if (c.op === '>') ok2 = v > c.value;
+        else ok2 = v >= c.value;
+        if (!ok2) { match = false; break; }
+      } else {
+        var eq = type === c.value;
+        if (c.op === '==' ? !eq : eq) { match = false; break; }
+      }
+    }
+    return match ? s.rule.output : s.rule.elseOutput;
+  }
+
+  /* ---- rule editor ---- */
+  var ruleEditorEl = $('rule-editor');
+  var ruleLineEl = $('rule-line'), ruleErrorEl = $('rule-error');
+  var ruleCondsEl = $('rule-conds'), ruleAddEl = $('rule-add');
+  var ruleOutputEl = $('rule-output'), ruleElseEl = $('rule-else'), ruleRawEl = $('rule-raw');
+  var rawAtOpen = '';
+  var editConds = [];
+  var rowRefs = [];
+  var ERR_OP = 'Syntax error: expected ==';
+  var ERR_Q = 'Syntax error: value must be quoted';
+  var ERR_V = 'Syntax error: value required';
+  var ERR_AND = 'Syntax error: AND requires 2+ conditions';
+  var ERR_NUM = 'Syntax error: numeric ops require counter field';
+  var ERR_INT = 'Syntax error: counter value must be integer';
+  var GENERIC = ERR_OP;
+  var ALL_OPS = ['==', '!=', '<', '<=', '>', '>='];
+  function condDisplay(c) {
+    if (c.field === 'counter') return 'counter ' + c.op + ' ' + c.value;
+    return 'item.type ' + c.op + ' "' + c.value + '"';
+  }
+  function condCompact(c) {
+    if (c.field === 'counter') return 'counter' + c.op + c.value;
+    return 'type' + c.op + '"' + c.value + '"';
+  }
+  function ruleLineOf(r) {
+    return 'IF ' + r.conditions.map(condDisplay).join(' AND ') + ' THEN output_' + r.output + ' ELSE output_' + r.elseOutput;
+  }
+  function ruleCompact(r) {
+    return 'IF ' + r.conditions.map(condCompact).join(' AND ') + ' THEN ' + r.output + ' ELSE ' + r.elseOutput;
+  }
+  function renderCondRows() {
+    ruleCondsEl.innerHTML = '';
+    rowRefs = [];
+    editConds.forEach(function (c, i) {
+      var row = document.createElement('div');
+      row.className = 'condrow';
+      var f = document.createElement('select');
+      ['type', 'counter'].forEach(function (fv) {
+        var o = document.createElement('option');
+        o.value = fv; o.textContent = fv;
+        f.appendChild(o);
+      });
+      f.value = c.field;
+      var o2 = document.createElement('select');
+      ALL_OPS.forEach(function (ov) {
+        var o = document.createElement('option');
+        o.value = ov; o.textContent = ov;
+        o2.appendChild(o);
+      });
+      o2.value = c.op;
+      var v = document.createElement('input');
+      v.value = c.value;
+      var del = document.createElement('button');
+      del.textContent = '\u2715';
+      row.appendChild(f); row.appendChild(o2); row.appendChild(v); row.appendChild(del);
+      ruleCondsEl.appendChild(row);
+      rowRefs.push({ f: f, o: o2, v: v });
+      function sync() { editConds[i] = { field: f.value, op: o2.value, value: v.value }; syncRuleDisplay(); }
+      f.addEventListener('change', sync);
+      o2.addEventListener('change', sync);
+      v.addEventListener('input', sync);
+      del.addEventListener('click', function () {
+        if (editConds.length <= 1) return;
+        editConds.splice(i, 1);
+        renderCondRows();
+        syncRuleDisplay();
+      });
+    });
+  }
+  function openRuleEditor(s) {
+    sim.editingSorter = s;
+    sim.editorOpen = true;
+    editConds = s.rule.conditions.map(function (c) { return { field: c.field, op: c.op, value: String(c.value) }; });
+    renderCondRows();
+    ruleOutputEl.value = s.rule.output;
+    ruleElseEl.value = s.rule.elseOutput;
+    rawAtOpen = ruleLineOf(s.rule);
+    ruleRawEl.value = rawAtOpen;
+    ruleLineEl.textContent = rawAtOpen;
+    ruleErrorEl.textContent = '';
+    ruleEditorEl.classList.remove('hidden');
+  }
+  function closeRuleEditor() {
+    sim.editorOpen = false;
+    sim.editingSorter = null;
+    ruleEditorEl.classList.add('hidden');
+  }
+  function parseOutRef(s, p) {
+    if (s.substr(p, 7).toLowerCase() === 'output_') p += 7;
+    else if (s.substr(p, 6).toLowerCase() === 'output') p += 6;
+    var ch = s.charAt(p);
+    if (ch === 'A' || ch === 'a') return p;
+    if (ch === 'B' || ch === 'b') return p;
+    return -1;
+  }
+  function parseCond(s, p) {
+    function skipWs(pp) { while (pp < s.length && s.charAt(pp) === ' ') pp++; return pp; }
+    if (s.substr(p, 7).toLowerCase() === 'counter') {
+      var q0 = p + 7;
+      var nc = s.charAt(q0);
+      if (!(nc === ' ' || nc === '<' || nc === '>' || nc === '=' || nc === '!')) return GENERIC;
+      var q = skipWs(q0);
+      var cop;
+      if (s.substr(q, 2) === '<=' || s.substr(q, 2) === '>=' || s.substr(q, 2) === '==' || s.substr(q, 2) === '!=') { cop = s.substr(q, 2); q += 2; }
+      else if (s.charAt(q) === '<' || s.charAt(q) === '>') { cop = s.charAt(q); q += 1; }
+      else return GENERIC;
+      q = skipWs(q);
+      var m = /^[+-]?\d+(\.\d*)?/.exec(s.slice(q));
+      if (!m) return ERR_INT;
+      if (m[0].indexOf('.') >= 0) return ERR_INT;
+      return { cond: { field: 'counter', op: cop, value: parseInt(m[0], 10) }, p: q + m[0].length };
+    }
+    var q;
+    if (s.substr(p, 9).toLowerCase() === 'item.type') q = p + 9;
+    else if (s.substr(p, 4).toLowerCase() === 'type') q = p + 4;
+    else return GENERIC;
+    q = skipWs(q);
+    var top;
+    if (s.substr(q, 2) === '==') { top = '=='; q += 2; }
+    else if (s.substr(q, 2) === '!=') { top = '!='; q += 2; }
+    else if (s.charAt(q) === '=') return ERR_OP;
+    else if (s.charAt(q) === '<' || s.charAt(q) === '>') return ERR_NUM;
+    else return GENERIC;
+    q = skipWs(q);
+    if (s.charAt(q) !== '"') return ERR_Q;
+    var q2 = s.indexOf('"', q + 1);
+    if (q2 < 0) return ERR_Q;
+    var value = s.slice(q + 1, q2);
+    if (value === '') return ERR_V;
+    return { cond: { field: 'type', op: top, value: value }, p: q2 + 1 };
+  }
+  function parseRuleLine(raw) {
+    var s = raw.trim();
+    function skipWs(pp) { while (pp < s.length && s.charAt(pp) === ' ') pp++; return pp; }
+    function wordAt(pp, w) { pp = skipWs(pp); return s.substr(pp, w.length).toUpperCase() === w ? pp + w.length : -1; }
+    var p = 0;
+    var pIf = wordAt(p, 'IF');
+    if (pIf >= 0) p = pIf;
+    var conds = [];
+    var sawAnd = false;
+    for (;;) {
+      p = skipWs(p);
+      var res = parseCond(s, p);
+      if (typeof res === 'string') {
+        if (conds.length >= 1 && res === GENERIC) return ERR_AND;
+        return res;
+      }
+      conds.push(res.cond);
+      p = skipWs(res.p);
+      var pa = wordAt(p, 'AND');
+      if (pa < 0) break;
+      sawAnd = true;
+      p = pa;
+    }
+    if (sawAnd && conds.length < 2) return ERR_AND;
+    var pt = wordAt(p, 'THEN');
+    if (pt < 0) return GENERIC;
+    p = skipWs(pt);
+    var po = parseOutRef(s, p);
+    if (po < 0) return GENERIC;
+    var output = s.charAt(po).toUpperCase();
+    p = skipWs(po + 1);
+    var pe = wordAt(p, 'ELSE');
+    if (pe < 0) return GENERIC;
+    p = skipWs(pe);
+    var pe2 = parseOutRef(s, p);
+    if (pe2 < 0) return GENERIC;
+    var elseOutput = s.charAt(pe2).toUpperCase();
+    p = skipWs(pe2 + 1);
+    if (p !== s.length) return GENERIC;
+    return { conditions: conds, output: output, elseOutput: elseOutput };
+  }
+  function saveRule() {
+    var s = sim.editingSorter;
+    if (!s) return;
+    var raw = ruleRawEl.value.trim();
+    if (raw === '' || raw === rawAtOpen.trim()) {
+      var conds = [];
+      for (var i = 0; i < rowRefs.length; i++) {
+        var f = rowRefs[i].f.value, o = rowRefs[i].o.value, v = rowRefs[i].v.value.trim();
+        if (f === 'counter') {
+          if (!/^[+-]?\d+$/.test(v)) { ruleErrorEl.textContent = ERR_INT; return; }
+          conds.push({ field: 'counter', op: o, value: parseInt(v, 10) });
+        } else {
+          if (o !== '==' && o !== '!=') { ruleErrorEl.textContent = ERR_NUM; return; }
+          var value;
+          if (v.charAt(0) === '"') {
+            if (v.length < 2 || v.charAt(v.length - 1) !== '"') { ruleErrorEl.textContent = ERR_Q; return; }
+            value = v.slice(1, -1);
+          } else if (v.indexOf('"') !== -1) { ruleErrorEl.textContent = ERR_Q; return; }
+          else value = v;
+          if (value === '') { ruleErrorEl.textContent = ERR_V; return; }
+          conds.push({ field: 'type', op: o, value: value });
+        }
+      }
+      s.rule = { conditions: conds, output: ruleOutputEl.value, elseOutput: ruleElseEl.value };
+      setMessage('Rule saved', 1.2);
+      closeRuleEditor();
+      return;
+    }
+    var parsed = parseRuleLine(raw);
+    if (typeof parsed === 'string') { ruleErrorEl.textContent = parsed; return; }
+    s.rule = parsed;
+    setMessage('Rule saved', 1.2);
+    closeRuleEditor();
+  }
+  function syncRuleDisplay() {
+    var parts = [];
+    for (var i = 0; i < rowRefs.length; i++) {
+      var f = rowRefs[i].f.value, o = rowRefs[i].o.value, v = rowRefs[i].v.value.trim();
+      if (f === 'counter') parts.push('counter ' + o + ' ' + (v === '' ? '0' : v));
+      else parts.push('item.type ' + o + ' "' + v + '"');
+    }
+    ruleLineEl.textContent = 'IF ' + parts.join(' AND ') + ' THEN output_' + ruleOutputEl.value + ' ELSE output_' + ruleElseEl.value;
+  }
+  $('rule-save').addEventListener('click', saveRule);
+  $('rule-cancel').addEventListener('click', closeRuleEditor);
+  ruleAddEl.addEventListener('click', function () {
+    editConds.push({ field: 'type', op: '==', value: '' });
+    renderCondRows();
+    syncRuleDisplay();
+  });
+
+  /* ============================== player ============================== */
+  var matOveralls = std(0x2f5d8f, 0.75, 0);
+  var matOverallsD = std(0x27507f, 0.75, 0);
+  var matSkin = std(0xe2b18c, 0.7, 0);
+  var matHat = std(0xf3b93d, 0.6, 0);
+  var matBoot = std(0x2b3037, 0.8, 0);
+  var matGlove = std(0x33404e, 0.8, 0);
+  var matBelt = std(0x232a33, 0.8, 0.1);
+  var matHazard = std(0xe6b83c, 0.7, 0);
+  var matDark = std(0x1c2126, 0.5, 0);
+
+  var playerG = new THREE.Group();
+  function buildLeg(side) {
+    var g = new THREE.Group();
+    g.position.set(0.155 * side, 0.92, 0);
+    g.add(box(0.24, 0.68, 0.27, matOverallsD, 0, -0.36, 0));
+    g.add(box(0.26, 0.16, 0.36, matBoot, 0, -0.80, 0.05));
+    return g;
+  }
+  function buildArm(side) {
+    var g = new THREE.Group();
+    g.position.set(0.41 * side, 1.48, 0);
+    g.add(box(0.17, 0.56, 0.19, matOveralls, 0, -0.30, 0));
+    g.add(box(0.19, 0.15, 0.21, matGlove, 0, -0.60, 0.02));
+    return g;
+  }
+  var legL = buildLeg(-1), legR = buildLeg(1);
+  var armL = buildArm(-1), armR = buildArm(1);
+  playerG.add(legL); playerG.add(legR);
+  playerG.add(armL); playerG.add(armR);
+  playerG.add(box(0.64, 0.62, 0.40, matOveralls, 0, 1.24, 0));
+  playerG.add(box(0.66, 0.12, 0.42, matBelt, 0, 0.96, 0));
+  playerG.add(box(0.5, 0.08, 0.03, matHazard, 0, 1.36, 0.205));
+  var head = new THREE.Mesh(new THREE.SphereGeometry(0.225, 20, 16), matSkin);
+  head.position.set(0, 1.72, 0); head.castShadow = true;
+  playerG.add(head);
+  playerG.add(cyl(0.09, 0.09, 0.12, 8, matSkin, 0, 1.58, 0));
+  var eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.038, 8, 8), matDark);
+  eyeL.position.set(-0.085, 1.76, 0.19); playerG.add(eyeL);
+  var eyeR = eyeL.clone(); eyeR.position.x = 0.085; playerG.add(eyeR);
+  playerG.add(cyl(0.34, 0.34, 0.035, 16, matHat, 0, 1.865, 0));
+  playerG.add(cyl(0.245, 0.26, 0.2, 16, matHat, 0, 1.96, 0));
+  var held = new THREE.Mesh(chunkGeo, ORE.iron_ore.mat);
+  held.position.set(0, 1.30, 0.55);
+  held.castShadow = true;
+  held.visible = false;
+  playerG.add(held);
+  scene.add(playerG);
+
+  /* ============================== simulation state ============================== */
+  var sim = {
+    phase: 'title',
+    simTime: 0,
+    carrying: null,
+    px: 0, pz: -8, heading: 0, camYaw: 0,
+    prevPX: 0, prevPZ: -8, prevHeading: 0,
+    walkPhase: 0, walkAmount: 0, moving: false,
+    furnace: { ironOre: 0, smelting: false, smeltRemaining: 0, jammed: false, jamTimer: 0 },
+    cf: { input: 0, output: 0, smelting: false, smeltRemaining: 0, jammed: false, jamTimer: 0 },
+    pm: { input: 0, output: 0, smelting: false, smeltRemaining: 0, jammed: false, jamTimer: 0 },
+    counter: 0,
+    sorters: [],
+    editorOpen: false,
+    editingSorter: null,
+    ingots: 0,
+    orders: generateOrders(),
+    currentOrder: 0,
+    orderActive: true,
+    orderTimeRemaining: ORDER_TIME,
+    pauseRemaining: 0,
+    ordersCompleted: 0,
+    ordersFailed: 0,
+    score: 0,
+    grade: null,
+    msg: null, msgUntil: 0,
+    buildMode: false,
+    pendingStart: null,
+    belts: [],
+    items: []
+  };
+  var actionQueue = [];
+  var snapCam = true;
+  var camPos = new THREE.Vector3(0, 10, -22);
+  var lookPos = new THREE.Vector3(0, 1.7, -4.8);
+  var camDesired = new THREE.Vector3();
+  var lookDesired = new THREE.Vector3();
+
+  var keys = Object.create(null);
+  window.addEventListener('keydown', function (e) {
+    var c = e.code;
+    if (c === 'ArrowUp' || c === 'ArrowDown' || c === 'ArrowLeft' || c === 'ArrowRight' || c === 'Space') e.preventDefault();
+    keys[c] = true;
+    if (e.repeat) return;
+    if (c === 'KeyE') actionQueue.push('pickup');
+    else if (c === 'KeyF') actionQueue.push('deposit');
+    else if (c === 'KeyB') actionQueue.push('build');
+    else if (c === 'KeyG') actionQueue.push('clearjam');
+    else if (c === 'Escape') actionQueue.push('canceledit');
+    else if (c === 'Enter') actionQueue.push('confirm');
+    else if (c === 'KeyR') actionQueue.push('restart');
+  });
+  window.addEventListener('keyup', function (e) { keys[e.code] = false; });
+  window.addEventListener('blur', function () { for (var k in keys) keys[k] = false; });
+  window.addEventListener('mousedown', function (e) {
+    if (e.button !== 0) return;
+    if (sim.phase !== 'playing' || sim.editorOpen) return;
+    var nx = (e.clientX / window.innerWidth) * 2 - 1;
+    var ny = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera({ x: nx, y: ny }, camera);
+    var pt = new THREE.Vector3();
+    if (!raycaster.ray.intersectPlane(floorPlane, pt)) return;
+    var cx = clamp(pt.x, -24.8, 24.8);
+    var cz = clamp(pt.z, -24.8, 24.8);
+    if (sim.buildMode) { handleFloorClick(cx, cz); return; }
+    tryOpenRuleEditor(cx, cz);
+  });
+
+  function setMessage(text, dur) {
+    sim.msg = text;
+    sim.msgUntil = sim.simTime + dur;
+  }
+  function nearFurnace() {
+    var dx = sim.px, dz = sim.pz;
+    return (dx * dx + dz * dz) <= DEPOSIT_RANGE * DEPOSIT_RANGE;
+  }
+  function nearCopper() {
+    var dx = sim.px - 10, dz = sim.pz;
+    return (dx * dx + dz * dz) <= DEPOSIT_RANGE * DEPOSIT_RANGE;
+  }
+  function nearPlate() {
+    var dx = sim.px + 10, dz = sim.pz;
+    return (dx * dx + dz * dz) <= DEPOSIT_RANGE * DEPOSIT_RANGE;
+  }
+  function nearNode(n) {
+    var dx = sim.px - n.x, dz = sim.pz - n.z;
+    var r = PICKUP_RANGE + 1e-4;
+    return (dx * dx + dz * dz) <= r * r;
+  }
+  function doPickup() {
+    if (sim.carrying) { setMessage('Hands full', 1.5); return; }
+    for (var i = 0; i < NODES.length; i++) {
+      if (nearNode(NODES[i])) {
+        sim.carrying = NODES[i].type;
+        setMessage('Picked up ' + NODES[i].type, 1.2);
+        return;
+      }
+    }
+    setMessage('No ore node nearby', 1.2);
+  }
+  function doDeposit() {
+    if (!sim.carrying) { setMessage('Nothing to deposit', 1.2); return; }
+    if (nearFurnace()) {
+      if (sim.carrying === 'iron_ore') {
+        sim.furnace.ironOre += 1;
+        sim.carrying = null;
+        setMessage('Deposited iron_ore', 1.2);
+      } else {
+        setMessage('Invalid material: ' + sim.carrying, 2.0);
+      }
+      return;
+    }
+    if (nearCopper()) {
+      if (sim.carrying === 'copper_ore') {
+        sim.cf.input += 1;
+        sim.carrying = null;
+        setMessage('Deposited copper_ore', 1.2);
+      } else {
+        setMessage('Invalid material: ' + sim.carrying, 2.0);
+      }
+      return;
+    }
+    if (nearPlate()) {
+      if (sim.carrying === 'iron_ore') {
+        sim.pm.input += 1;
+        sim.carrying = null;
+        setMessage('Deposited iron_ore', 1.2);
+      } else {
+        setMessage('Invalid material: ' + sim.carrying, 2.0);
+      }
+      return;
+    }
+    var b = nearestBeltWithin(sim.px, sim.pz, BELT_PLACE_RANGE);
+    if (b) {
+      spawnItem(b, sim.carrying, projOnBelt(b, sim.px, sim.pz));
+      setMessage('Placed ' + sim.carrying + ' on belt', 1.2);
+      sim.carrying = null;
+      return;
+    }
+    setMessage('Move closer to a furnace or a belt', 1.2);
+  }
+  function resolveMove(px, pz, nx, nz) {
+    var x = nx, z = pz, i, b;
+    for (i = 0; i < OBSTACLES.length; i++) {
+      b = OBSTACLES[i];
+      if (x > b.minX - PLAYER_RADIUS && x < b.maxX + PLAYER_RADIUS &&
+          pz > b.minZ - PLAYER_RADIUS && pz < b.maxZ + PLAYER_RADIUS) {
+        if (x > px) x = Math.min(x, b.minX - PLAYER_RADIUS);
+        else if (x < px) x = Math.max(x, b.maxX + PLAYER_RADIUS);
+        else x = px;
+      }
+    }
+    var z2 = nz;
+    for (i = 0; i < OBSTACLES.length; i++) {
+      b = OBSTACLES[i];
+      if (x > b.minX - PLAYER_RADIUS && x < b.maxX + PLAYER_RADIUS &&
+          z2 > b.minZ - PLAYER_RADIUS && z2 < b.maxZ + PLAYER_RADIUS) {
+        if (z2 > pz) z2 = Math.min(z2, b.minZ - PLAYER_RADIUS);
+        else if (z2 < pz) z2 = Math.max(z2, b.maxZ + PLAYER_RADIUS);
+        else z2 = pz;
+      }
+    }
+    return { x: x, z: z2 };
+  }
+  function updateMovement(dt) {
+    var fx = Math.sin(sim.camYaw), fz = Math.cos(sim.camYaw);
+    var frozen = sim.buildMode || sim.editorOpen;
+    var ix = frozen ? 0 : (((keys.KeyD || keys.ArrowRight) ? 1 : 0) - ((keys.KeyA || keys.ArrowLeft) ? 1 : 0));
+    var iz = frozen ? 0 : (((keys.KeyW || keys.ArrowUp) ? 1 : 0) - ((keys.KeyS || keys.ArrowDown) ? 1 : 0));
+    var mx = fx * iz - fz * ix;
+    var mz = fz * iz + fx * ix;
+    var len = Math.sqrt(mx * mx + mz * mz);
+    if (len > 0) {
+      mx /= len; mz /= len;
+      var r = resolveMove(sim.px, sim.pz, sim.px + mx * PLAYER_SPEED * dt, sim.pz + mz * PLAYER_SPEED * dt);
+      sim.px = clamp(r.x, -24.4, 24.4);
+      sim.pz = clamp(r.z, -24.4, 24.4);
+      var target = Math.atan2(mx, mz);
+      sim.heading += angDiff(target, sim.heading) * Math.min(1, 11 * dt);
+      sim.walkPhase += dt * 9.2;
+      sim.walkAmount = Math.min(1, sim.walkAmount + dt * 6);
+      sim.moving = true;
+    } else {
+      sim.walkAmount = Math.max(0, sim.walkAmount - dt * 7);
+      sim.moving = false;
+    }
+    sim.camYaw += angDiff(sim.heading, sim.camYaw) * Math.min(1, 2.4 * dt);
+  }
+  function jamFurnace(f, type, label) {
+    f.jammed = true;
+    f.jamTimer = JAM_TIME;
+    setMessage(label + ' jammed: ' + type, 2.0);
+  }
+  function doClearJam() {
+    var cleared = false;
+    if (sim.furnace.jammed) { sim.furnace.jammed = false; sim.furnace.jamTimer = 0; cleared = true; }
+    if (sim.cf.jammed) { sim.cf.jammed = false; sim.cf.jamTimer = 0; cleared = true; }
+    if (sim.pm.jammed) { sim.pm.jammed = false; sim.pm.jamTimer = 0; cleared = true; }
+    if (cleared) setMessage('Jam cleared', 1.2);
+  }
+  function resetCounter() {
+    sim.counter = 0;
+    setMessage('Counter reset to 0', 2.0);
+  }
+  function updateFurnace(dt) {
+    var f = sim.furnace;
+    if (f.jammed) {
+      f.jamTimer = Math.max(0, f.jamTimer - dt);
+      if (f.jamTimer === 0) f.jammed = false;
+      return;
+    }
+    if (f.smelting) {
+      f.smeltRemaining -= dt;
+      if (f.smeltRemaining <= 0) {
+        f.smeltRemaining = 0;
+        f.smelting = false;
+        sim.ingots += 1;
+      }
+    }
+    if (!f.smelting && f.ironOre >= SMELT_INPUT) {
+      f.ironOre -= SMELT_INPUT;
+      f.smelting = true;
+      f.smeltRemaining = SMELT_TIME;
+    }
+  }
+  function updateCopperFurnace(dt) {
+    var c = sim.cf;
+    if (c.jammed) {
+      c.jamTimer = Math.max(0, c.jamTimer - dt);
+      if (c.jamTimer === 0) c.jammed = false;
+      return;
+    }
+    if (c.smelting) {
+      c.smeltRemaining -= dt;
+      if (c.smeltRemaining <= 0) {
+        c.smeltRemaining = 0;
+        c.smelting = false;
+        c.output += 1;
+      }
+    }
+    if (!c.smelting && c.input >= SMELT_INPUT) {
+      c.input -= SMELT_INPUT;
+      c.smelting = true;
+      c.smeltRemaining = SMELT_TIME_COPPER;
+    }
+  }
+  function updatePlateMachine(dt) {
+    var m = sim.pm;
+    if (m.jammed) {
+      m.jamTimer = Math.max(0, m.jamTimer - dt);
+      if (m.jamTimer === 0) m.jammed = false;
+      return;
+    }
+    if (m.smelting) {
+      m.smeltRemaining -= dt;
+      if (m.smeltRemaining <= 0) {
+        m.smeltRemaining = 0;
+        m.smelting = false;
+        m.output += 1;
+      }
+    }
+    if (!m.smelting && m.input >= SMELT_INPUT) {
+      m.input -= SMELT_INPUT;
+      m.smelting = true;
+      m.smeltRemaining = SMELT_TIME_PLATE;
+    }
+  }
+  var endTitle = $('end-title'), endSub = $('end-sub');
+  var endIngots = $('end-ingots'), endTime = $('end-time'), endScore = $('end-score'), endGrade = $('end-grade');
+  var GRADE_COLORS = { S: '#ffd257', A: '#7ade6f', B: '#6fb6ff', C: '#c8ccd4' };
+  function resetMachineInventories() {
+    sim.furnace.ironOre = 0; sim.furnace.smelting = false; sim.furnace.smeltRemaining = 0;
+    sim.ingots = 0;
+    sim.cf.input = 0; sim.cf.output = 0; sim.cf.smelting = false; sim.cf.smeltRemaining = 0;
+    sim.pm.input = 0; sim.pm.output = 0; sim.pm.smelting = false; sim.pm.smeltRemaining = 0;
+  }
+  function advanceOrder() {
+    sim.orderActive = false;
+    if (sim.currentOrder >= 9) { endRound(); return; }
+    sim.currentOrder += 1;
+    sim.orderTimeRemaining = ORDER_TIME;
+    sim.pauseRemaining = PAUSE_TIME;
+  }
+  function completeOrder() {
+    sim.orders[sim.currentOrder].status = 'completed';
+    sim.ordersCompleted += 1;
+    sim.score += 100;
+    setMessage('Order ' + (sim.currentOrder + 1) + '/10 Complete +100', 2.0);
+    resetMachineInventories();
+    advanceOrder();
+  }
+  function failOrder() {
+    sim.orders[sim.currentOrder].status = 'failed';
+    sim.ordersFailed += 1;
+    sim.score -= 50;
+    setMessage('Order ' + (sim.currentOrder + 1) + '/10 Failed -50', 2.0);
+    resetMachineInventories();
+    advanceOrder();
+  }
+  function endRound() {
+    sim.phase = 'ended';
+    sim.orderActive = false;
+    sim.grade = sim.score >= 950 ? 'S' : (sim.score >= 800 ? 'A' : (sim.score >= 650 ? 'B' : 'C'));
+    endTitle.textContent = 'Round Complete';
+    endSub.textContent = 'All 10 orders resolved.';
+    endIngots.textContent = String(sim.ordersCompleted);
+    endTime.textContent = String(sim.ordersFailed);
+    endScore.textContent = String(sim.score);
+    endGrade.textContent = sim.grade;
+    endGrade.style.color = GRADE_COLORS[sim.grade];
+    if (sim.editorOpen) closeRuleEditor();
+    sim.buildMode = false;
+    sim.pendingStart = null;
+    marker.visible = false;
+    canvas.style.cursor = 'default';
+    $('hud').classList.add('hidden');
+    $('end-card').classList.remove('hidden');
+    actionQueue.length = 0;
+  }
+  function resetRound() {
+    sim.phase = 'playing';
+    sim.simTime = 0;
+    sim.orders = generateOrders();
+    sim.currentOrder = 0;
+    sim.orderActive = true;
+    sim.orderTimeRemaining = ORDER_TIME;
+    sim.pauseRemaining = 0;
+    sim.ordersCompleted = 0;
+    sim.ordersFailed = 0;
+    sim.carrying = null;
+    sim.px = 0; sim.pz = -8; sim.heading = 0; sim.camYaw = 0;
+    sim.prevPX = 0; sim.prevPZ = -8; sim.prevHeading = 0;
+    sim.walkPhase = 0; sim.walkAmount = 0; sim.moving = false;
+    sim.furnace.ironOre = 0; sim.furnace.smelting = false; sim.furnace.smeltRemaining = 0;
+    sim.ingots = 0;
+    sim.score = 0;
+    sim.grade = null;
+    sim.msg = null; sim.msgUntil = 0;
+    sim.buildMode = false;
+    sim.pendingStart = null;
+    marker.visible = false;
+    canvas.style.cursor = 'default';
+    if (sim.editorOpen) closeRuleEditor();
+    clearBeltsAndItems();
+    for (var si2 = 0; si2 < sim.sorters.length; si2++) {
+      var so2 = sim.sorters[si2];
+      for (var vi2 = 0; vi2 < so2.visuals.length; vi2++) scene.remove(so2.visuals[vi2]);
+    }
+    sim.sorters.length = 0;
+    OBSTACLES.length = baseObstacleCount;
+    sim.cf.input = 0; sim.cf.output = 0; sim.cf.smelting = false; sim.cf.smeltRemaining = 0;
+    sim.cf.jammed = false; sim.cf.jamTimer = 0;
+    sim.pm.input = 0; sim.pm.output = 0; sim.pm.smelting = false; sim.pm.smeltRemaining = 0;
+    sim.pm.jammed = false; sim.pm.jamTimer = 0;
+    sim.counter = 0;
+    sim.furnace.jammed = false; sim.furnace.jamTimer = 0;
+    NODES.forEach(function (n) { n.acc = 0; });
+    actionQueue.length = 0;
+    snapCam = true;
+    ironBoardCache = '';
+    copperBoardCache = '';
+    $('title-card').classList.add('hidden');
+    $('end-card').classList.add('hidden');
+    $('hud').classList.remove('hidden');
+  }
+  function stepSim(dt) {
+    sim.prevPX = sim.px; sim.prevPZ = sim.pz; sim.prevHeading = sim.heading;
+    while (actionQueue.length) {
+      var a = actionQueue.shift();
+      if (a === 'restart') {
+        if (sim.phase === 'playing') resetCounter();
+        else resetRound();
+        continue;
+      }
+      if (a === 'confirm') { if (sim.phase !== 'playing') resetRound(); continue; }
+      if (sim.phase !== 'playing') continue;
+      if (a === 'pickup') doPickup();
+      else if (a === 'deposit') doDeposit();
+      else if (a === 'build') toggleBuild();
+      else if (a === 'clearjam') doClearJam();
+      else if (a === 'canceledit') {
+        if (sim.editorOpen) closeRuleEditor();
+        else if (sim.buildMode) toggleBuild();
+      }
+    }
+    if (sim.phase !== 'playing') return;
+    if (!sim.orderActive && sim.editorOpen) return;
+    sim.simTime += dt;
+    if (sim.orderActive) {
+      sim.orderTimeRemaining = Math.max(0, sim.orderTimeRemaining - dt);
+    } else {
+      sim.pauseRemaining -= dt;
+      if (sim.pauseRemaining <= 0) sim.orderActive = true;
+    }
+    updateMovement(dt);
+    transportItems(dt);
+    nodeSpawnTick(dt);
+    updateFurnace(dt);
+    updateCopperFurnace(dt);
+    updatePlateMachine(dt);
+    if (sim.orderActive) {
+      var ord = sim.orders[sim.currentOrder];
+      if (sim.ingots >= ord.ironIngots && sim.cf.output >= ord.copperIngots && sim.pm.output >= ord.ironPlates) {
+        completeOrder();
+        return;
+      }
+      if (sim.orderTimeRemaining <= 0) {
+        failOrder();
+        return;
+      }
+    }
+  }
+
+  /* ============================== HUD ============================== */
+  var hudOrderReq = $('hud-order-req'), hudOrderTime = $('hud-order-time');
+  var hudCompleted = $('hud-completed'), hudFailed = $('hud-failed'), hudScoreCum = $('hud-score-cum');
+  var hudFOre = $('hud-f-ore'), hudFSmelt = $('hud-f-smelt'), hudFIngots = $('hud-f-ingots');
+  var hudCarryText = $('hud-carry-text'), hudCarryDot = $('hud-carry-dot');
+  var hudMsg = $('hud-msg'), hudHint = $('hud-hint');
+  var hudBelts = $('hud-belts'), hudAuto = $('hud-autospawn'), hudBuild = $('hud-buildmode');
+  var hudIngotsIron = $('hud-ingots-iron'), hudIngotsPlates = $('hud-ingots-plates');
+  var hudCfOre = $('hud-cf-ore'), hudCfSmelt = $('hud-cf-smelt'), hudCfIngots = $('hud-cf-ingots');
+  var hudPmOre = $('hud-pm-ore'), hudPmSmelt = $('hud-pm-smelt'), hudPmIngots = $('hud-pm-ingots');
+  var hudCounter = $('hud-counter');
+  var hudSorters = $('hud-sorters'), sorterRowsEl = $('sorter-rows');
+  var hudSorterRows = [];
+  function currentHint() {
+    if (sim.phase !== 'playing') return '';
+    if (sim.editorOpen) return '';
+    if (sim.buildMode) {
+      if (sim.pendingStart) return sim.pendingStart.sorter ? 'Click to lay the ' + sim.pendingStart.port + ' output belt' : 'Click to set the belt end point';
+      return 'Click a belt to insert a sorter, a port to start an output belt, or the floor for a belt';
+    }
+    if (sim.carrying) {
+      if (nearFurnace()) {
+        return sim.carrying === 'iron_ore' ? 'Press F to deposit iron_ore' : 'The iron furnace accepts only iron_ore';
+      }
+      if (nearCopper()) {
+        return sim.carrying === 'copper_ore' ? 'Press F to deposit copper_ore' : 'The copper furnace accepts only copper_ore';
+      }
+      if (nearPlate()) {
+        return sim.carrying === 'iron_ore' ? 'Press F to deposit iron_ore' : 'The plate press accepts only iron_ore';
+      }
+      if (nearestBeltWithin(sim.px, sim.pz, BELT_PLACE_RANGE)) return 'Press F to place ' + sim.carrying + ' on the belt';
+      return '';
+    }
+    for (var i = 0; i < NODES.length; i++) {
+      if (nearNode(NODES[i])) return 'Press E to pick up ' + NODES[i].type;
+    }
+    return '';
+  }
+  function updateHUD() {
+    if (sim.phase !== 'playing') return;
+    var ord = sim.orders[sim.currentOrder];
+    setText(hudOrderReq, 'Order ' + (sim.currentOrder + 1) + '/10: ' + ord.ironIngots + ' iron ingots, ' + ord.copperIngots + ' copper ingots, ' + ord.ironPlates + ' iron plates');
+    setText(hudOrderTime, 'Order time: ' + Math.ceil(sim.orderTimeRemaining) + ' s');
+    hudOrderTime.classList.toggle('low', sim.orderActive && sim.orderTimeRemaining <= 15.05);
+    setText(hudCompleted, 'Completed: ' + sim.ordersCompleted);
+    setText(hudFailed, 'Failed: ' + sim.ordersFailed);
+    setText(hudScoreCum, 'Score: ' + sim.score);
+    setText(hudCounter, 'Counter: ' + sim.counter);
+    var f = sim.furnace;
+    setText(hudFOre, 'Iron ore: ' + f.ironOre);
+    if (f.jammed) {
+      setText(hudFSmelt, 'Jammed \u2014 press G (' + f.jamTimer.toFixed(1) + ' s)');
+      hudFSmelt.style.color = '#ff6b57';
+    } else {
+      setText(hudFSmelt, f.smelting ? ('Smelting\u2026 ' + Math.max(0, f.smeltRemaining).toFixed(1) + ' s') : 'Idle');
+      hudFSmelt.style.color = f.smelting ? '#ffb547' : '#9fb0c0';
+    }
+    setText(hudFIngots, 'Iron ingots: ' + sim.ingots);
+    var c = sim.cf;
+    setText(hudCfOre, 'Copper ore: ' + c.input);
+    if (c.jammed) {
+      setText(hudCfSmelt, 'Jammed \u2014 press G (' + c.jamTimer.toFixed(1) + ' s)');
+      hudCfSmelt.style.color = '#ff6b57';
+    } else {
+      setText(hudCfSmelt, c.smelting ? ('Smelting\u2026 ' + Math.max(0, c.smeltRemaining).toFixed(1) + ' s') : 'Idle');
+      hudCfSmelt.style.color = c.smelting ? '#ffb547' : '#9fb0c0';
+    }
+    setText(hudCfIngots, 'Copper ingots: ' + c.output);
+    var m = sim.pm;
+    setText(hudPmOre, 'Iron ore: ' + m.input);
+    if (m.jammed) {
+      setText(hudPmSmelt, 'Jammed \u2014 press G (' + m.jamTimer.toFixed(1) + ' s)');
+      hudPmSmelt.style.color = '#ff6b57';
+    } else {
+      setText(hudPmSmelt, m.smelting ? ('Pressing\u2026 ' + Math.max(0, m.smeltRemaining).toFixed(1) + ' s') : 'Idle');
+      hudPmSmelt.style.color = m.smelting ? '#ffb547' : '#9fb0c0';
+    }
+    setText(hudPmIngots, 'Iron plates: ' + m.output);
+    setText(hudCarryText, 'Carrying: ' + (sim.carrying || 'nothing'));
+    hudCarryDot.style.background = sim.carrying ? ORE[sim.carrying].css : '#5a6470';
+    setText(hudMsg, (sim.msg && sim.simTime < sim.msgUntil) ? sim.msg : '');
+    setText(hudHint, currentHint());
+    setText(hudBelts, 'Belts placed: ' + sim.belts.length);
+    var anyAuto = false;
+    for (var i = 0; i < NODES.length; i++) { if (nearestBeltStartToNode(NODES[i])) { anyAuto = true; break; } }
+    setText(hudAuto, 'Auto-spawn enabled: ' + (anyAuto ? 'Yes' : 'No'));
+    setText(hudBuild, 'Build mode: ' + (sim.buildMode ? 'ON' : 'OFF'));
+    setText(hudSorters, 'Sorters placed: ' + sim.sorters.length);
+    if (hudSorterRows.length !== sim.sorters.length * 2) {
+      sorterRowsEl.innerHTML = '';
+      hudSorterRows = [];
+      sim.sorters.forEach(function () {
+        var r1 = document.createElement('div');
+        r1.className = 'row';
+        var r2 = document.createElement('div');
+        r2.className = 'row';
+        sorterRowsEl.appendChild(r1);
+        sorterRowsEl.appendChild(r2);
+        hudSorterRows.push(r1, r2);
+      });
+    }
+    sim.sorters.forEach(function (s, k) {
+      setText(hudSorterRows[k * 2], 'Sorter ' + (k + 1) + ': ' + ruleCompact(s.rule));
+      setText(hudSorterRows[k * 2 + 1], 'Sorter ' + (k + 1) + ' \u2014 A: ' + s.tallyA + ', B: ' + s.tallyB);
+    });
+  }
+
+  /* ============================== state export ============================== */
+  function exportState() {
+    window.__arena_state = {
+      phase: sim.phase,
+      time: sim.simTime,
+      timeRemaining: sim.orderTimeRemaining,
+      carrying: sim.carrying,
+      playerPosition: { x: sim.px, y: 0, z: sim.pz },
+      furnace: {
+        ironOre: sim.furnace.ironOre,
+        smelting: sim.furnace.smelting,
+        smeltRemaining: sim.furnace.smeltRemaining,
+        jammed: sim.furnace.jammed,
+        jamTimer: sim.furnace.jamTimer
+      },
+      copperFurnace: {
+        input: sim.cf.input,
+        output: sim.cf.output,
+        jammed: sim.cf.jammed,
+        jamTimer: sim.cf.jamTimer
+      },
+      ironPlateMachine: {
+        input: sim.pm.input,
+        output: sim.pm.output,
+        jammed: sim.pm.jammed,
+        jamTimer: sim.pm.jamTimer
+      },
+      counter: sim.counter,
+      sorters: sim.sorters.map(function (s) {
+        return {
+          position: { x: s.x, z: s.z },
+          rule: {
+            conditions: s.rule.conditions.map(function (c) { return { field: c.field, op: c.op, value: c.value }; }),
+            output: s.rule.output,
+            elseOutput: s.rule.elseOutput
+          },
+          tallyA: s.tallyA,
+          tallyB: s.tallyB
+        };
+      }),
+      ingots: sim.ingots,
+      orders: sim.orders.map(function (o) {
+        return { ironIngots: o.ironIngots, copperIngots: o.copperIngots, ironPlates: o.ironPlates, status: o.status };
+      }),
+      currentOrder: sim.currentOrder,
+      orderTimeRemaining: sim.orderTimeRemaining,
+      ordersCompleted: sim.ordersCompleted,
+      ordersFailed: sim.ordersFailed,
+      score: sim.score,
+      grade: sim.grade,
+      buildMode: sim.buildMode,
+      belts: sim.belts.map(function (b) {
+        return {
+          start: { x: b.sx, z: b.sz },
+          end: { x: b.ex, z: b.ez },
+          items: sim.items.filter(function (it) { return it.state === 'belt' && it.belt === b; })
+            .map(function (it) { return { type: it.type, distanceTravelled: it.d }; })
+        };
+      })
+    };
+  }
+
+  /* ============================== presentation ============================== */
+  function posePlayer() {
+    var w = sim.walkAmount, s = Math.sin(sim.walkPhase);
+    legL.rotation.x = s * 0.62 * w;
+    legR.rotation.x = -s * 0.62 * w;
+    if (sim.carrying) {
+      armL.rotation.x = -1.22 + s * 0.05 * w;
+      armR.rotation.x = -1.22 - s * 0.05 * w;
+    } else {
+      armL.rotation.x = -s * 0.55 * w;
+      armR.rotation.x = s * 0.55 * w;
+    }
+    armL.rotation.z = 0.07;
+    armR.rotation.z = -0.07;
+    held.visible = !!sim.carrying;
+    if (sim.carrying) held.material = ORE[sim.carrying].mat;
+  }
+  function animateFurnace() {
+    var f = sim.furnace, t = sim.simTime;
+    var playing = sim.phase === 'playing';
+    var active = f.smelting && !f.jammed && playing;
+    glowMat.emissiveIntensity = active ? 1.5 + 0.9 * Math.sin(t * 6.3) : 0.35;
+    furnLight.intensity = (active ? 2.3 + 0.7 * Math.sin(t * 9.7) : 0.45) * LIGHT_SCALE;
+    puffSmoke(smoke, active, 1.25, 1.25, 6.25, t);
+    var c = sim.cf;
+    var cActive = c.smelting && !c.jammed && playing;
+    glowCopperMat.emissiveIntensity = cActive ? 1.4 + 0.8 * Math.sin(t * 5.1) : 0.3;
+    cfLight.intensity = (cActive ? 2.1 + 0.6 * Math.sin(t * 8.3) : 0.4) * LIGHT_SCALE;
+    puffSmoke(smoke2, cActive, 11.15, 1.15, 5.45, t);
+    var p = sim.pm;
+    var pActive = p.smelting && !p.jammed && playing;
+    if (pressRam) pressRam.position.y = 2.35 + (pActive ? 0.3 * Math.sin(t * 2.4) : 0);
+    pressLampMat.emissiveIntensity = pActive ? 1.2 + 0.5 * Math.sin(t * 3.1) : 0.25;
+    pmLight.intensity = (pActive ? 1.6 + 0.5 * Math.sin(t * 7.3) : 0.3) * LIGHT_SCALE;
+    var i, k;
+    for (i = 0; i < sparks.length; i++) {
+      if (!active) { sparks[i].visible = false; continue; }
+      k = (t * 0.85 + i * 0.37) % 1;
+      sparks[i].visible = true;
+      sparks[i].position.set(
+        Math.sin(i * 2.4 + k * 5.5) * 0.28,
+        0.8 + k * 1.1,
+        -1.9 - Math.sin(k * Math.PI) * 0.3
+      );
+      sparks[i].scale.setScalar(1 - k * 0.7);
+      sparks[i].material.opacity = 1 - k;
+    }
+  }
+  function puffSmoke(arr, active, cx, cz, baseY, t) {
+    for (var i = 0; i < arr.length; i++) {
+      if (!active) { arr[i].visible = false; continue; }
+      var k = (t * 0.26 + i / arr.length) % 1;
+      arr[i].visible = true;
+      arr[i].position.set(cx + Math.sin(t * 0.8 + i * 1.7) * 0.22 * k, baseY + k * 2.6, cz + Math.cos(t * 0.66 + i) * 0.18 * k);
+      var sc = 0.35 + k * 1.25;
+      arr[i].scale.set(sc, sc, sc);
+      arr[i].material.opacity = 0.4 * (1 - k);
+    }
+  }
+  var ironBoardCache = '', copperBoardCache = '';
+  function updateFurnaceBoards() {
+    var f = sim.furnace;
+    var k1 = f.ironOre + '|' + f.smelting + '|' + f.jammed + '|' +
+      (f.jammed ? f.jamTimer.toFixed(1) : (f.smelting ? f.smeltRemaining.toFixed(1) : '')) + '|' + sim.ingots;
+    if (k1 !== ironBoardCache) {
+      ironBoardCache = k1;
+      ironBoard.draw([
+        { text: 'Iron ore: ' + f.ironOre, color: '#eef3f8' },
+        f.jammed ? { text: 'JAMMED \u2014 press G', color: '#ff6b57' } :
+          (f.smelting ? { text: 'Smelting\u2026 ' + Math.max(0, f.smeltRemaining).toFixed(1) + ' s', color: '#ffb547' } : { text: 'Idle', color: '#9fb0c0' }),
+        { text: 'Ingots: ' + sim.ingots, color: '#eef3f8' }
+      ]);
+    }
+    var c = sim.cf;
+    var k2 = c.input + '|' + c.smelting + '|' + c.jammed + '|' +
+      (c.jammed ? c.jamTimer.toFixed(1) : (c.smelting ? c.smeltRemaining.toFixed(1) : '')) + '|' + c.output;
+    if (k2 !== copperBoardCache) {
+      copperBoardCache = k2;
+      copperBoard.draw([
+        { text: 'Copper ore: ' + c.input, color: '#eef3f8' },
+        c.jammed ? { text: 'JAMMED \u2014 press G', color: '#ff6b57' } :
+          (c.smelting ? { text: 'Smelting\u2026 ' + Math.max(0, c.smeltRemaining).toFixed(1) + ' s', color: '#ffb547' } : { text: 'Idle', color: '#9fb0c0' }),
+        { text: 'Ingots: ' + c.output, color: '#eef3f8' }
+      ]);
+    }
+  }
+  function render(alpha, rdt) {
+    var px = lerp(sim.prevPX, sim.px, alpha);
+    var pz = lerp(sim.prevPZ, sim.pz, alpha);
+    var heading = sim.prevHeading + angDiff(sim.heading, sim.prevHeading) * alpha;
+    var bob = Math.abs(Math.sin(sim.walkPhase)) * 0.05 * sim.walkAmount;
+    playerG.position.set(px, bob, pz);
+    playerG.rotation.y = heading;
+    posePlayer();
+
+    var fx = Math.sin(sim.camYaw), fz = Math.cos(sim.camYaw);
+    camDesired.set(px - fx * 14, 10, pz - fz * 14);
+    lookDesired.set(px + fx * 3.2, 1.7, pz + fz * 3.2);
+    if (snapCam) {
+      camPos.copy(camDesired);
+      lookPos.copy(lookDesired);
+      snapCam = false;
+    } else {
+      camPos.lerp(camDesired, 1 - Math.exp(-4.2 * rdt));
+      lookPos.lerp(lookDesired, 1 - Math.exp(-6 * rdt));
+    }
+    camPos.x = clamp(camPos.x, -24.6, 24.6);
+    camPos.z = clamp(camPos.z, -24.6, 24.6);
+    if (camPos.y < 1.0) camPos.y = 1.0;
+    camera.position.copy(camPos);
+    camera.lookAt(lookPos);
+
+    animateFurnace();
+    updateBeltVisuals();
+    updateFurnaceBoards();
+    updateHUD();
+    exportState();
+    renderer.render(scene, camera);
+  }
+
+  window.addEventListener('resize', function () {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight, false);
+  });
+
+  var last = performance.now(), acc = 0;
+  function frame(now) {
+    requestAnimationFrame(frame);
+    var dt = (now - last) / 1000;
+    last = now;
+    if (!(dt > 0)) dt = 0;
+    if (dt > 0.25) dt = 0.25;
+    acc += dt;
+    var n = 0;
+    while (acc >= STEP && n < 24) { stepSim(STEP); acc -= STEP; n++; }
+    if (n === 24) acc = 0;
+    render(clamp(acc / STEP, 0, 1), dt);
+  }
+  requestAnimationFrame(frame);
+
+  } catch (err) {
+    var tc = document.getElementById('title-card');
+    if (tc) tc.innerHTML = '<div class="card"><h1>Factory <span>Automation</span></h1><div class="rule"></div>' +
+      '<p class="err">Startup error: ' + (err && err.message ? err.message : String(err)) + '</p></div>';
+    if (window.console && console.error) console.error(err);
+  }
+})();
+</script>
+</body>
+</html>

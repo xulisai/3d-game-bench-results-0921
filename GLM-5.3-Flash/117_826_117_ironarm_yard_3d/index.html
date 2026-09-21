@@ -1,0 +1,2416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IRONARM YARD — Container Berth 03</title>
+<style>
+  :root{
+    --amber:#ffb454; --amber2:#e0703c; --teal:#7fd8d8; --red:#ff5a52;
+    --panel:rgba(9,14,20,0.78); --line:rgba(255,180,84,0.35); --ink:#e8e2d4;
+  }
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#0a0f16;
+    font-family:"Segoe UI",Arial,Helvetica,sans-serif;color:var(--ink);}
+  #view{position:fixed;inset:0;display:block;}
+  .mono{font-family:Consolas,"SF Mono",Menlo,monospace;}
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;pointer-events:none;user-select:none;}
+  .panel{position:absolute;background:var(--panel);border:1px solid var(--line);
+    border-radius:6px;padding:8px 12px;box-shadow:0 2px 10px rgba(0,0,0,.45);
+    backdrop-filter:blur(2px);}
+  #hudLeft{top:12px;left:12px;min-width:212px;}
+  #hudRight{top:12px;right:12px;min-width:224px;}
+  #hudInfo{left:12px;bottom:12px;min-width:250px;}
+  #hudTally{top:12px;left:50%;transform:translateX(-50%);text-align:center;min-width:360px;}
+  #tallyRow{margin-top:5px;font-size:12px;line-height:1.9;}
+  #tallyRow .chip{margin:0 2px;}
+  #hudPlan{right:12px;top:380px;width:244px;}
+  #planGrid{margin-top:5px;font-size:11px;line-height:1.5;}
+  .pgrid{display:flex;gap:3px;margin:2px 0;align-items:center;}
+  .pcell{flex:1;text-align:center;padding:1px 0;border-radius:3px;border:1px solid #26313d;
+    background:#141c26;color:#8fa0b0;}
+  .pcell.ok{border-color:rgba(142,224,142,.6);background:rgba(142,224,142,.12);color:#8ee08e;}
+  .pcell.bad{border-color:rgba(255,90,82,.6);background:rgba(255,90,82,.12);color:var(--red);}
+  .brand{font-weight:700;letter-spacing:.24em;font-size:12px;color:var(--amber);}
+  .row{display:flex;justify-content:space-between;gap:14px;font-size:12.5px;line-height:1.65;}
+  .row .k{color:#9aa7b4;letter-spacing:.08em;}
+  .row .v{font-weight:600;}
+  #clock{font-size:19px;color:var(--teal);}
+  #jobbarWrap{margin:5px 0 2px 0;height:8px;background:#1a222c;border-radius:4px;overflow:hidden;
+    border:1px solid #26313d;}
+  #jobbar{height:100%;width:100%;background:linear-gradient(90deg,#2e8c8c,#7fd8d8);}
+  .warnline{color:var(--amber);}
+  .badline{color:var(--red);}
+  .goodline{color:#8ee08e;}
+  .chip{display:inline-block;padding:0 6px;border-radius:3px;font-size:11px;font-weight:700;letter-spacing:.08em;}
+  .chip.amber{background:rgba(255,180,84,.18);color:var(--amber);border:1px solid rgba(255,180,84,.5);}
+  .chip.red{background:rgba(255,90,82,.2);color:var(--red);border:1px solid rgba(255,90,82,.6);}
+  .chip.dim{background:rgba(140,160,180,.12);color:#9aa7b4;border:1px solid rgba(140,160,180,.3);}
+  .chip.teal{background:rgba(127,216,216,.15);color:var(--teal);border:1px solid rgba(127,216,216,.45);}
+  .swaywrap{position:relative;height:7px;background:#141c26;border-radius:3px;margin:2px 0 6px 0;
+    border:1px solid #22303c;overflow:hidden;}
+  .swayzone{position:absolute;top:0;bottom:0;}
+  .swaymark{position:absolute;top:-1px;width:3px;height:9px;background:var(--amber);border-radius:1px;}
+  .windwrap{display:flex;gap:3px;margin:2px 0 5px 0;}
+  .windseg{flex:1;text-align:center;font-size:10px;font-weight:700;letter-spacing:.05em;
+    padding:1px 0;border:1px solid #26313d;border-radius:3px;background:#141c26;color:#5f6f7e;}
+  .windseg.on0{color:#c9d2da;border-color:rgba(200,212,224,.45);}
+  .windseg.on1{color:var(--teal);border-color:rgba(127,216,216,.55);background:rgba(127,216,216,.10);}
+  .windseg.on2{color:var(--amber);border-color:rgba(255,180,84,.55);background:rgba(255,180,84,.10);}
+  .windseg.on3{color:var(--red);border-color:rgba(255,90,82,.6);background:rgba(255,90,82,.12);}
+  #camline{font-size:11px;color:#9aa7b4;letter-spacing:.14em;}
+  #hint{right:12px;bottom:12px;text-align:right;font-size:11.5px;line-height:1.7;color:#8fa0b0;}
+  #hint b{color:var(--ink);font-weight:600;}
+  /* banners + cards */
+  #banner{position:absolute;top:15%;left:50%;transform:translateX(-50%);text-align:center;
+    font-size:30px;font-weight:800;letter-spacing:.22em;padding:10px 34px;border-radius:6px;
+    display:none;text-shadow:0 2px 8px rgba(0,0,0,.7);}
+  #banner.warn{color:var(--amber);background:rgba(40,26,8,.72);border:2px solid var(--amber);}
+  #banner.bad{color:var(--red);background:rgba(46,10,8,.74);border:2px solid var(--red);}
+  #banner.good{color:#8ee08e;background:rgba(8,34,18,.72);border:2px solid #8ee08e;}
+  .card{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;
+    background:linear-gradient(180deg,rgba(12,18,26,.92),rgba(10,14,20,.88));
+    border:1px solid var(--line);border-radius:10px;padding:26px 44px;min-width:520px;
+    box-shadow:0 10px 60px rgba(0,0,0,.6);}
+  .card h1{margin:0 0 2px 0;font-size:44px;letter-spacing:.18em;font-weight:900;
+    color:var(--amber);text-shadow:0 0 22px rgba(224,112,60,.45);}
+  .card .sub{font-size:13px;letter-spacing:.34em;color:var(--teal);margin-bottom:16px;}
+  .card .big{font-size:30px;font-weight:800;letter-spacing:.2em;margin:2px 0 10px 0;}
+  .card .stats{font-size:15px;line-height:1.9;color:#c9d2da;}
+  .card .stats b{color:var(--amber);}
+  .keys{display:grid;grid-template-columns:auto auto;gap:4px 18px;justify-content:center;
+    font-size:13.5px;text-align:left;margin:14px 0 6px 0;}
+  .keys .kk{color:var(--amber);font-weight:700;text-align:right;letter-spacing:.05em;}
+  .keys .kv{color:#c9d2da;}
+  .press{margin-top:16px;font-size:16px;font-weight:700;letter-spacing:.3em;color:var(--teal);
+    animation:blink 1.15s steps(2,start) infinite;}
+  .brief{font-size:12.5px;color:#9fb0be;max-width:520px;margin:10px auto 0;line-height:1.75;}
+  .srow{display:flex;justify-content:space-between;gap:16px;font-size:14px;line-height:2;text-align:left;}
+  .srow .sk{color:#9aa7b4;letter-spacing:.08em;flex:1.5;}
+  .srow .sv{color:var(--ink);font-weight:600;flex:1.2;text-align:right;font-family:Consolas,Menlo,monospace;}
+  .srow .sp{color:var(--amber);font-weight:700;flex:.7;text-align:right;font-family:Consolas,Menlo,monospace;}
+  @keyframes blink{50%{opacity:.25;}}
+  #titleCard,#endCard,#scoreCard{display:none;}
+  #fade{position:fixed;inset:0;pointer-events:none;
+    background:radial-gradient(ellipse at 50% 42%,rgba(0,0,0,0) 55%,rgba(4,6,10,.5) 100%);}
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="fade"></div>
+<div id="hud">
+  <div id="hudLeft" class="panel">
+    <div class="brand">IRONARM YARD <span style="color:#5f6f7e">· BERTH 03</span></div>
+    <div class="row"><span class="k">BERTH CLOCK</span><span class="v mono" id="clock">00:00.0</span></div>
+    <div class="row"><span class="k">JOB COUNTDOWN</span><span class="v mono" id="jobt">90.0 s</span></div>
+    <div id="jobbarWrap"><div id="jobbar"></div></div>
+    <div class="row"><span class="k">LANDED ON SHIP</span><span class="v mono" id="landed">0 / 3</span></div>
+    <div class="row"><span class="k">DAMAGE EVENTS</span><span class="v mono" id="dmg">0</span></div>
+    <div class="row"><span class="k">WB 44t JOB</span><span class="v mono" id="wbJob"><span class="chip dim">PENDING</span></span></div>
+    <div style="border-top:1px solid #26313d;margin:7px 0 5px 0"></div>
+    <div class="brand" style="font-size:10px;color:var(--teal)">REHANDLE DRILL</div>
+    <div id="drillRow" style="font-size:11.5px;line-height:1.75;margin-top:3px"></div>
+    <div style="border-top:1px solid #26313d;margin:7px 0 5px 0"></div>
+    <div class="brand" style="font-size:10px;color:var(--teal)">TRUCK QUEUE</div>
+    <div id="truckList" style="font-size:11px;line-height:1.6;margin-top:3px"></div>
+  </div>
+  <div id="hudTally" class="panel">
+    <div class="brand" style="font-size:10px">PLACEMENT TALLY</div>
+    <div id="tallyRow"></div>
+  </div>
+  <div id="hudPlan" class="panel">
+    <div class="brand" style="font-size:10px">STOWAGE PLAN — MV KESTREL</div>
+    <div id="planGrid"></div>
+    <div class="row" style="margin-top:7px"><span class="k">BALANCE θ</span><span class="v mono" id="tiltV">+0.0°</span></div>
+    <div class="row"><span class="k">LEDGER Σ</span><span class="v mono" id="ledgerV">0 t·u</span></div>
+  </div>
+  <div id="hudRight" class="panel">
+    <div class="row"><span class="k">GANTRY&nbsp;X</span><span class="v mono" id="ax">+00.0</span></div>
+    <div class="row"><span class="k">TROLLEY&nbsp;Z</span><span class="v mono" id="az">+00.0</span></div>
+    <div class="row"><span class="k">HOIST&nbsp;Y</span><span class="v mono" id="ay">+0.0</span></div>
+    <div class="row"><span class="k">HOIST RATE</span><span class="v mono" id="hrate">1.50 u/s</span></div>
+    <div class="row" style="margin-top:4px"><span class="k">SWAY&nbsp;X</span><span class="v mono" id="sx">+0.0°</span></div>
+    <div class="swaywrap"><div class="swayzone" style="left:11.1%;width:11.1%;background:rgba(255,180,84,.14)"></div>
+      <div class="swayzone" style="right:11.1%;width:11.1%;background:rgba(255,180,84,.14)"></div>
+      <div class="swayzone" style="left:0;width:11.1%;background:rgba(255,90,82,.16)"></div>
+      <div class="swayzone" style="right:0;width:11.1%;background:rgba(255,90,82,.16)"></div>
+      <div class="swaymark" id="sxm" style="left:50%"></div></div>
+    <div class="row"><span class="k">SWAY&nbsp;Z</span><span class="v mono" id="sz">+0.0°</span></div>
+    <div class="swaywrap"><div class="swayzone" style="left:11.1%;width:11.1%;background:rgba(255,180,84,.14)"></div>
+      <div class="swayzone" style="right:11.1%;width:11.1%;background:rgba(255,180,84,.14)"></div>
+      <div class="swayzone" style="left:0;width:11.1%;background:rgba(255,90,82,.16)"></div>
+      <div class="swayzone" style="right:0;width:11.1%;background:rgba(255,90,82,.16)"></div>
+      <div class="swaymark" id="szm" style="left:50%"></div></div>
+    <div class="row"><span class="k">HOOK</span><span class="v mono" id="hook"><span class="chip dim">EMPTY</span></span></div>
+    <div class="row"><span class="k">RIG</span><span class="v mono" id="rig"><span class="chip dim">SINGLE</span></span></div>
+    <div class="row"><span class="k">SWAY STATE</span><span class="v mono" id="swayState"><span class="chip dim">STEADY</span></span></div>
+    <div class="row" style="margin-top:4px"><span class="k">WIND</span><span class="v mono" id="wind"><span class="chip dim">L0 CALM</span></span></div>
+    <div class="windwrap"><div class="windseg" id="wseg0">0</div><div class="windseg" id="wseg1">1</div><div class="windseg" id="wseg2">2</div><div class="windseg" id="wseg3">3</div></div>
+    <div class="row"><span class="k">WIND LEAN</span><span class="v mono" id="windEq">—</span></div>
+    <div class="row" style="margin-top:4px"><span class="k">LAMP</span><span class="v mono" id="lamp">+00.0°</span></div>
+    <div class="row" style="margin-top:4px"><span class="k">CAMERA</span><span class="v" id="camline">YARD</span></div>
+  </div>
+  <div id="hudInfo" class="panel">
+    <div class="row"><span class="k">LAST SETDOWN</span><span class="v mono" id="setdown">—</span></div>
+    <div class="row"><span class="k">NOTES</span><span class="v" style="font-size:11px;color:#8fa0b0" id="notes">SHIP BAYS EVERY 2.8 u · SLOT COLUMNS EVERY 3 u</span></div>
+  </div>
+  <div id="hint" class="panel">
+    <b>←</b>/<b>→</b> gantry · <b>A</b>/<b>D</b> trolley · <b>↑</b>/<b>↓</b> hoist · <b>SPACE</b> release<br>
+    <b>C</b> camera · <b>F</b> tandem · <b>U</b>/<b>O</b> lamp · <b>TAB</b> score · hold <b>T</b> 12× · <b>R</b> reset · <b>ENTER</b> start
+  </div>
+  <div id="banner"></div>
+
+  <div id="titleCard" class="card">
+    <h1>IRONARM YARD</h1>
+    <div class="sub">RAIL-MOUNTED GANTRY OPERATIONS — NIGHT SHIFT</div>
+    <div class="keys">
+      <div class="kk">← / →</div><div class="kv">gantry travel along the rails (−16 … +16)</div>
+      <div class="kk">A / D</div><div class="kv">trolley along the girder (−6.5 … +6.8)</div>
+      <div class="kk">↑ / ↓</div><div class="kv">hoist the spreader (1.2 … 8.0)</div>
+      <div class="kk">SPACE</div><div class="kv">release the container</div>
+      <div class="kk">C</div><div class="kv">camera — CAB / LOAD / YARD</div>
+      <div class="kk">F</div><div class="kv">twin-hook tandem rig — arm / disarm</div>
+      <div class="kk">U / O</div><div class="kv">pan the searchlight west / east (±45°)</div>
+      <div class="kk">TAB</div><div class="kv">shift score screen (empty hook)</div>
+      <div class="kk">T&nbsp;&nbsp;(hold)</div><div class="kv">run time 12× — controls locked, crane brakes</div>
+      <div class="kk">R</div><div class="kv">full reset to this title card</div>
+      <div class="kk">ENTER</div><div class="kv">start the berth</div>
+    </div>
+    <div class="brief">Shift job: land <b style="color:var(--amber)">3 containers</b> on the feeder ship within
+      <b style="color:var(--amber)">90 seconds</b>. Every start lags and every stop overshoots —
+      sway past <b style="color:var(--amber)">25°</b> sounds the buzzer, past <b style="color:var(--amber)">35°</b> the swing
+      itself is an impact. Loads up to 40&nbsp;t latch silently; heavier latches hot; at 45&nbsp;t the hook refuses.
+      The 60&nbsp;t unit on the heavy pad stays where it is.</div>
+    <div class="brief">Placements are scored by offset from the slot or bay center at the moment of release:
+      within <b style="color:var(--amber)">0.25&nbsp;u</b> is <b style="color:#8ee08e">PERFECT&nbsp;(+100)</b>, within
+      <b style="color:var(--amber)">0.6&nbsp;u</b> is <b style="color:var(--amber)">GOOD&nbsp;(+60)</b>, wider is
+      <b style="color:var(--red)">OUT OF CELL</b> — the box sits askew across the slot edge until you lift it
+      and re-place it (the re-placement replaces the attempt). Released above an empty tier, a box simply
+      falls until it finds support and scores wherever it rests. Work the <b style="color:var(--teal)">rehandle
+      drill</b> strip.</div>
+    <div class="brief">The feeder takes a fixed stowage: bays <b style="color:var(--teal)">A–D</b> and the midship
+      cradle, three tiers each, masses as printed on the plan panel — equal masses are interchangeable, wrong
+      masses fill the cell without credit. The <b style="color:var(--teal)">balance ledger</b> reads
+      θ = Σ(m·x)/120 over everything resting on the ship; it runs red past 2° and a perfect plan nets
+      <b style="color:#8ee08e">STOWAGE BALANCED</b>. The cradle sits at lever arm zero.</div>
+    <div class="brief">The berth clock also drives the <b style="color:var(--teal)">wind schedule</b> —
+      calm to 70 s, <b style="color:var(--teal)">L1 LIGHT</b> until 160 s (loads lean −x), then
+      <b style="color:var(--teal)">L2 STRONG</b> until 280 s (lean +x), then <b style="color:var(--red)">L3 GUST</b> —
+      a ±4° square wave, 12 s period — until 340 s, and calm to the end. A hanging load settles about
+      <b style="color:var(--amber)">0.35&nbsp;u</b> off-lever at light and <b style="color:var(--amber)">0.70&nbsp;u</b>
+      at strong — park the trolley upwind by that much to drop plumb. From L2 up a wind whistle rides the audio;
+      wind pushes with or without a load and touches nothing else.</div>
+    <div class="brief"><b style="color:var(--teal)">Five trucks</b> deliver the rest of the plan on a fixed clock —
+      T1 at 30 s (30 t), T2 at 90 s (20 t), T3 at 150 s (40 t), T4 at 230 s (30 t), T5 at 300 s (20 t). Each enters
+      the portal lane at <b style="color:var(--amber)">x+16</b> and stops at <b style="color:var(--amber)">x+10</b>;
+      if the dock is taken the truck holds at <b style="color:var(--amber)">x+14.5</b> and advances when the bay
+      clears — trucks wait without limit. Latch a bedded box at its lock point 2.4; the moment a truck stops, the
+      job panel lists the open cells that match its box. A truck departs west once its bed stays clear.</div>
+    <div class="brief">The <b style="color:var(--teal)">twin-hook tandem rig</b> — press
+      <b style="color:var(--amber)">F</b> to arm — latches both hooks at once when the trolley is centered over
+      the 60&nbsp;t unit's paired lift lugs (both within 0.4&nbsp;u) as you lower onto them: 30&nbsp;t per hook.
+      While attached, every axis runs at half speed and half acceleration; carry the unit to the midship cradle —
+      a normal alignment target whose lever arm is zero, so the tilt readout holds — and
+      <b style="color:var(--amber)">SPACE</b> with support releases both hooks and restores full speeds.
+      An overweight <b style="color:var(--amber)">44&nbsp;t export box</b> stands on the inspection pad:
+      single-hook it onto the weighbridge to close the job — the latch holds under an OVERLOAD WARNING, while
+      the 60&nbsp;t unit still refuses a single hook outright.</div>
+    <div class="brief"><b style="color:var(--teal)">Night shift.</b> The yard runs dark — towers and girder
+      floodlights pool warm light, and the trolley's <b style="color:var(--teal)">steerable searchlight</b>
+      (<b style="color:var(--amber)">U</b>/<b style="color:var(--amber)">O</b> pans it ±45° from straight down,
+      west/east) is your reading lamp: slot corner brackets, ship cell frames, the truck-stop marker and pad
+      outlines render only inside its beam — pan away and they vanish, pan back and they return. Above
+      <b style="color:var(--amber)">1&nbsp;u/s</b> the gantry flashes its travel lamps and sounds a low horn.</div>
+    <div class="brief">The <b style="color:var(--teal)">hoist hydraulics</b> run weak on two fixed clock
+      windows — <b style="color:var(--amber)">100–140 s</b> and <b style="color:var(--amber)">250–290 s</b>:
+      a <b style="color:var(--amber)">HYDRAULIC LOW</b> banner shows and the hoist rate drops from
+      1.5 to 1.0&nbsp;u/s — tandem halves whatever is current (0.75 outside, 0.5 inside). Gantry and trolley
+      are untouched, and wind, trucks, sway and the bands keep their own clocks — the late window overlaps
+      L2 wind and the 300 s truck, each arriving exactly on schedule.</div>
+    <div class="brief">The whole shift binds into one <b style="color:var(--teal)">Shift Score</b> — press
+      <b style="color:var(--amber)">TAB</b> (empty hook) to audit it any time; at clock
+      <b style="color:var(--amber)">360</b> the berth settles and the screen opens on its own:
+      <b style="color:var(--amber)">plan cells ×100</b> (twelve counting the cradle — wrong masses and
+      out-of-cell landings never count), <b style="color:var(--amber)">alignment average ×3</b>
+      (PERFECT 100 / GOOD 60 by final placement), <b style="color:var(--amber)">+200</b> when all twelve
+      are correct and |θ| ≤ 2°, and <b style="color:var(--red)">−40 per damage event</b>. Ratings:
+      <b style="color:#ffd98f">S ≥ 900</b> · <b style="color:var(--teal)">A ≥ 750</b> ·
+      <b style="color:var(--amber)">B ≥ 600</b> · C below — a perfect zero-damage shift tops out at 1700.
+      <b style="color:var(--amber)">R</b> on the score screen is the master reset.</div>
+    <div class="press">PRESS ENTER</div>
+  </div>
+
+  <div id="endCard" class="card">
+    <div class="big" id="endTitle">JOB COMPLETE</div>
+    <div class="stats" id="endStats"></div>
+    <div class="keys" style="margin-top:18px">
+      <div class="kk">ENTER</div><div class="kv">run the job again</div>
+      <div class="kk">R</div><div class="kv">back to title card</div>
+    </div>
+  </div>
+
+  <div id="scoreCard" class="card">
+    <div class="big" style="color:var(--teal)">SHIFT SCORE</div>
+    <div class="stats" id="scoreStats"></div>
+    <div class="keys" style="margin-top:16px">
+      <div class="kk">TAB</div><div class="kv">close — the shift keeps running</div>
+      <div class="kk">R</div><div class="kv">master reset — plan, trucks, clock, score to zero</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Loader: prefer the shared classic build, fall back to the vendored ES module. */
+(function(){
+  function boot(T){ window.THREE = T; window.dispatchEvent(new Event('three-ready')); }
+  var s = document.createElement('script');
+  s.src = './assets/_shared/three/build/three.min.js';
+  s.onload = function(){ boot(window.THREE); };
+  s.onerror = function(){
+    var m = document.createElement('script');
+    m.type = 'module';
+    m.textContent = "import * as T from './vendor/three/three.module.min.js'; window.THREE = T; window.dispatchEvent(new Event('three-ready'));";
+    document.head.appendChild(m);
+  };
+  document.head.appendChild(s);
+})();
+</script>
+<script>
+window.addEventListener('three-ready', function(){ try{ startGame(window.THREE); }catch(e){
+  var d=document.createElement('div'); d.style.cssText='position:fixed;top:8px;left:8px;color:#f66;font:12px monospace;z-index:99;white-space:pre';
+  d.textContent='Init error: '+(e && e.message ? e.message : e); document.body.appendChild(d); } }, {once:true});
+
+function startGame(THREE){
+'use strict';
+
+/* ============================ constants ============================ */
+var DT = 1/60, G = 10, L_PEND = 10, DAMP = 0.02;
+var GANTRY_MIN=-16, GANTRY_MAX=16, GANTRY_V=4, GANTRY_A=1.5, GANTRY_B=2.5;
+var TROLL_MIN=-6.5, TROLL_MAX=6.8, TROLL_V=2, TROLL_A=2.0, TROLL_B=3.0;
+var HOIST_MIN=1.2, HOIST_MAX=8.0, HOIST_V=1.5;
+var JOB_TIME=90, JOB_TARGET=3, TURBO=12;
+var WARN_DEG=25, CRIT_DEG=35;
+var QUAY_EDGE_Z=2.5, DECK_TOP=1.2;
+var PIVOT_Y=14.2;                 // trolley headblock rope pivot height
+/* round 3: ship stowage plan — bays A–D plus midship cradle, cell centers at z = +4.8,
+   tier tops 2.4 / 3.6 / 4.8 above the deck (tier 1 rests on the deck) */
+var SHIP_CELL_Z=4.8;
+var PLAN=[
+  {bay:'A',x:-6,tiers:[40,20,0]},
+  {bay:'B',x:-2,tiers:[30,30,40]},
+  {bay:'C',x:2, tiers:[30,30,40]},
+  {bay:'D',x:6, tiers:[20,20,20]}
+];
+var CRADLE_X=0, CRADLE_NEED=60;
+var COL_X=[-12,-9,-6,-3,0,3,6,9,12], COL_Z=-4.8;
+var DEG=Math.PI/180;
+/* round 2: precision stacking */
+var BAND_PTS={'PERFECT':100,'GOOD':60,'OUT OF CELL':0};
+var DRILL=[
+  {id:'IRNU 204',toX:9,  label:'30t · col 0 → col +9 · T1'},
+  {id:'IRNU 206',toX:-9, label:'20t · col +6 → col −9 · T1'},
+  {id:'IRNU 202',toX:12, label:'40t · col −6 → col +12 · T1'}
+];
+
+/* round 4: wind schedule — a fixed function of the berth clock. Each level drives a steady
+   push on the pendulum equilibrium along the quay axis (±x); nothing else is touched.
+   Anchors: L1 settles the load at 10·sin2° ≈ 0.35 u toward −x, L2 at 10·sin4° ≈ 0.70 u toward +x. */
+var WIND_NAMES=['CALM','LIGHT','STRONG','GUST'];
+var WIND_BANNER=['WIND L0 CALM','WIND L1 LIGHT — LOAD LEANS −x',
+  'WIND L2 STRONG — LOAD LEANS +x · WHISTLE UP','WIND L3 GUST — ±4° EVERY 12 s'];
+var WIND_BERTHS=[[0,70,0],[70,160,1],[160,280,2],[280,340,3],[340,360,0]];
+function windLevelAt(t){
+  for(var i=0;i<WIND_BERTHS.length;i++){ var b=WIND_BERTHS[i]; if(t>=b[0]&&t<b[1]) return b[2]; }
+  return 0;
+}
+function windEqDegAt(lv,t){
+  if(lv===1) return -2;
+  if(lv===2) return 4;
+  if(lv===3) return ((t%12)<6)?4:-4;   /* gust square wave, phase-locked to the berth clock */
+  return 0;
+}
+
+/* round 5: truck arrivals — five deliveries on the fixed berth clock, each carrying one
+   plan box on its bed (bed top 1.2, so a bedded box latches at 2.4). Trucks enter the portal
+   lane at x +16, stop at x +10, hold at x +14.5 when the dock is taken, and depart toward −x
+   once the bed has stayed clear. Trucks wait without limit. */
+var TRUCK_LANE_Z=-1.0, TRUCK_STOP_X=10, TRUCK_ENTER_X=16, TRUCK_FAR_X=54, TRUCK_EXIT_X=-40;
+var TRUCK_SPEED=3.0, TRUCK_HOLD0=14.5, TRUCK_SLOT_GAP=6.6, TRUCK_DWELL=2.0;
+var TRUCKS=[
+  {id:'T1',at:30, mass:30,cargoId:'IRNU 211',color:0x4a6b8a},
+  {id:'T2',at:90, mass:20,cargoId:'IRNU 212',color:0x2e7f7f},
+  {id:'T3',at:150,mass:40,cargoId:'IRNU 213',color:0xb5502c},
+  {id:'T4',at:230,mass:30,cargoId:'IRNU 214',color:0xc9922e},
+  {id:'T5',at:300,mass:20,cargoId:'IRNU 215',color:0x6e7040}
+];
+
+/* round 8: hydraulic slow windows — the hoist pump runs weak on two fixed clock windows.
+   Inside a window the hoist rate drops from 1.5 to 1.0 u/s; tandem halves whatever is current. */
+var HYD_WINDOWS=[[100,140],[250,290]];
+function hydSlowAt(t){
+  for(var i=0;i<HYD_WINDOWS.length;i++){ var w=HYD_WINDOWS[i]; if(t>=w[0]&&t<w[1]) return true; }
+  return false;
+}
+
+/* deterministic pseudo-noise (no Math.random anywhere) */
+function LCG(seed){ var s=seed>>>0; return function(){ s=(Math.imul(s,1664525)+1013904223)>>>0; return s/4294967296; }; }
+var rndT = LCG(20260918);
+
+function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function easeInOut(t){ return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; }
+function fmt1(v){ return (v<0?'-':'+')+(Math.abs(v)<10?'0':'')+Math.abs(v).toFixed(1); }
+function fmtClock(t){ t=Math.max(0,t); var m=Math.floor(t/60), s=t-m*60;
+  return (m<10?'0':'')+m+':'+(s<10?'0':'')+s.toFixed(1); }
+
+/* ============================ renderer / scene ============================ */
+var canvas=document.getElementById('view');
+var renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+if('outputColorSpace' in renderer && THREE.SRGBColorSpace) renderer.outputColorSpace=THREE.SRGBColorSpace;
+else if('outputEncoding' in renderer && THREE.sRGBEncoding) renderer.outputEncoding=THREE.sRGBEncoding;
+
+var scene=new THREE.Scene();
+scene.fog=new THREE.Fog(0x0a1220, 70, 420);
+var camera=new THREE.PerspectiveCamera(55, window.innerWidth/window.innerHeight, 0.15, 900);
+camera.position.set(-24,20,-21);
+
+/* ---------- lights (night shift: moonlight + warm work lighting) ---------- */
+var sun=new THREE.DirectionalLight(0x9fb6e8,0.4);
+sun.position.set(-58,60,-88); sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left=-30; sun.shadow.camera.right=30;
+sun.shadow.camera.top=34; sun.shadow.camera.bottom=-30;
+sun.shadow.camera.near=20; sun.shadow.camera.far=260;
+sun.shadow.bias=-0.0002; if('normalBias' in sun.shadow) sun.shadow.normalBias=0.03;
+scene.add(sun); scene.add(sun.target);
+scene.add(new THREE.HemisphereLight(0x27354f,0x11151c,0.6));
+scene.add(new THREE.AmbientLight(0x33404e,0.75));
+
+function spotFromTower(x,z,tx,tz){
+  var sp=new THREE.SpotLight(0xffd9a0,1.2,90,0.62,0.65,1.1);
+  sp.position.set(x,10.2,z); sp.target.position.set(tx,0,tz);
+  scene.add(sp); scene.add(sp.target); return sp;
+}
+spotFromTower(-21,0.4,-8,-4); spotFromTower(21,0.4,8,-4);
+
+/* ---------- deterministic canvas textures ---------- */
+function canv(w,h){ var c=document.createElement('canvas'); c.width=w; c.height=h; return c; }
+function tex(cv){ var t=new THREE.CanvasTexture(cv);
+  if('colorSpace' in t && THREE.SRGBColorSpace) t.colorSpace=THREE.SRGBColorSpace;
+  else if('encoding' in t && THREE.sRGBEncoding) t.encoding=THREE.sRGBEncoding;
+  t.anisotropy=4; return t; }
+
+function skyTexture(){
+  var c=canv(64,512), g=c.getContext('2d');
+  var gr=g.createLinearGradient(0,0,0,512);
+  gr.addColorStop(0.0,'#03060f'); gr.addColorStop(0.45,'#071129');
+  gr.addColorStop(0.70,'#0d1c38'); gr.addColorStop(0.88,'#12233f');
+  gr.addColorStop(1.0,'#0a1526');
+  g.fillStyle=gr; g.fillRect(0,0,64,512);
+  return tex(c);
+}
+var sky=new THREE.Mesh(new THREE.SphereGeometry(430,28,16),
+  new THREE.MeshBasicMaterial({map:skyTexture(),side:THREE.BackSide,fog:false}));
+scene.add(sky);
+
+/* moon glow */
+(function(){
+  var c=canv(128,128), g=c.getContext('2d');
+  var gr=g.createRadialGradient(64,64,4,64,64,64);
+  gr.addColorStop(0,'rgba(226,236,255,0.95)'); gr.addColorStop(0.18,'rgba(190,208,255,0.30)');
+  gr.addColorStop(1,'rgba(170,195,255,0)');
+  g.fillStyle=gr; g.fillRect(0,0,128,128);
+  var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex(c),transparent:true,depthWrite:false,fog:false}));
+  sp.scale.set(70,70,1); sp.position.set(-150,150,-300); scene.add(sp);
+})();
+
+/* stars */
+(function(){
+  var n=110, pos=new Float32Array(n*3);
+  for(var i=0;i<n;i++){ var a=rndT()*Math.PI*2, e=0.18+rndT()*1.1, r=410;
+    var y=r*Math.sin(e), rr=r*Math.cos(e);
+    pos[i*3]=rr*Math.cos(a); pos[i*3+1]=y; pos[i*3+2]=rr*Math.sin(a); }
+  var ge=new THREE.BufferGeometry(); ge.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  scene.add(new THREE.Points(ge,new THREE.PointsMaterial({color:0xdfe8ff,size:2.2,sizeAttenuation:false,transparent:true,opacity:1,fog:false})));
+})();
+
+/* ---------- water ---------- */
+var water=new THREE.Mesh(new THREE.PlaneGeometry(760,760),
+  new THREE.MeshStandardMaterial({color:0x0d4157,roughness:0.28,metalness:0.62}));
+water.rotation.x=-Math.PI/2; water.position.y=-0.35; water.receiveShadow=true;
+scene.add(water);
+
+/* ---------- apron (quay land) ---------- */
+var APRON={x0:-40,x1:40,z0:-34,z1:QUAY_EDGE_Z};
+function apronTexture(){
+  var W=2048,H=1024,c=canv(W,H),g=c.getContext('2d');
+  var X=function(x){return (x-APRON.x0)/(APRON.x1-APRON.x0)*W;};
+  var Y=function(z){return (z-APRON.z0)/(APRON.z1-APRON.z0)*H;};
+  g.fillStyle='#2c323a'; g.fillRect(0,0,W,H);
+  for(var i=0;i<2600;i++){ g.fillStyle='rgba('+(rndT()<0.5?'0,0,0':'255,255,255')+','+(0.02+rndT()*0.05).toFixed(3)+')';
+    var rr=0.6+rndT()*1.8; g.fillRect(rndT()*W,rndT()*H,rr,rr); }
+  g.strokeStyle='rgba(255,255,255,0.05)'; g.lineWidth=2;
+  for(var zz=-30;zz<2;zz+=4){ g.beginPath(); g.moveTo(0,Y(zz)); g.lineTo(W,Y(zz)); g.stroke(); }
+  /* slot columns */
+  g.lineWidth=3; g.strokeStyle='rgba(255,196,110,0.5)'; g.setLineDash([14,10]);
+  for(var ci=0;ci<COL_X.length;ci++){ var cx=X(COL_X[ci]);
+    g.strokeRect(cx-1.4/(APRON.x1-APRON.x0)*W, Y(COL_Z-1.1), 2.8/(APRON.x1-APRON.x0)*W, 2.2/(APRON.z1-APRON.z0)*H);
+    g.setLineDash([]);
+    g.fillStyle='rgba(255,196,110,0.8)'; g.font='700 30px Consolas,monospace'; g.textAlign='center';
+    g.fillText((COL_X[ci]>0?'+':'')+COL_X[ci], cx, Y(COL_Z+1.85));
+    g.setLineDash([14,10]);
+  }
+  g.setLineDash([]);
+  /* rail warning lines */
+  g.strokeStyle='rgba(255,255,255,0.16)'; g.lineWidth=4;
+  [-2,2].forEach(function(rz){ g.beginPath(); g.moveTo(0,Y(rz-0.55)); g.lineTo(W,Y(rz-0.55));
+    g.moveTo(0,Y(rz+0.55)); g.lineTo(W,Y(rz+0.55)); g.stroke(); });
+  /* hazard band at quay edge */
+  var yE=Y(QUAY_EDGE_Z-0.5), hE=Y(QUAY_EDGE_Z)-yE;
+  g.save(); g.beginPath(); g.rect(0,yE,W,hE); g.clip();
+  for(var x=-20;x<W+40;x+=34){ g.fillStyle='rgba(232,178,58,0.85)';
+    g.beginPath(); g.moveTo(x,yE+hE); g.lineTo(x+17,yE+hE); g.lineTo(x+17+hE,yE); g.lineTo(x+hE,yE); g.closePath(); g.fill(); }
+  g.restore();
+  /* berth text */
+  g.fillStyle='rgba(255,196,110,0.55)'; g.font='900 72px Consolas,monospace'; g.textAlign='left';
+  g.fillText('BERTH 03', X(-34), Y(-9));
+  g.font='700 30px Consolas,monospace'; g.fillStyle='rgba(255,255,255,0.35)';
+  g.fillText('IRONARM YARD · NO MOORING WITHOUT ORDER', X(-34), Y(-7.2));
+  return tex(c);
+}
+(function(){
+  var w=APRON.x1-APRON.x0, d=APRON.z1-APRON.z0;
+  var m=new THREE.MeshStandardMaterial({map:apronTexture(),roughness:0.95,metalness:0});
+  var top=new THREE.Mesh(new THREE.PlaneGeometry(w,d),m);
+  top.rotation.x=-Math.PI/2; top.position.set(0,0,(APRON.z0+APRON.z1)/2); top.receiveShadow=true; scene.add(top);
+  var side=new THREE.Mesh(new THREE.BoxGeometry(w,2.6,d),
+    new THREE.MeshStandardMaterial({color:0x4c5257,roughness:0.95}));
+  side.position.set(0,-1.31,(APRON.z0+APRON.z1)/2); scene.add(side);
+})();
+
+/* ---------- rails, sleepers, bumpers ---------- */
+(function(){
+  var railMat=new THREE.MeshStandardMaterial({color:0x9aa3ab,roughness:0.35,metalness:0.85});
+  var slMat=new THREE.MeshStandardMaterial({color:0x3a352f,roughness:0.95});
+  [-2,2].forEach(function(rz){
+    var rail=new THREE.Mesh(new THREE.BoxGeometry(36.4,0.14,0.12),railMat);
+    rail.position.set(0,0.15,rz); rail.castShadow=true; scene.add(rail);
+    for(var x=-18;x<=18;x+=1.4){
+      var sl=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.1,1.5),slMat);
+      sl.position.set(x,0.05,rz); scene.add(sl);
+    }
+  });
+  var c=canv(64,64),g=c.getContext('2d');
+  g.fillStyle='#e8b23a'; g.fillRect(0,0,64,64); g.fillStyle='#15181c';
+  for(var i=-2;i<6;i++){ g.save(); g.translate(i*20,0); g.rotate(0.6); g.fillRect(0,-20,10,120); g.restore(); }
+  var stripe=tex(c);
+  [-1,1].forEach(function(sx){
+    [-2,2].forEach(function(rz){
+      var b=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.62,0.8),
+        new THREE.MeshStandardMaterial({map:stripe,roughness:0.7}));
+      b.position.set(sx*18.9,0.31,rz); b.castShadow=true; scene.add(b);
+    });
+  });
+})();
+
+/* ---------- heavy pad ---------- */
+(function(){
+  var pad=new THREE.Mesh(new THREE.BoxGeometry(4.6,0.3,3.4),
+    new THREE.MeshStandardMaterial({color:0x556068,roughness:0.9}));
+  pad.position.set(13.5,0.15,-4.8); pad.castShadow=true; pad.receiveShadow=true; scene.add(pad);
+  var padTexC=canv(256,128),g=padTexC.getContext('2d');
+  g.fillStyle='#556068'; g.fillRect(0,0,256,128);
+  g.strokeStyle='rgba(232,178,58,0.8)'; g.lineWidth=6; g.strokeRect(6,6,244,116);
+  g.fillStyle='rgba(232,178,58,0.9)'; g.font='900 44px Consolas,monospace'; g.textAlign='center';
+  g.fillText('HEAVY PAD',128,58); g.font='700 26px Consolas,monospace'; g.fillText('60 t MAX',128,96);
+  var lbl=new THREE.Mesh(new THREE.PlaneGeometry(4.4,2.2),new THREE.MeshBasicMaterial({map:tex(padTexC),transparent:true}));
+  lbl.rotation.x=-Math.PI/2; lbl.position.set(13.5,0.305,-4.8); scene.add(lbl);
+})();
+
+/* ---------- round 6: inspection pad + weighbridge ---------- */
+(function(){
+  var pad=new THREE.Mesh(new THREE.BoxGeometry(4.6,0.3,3.4),
+    new THREE.MeshStandardMaterial({color:0x4c5560,roughness:0.9}));
+  pad.position.set(-13.5,0.15,-4.8); pad.castShadow=true; pad.receiveShadow=true; scene.add(pad);
+  var ic=canv(256,128),ig=ic.getContext('2d');
+  ig.fillStyle='#4c5560'; ig.fillRect(0,0,256,128);
+  ig.strokeStyle='rgba(127,216,216,0.8)'; ig.lineWidth=6; ig.strokeRect(6,6,244,116);
+  ig.fillStyle='rgba(127,216,216,0.95)'; ig.font='900 34px Consolas,monospace'; ig.textAlign='center';
+  ig.fillText('INSPECTION',128,52);
+  ig.font='700 24px Consolas,monospace'; ig.fillText('PAD · 44 t EXPORT',128,92);
+  var ilbl=new THREE.Mesh(new THREE.PlaneGeometry(4.4,2.2),
+    new THREE.MeshBasicMaterial({map:tex(ic),transparent:true}));
+  ilbl.rotation.x=-Math.PI/2; ilbl.position.set(-13.5,0.305,-4.8); scene.add(ilbl);
+  /* the weighbridge is a near-flush scale plate in the truck lane — trucks roll over it */
+  var plate=new THREE.Mesh(new THREE.BoxGeometry(4.6,0.08,3.4),
+    new THREE.MeshStandardMaterial({color:0x3f464e,roughness:0.6,metalness:0.35}));
+  plate.position.set(-13.5,0.08,-1.0); plate.receiveShadow=true; scene.add(plate);
+  var wc=canv(512,384),wg=wc.getContext('2d');
+  wg.fillStyle='#3f464e'; wg.fillRect(0,0,512,384);
+  wg.strokeStyle='rgba(232,178,58,0.85)'; wg.lineWidth=10; wg.strokeRect(14,14,484,356);
+  wg.setLineDash([18,12]); wg.strokeStyle='rgba(255,255,255,0.3)'; wg.lineWidth=4;
+  wg.strokeRect(40,40,432,304); wg.setLineDash([]);
+  wg.fillStyle='rgba(232,178,58,0.9)'; wg.font='900 52px Consolas,monospace'; wg.textAlign='center';
+  wg.fillText('WEIGHBRIDGE',256,110);
+  wg.font='700 28px Consolas,monospace'; wg.fillStyle='rgba(255,255,255,0.5)';
+  wg.fillText('EXPORT WEIGH-IN · 44 t JOB',256,156);
+  wg.fillStyle='rgba(232,178,58,0.55)';
+  for(var bar=0;bar<3;bar++) wg.fillRect(60,224+bar*44,392,10);
+  var wtop=new THREE.Mesh(new THREE.PlaneGeometry(4.56,3.36),
+    new THREE.MeshBasicMaterial({map:tex(wc)}));
+  wtop.rotation.x=-Math.PI/2; wtop.position.set(-13.5,0.125,-1.0); scene.add(wtop);
+})();
+
+/* ---------- feeder ship ---------- */
+var shipSolidBoxes=[];
+(function(){
+  var g=new THREE.Group();
+  var hullMat=new THREE.MeshStandardMaterial({color:0x7c2f26,roughness:0.7,metalness:0.25});
+  var hull=new THREE.Mesh(new THREE.BoxGeometry(20,2.1,3.0),hullMat);
+  hull.position.set(0,0.15,5.0); hull.castShadow=true; hull.receiveShadow=true; g.add(hull);
+  /* waterline band + name */
+  var bandC=canv(1024,128),bg=bandC.getContext('2d');
+  bg.fillStyle='#7c2f26'; bg.fillRect(0,0,1024,128);
+  bg.fillStyle='#e8e2d4'; bg.fillRect(0,74,1024,18);
+  bg.fillStyle='#2b3138'; bg.fillRect(0,92,1024,36);
+  bg.fillStyle='#e8b23a'; bg.font='900 30px Consolas,monospace'; bg.textAlign='center';
+  bg.fillText('MV KESTREL · FEEDER 1200 TEU · IRONARM LINE',512,118);
+  var bandMat=new THREE.MeshStandardMaterial({map:tex(bandC),roughness:0.7});
+  [-1,1].forEach(function(s){
+    var b=new THREE.Mesh(new THREE.PlaneGeometry(19.9,1.9),bandMat);
+    b.position.set(0,0.18,5.0+s*1.505); b.rotation.y=s>0?0:Math.PI; g.add(b);
+  });
+  /* deck */
+  var deckC=canv(1024,256),dg=deckC.getContext('2d');
+  dg.fillStyle='#37404a'; dg.fillRect(0,0,1024,256);
+  dg.strokeStyle='rgba(0,0,0,0.25)'; dg.lineWidth=2;
+  for(var px=0;px<=1024;px+=64){ dg.beginPath(); dg.moveTo(px,0); dg.lineTo(px,256); dg.stroke(); }
+  dg.strokeStyle='rgba(255,196,110,0.5)'; dg.setLineDash([10,8]); dg.lineWidth=2;
+  dg.beginPath(); dg.moveTo(0,128); dg.lineTo(1024,128); dg.stroke(); dg.setLineDash([]);
+  /* stowage plan cells: bays A–D + cradle at x −6,−2,0,+2,+6, centers z = 4.8 */
+  function shipCell(x,label,sub){
+    var cx=(x+10)/20*1024, cy=(4.8-3.5)/3*256;           /* canvas y=0 ↔ z=3.5 */
+    var w=2.7/20*1024, h=1.9/3*256;
+    dg.strokeStyle='rgba(255,196,110,0.8)'; dg.lineWidth=3;
+    dg.strokeRect(cx-w/2,cy-h/2,w,h);
+    dg.strokeStyle='rgba(255,196,110,0.3)'; dg.lineWidth=2;
+    for(var t=1;t<3;t++){ var yy=cy-h/2+h*t/3;
+      dg.beginPath(); dg.moveTo(cx-w/2,yy); dg.lineTo(cx+w/2,yy); dg.stroke(); }
+    dg.fillStyle='rgba(255,196,110,0.9)'; dg.font='900 26px Consolas,monospace'; dg.textAlign='center';
+    dg.fillText(label,cx,cy-8);
+    dg.font='700 16px Consolas,monospace'; dg.fillStyle='rgba(255,196,110,0.65)';
+    dg.fillText(sub,cx,cy+16);
+  }
+  PLAN.forEach(function(p){ shipCell(p.x,p.bay,p.tiers.join('/').replace('/0','').replace('/','·')); });
+  shipCell(CRADLE_X,'CRADLE','60T');
+  var deck=new THREE.Mesh(new THREE.PlaneGeometry(20,3.0),
+    new THREE.MeshStandardMaterial({map:tex(deckC),roughness:0.85}));
+  deck.rotation.x=-Math.PI/2; deck.position.set(0,1.205,5.0); deck.receiveShadow=true; g.add(deck);
+  /* bulwark (solid, visible) */
+  var bwMat=new THREE.MeshStandardMaterial({color:0x8a3a2c,roughness:0.8});
+  function bw(w,d,x,z){ var m=new THREE.Mesh(new THREE.BoxGeometry(w,0.34,d),bwMat);
+    m.position.set(x,1.37,z); m.castShadow=true; g.add(m);
+    shipSolidBoxes.push({min:[x-w/2,1.2,z-d/2],max:[x+w/2,1.54,z+d/2]}); }
+  bw(20,0.09,0,3.55); bw(20,0.09,0,6.45); bw(0.09,3.0,-9.95,5.0); bw(0.09,3.0,9.95,5.0);
+  /* deckhouse */
+  var dh=new THREE.Mesh(new THREE.BoxGeometry(1.8,3.4,2.2),
+    new THREE.MeshStandardMaterial({color:0xd8d3c8,roughness:0.75}));
+  dh.position.set(8.7,2.9,5.0); dh.castShadow=true; g.add(dh);
+  var br=new THREE.Mesh(new THREE.BoxGeometry(2.0,1.0,2.4),
+    new THREE.MeshStandardMaterial({color:0x2b3138,roughness:0.6}));
+  br.position.set(8.7,5.1,5.0); br.castShadow=true; g.add(br);
+  var winC=canv(256,64),wg=winC.getContext('2d');
+  wg.fillStyle='#1c2630'; wg.fillRect(0,0,256,64);
+  for(var wi=0;wi<5;wi++){ wg.fillStyle='rgba(255,214,140,0.95)'; wg.fillRect(12+wi*50,14,34,36); }
+  var winMat=new THREE.MeshBasicMaterial({map:tex(winC)});
+  [-1,1].forEach(function(s){
+    var wm=new THREE.Mesh(new THREE.PlaneGeometry(1.9,0.75),winMat);
+    wm.position.set(8.7,5.1,5.0+s*1.205); wm.rotation.y=s>0?0:Math.PI; g.add(wm);
+  });
+  /* funnel (solid) + stern mast */
+  var fu=new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.38,1.3,10),
+    new THREE.MeshStandardMaterial({color:0x2e4a5a,roughness:0.6}));
+  fu.position.set(7.2,1.2+0.65,5.0); fu.castShadow=true; g.add(fu);
+  shipSolidBoxes.push({min:[6.85,1.2,4.65],max:[7.55,2.55,5.35]});
+  var mast=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.08,3.2,8),
+    new THREE.MeshStandardMaterial({color:0x9aa3ab,roughness:0.5,metalness:0.6}));
+  mast.position.set(9.4,1.2+1.6,6.15); mast.castShadow=true; g.add(mast);
+  shipSolidBoxes.push({min:[9.2,1.2,5.95],max:[9.6,4.4,6.35]});
+  var yard=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,1.8,8),mast.material);
+  yard.rotation.z=Math.PI/2; yard.position.set(9.4,4.0,6.15); g.add(yard);
+  /* bow flag pole */
+  var fp=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,2.2,8),mast.material);
+  fp.position.set(-9.5,1.2+1.1,5.0); g.add(fp);
+  scene.add(g);
+  /* solid hull (for load collision): deck top 1.2 */
+  shipSolidBoxes.push({min:[-10,-0.9,3.5],max:[10,1.2,6.5]});
+  shipSolidBoxes.push({min:[7.8,1.2,3.9],max:[9.7,5.6,6.1]});
+  shipSolidBoxes.push({min:[6.35,1.2,4.8],max:[6.85,4.1,5.2]});
+})();
+
+/* mooring ropes + bollards + fenders */
+var fenderSolids=[];
+(function(){
+  var ropeMat=new THREE.MeshStandardMaterial({color:0x8a7a5a,roughness:0.95});
+  var bollMat=new THREE.MeshStandardMaterial({color:0x2b3138,roughness:0.6,metalness:0.5});
+  var solids=[];
+  [-8,0,8].forEach(function(x){
+    var b1=new THREE.Mesh(new THREE.BoxGeometry(0.34,0.5,0.34),bollMat);
+    b1.position.set(x,0.25,2.25); b1.castShadow=true; scene.add(b1);
+    var cap=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,0.14,10),bollMat);
+    cap.position.set(x,0.56,2.25); scene.add(cap);
+    solids.push({min:[x-0.2,0,2.05],max:[x+0.2,0.63,2.45]});
+    var r=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.045,1.3,6),ropeMat);
+    r.position.set(x,0.55,2.95); r.rotation.x=Math.PI/2; r.castShadow=true; scene.add(r);
+  });
+  window.__bollards=solids;
+  var fMat=new THREE.MeshStandardMaterial({color:0x1c1f24,roughness:0.95});
+  [-8,0,8].forEach(function(x){
+    var f=new THREE.Mesh(new THREE.BoxGeometry(1.4,0.8,0.9),fMat);
+    f.position.set(x,0.35,3.05); scene.add(f);
+    fenderSolids.push({min:[x-0.7,0,2.6],max:[x+0.7,0.75,3.5]});
+  });
+})();
+
+/* ---------- floodlight towers ---------- */
+(function(){
+  var m=new THREE.MeshStandardMaterial({color:0x83381e,roughness:0.6,metalness:0.4});
+  [-21,21].forEach(function(x){
+    var g=new THREE.Group();
+    var base=new THREE.Mesh(new THREE.BoxGeometry(1.6,0.5,1.6),new THREE.MeshStandardMaterial({color:0x556068,roughness:0.9}));
+    base.position.y=0.25; g.add(base);
+    var mast=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.3,9.6,8),m);
+    mast.position.y=4.8+0.5; mast.castShadow=true; g.add(mast);
+    var cross=new THREE.Mesh(new THREE.BoxGeometry(3.2,0.24,0.24),m);
+    cross.position.y=10.1; g.add(cross);
+    [-1.2,0,1.2].forEach(function(dx){
+      var lamp=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.34,0.4),
+        new THREE.MeshStandardMaterial({color:0x2b3138,roughness:0.5,
+          emissive:0xffd9a0,emissiveIntensity:1.6}));
+      lamp.position.set(dx,9.82,0); lamp.rotation.x=0.5; g.add(lamp);
+    });
+    var coneMat=new THREE.MeshBasicMaterial({color:0xffd9a0,transparent:true,opacity:0.05,
+      side:THREE.DoubleSide,depthWrite:false});
+    [-1.2,1.2].forEach(function(dx){
+      var cone=new THREE.Mesh(new THREE.ConeGeometry(2.6,10.4,12,1,true),coneMat);
+      cone.position.set(dx*0.75,4.7,1.4); cone.rotation.x=0.34; g.add(cone);
+    });
+    g.position.set(x,0,0.4); scene.add(g);
+  });
+})();
+
+/* ---------- warehouse + skyline ---------- */
+(function(){
+  var g=new THREE.Group();
+  var body=new THREE.Mesh(new THREE.BoxGeometry(26,6,8),
+    new THREE.MeshStandardMaterial({color:0x4a4440,roughness:0.9}));
+  body.position.set(-2,3,-14); body.castShadow=true; body.receiveShadow=true; g.add(body);
+  var roof=new THREE.Mesh(new THREE.CylinderGeometry(4.3,4.3,26,3,1,false,-Math.PI/2,Math.PI),
+    new THREE.MeshStandardMaterial({color:0x6a4030,roughness:0.85,side:THREE.DoubleSide}));
+  roof.rotation.z=Math.PI/2; roof.position.set(-2,6,-14); roof.scale.set(0.55,1,1);
+  roof.castShadow=true; g.add(roof);
+  var wc=canv(512,128),wg=wc.getContext('2d');
+  wg.fillStyle='#3c3835'; wg.fillRect(0,0,512,128);
+  for(var i=0;i<9;i++){ wg.fillStyle='rgba(255,214,140,'+(0.5+rndT()*0.5).toFixed(2)+')';
+    wg.fillRect(16+i*56,26,36,42); }
+  wg.fillStyle='rgba(232,178,58,0.9)'; wg.font='900 26px Consolas,monospace'; wg.textAlign='center';
+  wg.fillText('IRONARM YARD — GANTRY DEPOT',256,104);
+  var wm=new THREE.MeshStandardMaterial({map:tex(wc),roughness:0.9,emissive:0xffffff,emissiveMap:null});
+  [-1,1].forEach(function(s){
+    var w=new THREE.Mesh(new THREE.PlaneGeometry(24,4.4),new THREE.MeshBasicMaterial({map:tex(wc)}));
+    w.position.set(-2,3,-14+s*4.03); w.rotation.y=s>0?0:Math.PI; g.add(w);
+  });
+  scene.add(g);
+  /* distant skyline silhouettes */
+  var silMat=new THREE.MeshBasicMaterial({color:0x241f28});
+  for(var i=0;i<14;i++){
+    var w=6+rndT()*16, h=6+rndT()*22, x=-90+rndT()*180, z=-58-rndT()*22;
+    var b=new THREE.Mesh(new THREE.BoxGeometry(w,h,4),silMat);
+    b.position.set(x,h/2,z); scene.add(b);
+    if(rndT()<0.4){
+      var ant=new THREE.Mesh(new THREE.BoxGeometry(0.5,6,0.5),silMat);
+      ant.position.set(x,h+3,z); scene.add(ant);
+    }
+  }
+  /* distant harbor gantry silhouettes on far shore */
+  for(var k=0;k<3;k++){
+    var cx=-60+k*60, gg=new THREE.Group();
+    var l1=new THREE.Mesh(new THREE.BoxGeometry(1.2,26,1.2),silMat); l1.position.set(-6,13,0);
+    var l2=new THREE.Mesh(new THREE.BoxGeometry(1.2,26,1.2),silMat); l2.position.set(6,13,0);
+    var bm=new THREE.Mesh(new THREE.BoxGeometry(26,1.4,1.4),silMat); bm.position.set(0,25,0);
+    var bo=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.4,1.4),silMat); bo.position.set(-9,23,0);
+    gg.add(l1); gg.add(l2); gg.add(bm); gg.add(bo); gg.position.set(cx,0,-70); scene.add(gg);
+  }
+  /* lighthouse */
+  var lg=new THREE.Group();
+  var rock=new THREE.Mesh(new THREE.CylinderGeometry(2.6,3.6,1.2,9),
+    new THREE.MeshStandardMaterial({color:0x3a352f,roughness:1}));
+  rock.position.y=0.2; lg.add(rock);
+  var tw=new THREE.Mesh(new THREE.CylinderGeometry(0.9,1.3,6.4,10),
+    new THREE.MeshStandardMaterial({color:0xd8d3c8,roughness:0.85}));
+  tw.position.y=4.4; tw.castShadow=true; lg.add(tw);
+  var lampM=new THREE.Mesh(new THREE.CylinderGeometry(0.75,0.75,1.0,10),
+    new THREE.MeshStandardMaterial({color:0x2b3138,emissive:0xffd9a0,emissiveIntensity:2.2}));
+  lampM.position.y=8.1; lg.add(lampM);
+  var cap=new THREE.Mesh(new THREE.ConeGeometry(1.0,0.8,10),
+    new THREE.MeshStandardMaterial({color:0x83381e,roughness:0.7}));
+  cap.position.y=9.0; lg.add(cap);
+  lg.position.set(34,0,16); scene.add(lg);
+})();
+
+/* ---------- small buoys ---------- */
+(function(){
+  var bm=new THREE.MeshStandardMaterial({color:0xc25a2d,roughness:0.7});
+  [[-16,9],[12,10],[-4,12]].forEach(function(p){
+    var b=new THREE.Mesh(new THREE.SphereGeometry(0.3,10,8),bm);
+    b.position.set(p[0],-0.25,p[1]); scene.add(b);
+    var pole=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,1.0,6),
+      new THREE.MeshStandardMaterial({color:0x2b3138}));
+    pole.position.set(p[0],0.2,p[1]); scene.add(pole);
+    var tip=new THREE.Mesh(new THREE.SphereGeometry(0.08,8,6),
+      new THREE.MeshStandardMaterial({color:0x2b3138,emissive:0x7fd8d8,emissiveIntensity:1.5}));
+    tip.position.set(p[0],0.75,p[1]); scene.add(tip);
+  });
+})();
+
+/* ---------- static solids (AABB world) ---------- */
+var staticSolids=[];
+staticSolids.push.apply(staticSolids,shipSolidBoxes);
+staticSolids.push.apply(staticSolids,fenderSolids);
+staticSolids.push({min:[11.2,0,-6.5],max:[15.8,0.3,-3.1]});           /* heavy pad */
+staticSolids.push({min:[-15.8,0,-6.5],max:[-11.2,0.3,-3.1]});         /* round 6: inspection pad */
+staticSolids.push({min:[-15.8,0,-2.7],max:[-11.2,0.12,0.7]});         /* round 6: weighbridge plate */
+window.__bollards.forEach(function(b){ staticSolids.push(b); });
+staticSolids.push({min:[-21.2,0,-0.1],max:[-20.8,10.6,0.9]});          /* tower masts */
+staticSolids.push({min:[20.8,0,-0.1],max:[21.2,10.6,0.9]});
+staticSolids.push({min:[-15.2,0,-18],max:[11.2,6,-10]});               /* warehouse body (out of reach) */
+staticSolids.push({min:[32.4,0,14.4],max:[35.6,8.6,17.6]});            /* lighthouse */
+staticSolids.push({min:[18.6,0,-2.45],max:[19.25,0.62,2.45]});         /* stop bumpers (both rails) */
+staticSolids.push({min:[-19.25,0,-2.45],max:[-18.6,0.62,2.45]});
+
+function aabbHit(a,b){
+  return a.min[0]<b.max[0]-1e-4 && a.max[0]>b.min[0]+1e-4 &&
+         a.min[1]<b.max[1]-1e-4 && a.max[1]>b.min[1]+1e-4 &&
+         a.min[2]<b.max[2]-1e-4 && a.max[2]>b.min[2]+1e-4;
+}
+/* crane parts that the hanging load must not pass through (tested on trolley axis + sway) */
+var cranePartSolids=[];
+
+/* ---------- the crane ---------- */
+var craneGroup=new THREE.Group(); scene.add(craneGroup);
+var trolleyGroup=null;
+var wheelMeshes=[], drumMesh=null, beaconMats=[], ropeMeshes=[], pinMeshes=[];
+(function(){
+  var rust=new THREE.MeshStandardMaterial({color:0xb5502c,roughness:0.6,metalness:0.32});
+  var rustD=new THREE.MeshStandardMaterial({color:0x83381e,roughness:0.65,metalness:0.3});
+  var steel=new THREE.MeshStandardMaterial({color:0x454b52,roughness:0.5,metalness:0.6});
+  var dark=new THREE.MeshStandardMaterial({color:0x2b3138,roughness:0.55,metalness:0.55});
+  function add(mesh){ mesh.castShadow=true; craneGroup.add(mesh); return mesh; }
+
+  /* bogies + wheels */
+  [-2,2].forEach(function(rz){
+    var beam=new THREE.Mesh(new THREE.BoxGeometry(5.2,0.42,1.0),rustD);
+    beam.position.set(0,0.88,rz); add(beam);
+    [-1.9,1.9].forEach(function(wx){
+      [-0.13,0.13].forEach(function(dz){
+        var wg=new THREE.CylinderGeometry(0.22,0.22,0.14,14); wg.rotateX(Math.PI/2);
+        var fg=new THREE.CylinderGeometry(0.27,0.27,0.05,14); fg.rotateX(Math.PI/2);
+        var hp=new THREE.Group(); hp.position.set(wx,0.44,rz+dz);
+        var w=new THREE.Mesh(wg,dark);
+        var f=new THREE.Mesh(fg,steel); f.position.z=dz*0.55;
+        var hub=new THREE.Mesh(new THREE.BoxGeometry(0.15,0.15,0.16),rust);
+        hp.add(w); hp.add(f); hp.add(hub);
+        craneGroup.add(hp); wheelMeshes.push(hp);
+      });
+    });
+    var axG=new THREE.CylinderGeometry(0.07,0.07,1.1,8); axG.rotateX(Math.PI/2);
+    [-1.9,1.9].forEach(function(wx){
+      var ax=new THREE.Mesh(axG,steel); ax.position.set(wx,0.44,rz); craneGroup.add(ax);
+    });
+  });
+
+  /* portal legs: columns at x = ±2.2 on each rail */
+  var legSolids=[];
+  [-2,2].forEach(function(rz){
+    [-2.2,2.2].forEach(function(cx){
+      var col=new THREE.Mesh(new THREE.BoxGeometry(0.42,12.55,0.55),rust);
+      col.position.set(cx,7.28,rz); add(col);
+      legSolids.push({min:[cx-0.25,0,rz-0.35],max:[cx+0.25,12.9,rz+0.35]});
+      var cap=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.3,0.8),rustD);
+      cap.position.set(cx,13.55-0.05,rz); add(cap);
+    });
+    /* knee braces up to the trusses */
+    [-2.2,2.2].forEach(function(cx){
+      var s=Math.sign(cx);
+      var hb=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.24,0.7),rustD);
+      hb.position.set(cx-0.75*s,13.35,rz); hb.rotation.z=s*0.30; add(hb);
+    });
+  });
+  cranePartSolids.push.apply(cranePartSolids,legSolids);
+  /* operator cab blocks the load on the land cantilever */
+  cranePartSolids.push({min:[2.35-0.65,9.05,-5.4-0.75],max:[2.35+0.65,10.62,-5.4+0.75]});
+
+  /* twin truss girder along z (cantilevered both ways) */
+  var HL=7.8;
+  [-1.0,1.0].forEach(function(tx){
+    var b=new THREE.Mesh(new THREE.BoxGeometry(0.34,0.4,2*HL),rust);
+    b.position.set(tx,13.75,0); add(b);
+    var t=new THREE.Mesh(new THREE.BoxGeometry(0.34,0.4,2*HL),rust);
+    t.position.set(tx,14.55,0); add(t);
+    for(var zz=-HL+0.8;zz<=HL-0.8;zz+=1.55){
+      var v=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.8,0.14),rustD);
+      v.position.set(tx,14.15,zz); add(v);
+      var d=new THREE.Mesh(new THREE.BoxGeometry(0.12,1.32,0.1),rustD);
+      d.position.set(tx,14.15,zz+0.39); d.rotation.x=0.72; add(d);
+    }
+    var railT=new THREE.Mesh(new THREE.BoxGeometry(0.14,0.06,2*HL),steel);
+    railT.position.set(tx,14.78,0); add(railT);
+  });
+  /* end frames */
+  [-HL+0.12,HL-0.12].forEach(function(zz){
+    var fr=new THREE.Mesh(new THREE.BoxGeometry(2.0,1.2,0.14),rustD);
+    fr.position.set(0,14.15,zz); add(fr);
+  });
+  /* land-side walkway + railing on girder */
+  [-1,1].forEach(function(s){
+    var wp=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.06,2*HL),dark);
+    wp.position.set(s*1.55,14.85,0); add(wp);
+    var rl=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.5,2*HL),rustD);
+    rl.position.set(s*1.78,15.15,0); add(rl);
+  });
+
+  /* machinery house on side platform */
+  var plat=new THREE.Mesh(new THREE.BoxGeometry(2.3,0.28,2.4),dark);
+  plat.position.set(2.15,15.05,3.5); add(plat);
+  [-1.15,1.15].forEach(function(dx){
+    var leg=new THREE.Mesh(new THREE.BoxGeometry(0.14,0.9,0.14),dark);
+    leg.position.set(2.15+dx,14.6,2.5); add(leg);
+    var leg2=leg.clone(); leg2.position.z=4.5; add(leg2);
+  });
+  var house=new THREE.Mesh(new THREE.BoxGeometry(2.0,1.9,2.1),rust);
+  house.position.set(2.25,16.14,3.5); add(house);
+  var roofH=new THREE.Mesh(new THREE.BoxGeometry(2.3,0.16,2.4),rustD);
+  roofH.position.set(2.25,17.16,3.5); add(roofH);
+  var door=new THREE.Mesh(new THREE.PlaneGeometry(0.6,1.4),dark);
+  door.position.set(1.24,15.95,3.5); door.rotation.y=-Math.PI/2; add(door);
+  /* rope drum, half exposed on the house wall (geometry pre-aligned to spin about x) */
+  var dg=new THREE.CylinderGeometry(0.4,0.4,1.5,16); dg.rotateZ(Math.PI/2);
+  var drum=new THREE.Mesh(dg,steel);
+  drum.position.set(0.9,16.0,3.5); add(drum);
+  for(var gi=0;gi<3;gi++){
+    var ring=new THREE.Mesh(new THREE.CylinderGeometry(0.43,0.43,0.06,16),dark);
+    ring.rotation.z=Math.PI/2; ring.position.set(0.35+gi*0.55,16.0,3.5); add(ring);
+  }
+  drumMesh=drum;
+
+  /* operator cab hanging under the land cantilever */
+  var cab=new THREE.Group();
+  var floor=new THREE.Mesh(new THREE.BoxGeometry(1.3,0.14,1.5),dark); floor.position.y=0.07; cab.add(floor);
+  var ceil=new THREE.Mesh(new THREE.BoxGeometry(1.3,0.12,1.5),rustD); ceil.position.y=1.44; cab.add(ceil);
+  var frameM=rustD, glassM=new THREE.MeshStandardMaterial({color:0x9fd8e8,roughness:0.08,metalness:0.1,
+    transparent:true,opacity:0.34,side:THREE.DoubleSide});
+  function pane(w,h,x,y,z,ry){ var p=new THREE.Mesh(new THREE.PlaneGeometry(w,h),glassM);
+    p.position.set(x,y,z); if(ry)p.rotation.y=ry; cab.add(p); }
+  pane(1.3,1.1,0,0.72,0.75,0); pane(1.3,1.1,0,0.72,-0.75,Math.PI);
+  pane(1.5,1.1,0.65,0.72,0,Math.PI/2); pane(1.5,1.1,-0.65,0.72,0,-Math.PI/2);
+  cab.position.set(2.35,9.05,-5.4);
+  cab.traverse(function(o){ if(o.isMesh) o.castShadow=true; });
+  craneGroup.add(cab);
+  /* hanger rods */
+  [[1.75,-6.0],[2.95,-6.0],[1.75,-4.8],[2.95,-4.8]].forEach(function(p){
+    var rod=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,3.05,6),dark);
+    rod.position.set(p[0],12.02,p[1]); craneGroup.add(rod);
+  });
+  /* seat + console */
+  var seat=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.55,0.5),new THREE.MeshStandardMaterial({color:0x1c2128,roughness:0.9}));
+  seat.position.set(2.35,9.55,-5.65); craneGroup.add(seat);
+  var con=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.35,0.3),dark);
+  con.position.set(2.35,9.62,-4.95); craneGroup.add(con);
+
+  /* trolley (rides on top of the girder chords) */
+  var trolley=new THREE.Group();
+  var tf=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.5,1.1),rust);
+  tf.position.y=15.06; trolley.add(tf);
+  var tb=new THREE.Mesh(new THREE.BoxGeometry(1.7,0.12,1.3),rustD);
+  tb.position.y=14.84; trolley.add(tb);
+  [-0.62,0.62].forEach(function(tx){
+    [-0.42,0.42].forEach(function(tz){
+      var wg2=new THREE.CylinderGeometry(0.14,0.14,0.1,10); wg2.rotateX(Math.PI/2);
+      var w2=new THREE.Mesh(wg2,dark); w2.position.set(tx,14.92,tz); trolley.add(w2);
+    });
+  });
+  var head=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.5,0.86),steel);
+  head.position.y=14.44; trolley.add(head);
+  var sheave=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.16,12),dark);
+  sheave.rotation.x=Math.PI/2; sheave.position.y=14.30; trolley.add(sheave);
+  trolley.traverse(function(o){ if(o.isMesh) o.castShadow=true; });
+  craneGroup.add(trolley); trolleyGroup=trolley;
+
+  /* beacons: trolley, cab roof, house roof */
+  function beacon(parent,x,y,z,scale){
+    var m=new THREE.MeshStandardMaterial({color:0x5a4632,emissive:0xffb454,emissiveIntensity:0.12,roughness:0.4});
+    var b=new THREE.Mesh(new THREE.CylinderGeometry(0.09*scale,0.12*scale,0.2*scale,10),m);
+    b.position.set(x,y,z); parent.add(b);
+    beaconMats.push(m); return m;
+  }
+  beacon(trolley,0,15.42,0.35,1);
+  beacon(craneGroup,2.35,10.62,-5.4,1.2);
+  beacon(craneGroup,2.25,17.32,3.5,1.4);
+})();
+
+/* spreader + ropes (world-level, moved every frame) */
+var spreader=new THREE.Group();
+(function(){
+  var rust=new THREE.MeshStandardMaterial({color:0xb5502c,roughness:0.6,metalness:0.32});
+  var dark=new THREE.MeshStandardMaterial({color:0x2b3138,roughness:0.55,metalness:0.55});
+  var steel=new THREE.MeshStandardMaterial({color:0x454b52,roughness:0.5,metalness:0.6});
+  [-0.72,0.72].forEach(function(pz){
+    var beam=new THREE.Mesh(new THREE.BoxGeometry(3.0,0.3,0.24),rust);
+    beam.position.set(0,0.3,pz); spreader.add(beam);
+  });
+  [-1.36,1.36].forEach(function(px){
+    var eb=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.3,1.68),rust);
+    eb.position.set(px,0.3,0); spreader.add(eb);
+  });
+  var plate=new THREE.Mesh(new THREE.BoxGeometry(2.6,0.08,1.2),dark);
+  plate.position.set(0,0.47,0); spreader.add(plate);
+  [[-1.36,-0.72],[1.36,-0.72],[-1.36,0.72],[1.36,0.72]].forEach(function(p){
+    var post=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.26,0.2),steel);
+    post.position.set(p[0],0.56,p[1]); spreader.add(post);
+  });
+  [[-1.35,-0.65],[1.35,-0.65],[-1.35,0.65],[1.35,0.65]].forEach(function(p){
+    var pin=new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.055,0.16,8),dark);
+    pin.position.set(p[0],-0.06,p[1]); spreader.add(pin); pinMeshes.push(pin);
+  });
+  spreader.traverse(function(o){ if(o.isMesh) o.castShadow=true; });
+  scene.add(spreader);
+})();
+/* round 6: twin-hook tandem rig — hook blocks at the heavy unit's lug spacing (±1.2) */
+var tandemHooks=[];
+(function(){
+  var steel=new THREE.MeshStandardMaterial({color:0x454b52,roughness:0.5,metalness:0.6});
+  var dark=new THREE.MeshStandardMaterial({color:0x2b3138,roughness:0.55,metalness:0.55});
+  [-1.2,1.2].forEach(function(hxp){
+    var hg=new THREE.Group();
+    var sh=new THREE.Mesh(new THREE.TorusGeometry(0.1,0.03,8,14),steel); hg.add(sh);
+    var blk=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.26,0.16),dark); blk.position.y=-0.2; hg.add(blk);
+    var hk=new THREE.Mesh(new THREE.TorusGeometry(0.075,0.026,8,14,Math.PI),dark);
+    hk.position.y=-0.4; hk.rotation.z=Math.PI; hg.add(hk);
+    hg.position.set(hxp,-0.08,0); hg.visible=false; spreader.add(hg); tandemHooks.push(hg);
+  });
+})();
+for(var ri=0;ri<4;ri++){
+  var rg=new THREE.CylinderGeometry(0.024,0.024,1,6); rg.translate(0,-0.5,0);
+  var rope=new THREE.Mesh(rg,new THREE.MeshStandardMaterial({color:0x30343a,roughness:0.45,metalness:0.7}));
+  scene.add(rope); ropeMeshes.push(rope);
+}
+
+/* ---------- round 7: night shift — girder floodlights + travel warning lamps ---------- */
+var travelLampMats=[];
+(function(){
+  var fixMat=new THREE.MeshStandardMaterial({color:0x2b3138,roughness:0.5,metalness:0.5,
+    emissive:0xffd9a0,emissiveIntensity:0.9});
+  function flood(fx,fy,fz,tx,tz){
+    var sp=new THREE.SpotLight(0xffd9a0,0.75,42,0.72,0.55,1.2);
+    sp.position.set(fx,fy,fz); sp.target.position.set(tx,0,tz);
+    craneGroup.add(sp); craneGroup.add(sp.target);
+    var box=new THREE.Mesh(new THREE.BoxGeometry(0.34,0.2,0.26),fixMat);
+    box.position.set(fx,fy+0.1,fz); craneGroup.add(box);
+  }
+  flood(0,14.1,-0.6, 0,-1.2);        /* portal lane + truck stop */
+  flood(-1.4,14.1,-1.6, -1.4,-4.8);  /* slot columns */
+  flood(1.4,14.1,1.6, 1.4,4.8);      /* ship deck */
+  [-7.55,7.55].forEach(function(lz){
+    var lm=new THREE.MeshStandardMaterial({color:0x5a2626,emissive:0xff4038,emissiveIntensity:0.08,roughness:0.4});
+    var lamp=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.14,0.14),lm);
+    lamp.position.set(0,14.92,lz); craneGroup.add(lamp);
+    travelLampMats.push(lm);
+  });
+})();
+
+/* ---------- round 7: the trolley searchlight ---------- */
+var LAMP_MIN=-45*DEG, LAMP_MAX=45*DEG, LAMP_RATE=40*DEG, LENS_Y=13.3, LENS_ZOFF=0.85, LAMP_HALF=11*DEG;
+var lampGroup=new THREE.Group(), searchLight=null, lampCone=null;
+(function(){
+  var steel=new THREE.MeshStandardMaterial({color:0x454b52,roughness:0.4,metalness:0.7});
+  var dark=new THREE.MeshStandardMaterial({color:0x23272c,roughness:0.5,metalness:0.5});
+  var yoke=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.08,0.1),steel); yoke.position.y=0.42; lampGroup.add(yoke);
+  [-0.21,0.21].forEach(function(sx){
+    var arm=new THREE.Mesh(new THREE.BoxGeometry(0.07,0.4,0.1),steel);
+    arm.position.set(sx,0.22,0); lampGroup.add(arm);
+  });
+  var hous=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.28,0.42,14),dark);
+  hous.position.y=0.02; lampGroup.add(hous);
+  var lens=new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.24,0.06,14),
+    new THREE.MeshStandardMaterial({color:0x2b3138,emissive:0xffe2b0,emissiveIntensity:2.4}));
+  lens.position.y=-0.21; lampGroup.add(lens);
+  var cg=new THREE.ConeGeometry(1,1,24,1,true); cg.translate(0,-0.5,0);
+  lampCone=new THREE.Mesh(cg,new THREE.MeshBasicMaterial({color:0xffe2b0,transparent:true,
+    opacity:0.07,depthWrite:false,side:THREE.DoubleSide,fog:false,blending:THREE.AdditiveBlending}));
+  lampCone.position.y=-0.2; lampCone.frustumCulled=false; lampGroup.add(lampCone);
+  searchLight=new THREE.SpotLight(0xffe2b0,1.7,48,LAMP_HALF,0.45,1.1);
+  searchLight.position.set(0,0,0);
+  searchLight.target.position.set(0,-10,0);
+  lampGroup.add(searchLight); lampGroup.add(searchLight.target);
+  var mount=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.9,0.08),steel);
+  mount.position.set(0,14.35,LENS_ZOFF); trolleyGroup.add(mount);
+  lampGroup.position.set(0,13.5,LENS_ZOFF);
+  trolleyGroup.add(lampGroup);
+})();
+
+/* ---------- round 7: light-gated in-world markers ---------- */
+var gatedMarkers=[];
+function gateFrame(w,d,color){
+  var g=new THREE.Group();
+  var m=new THREE.MeshBasicMaterial({color:color,transparent:true,opacity:0.95});
+  var t=0.06,h=0.03;
+  [[0,d/2,w+t,t],[0,-d/2,w+t,t],[w/2,0,t,d+t],[-w/2,0,t,d+t]].forEach(function(p){
+    var b=new THREE.Mesh(new THREE.BoxGeometry(p[2],h,p[3]),m);
+    b.position.set(p[0],h/2,p[1]); g.add(b);
+  });
+  return g;
+}
+(function(){
+  COL_X.forEach(function(cx){
+    var g=gateFrame(2.9,2.3,0xffb454); g.position.set(cx,0,COL_Z); g.visible=false;
+    scene.add(g); gatedMarkers.push({group:g,x:cx,z:COL_Z});
+  });
+  PLAN.forEach(function(p){
+    var g=gateFrame(2.8,2.0,0x7fd8d8); g.position.set(p.x,DECK_TOP,SHIP_CELL_Z); g.visible=false;
+    scene.add(g); gatedMarkers.push({group:g,x:p.x,z:SHIP_CELL_Z});
+  });
+  var cg2=gateFrame(2.8,2.0,0x7fd8d8); cg2.position.set(CRADLE_X,DECK_TOP,SHIP_CELL_Z); cg2.visible=false;
+  scene.add(cg2); gatedMarkers.push({group:cg2,x:CRADLE_X,z:SHIP_CELL_Z});
+  var tg2=gateFrame(3.2,1.7,0xffb454); tg2.position.set(TRUCK_STOP_X,0,TRUCK_LANE_Z); tg2.visible=false;
+  (function(){
+    var sc=canv(128,64),sg=sc.getContext('2d');
+    sg.clearRect(0,0,128,64);
+    sg.fillStyle='#ffb454'; sg.font='900 44px Consolas,monospace'; sg.textAlign='center';
+    sg.fillText('STOP',64,50);
+    var st=new THREE.Mesh(new THREE.PlaneGeometry(1.2,0.6),
+      new THREE.MeshBasicMaterial({map:tex(sc),transparent:true}));
+    st.rotation.x=-Math.PI/2; st.position.set(0,0.035,0.55); tg2.add(st);
+  })();
+  scene.add(tg2); gatedMarkers.push({group:tg2,x:TRUCK_STOP_X,z:TRUCK_LANE_Z});
+  [[13.5,-4.8,0.33],[-13.5,-4.8,0.33],[-13.5,-1.0,0.15]].forEach(function(p){
+    var g=gateFrame(4.7,3.5,0xffb454); g.position.set(p[0],p[2],p[1]); g.visible=false;
+    scene.add(g); gatedMarkers.push({group:g,x:p[0],z:p[1]});
+  });
+})();
+
+/* ---------- containers ---------- */
+function labelTexture(id,mass,fg){
+  var c=canv(256,96),g=c.getContext('2d');
+  g.fillStyle='rgba(0,0,0,0)'; g.clearRect(0,0,256,96);
+  g.fillStyle=fg; g.font='900 44px Consolas,monospace'; g.textAlign='left';
+  g.fillText(id,10,42);
+  g.font='700 30px Consolas,monospace'; g.fillText(mass+' t',10,80);
+  return tex(c);
+}
+function buildContainer(c){
+  var g=new THREE.Group();
+  var body=new THREE.MeshStandardMaterial({color:c.color,roughness:0.72,metalness:0.18});
+  var darker=new THREE.MeshStandardMaterial({color:new THREE.Color(c.color).multiplyScalar(0.72),roughness:0.75,metalness:0.18});
+  var castM=new THREE.MeshStandardMaterial({color:0x262a2e,roughness:0.6,metalness:0.55});
+  var W=c.hx*2,H=c.hy*2,D=c.hz*2;
+  var base=new THREE.Mesh(new THREE.BoxGeometry(W*0.96,H,D*0.96),body);
+  base.castShadow=true; base.receiveShadow=true; g.add(base);
+  if(c.kind==='box'){
+    for(var s=-1;s<=1;s+=2){
+      for(var i=0;i<11;i++){
+        var rg=new THREE.Mesh(new THREE.BoxGeometry(0.09,H*0.9,0.05),darker);
+        rg.position.set(-W/2+0.28+i*(W-0.56)/10,0,s*(D/2+0.02)); g.add(rg);
+      }
+    }
+    for(var ix=0;ix<4;ix++){
+      var rod=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,H*0.88,8),castM);
+      rod.position.set(W/2+0.03,-H/2+H*0.44,-D*0.3+ix*(D*0.6/3)); g.add(rod);
+    }
+    var lbl1=labelTexture(c.id,String(c.mass),'#f2ede2'), lbl2=labelTexture(c.id,String(c.mass),'#f2ede2');
+    [-1,1].forEach(function(s){
+      var p=new THREE.Mesh(new THREE.PlaneGeometry(1.5,0.44),
+        new THREE.MeshBasicMaterial({map:lbl1,transparent:true}));
+      p.position.set(-0.25,H*0.18,s*(D/2+0.075)); p.rotation.y=s>0?0:Math.PI; g.add(p);
+    });
+    var pt=new THREE.Mesh(new THREE.PlaneGeometry(1.5,0.44),
+      new THREE.MeshBasicMaterial({map:lbl2,transparent:true}));
+    pt.rotation.x=-Math.PI/2; pt.rotation.z=Math.PI/2; pt.position.set(0.25,H/2+0.01,0); g.add(pt);
+  }else{
+    for(var r=0;r<3;r++){
+      var rib=new THREE.Mesh(new THREE.BoxGeometry(W*0.98,0.1,D*0.98),darker);
+      rib.position.set(0,-H/2+0.35+r*0.45,0); g.add(rib);
+    }
+    [-1,1].forEach(function(s){
+      var lug=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.22,0.5),castM);
+      lug.position.set(s*(W/2-0.2),H/2+0.09,0); g.add(lug);
+    });
+    var hl=labelTexture('HVY 601','60','#ffd98f');
+    [-1,1].forEach(function(s){
+      var p=new THREE.Mesh(new THREE.PlaneGeometry(1.7,0.55),
+        new THREE.MeshBasicMaterial({map:hl,transparent:true}));
+      p.position.set(0,0.1,s*(D/2+0.075)); p.rotation.y=s>0?0:Math.PI; g.add(p);
+    });
+  }
+  [[1,1,1],[1,1,-1],[1,-1,1],[1,-1,-1],[-1,1,1],[-1,1,-1],[-1,-1,1],[-1,-1,-1]].forEach(function(k){
+    var cc=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.2,0.2),castM);
+    cc.position.set(k[0]*(W/2-0.07),k[1]*(H/2-0.07),k[2]*(D/2-0.07)); g.add(cc);
+  });
+  g.traverse(function(o){ if(o.isMesh) o.castShadow=true; });
+  scene.add(g);
+  return g;
+}
+var containers=[
+  {id:'IRNU 201',mass:20,kind:'box',hx:1.2,hy:0.6,hz:0.6,x:-6,y:0.6,z:-4.8,color:0x2e7f7f},
+  {id:'IRNU 202',mass:40,kind:'box',hx:1.2,hy:0.6,hz:0.6,x:-6,y:1.8,z:-4.8,color:0xb5502c},
+  {id:'IRNU 203',mass:30,kind:'box',hx:1.2,hy:0.6,hz:0.6,x:0,y:0.6,z:-4.8,color:0xc9922e},
+  {id:'IRNU 204',mass:30,kind:'box',hx:1.2,hy:0.6,hz:0.6,x:0,y:1.8,z:-4.8,color:0x4a6b8a},
+  {id:'IRNU 205',mass:40,kind:'box',hx:1.2,hy:0.6,hz:0.6,x:6,y:0.6,z:-4.8,color:0x6e7040},
+  {id:'IRNU 206',mass:20,kind:'box',hx:1.2,hy:0.6,hz:0.6,x:6,y:1.8,z:-4.8,color:0x9a4526},
+  {id:'HVY 601',mass:60,kind:'heavy',hx:1.4,hy:0.8,hz:0.7,x:13.5,y:1.1,z:-4.8,color:0x51616b},
+  /* round 6: overweight export box — single-hook it to the weighbridge (warning, latch holds) */
+  {id:'IRNU 221',mass:44,kind:'box',hx:1.2,hy:0.6,hz:0.6,x:-13.5,y:0.9,z:-4.8,color:0x8a2f4f},
+  /* round 5: truck deliveries — hidden until their truck arrives, then bedded at lock 2.4 */
+  {id:'IRNU 211',mass:30,kind:'box',hx:1.2,hy:0.6,hz:0.6,x:TRUCK_STOP_X,y:1.8,z:TRUCK_LANE_Z,color:0x4a6b8a,truck:0},
+  {id:'IRNU 212',mass:20,kind:'box',hx:1.2,hy:0.6,hz:0.6,x:TRUCK_STOP_X,y:1.8,z:TRUCK_LANE_Z,color:0x2e7f7f,truck:1},
+  {id:'IRNU 213',mass:40,kind:'box',hx:1.2,hy:0.6,hz:0.6,x:TRUCK_STOP_X,y:1.8,z:TRUCK_LANE_Z,color:0xb5502c,truck:2},
+  {id:'IRNU 214',mass:30,kind:'box',hx:1.2,hy:0.6,hz:0.6,x:TRUCK_STOP_X,y:1.8,z:TRUCK_LANE_Z,color:0xc9922e,truck:3},
+  {id:'IRNU 215',mass:20,kind:'box',hx:1.2,hy:0.6,hz:0.6,x:TRUCK_STOP_X,y:1.8,z:TRUCK_LANE_Z,color:0x6e7040,truck:4}
+];
+var heavyRef=null,box44=null;
+containers.forEach(function(c){ c.home=[c.x,c.y,c.z]; c.damaged=0; c.carried=false; c.falling=null;
+  c.pendingShock=false; c.lastBand=null; c.askew=false; c.askewTilt=null; c.pendingBand=null;
+  c.group=buildContainer(c);
+  if(c.kind==='heavy') heavyRef=c;
+  if(c.id==='IRNU 221') box44=c;
+  if(c.truck!==undefined){ c.bedded=true; c.group.visible=false;
+    c.truckRef=TRUCKS[c.truck]; c.truckRef.cargo=c; }
+});
+
+/* ---------- round 5: the trucks (cab, chassis, six wheels, twist-lock bed) + approach road ---------- */
+TRUCKS.forEach(function(t){ t.phase='pending'; t.spawned=false; t.x=TRUCK_ENTER_X;
+  t.targetX=TRUCK_STOP_X; t.toHold=false; t.slot=-1; t.bedEmptyT=-9; t.cargo=null; t.mesh=null; });
+(function(){
+  var road=new THREE.Mesh(new THREE.BoxGeometry(20,0.5,4.8),
+    new THREE.MeshStandardMaterial({color:0x33383e,roughness:0.95}));
+  road.position.set(50,-0.24,-1); road.receiveShadow=true; scene.add(road);
+  var rc=canv(512,128),rg=rc.getContext('2d');
+  rg.fillStyle='#33383e'; rg.fillRect(0,0,512,128);
+  rg.fillStyle='rgba(232,178,58,0.5)';
+  for(var dash=0;dash<8;dash++) rg.fillRect(dash*64,60,36,8);
+  rg.fillStyle='rgba(255,255,255,0.22)'; rg.fillRect(0,6,512,4); rg.fillRect(0,118,512,4);
+  var lane=new THREE.Mesh(new THREE.PlaneGeometry(20,4.6),
+    new THREE.MeshStandardMaterial({map:tex(rc),roughness:0.95}));
+  lane.rotation.x=-Math.PI/2; lane.position.set(50,0.03,-1); lane.receiveShadow=true; scene.add(lane);
+})();
+TRUCKS.forEach(function(t){
+  var g=new THREE.Group();
+  var dark=new THREE.MeshStandardMaterial({color:0x23272c,roughness:0.6,metalness:0.4});
+  var steel=new THREE.MeshStandardMaterial({color:0x454b52,roughness:0.5,metalness:0.6});
+  var tire=new THREE.MeshStandardMaterial({color:0x17191c,roughness:0.95});
+  var glass=new THREE.MeshStandardMaterial({color:0x9fd8e8,roughness:0.1,metalness:0.1,
+    transparent:true,opacity:0.4});
+  var body=new THREE.MeshStandardMaterial({color:t.color,roughness:0.5,metalness:0.3});
+  function add(mesh,x,y,z){ mesh.position.set(x,y,z); mesh.castShadow=true; g.add(mesh); return mesh; }
+  add(new THREE.Mesh(new THREE.BoxGeometry(6.0,0.34,1.1),dark),0,0.70,0);       /* chassis */
+  add(new THREE.Mesh(new THREE.BoxGeometry(3.0,0.12,1.24),dark),0,1.14,0);      /* bed deck — top y = 1.2 */
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.08,0.5,1.24),steel),-1.46,1.45,0); /* headboard */
+  [[1.05,0.45],[1.05,-0.45],[-1.05,0.45],[-1.05,-0.45]].forEach(function(p){
+    add(new THREE.Mesh(new THREE.BoxGeometry(0.14,0.14,0.14),steel),p[0],1.27,p[1]); });  /* twist-locks */
+  add(new THREE.Mesh(new THREE.BoxGeometry(1.5,1.35,1.24),body),-2.25,1.545,0); /* cab */
+  add(new THREE.Mesh(new THREE.BoxGeometry(1.3,0.2,1.1),body),-2.2,2.32,0);     /* roof deflector */
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.16,0.5,1.26),dark),-3.06,0.62,0);  /* bumper */
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.06,0.6,1.06),glass),-3.02,1.98,0); /* windshield */
+  [-0.42,0.42].forEach(function(z){
+    add(new THREE.Mesh(new THREE.BoxGeometry(0.06,0.16,0.2),
+      new THREE.MeshStandardMaterial({color:0x2b3138,emissive:0xffd9a0,emissiveIntensity:1.4})),-3.05,1.05,z); });
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.7,8),steel),-1.62,2.5,0.48);  /* exhaust */
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.09,0.16,8),
+    new THREE.MeshStandardMaterial({color:0x5a4632,emissive:0xffb454,emissiveIntensity:1.2})),-2.6,2.42,-0.44);
+  var tagC=canv(128,64),tg=tagC.getContext('2d');
+  tg.clearRect(0,0,128,64);
+  tg.fillStyle='#ffd98f'; tg.font='900 44px Consolas,monospace'; tg.textAlign='center';
+  tg.fillText(t.id,64,48);
+  var tagT=tex(tagC);
+  [-1,1].forEach(function(s){
+    var tag=new THREE.Mesh(new THREE.PlaneGeometry(0.62,0.31),
+      new THREE.MeshBasicMaterial({map:tagT,transparent:true}));
+    tag.position.set(-2.25,1.6,s*0.625); if(s<0) tag.rotation.y=Math.PI; g.add(tag);
+  });
+  [-2.35,1.2,2.3].forEach(function(ax){
+    [-0.49,0.49].forEach(function(z){
+      var wg=new THREE.CylinderGeometry(0.36,0.36,0.22,14); wg.rotateX(Math.PI/2);
+      var w=new THREE.Mesh(wg,tire); w.position.set(ax,0.36,z); w.castShadow=true; g.add(w);
+      var hub=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.13,0.24,10),steel);
+      hub.rotation.x=Math.PI/2; hub.position.set(ax,0.36,z); g.add(hub);
+    });
+  });
+  g.visible=false; scene.add(g);
+  t.mesh={group:g};
+});
+
+/* ---------- game state ---------- */
+var S={
+  phase:'title', endedKind:null, simT:0, jobT:JOB_TIME, turbo:false,
+  crane:{x:0,v:0,a:0}, troll:{z:-4.8,v:0,a:0}, hoist:{y:HOIST_MAX,v:0},
+  sway:{tx:0,wx:0,tz:0,wz:0},
+  hook:null,                 /* container object when locked */
+  hookWarnOver:false, refusedT:-9,
+  dmgCount:0, dmgEvents:[],
+  banners:[], camMode:2, setdownText:null,
+  excursionArmed:true, contactX:false, contactZ:false,
+  landedCount:0, endRemain:0, bumperT:-9,
+  tally:{perfect:0,good:0,ooc:0,score:0}, placements:[],
+  ledgerSum:0, tilt:0, shipSet:[], planState:[], planAllOk:false, balancedLatch:false,
+  windLevel:0, windEqDeg:0, windEqRad:0,
+  tandemArmed:false, tandem:false, weighbridgeDone:false,
+  lampYaw:0, hornT:-9, hydLow:false, hydBannerT:-9,
+  settled:false, score:{cells:0,avg:0,alignPts:0,bonus:0,dmg:0,total:0,rating:'C'}
+};
+var visualT=0;
+
+function resetAll(toTitle){
+  S.phase=toTitle?'title':'running';
+  S.endedKind=null; S.simT=0; S.jobT=JOB_TIME; S.turbo=false;
+  S.crane.x=0; S.crane.v=0; S.crane.a=0;
+  S.troll.z=-4.8; S.troll.v=0; S.troll.a=0;
+  S.hoist.y=HOIST_MAX; S.hoist.v=0;
+  S.sway.tx=0; S.sway.wx=0; S.sway.tz=0; S.sway.wz=0;
+  S.hook=null; S.hookWarnOver=false; S.refusedT=-9;
+  S.dmgCount=0; S.dmgEvents.length=0;
+  S.banners.length=0; S.setdownText=null;
+  S.excursionArmed=true; S.contactX=false; S.contactZ=false;
+  S.landedCount=0; S.endRemain=0; S.bumperT=-9;
+  S.tally.perfect=0; S.tally.good=0; S.tally.ooc=0; S.tally.score=0;
+  S.placements.length=0;
+  S.ledgerSum=0; S.tilt=0; S.shipSet.length=0; S.planState.length=0;
+  S.planAllOk=false; S.balancedLatch=false;
+  S.windLevel=0; S.windEqDeg=0; S.windEqRad=0;
+  S.tandemArmed=false; S.tandem=false; S.weighbridgeDone=false;
+  S.lampYaw=0; S.hornT=-9; S.hydLow=false; S.hydBannerT=-9;
+  S.settled=false; S.score={cells:0,avg:0,alignPts:0,bonus:0,dmg:0,total:0,rating:'C'};
+  closeScore();
+  DRILL.forEach(function(d){ d.done=false; });
+  TRUCKS.forEach(function(t){
+    t.phase='pending'; t.spawned=false; t.x=TRUCK_ENTER_X;
+    t.targetX=TRUCK_STOP_X; t.toHold=false; t.slot=-1; t.bedEmptyT=-9;
+    if(t.mesh) t.mesh.group.visible=false;
+    if(t.cargo){ t.cargo.bedded=true; t.cargo.group.visible=false;
+      t.cargo.x=t.cargo.home[0]; t.cargo.y=t.cargo.home[1]; t.cargo.z=t.cargo.home[2]; }
+  });
+  containers.forEach(function(c){
+    c.x=c.home[0]; c.y=c.home[1]; c.z=c.home[2];
+    c.carried=false; c.falling=null; c.pendingShock=false;
+    c.damaged=0; c.group.rotation.set(0,0,0);
+    c.lastBand=null; c.askew=false; c.askewTilt=null; c.pendingBand=null;
+    c.group.position.set(c.x,c.y,c.z);
+  });
+  document.getElementById('titleCard').style.display=S.phase==='title'?'block':'none';
+  document.getElementById('endCard').style.display='none';
+  cam.route.length=0;
+  if(toTitle){ cam.mode=2; camSnapYard(); }
+}
+
+/* ---------- audio (all synthesized, deterministic) ---------- */
+var AU={ctx:null,master:null,humOsc:null,humOsc2:null,humGain:null,humFilt:null,
+  noiseBuf:null,buzzT:-9,ratchAcc:0,lastClickDir:0,
+  windSrc:null,windFilt:null,windGain:null};
+function initAudio(){
+  if(AU.ctx) return;
+  try{
+    var C=window.AudioContext||window.webkitAudioContext; if(!C) return;
+    AU.ctx=new C();
+    AU.master=AU.ctx.createGain(); AU.master.gain.value=0.5;
+    var comp=AU.ctx.createDynamicsCompressor();
+    AU.master.connect(comp); comp.connect(AU.ctx.destination);
+    var len=AU.ctx.sampleRate|0, buf=AU.ctx.createBuffer(1,len,AU.ctx.sampleRate), d=buf.getChannelData(0);
+    var s=1234567;
+    for(var i=0;i<len;i++){ s=(Math.imul(s,1664525)+1013904223)>>>0; d[i]=(s/2147483648-1)*0.8; }
+    AU.noiseBuf=buf;
+    AU.humOsc=AU.ctx.createOscillator(); AU.humOsc.type='sawtooth'; AU.humOsc.frequency.value=48;
+    AU.humOsc2=AU.ctx.createOscillator(); AU.humOsc2.type='sawtooth'; AU.humOsc2.frequency.value=49.5;
+    AU.humFilt=AU.ctx.createBiquadFilter(); AU.humFilt.type='lowpass'; AU.humFilt.frequency.value=220;
+    AU.humGain=AU.ctx.createGain(); AU.humGain.gain.value=0;
+    AU.humOsc.connect(AU.humFilt); AU.humOsc2.connect(AU.humFilt);
+    AU.humFilt.connect(AU.humGain); AU.humGain.connect(AU.master);
+    AU.humOsc.start(); AU.humOsc2.start();
+    /* round 4: wind whistle — bandpass noise whose gain follows the wind schedule */
+    AU.windSrc=AU.ctx.createBufferSource(); AU.windSrc.buffer=AU.noiseBuf; AU.windSrc.loop=true;
+    AU.windFilt=AU.ctx.createBiquadFilter(); AU.windFilt.type='bandpass';
+    AU.windFilt.frequency.value=560; AU.windFilt.Q.value=9;
+    AU.windGain=AU.ctx.createGain(); AU.windGain.gain.value=0;
+    AU.windSrc.connect(AU.windFilt); AU.windFilt.connect(AU.windGain); AU.windGain.connect(AU.master);
+    AU.windSrc.start();
+  }catch(e){ AU.ctx=null; }
+}
+function env(g,t0,peak,dur){ g.gain.setValueAtTime(0.0001,t0); g.gain.linearRampToValueAtTime(peak,t0+0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001,t0+dur); }
+function tone(type,f0,f1,dur,vol,when){
+  if(!AU.ctx) return; var t=AU.ctx.currentTime+(when||0);
+  var o=AU.ctx.createOscillator(),g=AU.ctx.createGain();
+  o.type=type; o.frequency.setValueAtTime(f0,t);
+  if(f1&&f1!==f0) o.frequency.exponentialRampToValueAtTime(Math.max(1,f1),t+dur);
+  env(g,t,vol,dur); o.connect(g); g.connect(AU.master); o.start(t); o.stop(t+dur+0.05);
+}
+function noise(dur,vol,fc,type){
+  if(!AU.ctx) return; var t=AU.ctx.currentTime;
+  var src=AU.ctx.createBufferSource(); src.buffer=AU.noiseBuf; src.loop=true;
+  var f=AU.ctx.createBiquadFilter(); f.type=type||'lowpass'; f.frequency.value=fc||300;
+  var g=AU.ctx.createGain(); env(g,t,vol,dur);
+  src.connect(f); f.connect(g); g.connect(AU.master); src.start(t); src.stop(t+dur+0.05);
+}
+var SFX={
+  clunk:function(){ tone('sine',95,52,0.16,0.5); noise(0.09,0.28,380); },
+  thud:function(v){ tone('sine',64,36,0.28,0.32+0.4*v); noise(0.16,0.22+0.3*v,210); },
+  clang:function(){ tone('square',418,410,0.34,0.16); tone('square',633,620,0.30,0.12);
+    tone('triangle',947,930,0.26,0.12); noise(0.22,0.2,2400,'highpass'); },
+  collide:function(){ tone('sine',110,58,0.22,0.5); tone('square',311,300,0.22,0.14);
+    noise(0.14,0.3,700); },
+  knock:function(){ tone('sine',82,50,0.18,0.4); noise(0.08,0.18,260); },
+  buzz:function(){ tone('square',620,620,0.18,0.11); },
+  alarm:function(){ tone('square',520,520,0.14,0.14); tone('square',392,392,0.14,0.14,0.16);
+    tone('square',520,520,0.14,0.14,0.32); tone('square',392,392,0.14,0.14,0.48); },
+  refuse:function(){ tone('square',196,196,0.22,0.16); tone('square',147,147,0.3,0.16,0.24); },
+  deny:function(){ tone('square',233,233,0.12,0.14); tone('square',233,233,0.12,0.14,0.17); },
+  click:function(up){ tone('square',up?1900:1350,up?1900:1350,0.028,0.06); },
+  unlatch:function(){ tone('sine',150,88,0.09,0.26); noise(0.05,0.12,520); },
+  good:function(){ [523,659,784,1046].forEach(function(f,i){ tone('triangle',f,f,0.16,0.14,i*0.13); }); },
+  bad:function(){ [392,330,262].forEach(function(f,i){ tone('triangle',f,f,0.2,0.14,i*0.17); }); },
+  horn:function(){ tone('square',294,294,0.22,0.10); tone('square',370,370,0.22,0.10);
+    tone('square',294,294,0.36,0.09,0.28); tone('square',370,370,0.36,0.09,0.28); },
+  tandemLatch:function(){ tone('sine',95,52,0.16,0.45); tone('sine',82,46,0.2,0.45,0.1);
+    noise(0.12,0.3,360); },
+  lowHorn:function(){ tone('square',138,134,0.42,0.13); tone('square',92,90,0.42,0.11); },
+  hydraulic:function(low){ if(low){ tone('sine',96,64,0.5,0.22); } else { tone('sine',64,96,0.4,0.18); } }
+};
+
+/* ---------- helpers: geometry of the hanging assembly ---------- */
+function swayOffsets(){
+  var lp=Math.max(1.5, PIVOT_Y-(S.hoist.y+0.56));
+  return {ox:Math.sin(S.sway.tx)*lp, oz:Math.sin(S.sway.tz)*lp, lp:lp};
+}
+function unionAABB(a,b){
+  return {min:[Math.min(a.min[0],b.min[0]),Math.min(a.min[1],b.min[1]),Math.min(a.min[2],b.min[2])],
+          max:[Math.max(a.max[0],b.max[0]),Math.max(a.max[1],b.max[1]),Math.max(a.max[2],b.max[2])]};
+}
+function assemblyAABB(dxs,dys,dzs){
+  var o=swayOffsets();
+  var sx=S.crane.x+o.ox+dxs, sz=S.troll.z+o.oz+dzs, Y=S.hoist.y+dys;
+  var a={min:[sx-1.5,Y,sz-0.85],max:[sx+1.5,Y+0.62,sz+0.85]};
+  if(S.hook){ var c=S.hook;
+    a=unionAABB(a,{min:[sx-c.hx,Y-2*c.hy,sz-c.hz],max:[sx+c.hx,Y,sz+c.hz]});
+  }
+  return a;
+}
+function worldSolids(includeCrane){
+  var arr=staticSolids.slice();
+  containers.forEach(function(c){
+    if(c===S.hook||c.falling) return;
+    if(c.bedded&&!c.truckRef.spawned) return;
+    arr.push({min:[c.x-c.hx,c.y-c.hy,c.z-c.hz],max:[c.x+c.hx,c.y+c.hy,c.z+c.hz],ref:c});
+  });
+  TRUCKS.forEach(function(t){
+    if(!t.spawned||t.phase==='departed') return;
+    arr.push({min:[t.x-3.0,0,TRUCK_LANE_Z-0.62],max:[t.x+3.0,1.2,TRUCK_LANE_Z+0.62]});   /* bed */
+    arr.push({min:[t.x-3.06,0,TRUCK_LANE_Z-0.62],max:[t.x-1.5,2.5,TRUCK_LANE_Z+0.62]});  /* cab */
+  });
+  if(includeCrane){
+    var cx=S.crane.x;
+    cranePartSolids.forEach(function(b){
+      arr.push({min:[b.min[0]+cx,b.min[1],b.min[2]],max:[b.max[0]+cx,b.max[1],b.max[2]]});
+    });
+  }
+  return arr;
+}
+function blocked(box,solids){
+  for(var i=0;i<solids.length;i++) if(aabbHit(box,solids[i])) return true;
+  return false;
+}
+function firstHit(box,solids){
+  for(var i=0;i<solids.length;i++) if(aabbHit(box,solids[i])) return solids[i];
+  return null;
+}
+function addBanner(text,cls,dur){
+  S.banners.push({text:text,cls:cls,until:S.simT+(dur||2.2)});
+  if(S.banners.length>4) S.banners.shift();
+}
+function damageEvent(kind,banner){
+  S.dmgCount++; S.dmgEvents.push({t:S.simT,kind:kind});
+  if(S.dmgEvents.length>12) S.dmgEvents.shift();
+  addBanner(banner,'bad');
+}
+
+/* ---------- support search + release ---------- */
+function findSupport(cx,cz,bottom,skip){
+  var best=null;
+  if(cx>=APRON.x0&&cx<=APRON.x1&&cz>=APRON.z0&&cz<=QUAY_EDGE_Z) best={top:0,ref:'ground'};
+  if(cx>=11.2&&cx<=15.8&&cz>=-6.5&&cz<=-3.1) best={top:0.3,ref:'pad'};
+  if(cx>=-15.8&&cx<=-11.2&&cz>=-6.5&&cz<=-3.1) best={top:0.3,ref:'pad'};
+  if(cx>=-15.8&&cx<=-11.2&&cz>=-2.7&&cz<=0.7) best={top:0.12,ref:'bridge'};
+  if(cx>=-10&&cx<=10&&cz>=3.5&&cz<=6.5&&(!best||best.top<DECK_TOP)) best={top:DECK_TOP,ref:'deck'};
+  TRUCKS.forEach(function(t){
+    if(t.spawned&&(t.phase==='stopped'||t.phase==='holding')&&
+       cx>=t.x-1.5&&cx<=t.x+1.5&&cz>=TRUCK_LANE_Z-0.62&&cz<=TRUCK_LANE_Z+0.62&&
+       (!best||best.top<1.2)) best={top:1.2,ref:'truck',truck:t};
+  });
+  containers.forEach(function(o){
+    if(o===skip||o.falling||o.carried) return;
+    if(o.bedded&&!o.truckRef.spawned) return;
+    if(Math.abs(cx-o.x)<=o.hx+0.15&&Math.abs(cz-o.z)<=o.hz+0.15){
+      var t=o.y+o.hy;
+      if(t<=bottom+0.06&&(!best||t>best.top)) best={top:t,ref:'stack'};
+    }
+  });
+  return best;
+}
+/* a truck departs only once nothing rests or is falling onto its bed (round 5) */
+function bedIsEmpty(t){
+  for(var i=0;i<containers.length;i++){
+    var c=containers[i];
+    if(c.carried) continue;
+    if(c.bedded){ if(c.truckRef===t) return false; continue; }
+    if(Math.abs(c.x-t.x)>1.5+c.hx||Math.abs(c.z-TRUCK_LANE_Z)>0.62+c.hz) continue;
+    if(c.falling) return false;
+    if(Math.abs((c.y-c.hy)-1.2)<=0.1) return false;
+  }
+  return true;
+}
+function nearestCol(cx){
+  var cc=COL_X[0];
+  for(var j=1;j<COL_X.length;j++) if(Math.abs(cx-COL_X[j])<Math.abs(cx-cc)) cc=COL_X[j];
+  return cc;
+}
+/* the support cell under a point: ship plan cells over the deck, slot columns on the yard strip */
+function cellFor(cx,cz){
+  if(cx>=-10&&cx<=10&&cz>=3.5&&cz<=6.5){
+    var best=null,bd=1e9;
+    PLAN.forEach(function(p){
+      var d=Math.sqrt((cx-p.x)*(cx-p.x)+(cz-SHIP_CELL_Z)*(cz-SHIP_CELL_Z));
+      if(d<bd){ bd=d; best={kind:'BAY',bay:p.bay,refX:p.x,refZ:SHIP_CELL_Z,label:'BAY '+p.bay}; }
+    });
+    var dc=Math.sqrt(cx*cx+(cz-SHIP_CELL_Z)*(cz-SHIP_CELL_Z));
+    if(dc<bd){ bd=dc; best={kind:'CRADLE',refX:CRADLE_X,refZ:SHIP_CELL_Z,label:'CRADLE'}; }
+    return best;
+  }
+  if(cz>=COL_Z-1.1&&cz<=COL_Z+1.1&&cx>=APRON.x0&&cx<=APRON.x1){
+    var cc=nearestCol(cx);
+    return {kind:'COLUMN',refX:cc,refZ:COL_Z,label:'COLUMN '+(cc>0?'+':'')+cc};
+  }
+  return null;
+}
+/* ground level under a point (pads stand proud of the apron; the weighbridge plate is slight) */
+function baseLevel(x,z){
+  if(x>=11.2&&x<=15.8&&z>=-6.5&&z<=-3.1) return 0.3;
+  if(x>=-15.8&&x<=-11.2&&z>=-6.5&&z<=-3.1) return 0.3;
+  if(x>=-15.8&&x<=-11.2&&z>=-2.7&&z<=0.7) return 0.12;
+  return 0;
+}
+function setdownText(cx,cz,cell){
+  var cc=nearestCol(cx);
+  var ref=cell||{refX:cc,refZ:COL_Z,label:'COLUMN '+(cc>0?'+':'')+cc};
+  var d=Math.sqrt((cx-ref.refX)*(cx-ref.refX)+(cz-ref.refZ)*(cz-ref.refZ));
+  return 'OFFSET '+d.toFixed(2)+' u · '+ref.label;
+}
+/* a placement lands: replace the box's previous attempt, tally the band, pose askew if out of cell */
+function applyPlacement(c,pb){
+  if(c.lastBand){ S.tally[c.lastBand.key]--; S.tally.score-=c.lastBand.pts; }
+  var pts=BAND_PTS[pb.band]||0, key=pb.band==='PERFECT'?'perfect':(pb.band==='GOOD'?'good':'ooc');
+  S.tally[key]++; S.tally.score+=pts;
+  c.lastBand={key:key,pts:pts,band:pb.band};
+  S.placements.push({t:Math.round(S.simT*10)/10,id:c.id,mass:c.mass,band:pb.band,
+    offset:Math.round(pb.offset*100)/100,target:pb.target,points:pts});
+  if(S.placements.length>24) S.placements.shift();
+  if(pb.band==='OUT OF CELL'){
+    var sdx=c.x>=pb.refX?1:-1, sdz=c.z>=pb.refZ?1:-1;
+    c.askew=true;
+    c.askewTilt={x:sdz*0.05,y:sdx*0.06,z:-sdx*0.09};
+    addBanner('OUT OF CELL — OFFSET '+pb.offset.toFixed(2)+' u','bad',2.6);
+    SFX.deny();
+  }else{
+    c.askew=false; c.askewTilt=null;
+    addBanner(pb.band+' — OFFSET '+pb.offset.toFixed(2)+' u (+'+pts+')',
+      pb.band==='PERFECT'?'good':'warn',2.4);
+  }
+  /* stowage plan: a wrong mass fills the cell without plan credit */
+  if((pb.kind==='BAY'||pb.kind==='CRADLE')&&pb.expected!==null&&pb.expected!==undefined&&
+     c.mass!==pb.expected){
+    addBanner('WRONG MASS — '+pb.target+(pb.tier?' T'+pb.tier:'')+' NEEDS '+pb.expected+'t','bad',2.6);
+  }
+}
+function tryRelease(){
+  if(S.phase!=='running'||S.turbo||!S.hook) return;
+  var c=S.hook, bottom=S.hoist.y-2*c.hy, cx=c.x, cz=c.z;
+  var sup=findSupport(cx,cz,bottom,c);
+  var cell=cellFor(cx,cz);
+  var gap=sup?Math.max(0,bottom-sup.top):Infinity;
+  /* round 2: over a support cell the box may be dropped from any height and falls to it;
+     elsewhere the 2.0 u plumb rule still applies */
+  if(!sup||(gap>2.0&&!cell)){ addBanner('NO SUPPORT','bad'); SFX.deny(); return; }
+  c.carried=false; c.pendingShock=gap>0.5;
+  c.falling={vy:0,targetY:sup.top+c.hy};
+  c.pendingBand=null;
+  if(cell){
+    var d=Math.sqrt((cx-cell.refX)*(cx-cell.refX)+(cz-cell.refZ)*(cz-cell.refZ));
+    var band=d<=0.25?'PERFECT':(d<=0.6?'GOOD':'OUT OF CELL');
+    var expected=null,tier=0;
+    if(cell.kind==='BAY'){
+      var pl=null;
+      for(var pi2=0;pi2<PLAN.length;pi2++) if(PLAN[pi2].bay===cell.bay) pl=PLAN[pi2];
+      var idx=Math.round((sup.top-DECK_TOP)/1.2);
+      if(pl&&idx>=0&&idx<3&&Math.abs(sup.top-(DECK_TOP+1.2*idx))<=0.05){
+        tier=idx+1; expected=pl.tiers[idx]>0?pl.tiers[idx]:null;
+      }
+    }else if(cell.kind==='CRADLE'){ expected=CRADLE_NEED; }
+    c.pendingBand={band:band,offset:d,target:cell.label,refX:cell.refX,refZ:cell.refZ,
+      kind:cell.kind,bay:cell.bay,tier:tier,expected:expected};
+  }
+  S.setdownText=(sup&&sup.ref==='truck')?('TRUCK BED · '+sup.truck.id):setdownText(cx,cz,cell);
+  S.hook=null; S.hookWarnOver=false;
+  if(S.tandem){ S.tandem=false; addBanner('TANDEM RELEASED — FULL SPEED','warn',2); }
+  SFX.unlatch();
+}
+
+/* ---------- job bookkeeping ---------- */
+function overDeck(c){ return c.x>=-9.7&&c.x<=9.7&&c.z>=3.7&&c.z<=6.3; }
+/* every box resting on the ship: deck-resting plus anything stacked on them */
+function shipRestSet(){
+  var set=[];
+  containers.forEach(function(c){
+    if(c.kind!=='box'||c.carried||c.falling) return;
+    if(overDeck(c)&&Math.abs((c.y-c.hy)-DECK_TOP)<=0.06) set.push(c);
+  });
+  var changed=true,guard=0;
+  while(changed&&guard<5){ changed=false; guard++;
+    containers.forEach(function(c){
+      if(c.kind!=='box'||c.carried||c.falling||set.indexOf(c)>=0) return;
+      var bot=c.y-c.hy;
+      for(var i=0;i<set.length;i++){ var m=set[i];
+        if(Math.abs(bot-(m.y+m.hy))<=0.06&&Math.abs(c.x-m.x)<(c.hx+m.hx-0.08)&&
+           Math.abs(c.z-m.z)<(c.hz+m.hz-0.08)){ set.push(c); changed=true; break; }
+      }
+    });
+  }
+  return set;
+}
+/* the stowage plan cell under a point, if within the GOOD band of a cell center */
+function planCellAt(cx,cz){
+  var best=null,bd=1e9;
+  PLAN.forEach(function(p){
+    var d=Math.sqrt((cx-p.x)*(cx-p.x)+(cz-SHIP_CELL_Z)*(cz-SHIP_CELL_Z));
+    if(d<bd){ bd=d; best=p; }
+  });
+  var dc=Math.sqrt(cx*cx+(cz-SHIP_CELL_Z)*(cz-SHIP_CELL_Z));
+  var cradle=dc<bd, d=cradle?dc:bd;
+  if(d>0.6||!best) return null;
+  return {x:cradle?CRADLE_X:best.x,bay:cradle?'CRADLE':best.bay};
+}
+/* open stowage-plan cells matching a mass (round 5 truck panel) */
+function openCells(mass){
+  var out=[];
+  S.planState.forEach(function(st){
+    if(st.bay!=='CRADLE'&&st.need===mass&&!st.ok) out.push(st.bay+'·T'+st.tier);
+  });
+  return out.join(' ');
+}
+function endJob(ok){
+  closeScore();
+  S.phase='ended'; S.endedKind=ok?'complete':'incomplete'; S.endRemain=Math.max(0,S.jobT);
+  if(ok) SFX.good(); else SFX.bad();
+  var el=document.getElementById('endCard');
+  document.getElementById('endTitle').textContent=ok?'JOB COMPLETE':'JOB INCOMPLETE';
+  document.getElementById('endTitle').style.color=ok?'#8ee08e':'var(--red)';
+  var st=ok?('TIME REMAINING <b>'+fmtClock(S.endRemain)+'</b><br>DAMAGE EVENTS <b>'+S.dmgCount+'</b>')
+           :('CONTAINERS LANDED <b>'+S.landedCount+' / '+JOB_TARGET+'</b><br>DAMAGE EVENTS <b>'+S.dmgCount+'</b>');
+  document.getElementById('endStats').innerHTML=st;
+  el.style.display='block';
+}
+
+/* ---------- one fixed physics step ---------- */
+function step(dt){
+  var running=S.phase==='running';
+  var dirX=0,dirZ=0,dirY=0,dirLamp=0;
+  if(running&&!S.turbo){
+    dirX=(keys.ArrowRight?1:0)-(keys.ArrowLeft?1:0);
+    dirZ=(keys.KeyD?1:0)-(keys.KeyA?1:0);
+    dirY=(keys.ArrowUp?1:0)-(keys.ArrowDown?1:0);
+    dirLamp=(keys.KeyO?1:0)-(keys.KeyU?1:0);
+  }
+  /* round 7: searchlight pan — ±45° from straight down, west/east */
+  if(dirLamp!==0) S.lampYaw=clamp(S.lampYaw+dirLamp*LAMP_RATE*dt,LAMP_MIN,LAMP_MAX);
+
+  /* round 8: hydraulic slow windows — banner on entry, held through the window */
+  var hyd=hydSlowAt(S.simT);
+  if(hyd!==S.hydLow){
+    S.hydLow=hyd; S.hydBannerT=S.simT;
+    if(S.phase!=='title'){
+      if(hyd){ addBanner('HYDRAULIC LOW','warn',3); SFX.hydraulic(true); }
+      else{ addBanner('HYDRAULICS RECOVERED — FULL RATE','good',2.2); SFX.hydraulic(false); }
+    }
+  }
+  if(S.hydLow&&S.simT-S.hydBannerT>3){
+    S.hydBannerT=S.simT; addBanner('HYDRAULIC LOW','warn',3.2);
+  }
+  var o=swayOffsets();
+
+  /* gantry — round 6: tandem attachment halves speed and acceleration */
+  var gV=GANTRY_V*(S.tandem?0.5:1), gA=GANTRY_A*(S.tandem?0.5:1), gB=GANTRY_B*(S.tandem?0.5:1);
+  var v0=S.crane.v, tv=dirX*gV, rate;
+  if(dirX!==0&&v0*dirX<0) rate=gB; else rate=(dirX!==0)?gA:gB;
+  var v1=(v0<tv)?Math.min(tv,v0+rate*dt):Math.max(tv,v0-rate*dt);
+  var dx=v1*dt;
+  var ab=assemblyAABB(dx,0,0);
+  if(dx!==0&&blocked(ab,worldSolids(false))){ v1=0; dx=0;
+    if(!S.contactX){ S.contactX=true; damageEvent('COLLISION','STRUCK OBSTRUCTION — DAMAGE'); SFX.collide(); }
+  } else if(dx===0&&v0!==0&&blocked(assemblyAABB(0,0,0),worldSolids(false))){ S.contactX=true; }
+  else S.contactX=false;
+  S.crane.v=v1; S.crane.a=(v1-v0)/dt;
+  S.crane.x+=dx;
+  if(S.crane.x>GANTRY_MAX){ S.crane.x=GANTRY_MAX; if(Math.abs(v1)>1.2&&S.simT-S.bumperT>0.6){ SFX.knock(); S.bumperT=S.simT; } S.crane.v=0; }
+  if(S.crane.x<GANTRY_MIN){ S.crane.x=GANTRY_MIN; if(Math.abs(v1)>1.2&&S.simT-S.bumperT>0.6){ SFX.knock(); S.bumperT=S.simT; } S.crane.v=0; }
+
+  /* trolley */
+  var tV=TROLL_V*(S.tandem?0.5:1), tA=TROLL_A*(S.tandem?0.5:1), tB=TROLL_B*(S.tandem?0.5:1);
+  v0=S.troll.v; tv=dirZ*tV;
+  if(dirZ!==0&&v0*dirZ<0) rate=tB; else rate=(dirZ!==0)?tA:tB;
+  v1=(v0<tv)?Math.min(tv,v0+rate*dt):Math.max(tv,v0-rate*dt);
+  var dz=v1*dt;
+  ab=assemblyAABB(0,0,dz);
+  if(dz!==0&&blocked(ab,worldSolids(true))){ v1=0; dz=0;
+    if(!S.contactZ){ S.contactZ=true; damageEvent('COLLISION','STRUCK OBSTRUCTION — DAMAGE'); SFX.collide(); }
+  } else if(dz===0&&v0!==0&&blocked(assemblyAABB(0,0,0),worldSolids(true))){ S.contactZ=true; }
+  else S.contactZ=false;
+  S.troll.v=v1; S.troll.a=(v1-v0)/dt;
+  S.troll.z+=dz;
+  if(S.troll.z>TROLL_MAX){ S.troll.z=TROLL_MAX; S.troll.v=0; }
+  if(S.troll.z<TROLL_MIN){ S.troll.z=TROLL_MIN; S.troll.v=0; }
+
+  /* hoist — round 8: rate drops to 1.0 u/s inside a hydraulic slow window; tandem halves current */
+  var hydRate=S.hydLow?1.0:HOIST_V;
+  var vy=dirY*hydRate*(S.tandem?0.5:1), dy=vy*dt;
+  if(dy<0){
+    ab=assemblyAABB(0,dy,0);
+    var hs=worldSolids(true);
+    if(blocked(ab,hs)){
+      var h=firstHit(ab,hs), silent=false;
+      if(h){
+        var pb=S.hook?(S.hoist.y-2*S.hook.hy):S.hoist.y;   /* pre-move assembly bottom */
+        if(Math.abs(pb-h.max[1])<=0.005) silent=true;      /* already resting on it */
+        else if(!S.hook&&h.ref&&Math.abs(pb-h.max[1])<=0.06) silent=true; /* frame rests on a box edge */
+      }
+      vy=0; dy=0;
+      if(!silent&&!S.contactH){ S.contactH=true; damageEvent('COLLISION','CRUSHED LOAD — DAMAGE'); SFX.collide(); }
+    }
+  } else S.contactH=false;
+  if(dy!==0){
+    var nY=S.hoist.y+dy;
+    if(nY>HOIST_MAX){ nY=HOIST_MAX; vy=0; }
+    if(nY<HOIST_MIN){ nY=HOIST_MIN; vy=0; }
+    S.hoist.y=nY;
+  }
+  S.hoist.v=vy;
+
+  /* carried container follows the swayed spreader */
+  o=swayOffsets();
+  if(S.hook){ S.hook.x=S.crane.x+o.ox; S.hook.z=S.troll.z+o.oz; S.hook.y=S.hoist.y-S.hook.hy; }
+
+  /* round 4: wind — the schedule reads the berth clock and shifts the x equilibrium */
+  var wl=windLevelAt(S.simT);
+  if(wl!==S.windLevel){
+    S.windLevel=wl;
+    if(running) addBanner(WIND_BANNER[wl],wl>=3?'bad':(wl===0?'good':'warn'),2.6);
+  }
+  S.windEqDeg=windEqDegAt(S.windLevel,S.simT);
+  S.windEqRad=S.windEqDeg*DEG;
+
+  /* sway pendulum (fixed L = 10, g = 10, damping 0.02/s) */
+  var ax=clamp(S.crane.a,-6,6), az=clamp(S.troll.a,-6,6);
+  var windAx=(G/L_PEND)*Math.sin(S.windEqRad);   /* steady push: equilibrium sits at the wind angle */
+  S.sway.wx+=(-(G/L_PEND)*Math.sin(S.sway.tx)-(ax*Math.cos(S.sway.tx))/L_PEND-DAMP*S.sway.wx+windAx)*dt;
+  S.sway.tx+=S.sway.wx*dt;
+  S.sway.wz+=(-(G/L_PEND)*Math.sin(S.sway.tz)-(az*Math.cos(S.sway.tz))/L_PEND-DAMP*S.sway.wz)*dt;
+  S.sway.tz+=S.sway.wz*dt;
+
+  /* clamp sway so the load never sinks into geometry */
+  o=swayOffsets();
+  if(S.hook){
+    var lx=S.crane.x+o.ox, lz=S.troll.z+o.oz, Y=S.hoist.y;
+    var lb={min:[lx-S.hook.hx,Y-2*S.hook.hy,lz-S.hook.hz],max:[lx+S.hook.hx,Y,lz+S.hook.hz]};
+    var ws=worldSolids(true), hit=null;
+    for(var i=0;i<ws.length;i++) if(aabbHit(lb,ws[i])){ hit=ws[i]; break; }
+    if(hit){
+      var px=Math.min(lb.max[0]-hit.min[0],hit.max[0]-lb.min[0]);
+      var pz=Math.min(lb.max[2]-hit.min[2],hit.max[2]-lb.min[2]);
+      if(px<=pz){
+        var dir=(lx<(hit.min[0]+hit.max[0])/2)?-1:1, nx=dir>0?hit.min[0]-S.hook.hx-0.005:hit.max[0]+S.hook.hx+0.005;
+        if(Math.abs(nx-S.crane.x)<=o.lp){ S.sway.tx=Math.asin(clamp((nx-S.crane.x)/o.lp,-1,1)); S.sway.wx*=-0.25; }
+      }else{
+        var dirz=(lz<(hit.min[2]+hit.max[2])/2)?-1:1, nz=dirz>0?hit.min[2]-S.hook.hz-0.005:hit.max[2]+S.hook.hz+0.005;
+        if(Math.abs(nz-S.troll.z)<=o.lp){ S.sway.tz=Math.asin(clamp((nz-S.troll.z)/o.lp,-1,1)); S.sway.wz*=-0.25; }
+      }
+      o=swayOffsets();
+      if(!S.contactSway){ S.contactSway=true; damageEvent('SWING IMPACT','SWUNG INTO STRUCTURE — DAMAGE'); SFX.clang(); }
+    } else S.contactSway=false;
+  } else {
+    /* empty spreader must not swing through stacks either */
+    var ex=S.crane.x+o.ox, ez=S.troll.z+o.oz, eY=S.hoist.y;
+    var eb={min:[ex-1.5,eY,ez-0.85],max:[ex+1.5,eY+0.62,ez+0.85]};
+    var ws2=worldSolids(true), hit2=null;
+    for(var i2=0;i2<ws2.length;i2++) if(aabbHit(eb,ws2[i2])){ hit2=ws2[i2]; break; }
+    if(hit2){
+      var px2=Math.min(eb.max[0]-hit2.min[0],hit2.max[0]-eb.min[0]);
+      var pz2=Math.min(eb.max[2]-hit2.min[2],hit2.max[2]-eb.min[2]);
+      if(px2<=pz2){
+        var dxs=(ex<(hit2.min[0]+hit2.max[0])/2)?-1:1;
+        var nx2=dxs>0?hit2.min[0]-1.5-0.005:hit2.max[0]+1.5+0.005;
+        if(Math.abs(nx2-S.crane.x)<=o.lp){ S.sway.tx=Math.asin(clamp((nx2-S.crane.x)/o.lp,-1,1)); S.sway.wx*=-0.25; }
+      }else{
+        var dzs=(ez<(hit2.min[2]+hit2.max[2])/2)?-1:1;
+        var nz2=dzs>0?hit2.min[2]-0.85-0.005:hit2.max[2]+0.85+0.005;
+        if(Math.abs(nz2-S.troll.z)<=o.lp){ S.sway.tz=Math.asin(clamp((nz2-S.troll.z)/o.lp,-1,1)); S.sway.wz*=-0.25; }
+      }
+      o=swayOffsets();
+      if(!S.contactSway){ S.contactSway=true; damageEvent('SWING IMPACT','SWUNG INTO STRUCTURE — DAMAGE'); SFX.clang(); }
+    } else S.contactSway=false;
+  }
+
+  /* excursion + warning state */
+  var mx=Math.abs(S.sway.tx), mz=Math.abs(S.sway.tz), mm=Math.max(mx,mz);
+  if(mm>=CRIT_DEG*DEG&&S.excursionArmed){
+    S.excursionArmed=false; SFX.clang();
+    damageEvent('SWAY IMPACT','35° SWING — IMPACT DAMAGE');
+    if(S.hook) S.hook.damaged++;
+  }
+  if(mm<30*DEG) S.excursionArmed=true;
+  S.swayWarn=mm>=WARN_DEG*DEG;
+
+  /* round 5: truck arrivals — scripted lane traffic on the fixed berth clock */
+  var tStopClaimed=false,tHolds=0;
+  TRUCKS.forEach(function(t){
+    if(t.phase==='stopped'||t.phase==='advancing') tStopClaimed=true;
+    if(t.phase==='holding'||(t.phase==='inbound'&&t.toHold)) tHolds++;
+  });
+  TRUCKS.forEach(function(t){
+    if(t.phase==='pending'&&S.simT>=t.at){
+      t.spawned=true; t.bedEmptyT=-9;
+      if(!tStopClaimed){ t.toHold=false; t.targetX=TRUCK_STOP_X; t.x=TRUCK_ENTER_X; tStopClaimed=true; }
+      else{
+        t.toHold=true; t.slot=tHolds;
+        t.targetX=TRUCK_HOLD0+t.slot*TRUCK_SLOT_GAP;
+        t.x=(t.targetX<TRUCK_ENTER_X)?TRUCK_ENTER_X:TRUCK_FAR_X;
+        tHolds++;
+      }
+      t.phase='inbound'; t.mesh.group.visible=true;
+    }
+    else if(t.phase==='inbound'){
+      t.x-=TRUCK_SPEED*dt;
+      if(t.x<=t.targetX){ t.x=t.targetX; t.phase=t.toHold?'holding':'stopped'; if(!t.toHold) SFX.horn(); }
+    }
+    else if(t.phase==='holding'){
+      if(!tStopClaimed){ t.toHold=false; t.phase='advancing'; tStopClaimed=true; }
+    }
+    else if(t.phase==='advancing'){
+      t.x-=TRUCK_SPEED*dt;
+      if(t.x<=TRUCK_STOP_X){ t.x=TRUCK_STOP_X; t.phase='stopped'; SFX.horn(); }
+    }
+    else if(t.phase==='stopped'){
+      if(bedIsEmpty(t)){
+        if(t.bedEmptyT<0) t.bedEmptyT=S.simT;
+        else if(S.simT-t.bedEmptyT>=TRUCK_DWELL) t.phase='departing';
+      } else t.bedEmptyT=-9;
+    }
+    else if(t.phase==='departing'){
+      t.x-=TRUCK_SPEED*dt;
+      if(t.x<TRUCK_EXIT_X){ t.phase='departed'; t.mesh.group.visible=false; }
+    }
+    var tc=t.cargo;
+    if(tc&&tc.bedded){
+      tc.x=t.x; tc.y=1.8; tc.z=TRUCK_LANE_Z;
+      tc.group.visible=t.spawned&&t.phase!=='departed';
+    }
+    if(t.spawned) t.mesh.group.position.set(t.x,0,TRUCK_LANE_Z);
+  });
+
+  /* latch scan */
+  if(!S.hook&&running){
+    var sx=S.crane.x+o.ox, sz=S.troll.z+o.oz, Y=S.hoist.y;
+    /* round 6: tandem latch — both hooks onto the heavy unit's paired lift lugs only */
+    if(S.tandemArmed&&heavyRef&&!heavyRef.falling&&!heavyRef.carried){
+      var ddx=heavyRef.x-sx, ddz=heavyRef.z-sz, htop=heavyRef.y+heavyRef.hy;
+      if(ddx*ddx+ddz*ddz<=0.16&&Math.abs(htop-Y)<=0.18){
+        S.hook=heavyRef; heavyRef.carried=true; S.tandem=true; S.hoist.y=htop;
+        SFX.tandemLatch();
+        addBanner('TANDEM LATCHED — 30 t PER HOOK · HALF SPEED','good',2.6);
+      }
+    }
+    if(!S.hook){
+    var cand=null,cg=0.3;
+    containers.forEach(function(c){
+      if(c.falling||c.carried) return;
+      if(c.bedded&&!(c.truckRef.spawned&&(c.truckRef.phase==='stopped'||c.truckRef.phase==='holding'))) return;
+      var d=Math.sqrt((c.x-sx)*(c.x-sx)+(c.z-sz)*(c.z-sz));
+      if(d>0.4) return;
+      var g=Math.abs((c.y+c.hy)-Y);
+      if(g<=0.18&&g<cg){ cg=g; cand=c; }
+    });
+    if(cand){
+      if(cand.mass>=45){
+        if(S.simT-S.refusedT>1.0){ S.refusedT=S.simT; addBanner('OVERLOAD REFUSED','bad'); SFX.refuse(); }
+      }else{
+        S.hook=cand; cand.carried=true; S.hoist.y=cand.y+cand.hy;
+        SFX.clunk();
+        if(cand.mass>40){ S.hookWarnOver=true; addBanner('OVERLOAD WARNING — '+cand.mass+' t','warn',2.6); SFX.alarm(); }
+      }
+    }
+    }
+  }
+
+  /* falling containers */
+  containers.forEach(function(c){
+    if(!c.falling) return;
+    c.falling.vy+=G*dt;
+    c.y-=c.falling.vy*dt;
+    if(c.y<=c.falling.targetY){
+      c.y=c.falling.targetY; var iv=c.falling.vy; c.falling=null;
+      if(c.pendingShock){ c.pendingShock=false; damageEvent('SHOCK DROP','SHOCK DROP — DAMAGE'); SFX.thud(1); }
+      else SFX.thud(clamp(iv/6,0.1,0.8));
+      if(c.pendingBand){ applyPlacement(c,c.pendingBand); c.pendingBand=null; }
+    }
+  });
+
+  /* rehandle drill: each line ticks while its box rests in the target slot, tier 1, GOOD band or better */
+  DRILL.forEach(function(d){
+    var c=null;
+    for(var q=0;q<containers.length;q++) if(containers[q].id===d.id){ c=containers[q]; break; }
+    d.done=!!c&&!c.carried&&!c.falling&&
+      Math.abs((c.y-c.hy)-baseLevel(c.x,c.z))<=0.06&&
+      Math.sqrt((c.x-d.toX)*(c.x-d.toX)+(c.z-COL_Z)*(c.z-COL_Z))<=0.6;
+  });
+
+  /* round 6: weighbridge job — the 44 t export box set down on the weighbridge plate */
+  if(!S.weighbridgeDone&&box44&&!box44.carried&&!box44.falling&&
+     box44.x>=-15.8&&box44.x<=-11.2&&box44.z>=-2.7&&box44.z<=0.7&&
+     Math.abs((box44.y-box44.hy)-0.12)<=0.06){
+    S.weighbridgeDone=true;
+    addBanner('WEIGHBRIDGE LOAD SET — 44 t','good',3); SFX.good();
+  }
+
+  /* ship stowage: resting set, balance ledger, live plan grid */
+  S.shipSet=shipRestSet();
+  S.landedCount=S.shipSet.length;
+  var lsum=0;
+  S.shipSet.forEach(function(c){
+    var pc=planCellAt(c.x,c.z);
+    lsum+=c.mass*(pc?pc.x:c.x);
+  });
+  S.ledgerSum=lsum; S.tilt=lsum/120;
+  S.planState.length=0;
+  PLAN.forEach(function(p){
+    for(var t=1;t<=3;t++){
+      var need=p.tiers[t-1], bot=DECK_TOP+1.2*(t-1), box=null;
+      S.shipSet.forEach(function(c){
+        if(Math.abs((c.y-c.hy)-bot)<=0.1&&
+           Math.sqrt((c.x-p.x)*(c.x-p.x)+(c.z-SHIP_CELL_Z)*(c.z-SHIP_CELL_Z))<=0.6) box=c;
+      });
+      S.planState.push({bay:p.bay,tier:t,need:need,x:p.x,filled:!!box,
+        mass:box?box.mass:0,ok:!!box&&need>0&&box.mass===need});
+    }
+  });
+  (function(){
+    var cb=null;
+    S.shipSet.forEach(function(c){
+      if(Math.sqrt(c.x*c.x+(c.z-SHIP_CELL_Z)*(c.z-SHIP_CELL_Z))<=0.6) cb=c;
+    });
+    S.planState.push({bay:'CRADLE',tier:0,need:CRADLE_NEED,x:CRADLE_X,filled:!!cb,
+      mass:cb?cb.mass:0,ok:!!cb&&cb.mass===CRADLE_NEED});
+  })();
+  var allOk=true;
+  for(var ps=0;ps<S.planState.length;ps++){
+    var st=S.planState[ps];
+    if(st.bay!=='CRADLE'&&st.need>0&&!st.ok){ allOk=false; break; }
+  }
+  S.planAllOk=allOk;
+  if(allOk&&!S.balancedLatch){ S.balancedLatch=true; addBanner('STOWAGE BALANCED','good',3); SFX.good(); }
+  if(!allOk) S.balancedLatch=false;
+
+  /* round 10: shift score — plan cells ×100 + alignment average ×3 + balance bonus − damage ×40 */
+  (function(){
+    var cells=0,bandSum=0;
+    S.planState.forEach(function(st){
+      if(st.ok&&st.need>0){
+        cells++;
+        var bot=st.bay==='CRADLE'?DECK_TOP:DECK_TOP+1.2*(st.tier-1);
+        var box=null;
+        S.shipSet.forEach(function(c){
+          if(!box&&c.mass===st.need&&Math.abs((c.y-c.hy)-bot)<=0.1&&
+             Math.sqrt((c.x-st.x)*(c.x-st.x)+(c.z-SHIP_CELL_Z)*(c.z-SHIP_CELL_Z))<=0.6) box=c;
+        });
+        bandSum+=(box&&box.lastBand)?(box.lastBand.band==='PERFECT'?100:60):0;
+      }
+    });
+    var avg=cells>0?bandSum/cells:0;
+    var bonus=(cells===12&&Math.abs(S.tilt)<=2)?200:0;
+    var total=cells*100+Math.round(avg*3)+bonus-S.dmgCount*40;
+    S.score={cells:cells,avg:avg,alignPts:Math.round(avg*3),bonus:bonus,
+      dmg:S.dmgCount,total:total,rating:total>=900?'S':(total>=750?'A':(total>=600?'B':'C'))};
+  })();
+  /* round 10: the berth settles at clock 360 — the score screen opens once on its own */
+  if(!S.settled&&S.simT>=360){ S.settled=true; openScore(); }
+
+  /* job clock */
+  if(running){
+    S.simT+=dt; S.jobT-=dt;
+    if(S.landedCount>=JOB_TARGET){ endJob(true); return; }
+    if(S.jobT<=0){ S.jobT=0; endJob(false); return; }
+    /* ratchet ticks while the drum reels */
+    if(Math.abs(S.hoist.v)>0.01){
+      AU.ratchAcc+=dt*Math.abs(S.hoist.v)/HOIST_V*11.6;
+      while(AU.ratchAcc>=1){ AU.ratchAcc-=1; SFX.click(S.hoist.v>0); }
+    }
+    /* sway buzzer */
+    if(S.swayWarn&&S.simT-AU.buzzT>0.3){ AU.buzzT=S.simT; SFX.buzz(); }
+    /* round 7: gantry travel alarm above 1 u/s */
+    if(Math.abs(S.crane.v)>1&&S.simT-S.hornT>1.15){ S.hornT=S.simT; SFX.lowHorn(); }
+  } else if(S.phase!=='title'){ S.simT+=dt; }
+}
+
+/* ---------- cameras ---------- */
+var YARD_POS=new THREE.Vector3(-24,20,-21), YARD_LOOK=new THREE.Vector3(0,2,-1);
+var CORR_Z=10.5, HI_Y=20;
+var cam={mode:2,route:[],lookCur:new THREE.Vector3(0,2,-1),
+  loadPos:new THREE.Vector3(-24,20,-21),loadLook:new THREE.Vector3(0,2,-1),fov:55};
+function loadCenter(){ var o=swayOffsets();
+  if(S.hook) return new THREE.Vector3(S.hook.x,S.hook.y,S.hook.z);
+  return new THREE.Vector3(S.crane.x+o.ox,S.hoist.y+0.3,S.troll.z+o.oz); }
+function modePose(){
+  if(cam.mode===0){
+    return {pos:new THREE.Vector3(S.crane.x+2.35,9.9,-4.62),
+      look:new THREE.Vector3(S.hook?S.hook.x:S.crane.x, S.hook?S.hook.y:S.hoist.y-1, S.hook?S.hook.z:S.troll.z),
+      fov:62,under:true};
+  }
+  if(cam.mode===1){
+    var c=loadCenter();
+    return {pos:c.clone().add(new THREE.Vector3(-4,3.4,-6)),look:c,fov:58,under:true};
+  }
+  var p=YARD_POS.clone(),lk=YARD_LOOK.clone();
+  if(S.phase==='title'){
+    var ang=0.05*visualT, off=p.clone().sub(lk);
+    var ox=off.x*Math.cos(ang)-off.z*Math.sin(ang), oz=off.x*Math.sin(ang)+off.z*Math.cos(ang);
+    p=lk.clone().add(new THREE.Vector3(ox,off.y,oz));
+  }
+  return {pos:p,look:lk,fov:50,under:false};
+}
+function buildRoute(){
+  var cur=camera.position.clone(), tgt=modePose();
+  var fromUnder=(cur.y<12.9&&Math.abs(cur.z)<8.2), toUnder=tgt.under;
+  var w=[];
+  if(fromUnder&&toUnder){ w.push(tgt.pos.clone()); }
+  else if(!fromUnder&&!toUnder){ w.push(tgt.pos.clone()); }
+  else if(fromUnder){
+    w.push(new THREE.Vector3(cur.x,cur.y,CORR_Z));
+    w.push(new THREE.Vector3(cur.x,HI_Y,CORR_Z));
+    w.push(new THREE.Vector3(tgt.pos.x,HI_Y,CORR_Z));
+    if(toUnder){
+      w.push(new THREE.Vector3(tgt.pos.x,tgt.pos.y,CORR_Z));
+      w.push(tgt.pos.clone());
+    }else{
+      w.push(new THREE.Vector3(tgt.pos.x,HI_Y,tgt.pos.z));
+      w.push(tgt.pos.clone());
+    }
+  }else{
+    w.push(new THREE.Vector3(cur.x,HI_Y,CORR_Z));
+    w.push(new THREE.Vector3(tgt.pos.x,HI_Y,CORR_Z));
+    w.push(new THREE.Vector3(tgt.pos.x,tgt.pos.y,CORR_Z));
+    w.push(tgt.pos.clone());
+  }
+  cam.route=w;
+}
+function cycleCam(){
+  cam.mode=(cam.mode+1)%3;
+  var p=modePose();
+  cam.loadPos.copy(camera.position); cam.loadLook.copy(cam.lookCur);
+  buildRoute();
+  document.getElementById('camline').textContent=['CAB','LOAD','YARD'][cam.mode];
+}
+function camSnapYard(){
+  cam.mode=2; cam.route.length=0;
+  camera.position.copy(YARD_POS); cam.lookCur.copy(YARD_LOOK);
+  camera.lookAt(YARD_LOOK);
+  document.getElementById('camline').textContent='YARD';
+}
+var wpTmp=new THREE.Vector3();
+function updateCamera(dtR){
+  var tgt=modePose();
+  /* smoothed tracking targets */
+  var k=1-Math.exp(-3.2*dtR), k2=1-Math.exp(-5*dtR);
+  if(cam.mode===1){
+    cam.loadPos.lerp(tgt.pos,k2); cam.loadLook.lerp(tgt.look,1-Math.exp(-6*dtR));
+  }
+  var desiredLook = cam.mode===0?tgt.look:(cam.mode===1?cam.loadLook:tgt.look);
+  var desiredPos = cam.mode===1?cam.loadPos:tgt.pos;
+  if(cam.route.length){
+    var wp=cam.route[0].clone();
+    var d=wp.clone().sub(camera.position), dist=d.length();
+    var spd=22*Math.min(1,0.25+dist*0.15);
+    if(dist<0.45){ cam.route.shift(); }
+    else{ d.normalize().multiplyScalar(Math.min(dist,spd*dtR)); camera.position.add(d); }
+  }else{
+    camera.position.lerp(desiredPos,1-Math.exp(-6*dtR));
+  }
+  if(camera.position.y<1.5) camera.position.y=1.5;
+  cam.lookCur.lerp(desiredLook,cam.mode===0?k:1-Math.exp(-6*dtR));
+  camera.up.set(0,1,0);
+  camera.lookAt(cam.lookCur);
+  var fv=cam.fov+(tgt.fov-cam.fov)*(1-Math.exp(-3*dtR));
+  if(Math.abs(fv-cam.fov)>0.01){ cam.fov=fv; camera.fov=fv; camera.updateProjectionMatrix(); }
+}
+
+/* ---------- HUD ---------- */
+var el={ax:g('ax'),az:g('az'),ay:g('ay'),sx:g('sx'),sz:g('sz'),sxm:g('sxm'),szm:g('szm'),
+  hook:g('hook'),swayState:g('swayState'),clock:g('clock'),jobt:g('jobt'),jobbar:g('jobbar'),
+  landed:g('landed'),dmg:g('dmg'),setdown:g('setdown'),banner:g('banner'),
+  camline:g('camline'),tally:g('tallyRow'),drill:g('drillRow'),
+  plan:g('planGrid'),tilt:g('tiltV'),ledger:g('ledgerV'),
+  wind:g('wind'),windEq:g('windEq'),windSegs:[g('wseg0'),g('wseg1'),g('wseg2'),g('wseg3')],
+  trucks:g('truckList'),rig:g('rig'),wbJob:g('wbJob'),lamp:g('lamp'),hrate:g('hrate'),
+  scoreCard:g('scoreCard'),scoreStats:g('scoreStats')};
+function g(id){ return document.getElementById(id); }
+function chip(txt,cls){ return '<span class="chip '+cls+'">'+txt+'</span>'; }
+function updateHUD(){
+  el.ax.textContent=fmt1(S.crane.x); el.az.textContent=fmt1(S.troll.z); el.ay.textContent=fmt1(S.hoist.y);
+  var dx=S.sway.tx/DEG, dz=S.sway.tz/DEG;
+  el.sx.textContent=(dx>=0?'+':'')+dx.toFixed(1)+'°';
+  el.sz.textContent=(dz>=0?'+':'')+dz.toFixed(1)+'°';
+  el.sxm.style.left=clamp(50+dx/45*50,2,98)+'%';
+  el.szm.style.left=clamp(50+dz/45*50,2,98)+'%';
+  el.sxm.style.background=S.swayWarn?'var(--red)':'var(--amber)';
+  el.szm.style.background=S.swayWarn?'var(--red)':'var(--amber)';
+  if(S.hook){
+    var m=S.hook.mass, cls=m>40?'red':'teal', txt='LOCKED '+m+' t'+(m>40?' ⚠':'');
+    el.hook.innerHTML=chip(txt,cls);
+  } else el.hook.innerHTML=chip('EMPTY','dim');
+  /* round 6: rig + weighbridge job */
+  if(S.tandem) el.rig.innerHTML=chip('TANDEM 2×'+(S.hook?Math.round(S.hook.mass/2):0)+' t','teal');
+  else if(S.tandemArmed) el.rig.innerHTML=chip('TANDEM ARMED','amber');
+  else el.rig.innerHTML=chip('SINGLE','dim');
+  el.wbJob.innerHTML=S.weighbridgeDone?chip('SET ✓','teal'):chip('PENDING','dim');
+  /* round 7: searchlight yaw readout */
+  el.lamp.textContent=fmt1(S.lampYaw/DEG)+'°';
+  el.lamp.style.color='#ffe2b0';
+  /* round 8: hoist-rate readout — flips exactly on the slow-window edges */
+  var hrate=(S.hydLow?1.0:HOIST_V)*(S.tandem?0.5:1);
+  el.hrate.textContent=hrate.toFixed(2)+' u/s';
+  el.hrate.style.color=S.hydLow?'var(--amber)':'var(--ink)';
+  var mm=Math.max(Math.abs(S.sway.tx),Math.abs(S.sway.tz))/DEG;
+  if(mm>=CRIT_DEG) el.swayState.innerHTML=chip('CRITICAL','red');
+  else if(mm>=WARN_DEG) el.swayState.innerHTML=chip('WARNING','amber');
+  else el.swayState.innerHTML=chip('STEADY','dim');
+  /* round 4: wind meter */
+  el.wind.innerHTML=chip('L'+S.windLevel+' '+WIND_NAMES[S.windLevel],
+    ['dim','teal','amber','red'][S.windLevel]);
+  for(var wsi=0;wsi<4;wsi++)
+    el.windSegs[wsi].className='windseg'+(wsi===S.windLevel?' on'+S.windLevel:'');
+  if(S.windLevel===0){ el.windEq.textContent='—'; el.windEq.style.color='var(--ink)'; }
+  else{
+    var woff=Math.sin(S.windEqRad)*L_PEND;
+    el.windEq.textContent=(S.windEqDeg>0?'+':'')+S.windEqDeg.toFixed(0)+'° · '+
+      (woff>=0?'+':'−')+Math.abs(woff).toFixed(2)+' u';
+    el.windEq.style.color=S.windLevel>=3?'var(--red)':(S.windLevel===2?'var(--amber)':'var(--teal)');
+  }
+  el.clock.textContent=fmtClock(S.simT);
+  el.jobt.textContent=Math.max(0,S.jobT).toFixed(1)+' s';
+  el.jobt.style.color=S.jobT<15?'var(--red)':(S.jobT<35?'var(--amber)':'var(--ink)');
+  el.jobbar.style.width=clamp(S.jobT/JOB_TIME*100,0,100)+'%';
+  el.landed.textContent=S.landedCount+' / '+JOB_TARGET;
+  el.dmg.textContent=S.dmgCount;
+  el.setdown.textContent=S.setdownText||'—';
+  /* placement tally + rehandle drill */
+  el.tally.innerHTML=chip('PERFECT '+S.tally.perfect,'teal')+' '+chip('GOOD '+S.tally.good,'amber')+' '+
+    chip('OUT OF CELL '+S.tally.ooc,'red')+' '+chip('SCORE '+S.tally.score,'dim');
+  el.drill.innerHTML=DRILL.map(function(d){
+    return (d.done?'<span style="color:#8ee08e;font-weight:700">[✓]</span> '
+                  :'<span style="color:#5f6f7e">[&nbsp;]</span> ')+
+      '<span style="color:'+(d.done?'#8ee08e':'#c9d2da')+'">'+d.label+'</span>';
+  }).join('<br>');
+  /* round 5: truck queue */
+  el.trucks.innerHTML=TRUCKS.map(function(t){
+    var stat,col;
+    if(t.phase==='pending'){ stat='due '+t.at+' s'; col='#5f6f7e'; }
+    else if(t.phase==='inbound'){ stat='inbound'; col='var(--amber)'; }
+    else if(t.phase==='holding'){ stat='held x+'+t.x.toFixed(1); col='var(--amber)'; }
+    else if(t.phase==='advancing'){ stat='advancing'; col='var(--amber)'; }
+    else if(t.phase==='stopped'){ stat='dock x+'+t.x.toFixed(1); col='var(--teal)'; }
+    else if(t.phase==='departing'){ stat='leaving'; col='#5f6f7e'; }
+    else{ stat='done ✓'; col='#8ee08e'; }
+    var cells='';
+    if(t.phase==='stopped'||t.phase==='holding'){
+      var list=openCells(t.mass);
+      cells=' · <span style="color:'+(list?'#c9d2da':'var(--red)')+'">'+(list||'no open cell')+'</span>';
+    }
+    return '<div style="color:'+col+'"><b>'+t.id+'</b> · '+t.mass+' t · '+stat+cells+'</div>';
+  }).join('');
+  /* stowage plan grid + balance ledger */
+  function pstate(bay,tier){
+    for(var i=0;i<S.planState.length;i++){ var st=S.planState[i];
+      if(st.bay===bay&&st.tier===tier) return st; }
+    return null;
+  }
+  function pchip(st){
+    if(!st) return '<span class="pcell">·</span>';
+    if(st.need===0) return '<span class="pcell">—</span>';
+    if(st.ok) return '<span class="pcell ok">✓'+st.need+'t</span>';
+    if(st.filled) return '<span class="pcell bad">'+st.mass+'t!</span>';
+    return '<span class="pcell">'+st.need+'t</span>';
+  }
+  var ph='<div class="pgrid"><span style="width:24px"></span>'+
+    PLAN.map(function(p){ return '<span style="flex:1;text-align:center;color:#9aa7b4">'+p.bay+'</span>'; }).join('')+
+    '</div>';
+  [3,2,1].forEach(function(t){
+    ph+='<div class="pgrid"><span style="width:24px;color:#5f6f7e">T'+t+'</span>'+
+      PLAN.map(function(p){ return pchip(pstate(p.bay,t)); }).join('')+'</div>';
+  });
+  var cst=null;
+  for(var ci=0;ci<S.planState.length;ci++) if(S.planState[ci].bay==='CRADLE') cst=S.planState[ci];
+  ph+='<div class="pgrid" style="margin-top:4px"><span style="width:24px;color:#5f6f7e">CRD</span>'+
+    pchip(cst)+'<span style="flex:2;color:#5f6f7e;font-size:10px;padding-left:6px">HEAVY 60t · lever 0</span></div>';
+  el.plan.innerHTML=ph;
+  el.tilt.textContent=(S.tilt>=0?'+':'')+S.tilt.toFixed(1)+'°';
+  el.tilt.style.color=Math.abs(S.tilt)>2?'var(--red)':(S.planAllOk?'#8ee08e':'var(--teal)');
+  el.ledger.textContent=Math.round(S.ledgerSum)+' t·u';
+  el.ledger.style.color=S.planAllOk?'#8ee08e':'var(--ink)';
+  /* banners */
+  var b=null;
+  for(var i=S.banners.length-1;i>=0;i--) if(S.banners[i].until>S.simT){ b=S.banners[i]; break; }
+  if(b){ el.banner.textContent=b.text; el.banner.className=b.cls; el.banner.style.display='block'; }
+  else el.banner.style.display='none';
+}
+
+/* ---------- round 10: shift score screen ---------- */
+var scoreOpen=false;
+function ratingColor(r){ return r==='S'?'#ffd98f':(r==='A'?'#7fd8d8':(r==='B'?'#ffb454':'#9aa7b4')); }
+function buildScoreScreen(){
+  var sc=S.score;
+  var balTxt=(sc.bonus?'12/12 CORRECT · ':'')+('|θ| '+Math.abs(S.tilt).toFixed(1)+'° ≤ 2°');
+  return '<div class="srow"><span class="sk">PLAN CELLS FILLED</span><span class="sv">'+sc.cells+
+      ' / 12</span><span class="sp">+'+(sc.cells*100)+'</span></div>'+
+    '<div class="srow"><span class="sk">ALIGNMENT AVERAGE</span><span class="sv">'+sc.avg.toFixed(1)+
+      ' / 100 · × 3</span><span class="sp">+'+sc.alignPts+'</span></div>'+
+    '<div class="srow"><span class="sk">BALANCE BONUS</span><span class="sv">'+balTxt+'</span><span class="sp">'+
+      (sc.bonus?'+200':'0')+'</span></div>'+
+    '<div class="srow"><span class="sk">DAMAGE EVENTS</span><span class="sv">'+sc.dmg+' × 40</span><span class="sp">−'+
+      (sc.dmg*40)+'</span></div>'+
+    '<div class="srow" style="border-top:1px solid var(--line);margin-top:8px;padding-top:8px"><span class="sk">SHIFT TOTAL</span><span class="sv"></span><span class="sp" style="font-size:22px">'+
+      sc.total+'</span></div>'+
+    '<div class="srow"><span class="sk">RATING</span><span class="sv"></span><span class="sp" style="font-size:26px;font-weight:900;color:'+
+      ratingColor(sc.rating)+'">'+sc.rating+'</span></div>'+
+    '<div style="margin-top:10px;font-size:11px;color:#8fa0b0;letter-spacing:.08em">S ≥ 900 · A ≥ 750 · B ≥ 600 · C BELOW</div>';
+}
+function openScore(){
+  scoreOpen=true;
+  el.scoreStats.innerHTML=buildScoreScreen();
+  el.scoreCard.style.display='block';
+  document.getElementById('endCard').style.display='none';
+}
+function closeScore(){
+  if(!scoreOpen) return;
+  scoreOpen=false;
+  el.scoreCard.style.display='none';
+  if(S.phase==='ended') document.getElementById('endCard').style.display='block';
+}
+
+/* ---------- visual sync per frame ---------- */
+var ROPE_CORN=[[0.42,0.36],[0.42,-0.36],[-0.42,0.36],[-0.42,-0.36]];
+var ropeA=new THREE.Vector3(), ropeB=new THREE.Vector3(), ropeUp=new THREE.Vector3(0,-1,0),
+    ropeDir=new THREE.Vector3();
+function render(dtR,simDt){
+  craneGroup.position.x=S.crane.x;
+  if(trolleyGroup) trolleyGroup.position.z=S.troll.z;
+  /* bogie wheels roll with gantry travel; rope drum spins with the hoist */
+  for(var wi=0;wi<wheelMeshes.length;wi++) wheelMeshes[wi].rotation.z-=S.crane.v*simDt/0.22;
+  if(drumMesh) drumMesh.rotation.x-=S.hoist.v*simDt/0.4;
+  var o=swayOffsets();
+  var sx=S.crane.x+o.ox, sz=S.troll.z+o.oz;
+  spreader.position.set(sx,S.hoist.y,sz);
+  /* pins */
+  for(var pi=0;pi<pinMeshes.length;pi++) pinMeshes[pi].position.y=S.hook?-0.13:-0.06;
+  /* round 6: tandem hook blocks ride the rig while armed */
+  for(var thi=0;thi<tandemHooks.length;thi++) tandemHooks[thi].visible=S.tandemArmed;
+  /* ropes */
+  for(var r=0;r<4;r++){
+    var c=ROPE_CORN[r];
+    ropeA.set(S.crane.x+c[0],PIVOT_Y,S.troll.z+c[1]);
+    ropeB.set(sx+(c[0]>0?1.36:-1.36),S.hoist.y+0.56,sz+(c[1]>0?0.72:-0.72));
+    var m=ropeMeshes[r];
+    ropeDir.subVectors(ropeB,ropeA);
+    var len=Math.max(0.01,ropeDir.length());
+    m.position.copy(ropeA);
+    ropeDir.normalize();
+    m.quaternion.setFromUnitVectors(ropeUp,ropeDir);
+    m.scale.set(1,len,1);
+  }
+  /* containers */
+  containers.forEach(function(cn){
+    cn.group.position.set(cn.x,cn.y,cn.z);
+    var t=0.045*Math.min(cn.damaged,3);
+    var a=cn.askewTilt||{x:0,y:0,z:0};
+    cn.group.rotation.z=t+a.z; cn.group.rotation.x=0.6*t+a.x; cn.group.rotation.y=a.y;
+  });
+  /* round 7: searchlight beam + light-gated markers */
+  var cLen=LENS_Y/Math.max(0.3,Math.cos(S.lampYaw));
+  var cRad=Math.tan(LAMP_HALF)*cLen*1.15;
+  lampCone.scale.set(cRad,cLen,cRad);
+  var lampCos=Math.cos(LAMP_HALF+2*DEG), lampSin=Math.sin(S.lampYaw);
+  for(var gm=0;gm<gatedMarkers.length;gm++){
+    var mk=gatedMarkers[gm];
+    var mdx=mk.x-S.crane.x, mdy=0.05-LENS_Y, mdz=mk.z-(S.troll.z+LENS_ZOFF);
+    var mdist=Math.sqrt(mdx*mdx+mdy*mdy+mdz*mdz)||1;
+    mk.group.visible=(mdx*lampSin-mdy*Math.cos(S.lampYaw))/mdist>=lampCos;
+  }
+  /* round 7: gantry travel warning lamps */
+  var gMove=Math.abs(S.crane.v)>1, gFlash=(S.simT*2.2)%1<0.5;
+  for(var tli=0;tli<travelLampMats.length;tli++)
+    travelLampMats[tli].emissiveIntensity=gMove?(gFlash?2.6:0.25):0.08;
+  /* beacons */
+  var overload=(S.hookWarnOver)||(S.simT-S.refusedT<1.5);
+  var flash=(S.simT*2)%1<0.55;
+  for(var bi=0;bi<beaconMats.length;bi++){
+    var bm=beaconMats[bi];
+    if(overload){ bm.color.setHex(0x5a2626); bm.emissive.setHex(0xff4038); bm.emissiveIntensity=flash?2.6:0.15; }
+    else if(S.swayWarn){ bm.color.setHex(0x5a4632); bm.emissive.setHex(0xffb454); bm.emissiveIntensity=flash?2.4:0.15; }
+    else { bm.color.setHex(0x5a4632); bm.emissive.setHex(0xffb454); bm.emissiveIntensity=0.55; }
+  }
+  /* audio frame updates */
+  if(AU.ctx){
+    var sp=(Math.abs(S.crane.v)/GANTRY_V+Math.abs(S.troll.v)/TROLL_V+Math.abs(S.hoist.v)/HOIST_V)/3;
+    var t=AU.ctx.currentTime;
+    AU.humOsc.frequency.setTargetAtTime(46+54*sp,t,0.08);
+    AU.humOsc2.frequency.setTargetAtTime(47.5+56*sp,t,0.08);
+    AU.humGain.gain.setTargetAtTime(sp>0.015?0.028+0.11*sp:0.0,t,0.09);
+    if(AU.windGain){
+      var wg=0,wf=560;
+      if(S.windLevel===2){ wg=0.07; wf=540+60*Math.sin(S.simT*0.9); }
+      else if(S.windLevel>=3){ var gp=((S.simT%12)<6);
+        wg=gp?0.115:0.085; wf=(gp?720:470)+70*Math.sin(S.simT*1.3); }
+      AU.windGain.gain.setTargetAtTime(wg,t,0.5);
+      AU.windFilt.frequency.setTargetAtTime(wf,t,0.3);
+    }
+  }
+  updateHUD();
+  updateCamera(dtR);
+  renderer.render(scene,camera);
+}
+
+/* ---------- state export ---------- */
+function writeState(){
+  var o=swayOffsets();
+  window.__arena_state={
+    phase:S.phase,
+    endedKind:S.endedKind,
+    clock:S.simT,
+    jobTimeRemaining:S.jobT,
+    turbo:S.turbo,
+    landed:S.landedCount,
+    jobTarget:JOB_TARGET,
+    axes:{x:S.crane.x,z:S.troll.z,y:S.hoist.y,vx:S.crane.v,vz:S.troll.v,vy:S.hoist.v},
+    sway:{thetaX:S.sway.tx,thetaZ:S.sway.tz,velX:S.sway.wx,velZ:S.sway.wz,
+      offX:o.ox,offZ:o.oz,
+      warning:!!S.swayWarn,critical:Math.max(Math.abs(S.sway.tx),Math.abs(S.sway.tz))>=CRIT_DEG*DEG},
+    hook:{locked:!!S.hook,mass:S.hook?S.hook.mass:0,overload:!!S.hookWarnOver},
+    wind:{level:S.windLevel,name:WIND_NAMES[S.windLevel],eqDeg:S.windEqDeg,
+      dirX:S.windEqRad>1e-9?1:(S.windEqRad<-1e-9?-1:0),
+      eqOffsetX:Math.round(Math.sin(S.windEqRad)*L_PEND*1000)/1000,whistle:S.windLevel>=2},
+    trucks:TRUCKS.map(function(t){
+      return {id:t.id,phase:t.phase,x:Math.round(t.x*100)/100,z:TRUCK_LANE_Z,
+        cargoMass:t.mass,loaded:!!(t.cargo&&t.cargo.bedded)};
+    }),
+    tandem:!!S.tandem,
+    tandemRig:{armed:!!S.tandemArmed,attached:!!S.tandem,
+      perHookMass:(S.tandem&&S.hook)?S.hook.mass/2:0},
+    weighbridgeJob:!!S.weighbridgeDone,
+    damage:{count:S.dmgCount,events:S.dmgEvents.slice()},
+    camera:['CAB','LOAD','YARD'][cam.mode],
+    searchlight:{yaw:S.lampYaw,yawDeg:Math.round(S.lampYaw/DEG*10)/10},
+    night:true,
+    hoistRate:(S.hydLow?1.0:HOIST_V)*(S.tandem?0.5:1),
+    hydSlow:!!S.hydLow,
+    score:{cells:S.score.cells,avg:Math.round(S.score.avg*100)/100,alignPts:S.score.alignPts,
+      balanceBonus:S.score.bonus,damage:S.score.dmg,total:S.score.total,rating:S.score.rating},
+    setdown:S.setdownText,
+    tally:{perfect:S.tally.perfect,good:S.tally.good,outOfCell:S.tally.ooc,score:S.tally.score},
+    placements:S.placements.slice(),
+    drill:DRILL.map(function(d){ return {id:d.id,targetColumn:d.toX,done:!!d.done}; }),
+    stowage:{
+      ledgerSum:S.ledgerSum,
+      tilt:S.tilt,
+      balanced:S.planAllOk,
+      cells:S.planState.map(function(st){
+        return {bay:st.bay,tier:st.tier,need:st.need,mass:st.mass,filled:st.filled,credited:st.ok};
+      })
+    },
+    containers:containers.map(function(c){
+      return {id:c.id,mass:c.mass,x:c.x,y:c.y,z:c.z,damaged:c.damaged>0,carried:c.carried,
+        falling:!!c.falling,askew:!!c.askew,
+        band:c.lastBand?c.lastBand.band:null};
+    })
+  };
+  Object.freeze(window.__arena_state);
+}
+
+/* ---------- input ---------- */
+var keys={};
+window.addEventListener('keydown',function(e){
+  initAudio();
+  if(AU.ctx&&AU.ctx.state==='suspended') AU.ctx.resume();
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space','Tab'].indexOf(e.code)>=0) e.preventDefault();
+  keys[e.code]=true;
+  if(e.repeat) return;
+  if(e.code==='Enter'){
+    if(S.phase==='title') resetAll(false);
+    else if(S.phase==='ended') resetAll(false);
+  }
+  if(e.code==='KeyR') resetAll(true);
+  if(e.code==='KeyC'&&S.phase!=='title') cycleCam();
+  if(e.code==='KeyF'&&S.phase!=='title'){
+    if(S.tandem){ SFX.deny(); }
+    else{
+      S.tandemArmed=!S.tandemArmed;
+      addBanner(S.tandemArmed?'TANDEM RIG ARMED — CENTER OVER BOTH LUGS':'TANDEM RIG DISARMED',
+        S.tandemArmed?'warn':'good',2.2);
+      SFX.click(S.tandemArmed);
+    }
+  }
+  if(e.code==='Space') tryRelease();
+  if(e.code==='Tab'){
+    if(scoreOpen) closeScore();
+    else if(S.phase!=='title'&&!S.hook) openScore();
+  }
+});
+window.addEventListener('keyup',function(e){ keys[e.code]=false; });
+window.addEventListener('blur',function(){ for(var k in keys) keys[k]=false; });
+window.addEventListener('resize',function(){
+  camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
+
+/* ---------- main loop ---------- */
+resetAll(true);
+var last=performance.now(), acc=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  var dtR=Math.min(0.1,(now-last)/1000); last=now;
+  visualT+=dtR;
+  S.turbo=(S.phase==='running'&&!!keys.KeyT);
+  acc+=dtR*(S.turbo?TURBO:1);
+  var simDt=0,guard=0;
+  while(acc>=DT&&guard<260){ step(DT); acc-=DT; simDt+=DT; guard++; }
+  if(acc>DT*8) acc=0;
+  render(dtR,simDt);
+  writeState();
+}
+requestAnimationFrame(frame);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,3837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Glowwisp Grove</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #040812;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+    #hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 24px 32px;
+    }
+    .hud-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .hud-panel {
+      background: rgba(8, 18, 32, 0.85);
+      border: 1px solid rgba(125, 211, 252, 0.3);
+      border-radius: 12px;
+      padding: 10px 18px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      color: #e0f2fe;
+    }
+    .flock-status {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .flock-badge {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 12px;
+      border-radius: 8px;
+      border: 2px solid transparent;
+      transition: all 0.2s ease;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .flock-badge.amber {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+    }
+    .flock-badge.amber.active {
+      border-color: #f59e0b;
+      background: rgba(245, 158, 11, 0.35);
+      box-shadow: 0 0 16px rgba(245, 158, 11, 0.6);
+    }
+    .flock-badge.cerulean {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+    }
+    .flock-badge.cerulean.active {
+      border-color: #38bdf8;
+      background: rgba(56, 189, 248, 0.35);
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.6);
+    }
+    .flock-badge.violet {
+      background: rgba(168, 85, 247, 0.15);
+      color: #c084fc;
+    }
+    .flock-badge.violet.active {
+      border-color: #a855f7;
+      background: rgba(168, 85, 247, 0.35);
+      box-shadow: 0 0 16px rgba(168, 85, 247, 0.6);
+    }
+    .wisp-icon {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+    }
+    .wisp-icon.amber {
+      background: #f59e0b;
+      box-shadow: 0 0 8px #f59e0b;
+    }
+    .wisp-icon.cerulean {
+      background: #38bdf8;
+      box-shadow: 0 0 8px #38bdf8;
+    }
+    .wisp-icon.violet {
+      background: #a855f7;
+      box-shadow: 0 0 8px #a855f7;
+    }
+    .status-group {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+    .seeds-box, .crownseed-box, .ember-box, .falter-box, .beetles-box, .nectar-box {
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .seeds-counter {
+      color: #34d399;
+      font-size: 17px;
+      font-weight: 800;
+    }
+    .crownseed-counter {
+      color: #fde047;
+      font-size: 17px;
+      font-weight: 800;
+      text-shadow: 0 0 10px rgba(250, 204, 21, 0.6);
+    }
+    .ember-counter {
+      color: #fb923c;
+      font-size: 16px;
+      font-weight: 800;
+      text-shadow: 0 0 10px rgba(251, 146, 60, 0.6);
+    }
+    .falter-counter {
+      color: #f43f5e;
+      font-size: 16px;
+      font-weight: 800;
+    }
+    .banner-popup {
+      position: absolute;
+      top: 68px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: #fef08a;
+      background: rgba(194, 65, 12, 0.9);
+      border: 2px solid #fde047;
+      padding: 10px 32px;
+      border-radius: 24px;
+      box-shadow: 0 0 30px rgba(245, 158, 11, 0.8);
+      z-index: 95;
+      animation: pulse-ember 1s infinite alternate;
+    }
+    .banner-popup.hidden {
+      display: none !important;
+    }
+    @keyframes pulse-ember {
+      from { transform: translateX(-50%) scale(1); }
+      to { transform: translateX(-50%) scale(1.05); }
+    }
+    .overlay-veil {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(15, 23, 42, 0.9);
+      backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 110;
+    }
+    .overlay-veil.hidden {
+      display: none !important;
+    }
+    .falter-text {
+      font-size: 52px;
+      font-weight: 900;
+      color: #f87171;
+      letter-spacing: 3px;
+      text-shadow: 0 0 35px rgba(239, 68, 68, 0.9);
+      margin-bottom: 12px;
+    }
+    .falter-sub {
+      font-size: 18px;
+      color: #cbd5e1;
+    }
+    .reckoning-container {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      border-radius: 12px;
+      padding: 16px 24px;
+      margin: 12px 0 20px 0;
+      max-width: 620px;
+      width: 100%;
+      box-shadow: 0 0 25px rgba(0, 0, 0, 0.6);
+    }
+    .reckoning-container h3 {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: #38bdf8;
+      margin-bottom: 12px;
+      text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+    }
+    .reckoning-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 16px;
+      font-size: 13px;
+      text-align: left;
+    }
+    .reck-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 10px;
+      background: rgba(30, 41, 59, 0.6);
+      border-radius: 6px;
+    }
+    .reck-item.full-width {
+      grid-column: span 2;
+    }
+    .reck-item strong {
+      color: #fde047;
+      font-weight: 700;
+    }
+    .beetles-counter {
+      color: #f87171;
+      font-size: 17px;
+      font-weight: 800;
+    }
+    .nectar-counter {
+      color: #fde047;
+      font-size: 17px;
+      font-weight: 800;
+    }
+    .clock-box {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: #bae6fd;
+      text-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
+      min-width: 105px;
+      text-align: center;
+    }
+    .clock-warning {
+      color: #f87171 !important;
+      text-shadow: 0 0 14px rgba(239, 68, 68, 0.8) !important;
+      animation: pulse-warn 1s infinite alternate;
+    }
+    @keyframes pulse-warn {
+      from { transform: scale(1); }
+      to { transform: scale(1.06); }
+    }
+    #reticle-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    #reticle {
+      width: 26px;
+      height: 26px;
+      border: 2px solid #f59e0b;
+      border-radius: 50%;
+      box-shadow: 0 0 10px #f59e0b;
+      position: relative;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+    }
+    #reticle::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 4px;
+      height: 4px;
+      background: #ffffff;
+      border-radius: 50%;
+    }
+    #reticle.cerulean {
+      border-color: #38bdf8;
+      box-shadow: 0 0 10px #38bdf8;
+    }
+    #reticle.violet {
+      border-color: #a855f7;
+      box-shadow: 0 0 10px #a855f7;
+    }
+    #reticle.fail-shake {
+      animation: shake-reticle 0.25s ease;
+      border-color: #ef4444 !important;
+      box-shadow: 0 0 14px #ef4444 !important;
+    }
+    @keyframes shake-reticle {
+      0%, 100% { transform: scale(1); }
+      25% { transform: scale(0.85) rotate(-15deg); }
+      75% { transform: scale(1.2) rotate(15deg); }
+    }
+    #banner-seed-lost {
+      position: absolute;
+      top: 15%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(220, 38, 38, 0.9);
+      color: #ffffff;
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      padding: 12px 36px;
+      border-radius: 12px;
+      box-shadow: 0 0 30px rgba(239, 68, 68, 0.8);
+      border: 2px solid #fca5a5;
+      display: none;
+      z-index: 50;
+      animation: pulse-warn 0.6s infinite alternate;
+    }
+    .hud-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .controls-hint {
+      font-size: 13px;
+      line-height: 1.6;
+      color: #94a3b8;
+      background: rgba(15, 23, 42, 0.8);
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+    .controls-hint kbd {
+      background: rgba(255, 255, 255, 0.12);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      color: #f1f5f9;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+    }
+    .overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(3, 7, 18, 0.9);
+      backdrop-filter: blur(10px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: #f8fafc;
+      z-index: 100;
+      text-align: center;
+      padding: 24px;
+    }
+    .overlay.hidden {
+      display: none;
+    }
+    .overlay h1 {
+      font-size: 50px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, #fef08a, #f59e0b, #38bdf8, #c084fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 0 35px rgba(245, 158, 11, 0.4);
+    }
+    .overlay h2 {
+      font-size: 44px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      margin-bottom: 16px;
+    }
+    .overlay p {
+      font-size: 16px;
+      color: #cbd5e1;
+      max-width: 660px;
+      line-height: 1.7;
+      margin-bottom: 24px;
+    }
+    .overlay .btn-prompt {
+      font-size: 20px;
+      font-weight: 700;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.15);
+      border: 2px solid #38bdf8;
+      padding: 12px 32px;
+      border-radius: 30px;
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.35);
+      animation: pulse-btn 1.6s infinite alternate ease-in-out;
+    }
+    @keyframes pulse-btn {
+      from { transform: scale(1); box-shadow: 0 0 15px rgba(56, 189, 248, 0.3); }
+      to { transform: scale(1.05); box-shadow: 0 0 28px rgba(56, 189, 248, 0.6); }
+    }
+    .win-text {
+      color: #34d399;
+      text-shadow: 0 0 30px rgba(52, 211, 153, 0.6);
+    }
+    .lose-text {
+      color: #f87171;
+      text-shadow: 0 0 30px rgba(248, 113, 113, 0.6);
+    }
+    .fog-indicator {
+      background: rgba(30, 41, 59, 0.9);
+      border: 1px solid #94a3b8;
+      color: #f1f5f9;
+      font-weight: 800;
+      font-size: 13px;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 0 16px rgba(148, 163, 184, 0.6);
+      animation: pulse-fog 1.5s infinite alternate ease-in-out;
+    }
+    .fog-indicator.hidden {
+      display: none !important;
+    }
+    @keyframes pulse-fog {
+      from { transform: scale(1); box-shadow: 0 0 12px rgba(148, 163, 184, 0.4); }
+      to { transform: scale(1.05); box-shadow: 0 0 24px rgba(226, 232, 240, 0.8); }
+    }
+  </style>
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="reticle-container">
+    <div id="reticle" class="amber"></div>
+  </div>
+  <div id="banner-seed-lost">SEED LOST</div>
+  <div id="banner-ember-lit" class="banner-popup hidden">EMBER LIT</div>
+  <div id="veil-falter" class="overlay-veil hidden">
+    <div class="falter-text">NIGHT FALTERS</div>
+    <div class="falter-sub">Rewinding to active ember...</div>
+  </div>
+  <div id="hud">
+    <div class="hud-top">
+      <div class="hud-panel flock-status">
+        <div id="badge-amber" class="flock-badge amber active">
+          <div class="wisp-icon amber"></div>
+          <span>AMBER: <span id="count-amber">20</span></span>
+        </div>
+        <div id="badge-cerulean" class="flock-badge cerulean">
+          <div class="wisp-icon cerulean"></div>
+          <span>CERULEAN: <span id="count-cerulean">10</span></span>
+        </div>
+        <div id="badge-violet" class="flock-badge violet">
+          <div class="wisp-icon violet"></div>
+          <span>VIOLET: <span id="count-violet">8</span></span>
+        </div>
+      </div>
+      <div class="hud-panel clock-box" id="hud-clock">05:00</div>
+      <div id="hud-fog" class="hud-panel fog-indicator hidden">
+        <span>🌫️ NIGHT FOG</span>
+      </div>
+      <div class="hud-panel status-group">
+        <div class="seeds-box">
+          <span>SEEDS:</span>
+          <span class="seeds-counter" id="seeds-count">0 / 4</span>
+        </div>
+        <div class="crownseed-box">
+          <span>CROWNSEED:</span>
+          <span class="crownseed-counter" id="crownseed-count">DORMANT</span>
+        </div>
+        <div class="ember-box">
+          <span>EMBER:</span>
+          <span class="ember-counter" id="ember-active">NONE</span>
+        </div>
+        <div class="falter-box">
+          <span>FALTERS:</span>
+          <span class="falter-counter" id="falters-count">0</span>
+        </div>
+        <div class="nectar-box">
+          <span>NECTAR:</span>
+          <span class="nectar-counter" id="nectar-count">0/5</span>
+        </div>
+        <div class="beetles-box">
+          <span>BEETLES:</span>
+          <span class="beetles-counter" id="beetles-count">3</span>
+        </div>
+      </div>
+    </div>
+    <div class="hud-bottom">
+      <div class="controls-hint">
+        <kbd>WASD</kbd> Move &nbsp;|&nbsp; 
+        <kbd>Mouse</kbd> Aim &nbsp;|&nbsp; 
+        <kbd>LMB</kbd> Throw Active &nbsp;|&nbsp; 
+        <kbd>Tab</kbd> Color (Amb / Cer / Vio) &nbsp;|&nbsp; 
+        <kbd>Hold F</kbd> Lantern Gathering Beam &nbsp;|&nbsp; 
+        <kbd>R</kbd> Reset Run
+      </div>
+    </div>
+  </div>
+
+  <div id="overlay-ready" class="overlay">
+    <h1>GLOWWISP GROVE</h1>
+    <p>
+      Lead amber, cerulean, and battle-ready violet wisps through the moonlit mushroom grove.<br>
+      Walk into Heartwood Embers to flare checkpoints and record recovery snapshots.<br>
+      Knit the northern vine bridge, brave the Night Fog, and deliver all 4 Sacred Seeds.<br>
+      Awaken and escort the mighty <strong>Crownseed</strong> home through all 3 swarming ambushes!
+    </p>
+    <div class="btn-prompt">Press Enter to Start</div>
+  </div>
+
+  <div id="overlay-win" class="overlay hidden">
+    <h2 class="win-text">GROVE RESTORED</h2>
+    <p>The Crownseed has united with the Heartwood Tree! The grove blooms with eternal luminescence.</p>
+    <div id="reckoning-panel" class="reckoning-container">
+      <h3>THE RECKONING</h3>
+      <div class="reckoning-grid">
+        <div class="reck-item"><span>Total Run Time:</span><strong id="rec-runtime">00:00</strong></div>
+        <div class="reck-item"><span>Night Falters:</span><strong id="rec-falters">0</strong></div>
+        <div class="reck-item"><span>Wisps Lost:</span><strong id="rec-lost">A:0 C:0 V:0</strong></div>
+        <div class="reck-item"><span>Wisps Hatched:</span><strong id="rec-hatched">A:0 C:0 V:0</strong></div>
+        <div class="reck-item"><span>Nectar Delivered:</span><strong id="rec-nectar">0</strong></div>
+        <div class="reck-item"><span>Bridge Woven:</span><strong id="rec-bridge">0.0s</strong></div>
+        <div class="reck-item"><span>Briars Doused:</span><strong id="rec-briars">0</strong></div>
+        <div class="reck-item"><span>Shadow Beetles Slain:</span><strong id="rec-beetles">0</strong></div>
+        <div class="reck-item"><span>Horned Beetles Slain:</span><strong id="rec-horned">0</strong></div>
+        <div class="reck-item"><span>Seeds Stolen & Recovered:</span><strong id="rec-recovered">0</strong></div>
+        <div class="reck-item full-width"><span>Crownseed Convoy Ground Time:</span><strong id="rec-crownground">0.0s</strong></div>
+      </div>
+    </div>
+    <div class="btn-prompt">Press R to Play Again</div>
+  </div>
+
+  <div id="overlay-lose" class="overlay hidden">
+    <h2 class="lose-text">DAWN BREAKS</h2>
+    <p id="lose-reason">The night has passed and the light fades before the grove could be saved.</p>
+    <div class="btn-prompt">Press R to Try Again</div>
+  </div>
+
+  <script>
+    /* Glowwisp Grove - Complete Round 4 Implementation */
+    (function() {
+      'use strict';
+
+      // --- Deterministic Pseudo-Random Generator (Strictly No Math.random) ---
+      let seedValue = 4289137;
+      function deterministicRandom() {
+        seedValue = (seedValue * 1664525 + 1013904223) % 4294967296;
+        return seedValue / 4294967296;
+      }
+      function resetRandom(seed = 4289137) {
+        seedValue = seed;
+      }
+
+      // --- Constants & Config ---
+      const GROVE_RADIUS = 38.0;
+      const NORTH_GROVE_CENTER = new THREE.Vector3(0, 0, -59.0);
+      const NORTH_GROVE_RADIUS = 18.0;
+      const BRIDGE_ANCHOR_POS = new THREE.Vector3(0, 0, -34.5);
+      const BRIDGE_NORTH_POS = new THREE.Vector3(0, 0, -43.5);
+      const PEDESTAL_POS = new THREE.Vector3(0, 0, 0);
+      const THROW_RANGE = 14.0;
+      const THROW_SPEED = 24.0;
+      const TOTAL_TIME = 300.0;
+      const WARDEN_SPEED = 8.5;
+      const BEAM_RANGE = 12.0;
+      const BEAM_HALF_ANGLE = (25.0 * Math.PI) / 180.0; // 25 degrees half-angle
+      const BEAM_DRIFT_SPEED = 6.0; // 6 units/sec drift to warden feet
+      const STREAM_Z = -8.0;
+      const STREAM_WIDTH = 5.0; // z: -10.5 to -5.5
+      const FORDS = [
+        { x: -14.0, z: -8.0, radius: 3.2 },
+        { x: 14.0, z: -8.0, radius: 3.2 }
+      ];
+
+      // Fixed Locations
+      // C5 Seeds: Western (4), Hollow (6), Meadow (8), Northern Grove (10)
+      const SEED_CONFIGS = [
+        { id: 1, name: 'Western Clearing', weight: 4, pos: new THREE.Vector3(-22.0, 0.8, 4.0) },
+        { id: 2, name: 'Mushroom Hollow', weight: 6, pos: new THREE.Vector3(4.0, 0.8, 22.0) },
+        { id: 3, name: 'Moon Meadow', weight: 8, pos: new THREE.Vector3(18.0, 0.8, -22.0) },
+        { id: 4, name: 'Northern Grove', weight: 10, pos: new THREE.Vector3(0.0, 0.8, -66.0) }
+      ];
+
+      const BRIAR_CONFIGS = [
+        { id: 1, pos: new THREE.Vector3(4.0, 0, 12.0), radius: 2.8 },
+        { id: 2, pos: new THREE.Vector3(-6.0, 0, -18.0), radius: 2.8 },
+        { id: 3, pos: new THREE.Vector3(16.0, 0, 10.0), radius: 2.8 },
+        { id: 4, pos: new THREE.Vector3(0.0, 0, -53.0), radius: 2.8 }
+      ];
+
+      const SPRING_POOL_POS = new THREE.Vector3(24.0, 0, 12.0); // Cerulean
+      const THISTLE_HOLLOW_POS = new THREE.Vector3(-14.0, 0, 22.0); // Violet
+      const NECTAR_SPRING_POS = new THREE.Vector3(6.5, 0, 5.0); // Luminous nectar pool near Heartwood
+
+      // Shadow Beetle Burrows
+      const BURROW_CONFIGS = [
+        { id: 1, pos: new THREE.Vector3(-34.0, 0, 4.0), radius: 2.2 },
+        { id: 2, pos: new THREE.Vector3(28.0, 0, -28.0), radius: 2.2 },
+        { id: 3, pos: new THREE.Vector3(13.0, 0, -64.0), radius: 2.2 }
+      ];
+
+      // Patrol Paths for Beetles (including fixed Fog Routes closer to Heartwood)
+      const BEETLE_CONFIGS = [
+        {
+          id: 1,
+          name: 'Western Prowler',
+          burrow: BURROW_CONFIGS[0],
+          speed: 2.0,
+          haulSpeed: 1.2,
+          path: [
+            new THREE.Vector3(-26.0, 0, 8.0),
+            new THREE.Vector3(-16.0, 0, 8.0),
+            new THREE.Vector3(-16.0, 0, -2.0),
+            new THREE.Vector3(-26.0, 0, -2.0)
+          ],
+          fogPath: [
+            new THREE.Vector3(-14.0, 0, 8.0),
+            new THREE.Vector3(-5.0, 0, 5.0),
+            new THREE.Vector3(-5.0, 0, -4.0),
+            new THREE.Vector3(-14.0, 0, -4.0)
+          ]
+        },
+        {
+          id: 2,
+          name: 'Meadow Ravager',
+          burrow: BURROW_CONFIGS[1],
+          speed: 2.0,
+          haulSpeed: 1.2,
+          path: [
+            new THREE.Vector3(12.0, 0, -16.0),
+            new THREE.Vector3(22.0, 0, -22.0),
+            new THREE.Vector3(0.0, 0, -34.0), // Patrol passes bridge anchor at (0, -34.5)
+            new THREE.Vector3(-8.0, 0, -24.0)
+          ],
+          fogPath: [
+            new THREE.Vector3(5.0, 0, -4.0),
+            new THREE.Vector3(5.0, 0, 5.0),
+            new THREE.Vector3(12.0, 0, 5.0),
+            new THREE.Vector3(12.0, 0, -4.0)
+          ]
+        },
+        {
+          id: 3,
+          name: 'Northern Stalker',
+          burrow: BURROW_CONFIGS[2],
+          speed: 2.0,
+          haulSpeed: 1.2,
+          path: [
+            new THREE.Vector3(-9.0, 0, -47.0),
+            new THREE.Vector3(9.0, 0, -47.0),
+            new THREE.Vector3(9.0, 0, -66.0),
+            new THREE.Vector3(-9.0, 0, -66.0)
+          ],
+          fogPath: [
+            new THREE.Vector3(0.0, 0, -44.0),
+            new THREE.Vector3(0.0, 0, -34.0),
+            new THREE.Vector3(0.0, 0, -18.0),
+            new THREE.Vector3(-6.0, 0, -26.0)
+          ]
+        }
+      ];
+
+      // --- Game State Variables ---
+      let phase = 'ready'; // 'ready', 'playing', 'restored', 'dawn'
+      let remainingTime = TOTAL_TIME;
+      let activeColor = 'amber'; // 'amber', 'cerulean', 'violet'
+      let isBeamActive = false; // Holding F raises lantern and casts gathering beam
+      let ceruleanRecruited = false;
+      let violetRecruited = false;
+      let seedLostTriggered = false;
+
+      // Vine Bridge System
+      let bridgeProgress = 0.0; // 0..15 wisp-seconds
+      let bridgeCompleted = false;
+
+      // Night Fog System
+      let isFogActive = false;
+
+      // Nectar drop delivery system
+      let nectarDropsDelivered = 0; // Total drops delivered to pedestal
+      let dropsSinceLastHatch = 0; // 0..4, at 5 hatches 1 wisp
+      let nextWispId = 39;
+
+      let deathsAmber = 0;
+      let deathsCerulean = 0;
+      let deathsViolet = 0;
+
+      let hatchedAmber = 0;
+      let hatchedCerulean = 0;
+      let hatchedViolet = 0;
+
+      // Heartwood Embers Configurations (Round 7)
+      const EMBER_CONFIGS = [
+        { id: 'heartwood', name: 'Heartwood', pos: new THREE.Vector3(3.2, 0.45, 0.0) },
+        { id: 'bridge', name: 'Vine Bridge', pos: new THREE.Vector3(3.5, 0.45, -33.5) },
+        { id: 'northern', name: 'Northern Grove', pos: new THREE.Vector3(4.0, 0.45, -58.0) }
+      ];
+
+      // Crownseed & Timed Ambushes System (Round 6)
+      const AMBUSH_BURROWS = [
+        new THREE.Vector3(-12.0, 0, -56.0), // Ambush I left (Northern Grove route)
+        new THREE.Vector3(12.0, 0, -56.0),  // Ambush I right (Northern Grove route)
+        new THREE.Vector3(-10.0, 0, -32.0), // Ambush II left (Bridge south end)
+        new THREE.Vector3(10.0, 0, -32.0),  // Ambush II right (Bridge south end)
+        new THREE.Vector3(-28.0, 0, -4.0)   // Ambush III (Western Clearing)
+      ];
+
+      let ambushTimer = 0.0;
+      let ambush1Triggered = false;
+      let ambush2Triggered = false;
+      let ambush3Triggered = false;
+      let ambushPhase = 'none'; // 'none', 'ambush1', 'ambush2', 'ambush3', 'complete'
+      let isBlooming = false;
+      let bloomTimer = 0.0;
+
+      // Heartwood Embers & Night Falters State (Round 7)
+      let activeEmber = null;
+      let activeSnapshot = null;
+      let faltersCount = 0;
+      let isFaltering = false;
+      let falterVeilTimer = 0.0;
+      let bannerEmberLitTimer = 0.0;
+
+      // Reckoning Live Tallies (Round 7)
+      let totalRunTime = 0.0;
+      let totalWispSecondsWoven = 0.0;
+      let briarsDousedCount = 0;
+      let shadowBeetlesKilled = 0;
+      let hornedBeetlesKilled = 0;
+      let seedsRecoveredCount = 0;
+      let crownseedGroundTime = 0.0;
+
+      // Input tracking
+      const keys = {};
+      let cameraYaw = 0.0;
+      let cameraPitch = 0.35;
+      let isPointerLocked = false;
+
+      // --- Scene, Camera, Renderer ---
+      const container = document.getElementById('canvas-container');
+      const scene = new THREE.Scene();
+      scene.fog = new THREE.FogExp2(0x040b18, 0.018);
+
+      const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+      let renderer;
+      try {
+        renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+      } catch (err) {
+        console.warn('WebGLRenderer unavailable, fallback simulation mode active:', err);
+        const dummyCanvas = document.createElement('canvas');
+        renderer = {
+          setSize: () => {},
+          setPixelRatio: () => {},
+          shadowMap: {},
+          domElement: dummyCanvas,
+          render: () => {}
+        };
+        container.appendChild(dummyCanvas);
+      }
+
+      // --- Lighting ---
+      const ambientLight = new THREE.AmbientLight(0x1a2e47, 1.2);
+      scene.add(ambientLight);
+
+      const moonLight = new THREE.DirectionalLight(0xa5c9f5, 1.4);
+      moonLight.position.set(25, 45, -20);
+      moonLight.castShadow = true;
+      moonLight.shadow.mapSize.width = 1024;
+      moonLight.shadow.mapSize.height = 1024;
+      scene.add(moonLight);
+
+      const heartwoodLight = new THREE.PointLight(0x60e6b5, 2.5, 25);
+      heartwoodLight.position.set(0, 4.5, 0);
+      scene.add(heartwoodLight);
+
+      // --- Audio Synthesizer ---
+      let audioCtx = null;
+      function playTone(freq, duration, type = 'sine', gainVal = 0.1) {
+        try {
+          if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          if (audioCtx.state === 'suspended') audioCtx.resume();
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+          gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+          osc.stop(audioCtx.currentTime + duration);
+        } catch(e) {}
+      }
+
+      // --- World Geometry ---
+      const worldGroup = new THREE.Group();
+      scene.add(worldGroup);
+
+      // Ground Terrain
+      const groundGeo = new THREE.CylinderGeometry(GROVE_RADIUS + 2, GROVE_RADIUS + 2, 2, 64);
+      const groundMat = new THREE.MeshStandardMaterial({ color: 0x14281f, roughness: 0.85, metalness: 0.1 });
+      const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+      groundMesh.position.y = -1.0;
+      groundMesh.receiveShadow = true;
+      worldGroup.add(groundMesh);
+
+      // Stream: honest water surface at z = STREAM_Z
+      const streamGeo = new THREE.BoxGeometry(GROVE_RADIUS * 2, 0.4, STREAM_WIDTH);
+      const streamMat = new THREE.MeshStandardMaterial({
+        color: 0x114466,
+        roughness: 0.15,
+        metalness: 0.6,
+        transparent: true,
+        opacity: 0.85
+      });
+      const streamMesh = new THREE.Mesh(streamGeo, streamMat);
+      streamMesh.position.set(0, -0.05, STREAM_Z);
+      worldGroup.add(streamMesh);
+
+      // Stepping Stone Fords
+      FORDS.forEach((ford) => {
+        const fordGroup = new THREE.Group();
+        fordGroup.position.set(ford.x, 0, ford.z);
+        for (let s = -2; s <= 2; s++) {
+          const stoneGeo = new THREE.CylinderGeometry(0.85, 1.1, 0.5, 10);
+          const stoneMat = new THREE.MeshStandardMaterial({ color: 0x3d4b53, roughness: 0.9 });
+          const stone = new THREE.Mesh(stoneGeo, stoneMat);
+          stone.position.set((s % 2) * 0.4, 0.15, s * 1.1);
+          stone.rotation.y = s * 0.7;
+          stone.receiveShadow = true;
+          fordGroup.add(stone);
+        }
+        worldGroup.add(fordGroup);
+      });
+
+      // Spring Pool (Cerulean Wisps)
+      const poolGeo = new THREE.CylinderGeometry(4.2, 4.2, 0.4, 32);
+      const poolMat = new THREE.MeshStandardMaterial({ color: 0x1e5588, emissive: 0x103355, roughness: 0.1, metalness: 0.4 });
+      const poolMesh = new THREE.Mesh(poolGeo, poolMat);
+      poolMesh.position.copy(SPRING_POOL_POS);
+      poolMesh.position.y = 0.05;
+      worldGroup.add(poolMesh);
+
+      const poolRimGeo = new THREE.TorusGeometry(4.3, 0.45, 12, 36);
+      const poolRimMat = new THREE.MeshStandardMaterial({ color: 0x2d3a35, roughness: 0.9 });
+      const poolRim = new THREE.Mesh(poolRimGeo, poolRimMat);
+      poolRim.rotation.x = Math.PI / 2;
+      poolRim.position.copy(SPRING_POOL_POS);
+      poolRim.position.y = 0.2;
+      worldGroup.add(poolRim);
+
+      // Thistle Hollow (Violet Wisps)
+      const thistleGeo = new THREE.CylinderGeometry(3.6, 3.6, 0.35, 32);
+      const thistleMat = new THREE.MeshStandardMaterial({ color: 0x4a1d6a, emissive: 0x2b0e3f, roughness: 0.6 });
+      const thistleMesh = new THREE.Mesh(thistleGeo, thistleMat);
+      thistleMesh.position.copy(THISTLE_HOLLOW_POS);
+      thistleMesh.position.y = 0.04;
+      worldGroup.add(thistleMesh);
+
+      for (let th = 0; th < 12; th++) {
+        const angle = (th / 12) * Math.PI * 2;
+        const thMesh = new THREE.Mesh(
+          new THREE.ConeGeometry(0.22, 0.9, 6),
+          new THREE.MeshStandardMaterial({ color: 0x581c87, roughness: 0.8 })
+        );
+        thMesh.position.set(
+          THISTLE_HOLLOW_POS.x + Math.cos(angle) * 3.7,
+          0.45,
+          THISTLE_HOLLOW_POS.z + Math.sin(angle) * 3.7
+        );
+        thMesh.rotation.z = Math.cos(angle) * 0.2;
+        worldGroup.add(thMesh);
+      }
+
+      // Nectar Spring (Near Heartwood: shallow luminous pool brimming with nectar drops)
+      const nectarSpringGroup = new THREE.Group();
+      nectarSpringGroup.position.copy(NECTAR_SPRING_POS);
+
+      const nectarPoolGeo = new THREE.CylinderGeometry(2.4, 2.8, 0.35, 24);
+      const nectarPoolMat = new THREE.MeshStandardMaterial({
+        color: 0xfef08a,
+        emissive: 0xeab308,
+        roughness: 0.2,
+        metalness: 0.2
+      });
+      const nectarPool = new THREE.Mesh(nectarPoolGeo, nectarPoolMat);
+      nectarPool.position.y = 0.12;
+      nectarSpringGroup.add(nectarPool);
+
+      const nectarRim = new THREE.Mesh(new THREE.TorusGeometry(2.5, 0.35, 10, 24), new THREE.MeshStandardMaterial({ color: 0x3d3522, roughness: 0.9 }));
+      nectarRim.rotation.x = Math.PI / 2;
+      nectarRim.position.y = 0.25;
+      nectarSpringGroup.add(nectarRim);
+
+      const nectarLight = new THREE.PointLight(0xfef08a, 1.8, 10);
+      nectarLight.position.y = 0.8;
+      nectarSpringGroup.add(nectarLight);
+
+      // Floating nectar drops display
+      const nectarDropCluster = new THREE.Group();
+      for (let nd = 0; nd < 5; nd++) {
+        const dAngle = (nd / 5) * Math.PI * 2;
+        const drop = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), new THREE.MeshBasicMaterial({ color: 0xfef08a }));
+        drop.position.set(Math.cos(dAngle) * 1.1, 0.6, Math.sin(dAngle) * 1.1);
+        nectarDropCluster.add(drop);
+      }
+      nectarSpringGroup.add(nectarDropCluster);
+      worldGroup.add(nectarSpringGroup);
+
+      // Perimeter Root Wall (with northern ravine opening for bridge)
+      const rootWallGroup = new THREE.Group();
+      const wallSegments = 40;
+      for (let i = 0; i < wallSegments; i++) {
+        const angle = (i / wallSegments) * Math.PI * 2;
+        const x = Math.cos(angle) * GROVE_RADIUS;
+        const z = Math.sin(angle) * GROVE_RADIUS;
+        // Leave northern ravine opening at z < -33 and |x| < 4.5
+        if (z < -33.0 && Math.abs(x) < 4.5) continue;
+
+        const h = 3.5 + Math.sin(i * 1.3) * 1.2;
+        const rootGeo = new THREE.CylinderGeometry(1.2, 1.8, h, 8);
+        const rootMat = new THREE.MeshStandardMaterial({ color: 0x1d140e, roughness: 0.95 });
+        const rootMesh = new THREE.Mesh(rootGeo, rootMat);
+        rootMesh.position.set(x, h / 2, z);
+        rootMesh.rotation.z = (Math.cos(angle) * 0.15);
+        rootMesh.rotation.x = (Math.sin(angle) * 0.15);
+        rootMesh.castShadow = true;
+        rootMesh.receiveShadow = true;
+        rootWallGroup.add(rootMesh);
+      }
+      worldGroup.add(rootWallGroup);
+
+      // --- Northern Grove (Lit in cooler tones, giant mushrooms, root walls, moon shafts) ---
+      const northGroundGeo = new THREE.CylinderGeometry(NORTH_GROVE_RADIUS + 1, NORTH_GROVE_RADIUS + 1, 2, 48);
+      const northGroundMat = new THREE.MeshStandardMaterial({ color: 0x0c1e22, roughness: 0.85, metalness: 0.15 });
+      const northGround = new THREE.Mesh(northGroundGeo, northGroundMat);
+      northGround.position.set(NORTH_GROVE_CENTER.x, -1.0, NORTH_GROVE_CENTER.z);
+      northGround.receiveShadow = true;
+      worldGroup.add(northGround);
+
+      const northLight = new THREE.PointLight(0x38bdf8, 1.5, 30);
+      northLight.position.set(0, 7.0, -59.0);
+      worldGroup.add(northLight);
+
+      // Northern Grove Perimeter Root Wall
+      const northWallGroup = new THREE.Group();
+      const northWallSegments = 26;
+      for (let i = 0; i < northWallSegments; i++) {
+        const angle = (i / northWallSegments) * Math.PI * 2;
+        const x = Math.cos(angle) * NORTH_GROVE_RADIUS;
+        const z = NORTH_GROVE_CENTER.z + Math.sin(angle) * NORTH_GROVE_RADIUS;
+        // Leave southern bridge entrance opening at z > -44.5 and |x| < 4.0
+        if (z > -44.5 && Math.abs(x) < 4.0) continue;
+
+        const h = 3.2 + Math.sin(i * 1.7) * 1.0;
+        const rootGeo = new THREE.CylinderGeometry(1.1, 1.6, h, 8);
+        const rootMat = new THREE.MeshStandardMaterial({ color: 0x141f22, roughness: 0.95 });
+        const rootMesh = new THREE.Mesh(rootGeo, rootMat);
+        rootMesh.position.set(x, h / 2, z);
+        rootMesh.rotation.z = (Math.cos(angle) * 0.15);
+        rootMesh.rotation.x = (Math.sin(angle) * 0.15);
+        rootMesh.castShadow = true;
+        rootMesh.receiveShadow = true;
+        northWallGroup.add(rootMesh);
+      }
+      worldGroup.add(northWallGroup);
+
+      // Northern Moon Shaft
+      const northShaftGeo = new THREE.CylinderGeometry(1.6, 4.0, 32, 16, 1, true);
+      const northShaftMat = new THREE.MeshBasicMaterial({ color: 0x67e8f9, transparent: true, opacity: 0.09, side: THREE.DoubleSide, depthWrite: false });
+      const northShaft = new THREE.Mesh(northShaftGeo, northShaftMat);
+      northShaft.position.set(0, 16, -60);
+      northShaft.rotation.z = -0.15;
+      worldGroup.add(northShaft);
+
+      // Northern Giant Bioluminescent Mushrooms (Cooler cyan/ice tones)
+      const northMushroomMats = [
+        new THREE.MeshStandardMaterial({ color: 0x06b6d4, emissive: 0x083344, roughness: 0.25 }),
+        new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0c4a6e, roughness: 0.25 }),
+        new THREE.MeshStandardMaterial({ color: 0xa5f3fc, emissive: 0x164e63, roughness: 0.25 })
+      ];
+      for (let nm = 0; nm < 10; nm++) {
+        const nmAngle = (nm / 10) * Math.PI * 2;
+        const nmDist = 7.0 + ((nm * 7) % 8);
+        const mx = Math.cos(nmAngle) * nmDist;
+        const mz = NORTH_GROVE_CENTER.z + Math.sin(nmAngle) * nmDist;
+        if (Math.abs(mx) < 3.0 && mz > -47.0) continue; // Keep bridge approach clear
+        if (mx > 10 && mz < -60) continue; // Keep burrow clear
+
+        const mGroup = new THREE.Group();
+        mGroup.position.set(mx, 0, mz);
+        const scale = 0.9 + ((nm % 3) * 0.4);
+        const stemHeight = 3.5 * scale;
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.3 * scale, 0.5 * scale, stemHeight, 10), new THREE.MeshStandardMaterial({ color: 0xcfd8dc, roughness: 0.8 }));
+        stem.position.y = stemHeight / 2;
+        stem.castShadow = true;
+        mGroup.add(stem);
+
+        const cap = new THREE.Mesh(new THREE.ConeGeometry(2.1 * scale, 1.3 * scale, 14), northMushroomMats[nm % northMushroomMats.length]);
+        cap.position.y = stemHeight;
+        cap.castShadow = true;
+        mGroup.add(cap);
+        worldGroup.add(mGroup);
+      }
+
+      // --- Ravine & Broken Vine Bridge ---
+      // Ravine chasm floor (dark deep mist pit)
+      const chasmGeo = new THREE.BoxGeometry(32, 2, 9);
+      const chasmMat = new THREE.MeshStandardMaterial({ color: 0x020608, roughness: 0.98 });
+      const chasmMesh = new THREE.Mesh(chasmGeo, chasmMat);
+      chasmMesh.position.set(0, -5.0, -39.0);
+      worldGroup.add(chasmMesh);
+
+      // Stone Bridge Anchors
+      const anchorMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.85 });
+      const southAnchorL = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 1.8, 8), anchorMat);
+      southAnchorL.position.set(-2.0, 0.9, -34.5);
+      worldGroup.add(southAnchorL);
+      const southAnchorR = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 1.8, 8), anchorMat);
+      southAnchorR.position.set(2.0, 0.9, -34.5);
+      worldGroup.add(southAnchorR);
+
+      const northAnchorL = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 1.8, 8), anchorMat);
+      northAnchorL.position.set(-2.0, 0.9, -43.5);
+      worldGroup.add(northAnchorL);
+      const northAnchorR = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 1.8, 8), anchorMat);
+      northAnchorR.position.set(2.0, 0.9, -43.5);
+      worldGroup.add(northAnchorR);
+
+      // Vine Bridge Structure
+      const bridgeGroup = new THREE.Group();
+      worldGroup.add(bridgeGroup);
+
+      // 2 Main Vine Suspension Cables (curving slightly)
+      const vineCableMat = new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.7 });
+      const cableGeoL = new THREE.CylinderGeometry(0.08, 0.08, 9.2, 8);
+      cableGeoL.rotateX(Math.PI / 2);
+      const cableL = new THREE.Mesh(cableGeoL, vineCableMat);
+      cableL.position.set(-1.8, 0.8, -39.0);
+      bridgeGroup.add(cableL);
+
+      const cableR = new THREE.Mesh(cableGeoL, vineCableMat);
+      cableR.position.set(1.8, 0.8, -39.0);
+      bridgeGroup.add(cableR);
+
+      // 15 Woven Planks along bridge (progressively visible/solidifying as wisp-seconds accumulate)
+      const bridgePlanks = [];
+      const plankMat = new THREE.MeshStandardMaterial({ color: 0x27272a, roughness: 0.8 });
+      for (let p = 0; p < 15; p++) {
+        const pz = -35.0 - (p / 14) * 8.0;
+        const plank = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.16, 0.48), plankMat);
+        plank.position.set(0, 0.25, pz);
+        plank.visible = false;
+        bridgeGroup.add(plank);
+        bridgePlanks.push(plank);
+      }
+
+      // Glowing Woven Strands (intertwining vines)
+      const strandMat = new THREE.MeshBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0.5 });
+      const strandMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 9.0, 6), strandMat);
+      strandMesh.rotateX(Math.PI / 2);
+      strandMesh.position.set(0, 0.35, -39.0);
+      strandMesh.scale.set(1, 1, 0.01);
+      bridgeGroup.add(strandMesh);
+
+      // Bridge Work Tag Sprite above South Anchor
+      const bridgeTagCanvas = document.createElement('canvas');
+      bridgeTagCanvas.width = 128; bridgeTagCanvas.height = 64;
+      const bridgeTagTex = new THREE.CanvasTexture(bridgeTagCanvas);
+      const bridgeTagSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: bridgeTagTex, depthTest: false, transparent: true }));
+      bridgeTagSprite.position.set(0, 2.6, -34.5);
+      bridgeTagSprite.scale.set(2.4, 1.2, 1);
+      worldGroup.add(bridgeTagSprite);
+
+      // --- Warden Safe Circle (Radius 6.0 glowing on the ground) ---
+      const safeCircleGroup = new THREE.Group();
+      const safeCircleRingGeo = new THREE.RingGeometry(5.85, 6.0, 64);
+      safeCircleRingGeo.rotateX(-Math.PI / 2);
+      const safeCircleRingMat = new THREE.MeshBasicMaterial({ color: 0xfef08a, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
+      const safeCircleRing = new THREE.Mesh(safeCircleRingGeo, safeCircleRingMat);
+      safeCircleGroup.add(safeCircleRing);
+
+      const safeCircleFillGeo = new THREE.CircleGeometry(5.85, 48);
+      safeCircleFillGeo.rotateX(-Math.PI / 2);
+      const safeCircleFillMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.05, side: THREE.DoubleSide, depthWrite: false });
+      const safeCircleFill = new THREE.Mesh(safeCircleFillGeo, safeCircleFillMat);
+      safeCircleGroup.add(safeCircleFill);
+      scene.add(safeCircleGroup);
+
+      // --- Night Fog Ground Mist ---
+      const fogMistCount = 60;
+      const fogMistGeo = new THREE.BufferGeometry();
+      const fogMistPos = new Float32Array(fogMistCount * 3);
+      for (let i = 0; i < fogMistCount; i++) {
+        fogMistPos[i * 3] = (deterministicRandom() - 0.5) * GROVE_RADIUS * 1.6;
+        fogMistPos[i * 3 + 1] = 0.2 + deterministicRandom() * 1.5;
+        fogMistPos[i * 3 + 2] = (deterministicRandom() - 0.5) * GROVE_RADIUS * 1.6 - (deterministicRandom() * 20);
+      }
+      fogMistGeo.setAttribute('position', new THREE.BufferAttribute(fogMistPos, 3));
+      const fogMistMat = new THREE.PointsMaterial({ color: 0xcfd8dc, size: 4.5, transparent: true, opacity: 0.0, depthWrite: false });
+      const fogMist = new THREE.Points(fogMistGeo, fogMistMat);
+      worldGroup.add(fogMist);
+
+      // Burrows
+      const burrows = [];
+      BURROW_CONFIGS.forEach(bcfg => {
+        const bGroup = new THREE.Group();
+        bGroup.position.copy(bcfg.pos);
+
+        const moundGeo = new THREE.CylinderGeometry(1.8, 2.5, 1.4, 16);
+        const moundMat = new THREE.MeshStandardMaterial({ color: 0x1a120c, roughness: 0.95 });
+        const mound = new THREE.Mesh(moundGeo, moundMat);
+        mound.position.y = 0.7;
+        bGroup.add(mound);
+
+        const tunnelGeo = new THREE.CylinderGeometry(1.1, 1.1, 1.6, 16);
+        const tunnelMat = new THREE.MeshBasicMaterial({ color: 0x020205 });
+        const tunnel = new THREE.Mesh(tunnelGeo, tunnelMat);
+        tunnel.position.y = 0.8;
+        tunnel.rotation.x = Math.PI / 4;
+        bGroup.add(tunnel);
+
+        worldGroup.add(bGroup);
+        burrows.push({ id: bcfg.id, pos: bcfg.pos.clone(), radius: bcfg.radius });
+      });
+
+      // Heartwood Tree & Pedestal
+      const heartwoodGroup = new THREE.Group();
+      const trunkGeo = new THREE.CylinderGeometry(2.4, 4.2, 16, 16);
+      const trunkMat = new THREE.MeshStandardMaterial({ color: 0x2c1d14, roughness: 0.9 });
+      const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+      trunk.position.y = 8;
+      trunk.castShadow = true;
+      heartwoodGroup.add(trunk);
+
+      const canopyMat = new THREE.MeshStandardMaterial({ color: 0x1d4d38, emissive: 0x092e1e, roughness: 0.7 });
+      for (let i = 0; i < 4; i++) {
+        const cGeo = new THREE.SphereGeometry(4.5 + i * 0.8, 12, 12);
+        const cMesh = new THREE.Mesh(cGeo, canopyMat);
+        cMesh.position.set(Math.cos(i * 1.6) * 3, 14 + i * 1.5, Math.sin(i * 1.6) * 3);
+        heartwoodGroup.add(cMesh);
+      }
+
+      const pedGeo = new THREE.CylinderGeometry(2.2, 2.6, 0.9, 16);
+      const pedMat = new THREE.MeshStandardMaterial({ color: 0x3e4f45, roughness: 0.7, emissive: 0x0f281e });
+      const pedestal = new THREE.Mesh(pedGeo, pedMat);
+      pedestal.position.set(0, 0.45, 0);
+      pedestal.receiveShadow = true;
+      heartwoodGroup.add(pedestal);
+
+      const runeRingGeo = new THREE.TorusGeometry(1.6, 0.08, 8, 32);
+      const runeMat = new THREE.MeshBasicMaterial({ color: 0x5eead4 });
+      const runeRing = new THREE.Mesh(runeRingGeo, runeMat);
+      runeRing.rotation.x = Math.PI / 2;
+      runeRing.position.y = 0.91;
+      heartwoodGroup.add(runeRing);
+      worldGroup.add(heartwoodGroup);
+
+      // Hollow Wall Formation around Briar 1
+      const hollowRoots = new THREE.Group();
+      for (let rz = 9; rz <= 15; rz += 2) {
+        const r1 = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.2, 4.0, 8), new THREE.MeshStandardMaterial({ color: 0x1d140e, roughness: 0.95 }));
+        r1.position.set(0.5, 2.0, rz);
+        hollowRoots.add(r1);
+        const r2 = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.2, 4.0, 8), new THREE.MeshStandardMaterial({ color: 0x1d140e, roughness: 0.95 }));
+        r2.position.set(7.5, 2.0, rz);
+        hollowRoots.add(r2);
+      }
+      worldGroup.add(hollowRoots);
+
+      // Giant Bioluminescent Mushrooms
+      resetRandom(1048576);
+      const mushroomMats = [
+        new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0369a1, roughness: 0.3 }),
+        new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xb45309, roughness: 0.3 }),
+        new THREE.MeshStandardMaterial({ color: 0xa855f7, emissive: 0x6b21a8, roughness: 0.3 })
+      ];
+      const stemMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.8 });
+
+      for (let i = 0; i < 28; i++) {
+        const dist = 8 + deterministicRandom() * (GROVE_RADIUS - 12);
+        const angle = deterministicRandom() * Math.PI * 2;
+        const mx = Math.cos(angle) * dist;
+        const mz = Math.sin(angle) * dist;
+        if (Math.abs(mz - STREAM_Z) < 3.5) continue;
+        if (mx > 1 && mx < 7 && mz > 8 && mz < 16) continue;
+        if (new THREE.Vector2(mx - NECTAR_SPRING_POS.x, mz - NECTAR_SPRING_POS.z).length() < 4.0) continue;
+
+        const mGroup = new THREE.Group();
+        mGroup.position.set(mx, 0, mz);
+        const scale = 0.8 + deterministicRandom() * 1.5;
+        const stemHeight = (2.5 + deterministicRandom() * 4.0) * scale;
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.3 * scale, 0.5 * scale, stemHeight, 10), stemMat);
+        stem.position.y = stemHeight / 2;
+        stem.castShadow = true;
+        mGroup.add(stem);
+
+        const capGeo = new THREE.ConeGeometry(2.0 * scale, 1.2 * scale, 14);
+        const mat = mushroomMats[Math.floor(deterministicRandom() * mushroomMats.length)];
+        const cap = new THREE.Mesh(capGeo, mat);
+        cap.position.y = stemHeight;
+        cap.castShadow = true;
+        mGroup.add(cap);
+        worldGroup.add(mGroup);
+      }
+
+      // Moonbeam Shafts & Fireflies
+      for (let i = 0; i < 4; i++) {
+        const shaftGeo = new THREE.CylinderGeometry(1.2, 3.5, 30, 16, 1, true);
+        const shaftMat = new THREE.MeshBasicMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false });
+        const shaft = new THREE.Mesh(shaftGeo, shaftMat);
+        shaft.position.set(-15 + i * 10, 15, -10 + i * 6);
+        shaft.rotation.z = 0.2;
+        worldGroup.add(shaft);
+      }
+
+      const fireflyCount = 45;
+      const fireflyGeo = new THREE.BufferGeometry();
+      const fireflyPos = new Float32Array(fireflyCount * 3);
+      for (let i = 0; i < fireflyCount; i++) {
+        fireflyPos[i * 3] = (deterministicRandom() - 0.5) * GROVE_RADIUS * 1.8;
+        fireflyPos[i * 3 + 1] = 0.5 + deterministicRandom() * 6.0;
+        fireflyPos[i * 3 + 2] = (deterministicRandom() - 0.5) * GROVE_RADIUS * 1.8;
+      }
+      fireflyGeo.setAttribute('position', new THREE.BufferAttribute(fireflyPos, 3));
+      const fireflies = new THREE.Points(fireflyGeo, new THREE.PointsMaterial({ color: 0xfef08a, size: 0.35, transparent: true, opacity: 0.85 }));
+      worldGroup.add(fireflies);
+
+      // --- Heartwood Embers (Checkpoints & Recovery Lanterns) ---
+      const embers = [];
+      EMBER_CONFIGS.forEach(ecfg => {
+        const eGroup = new THREE.Group();
+        eGroup.position.copy(ecfg.pos);
+
+        // Stone plinth
+        const plinthMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85 });
+        const plinth = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 1.1, 8), plinthMat);
+        plinth.position.y = 0.55;
+        plinth.castShadow = true;
+        eGroup.add(plinth);
+
+        // Brazier bowl
+        const bowlMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8, roughness: 0.3 });
+        const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.25, 0.35, 8), bowlMat);
+        bowl.position.y = 1.15;
+        eGroup.add(bowl);
+
+        // Unlit ember core (turns radiant glowing flame when lit)
+        const emberCoreMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.95 });
+        const emberCore = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), emberCoreMat);
+        emberCore.position.y = 1.35;
+        eGroup.add(emberCore);
+
+        // Lantern PointLight (switched on when lit)
+        const emberLight = new THREE.PointLight(0xf97316, 0.0, 14);
+        emberLight.position.y = 1.45;
+        eGroup.add(emberLight);
+
+        worldGroup.add(eGroup);
+
+        embers.push({
+          id: ecfg.id,
+          name: ecfg.name,
+          pos: ecfg.pos.clone(),
+          group: eGroup,
+          coreMat: emberCoreMat,
+          light: emberLight,
+          lit: false,
+          hasWalkedAway: true
+        });
+      });
+
+      // --- The Warden Model ---
+      const wardenGroup = new THREE.Group();
+      wardenGroup.position.set(0, 0, 12);
+      scene.add(wardenGroup);
+
+      const wardenMat = new THREE.MeshStandardMaterial({ color: 0x243342, roughness: 0.8 });
+      const tunicMat = new THREE.MeshStandardMaterial({ color: 0x3b5368, roughness: 0.7 });
+      const goldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.7, roughness: 0.3 });
+
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.5), tunicMat);
+      torso.position.y = 1.25;
+      torso.castShadow = true;
+      wardenGroup.add(torso);
+
+      const belt = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.14, 0.54), goldMat);
+      belt.position.y = 0.88;
+      wardenGroup.add(belt);
+
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 12), wardenMat);
+      head.position.y = 1.95;
+      head.castShadow = true;
+      wardenGroup.add(head);
+
+      const eyeGeo = new THREE.SphereGeometry(0.05, 8, 8);
+      const eyeMat = new THREE.MeshBasicMaterial({ color: 0x67e8f9 });
+      const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+      eyeL.position.set(-0.1, 1.95, 0.28);
+      const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
+      eyeR.position.set(0.1, 1.95, 0.28);
+      wardenGroup.add(eyeL);
+      wardenGroup.add(eyeR);
+
+      const armGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.65, 8);
+      const leftArm = new THREE.Mesh(armGeo, wardenMat);
+      leftArm.position.set(-0.48, 1.25, 0);
+      wardenGroup.add(leftArm);
+      const rightArm = new THREE.Mesh(armGeo, wardenMat);
+      rightArm.position.set(0.48, 1.25, 0);
+      wardenGroup.add(rightArm);
+
+      const legGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.8, 8);
+      const leftLeg = new THREE.Mesh(legGeo, wardenMat);
+      leftLeg.position.set(-0.2, 0.4, 0);
+      wardenGroup.add(leftLeg);
+      const rightLeg = new THREE.Mesh(legGeo, wardenMat);
+      rightLeg.position.set(0.2, 0.4, 0);
+      wardenGroup.add(rightLeg);
+
+      const cloakMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9, side: THREE.DoubleSide });
+      const cloak = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 1.2, 4, 6), cloakMat);
+      cloak.position.set(0, 1.15, -0.28);
+      wardenGroup.add(cloak);
+
+      // Pole and Lantern
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.4, 8), new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.8 }));
+      pole.position.set(0.55, 1.35, 0.2);
+      pole.rotation.x = 0.2;
+      wardenGroup.add(pole);
+
+      const lanternGroup = new THREE.Group();
+      lanternGroup.position.set(0.55, 1.9, 0.35);
+      lanternGroup.add(new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.32, 0.24), goldMat));
+      lanternGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), new THREE.MeshBasicMaterial({ color: 0xfef08a })));
+      const wardenLanternLight = new THREE.PointLight(0xf59e0b, 1.8, 14);
+      lanternGroup.add(wardenLanternLight);
+      wardenGroup.add(lanternGroup);
+
+      // --- Lantern Gathering Beam (Cone: 12 units long, 25 deg half-angle) ---
+      // A cone with height = 12, radius = 12 * tan(25 deg) = 12 * 0.4663 = 5.596
+      const beamRadius = BEAM_RANGE * Math.tan(BEAM_HALF_ANGLE);
+      const beamGeo = new THREE.ConeGeometry(beamRadius, BEAM_RANGE, 24, 1, true);
+      beamGeo.rotateX(Math.PI / 2); // Point along +Z
+      beamGeo.translate(0, 0, BEAM_RANGE / 2);
+      const beamMat = new THREE.MeshBasicMaterial({
+        color: 0xfef08a,
+        transparent: true,
+        opacity: 0.0,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const beamMesh = new THREE.Mesh(beamGeo, beamMat);
+      scene.add(beamMesh);
+
+      // --- Ember Briars ---
+      const briars = [];
+      BRIAR_CONFIGS.forEach(cfg => {
+        const bGroup = new THREE.Group();
+        bGroup.position.copy(cfg.pos);
+
+        const thornCluster = new THREE.Group();
+        for (let t = 0; t < 16; t++) {
+          const tAngle = (t / 16) * Math.PI * 2;
+          const tDist = 0.6 + ((t % 3) * 0.5);
+          const tHeight = 1.3 + ((t * 7) % 5) * 0.35;
+          const thorn = new THREE.Mesh(new THREE.ConeGeometry(0.38, tHeight, 6), new THREE.MeshStandardMaterial({ color: 0x1f1412, roughness: 0.9 }));
+          thorn.position.set(Math.cos(tAngle) * tDist, tHeight / 2, Math.sin(tAngle) * tDist);
+          thorn.rotation.z = (Math.cos(tAngle) * 0.3);
+          thornCluster.add(thorn);
+        }
+        bGroup.add(thornCluster);
+
+        const emberLight = new THREE.PointLight(0xef4444, 2.2, 8);
+        emberLight.position.y = 1.0;
+        bGroup.add(emberLight);
+
+        const steamMat = new THREE.MeshBasicMaterial({ color: 0xcccccc, transparent: true, opacity: 0.0 });
+        const steamMesh = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 8), steamMat);
+        steamMesh.position.y = 1.8;
+        bGroup.add(steamMesh);
+
+        const douseBeamMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.0 });
+        const douseBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.9, 2.5, 12), douseBeamMat);
+        douseBeam.position.y = 1.6;
+        bGroup.add(douseBeam);
+
+        const tagCanvas = document.createElement('canvas');
+        tagCanvas.width = 128; tagCanvas.height = 64;
+        const tagTex = new THREE.CanvasTexture(tagCanvas);
+        const tagSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tagTex, depthTest: false, transparent: true }));
+        tagSprite.position.set(0, 2.7, 0);
+        tagSprite.scale.set(2.4, 1.2, 1);
+        bGroup.add(tagSprite);
+        scene.add(bGroup);
+
+        briars.push({
+          id: cfg.id, pos: cfg.pos.clone(), radius: cfg.radius, mesh: bGroup,
+          emberLight, steamMesh, steamMat, douseBeam, douseBeamMat,
+          tagCanvas, tagTex, tagSprite, collapsed: false, douseTimer: 0.0, attachedCerulean: 0
+        });
+      });
+
+      // --- Sacred Seeds (Weights recast: 4, 6, 8) ---
+      const seeds = [];
+      SEED_CONFIGS.forEach(cfg => {
+        const sGroup = new THREE.Group();
+        sGroup.position.copy(cfg.pos);
+
+        const seedMesh = new THREE.Mesh(
+          new THREE.DodecahedronGeometry(0.85, 1),
+          new THREE.MeshStandardMaterial({ color: 0x34d399, emissive: 0x059669, roughness: 0.25, metalness: 0.3 })
+        );
+        seedMesh.position.y = 0.5;
+        seedMesh.castShadow = true;
+        sGroup.add(seedMesh);
+
+        const sLight = new THREE.PointLight(0x34d399, 1.5, 10);
+        sLight.position.y = 0.8;
+        sGroup.add(sLight);
+
+        const tagCanvas = document.createElement('canvas');
+        tagCanvas.width = 128; tagCanvas.height = 64;
+        const tagTex = new THREE.CanvasTexture(tagCanvas);
+        const tagSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tagTex, depthTest: false, transparent: true }));
+        tagSprite.position.set(0, 2.2, 0);
+        tagSprite.scale.set(2.2, 1.1, 1);
+        sGroup.add(tagSprite);
+        scene.add(sGroup);
+
+        seeds.push({
+          id: cfg.id, name: cfg.name, weight: cfg.weight, mesh: sGroup, seedMesh,
+          tagCanvas, tagTex, pos: cfg.pos.clone(), attachedWisps: [],
+          state: 'idle', delivered: false, stolen: false, lifted: false
+        });
+      });
+
+      // --- Ambush Burrows Mounds ---
+      AMBUSH_BURROWS.forEach((bpos, bidx) => {
+        const bGroup = new THREE.Group();
+        bGroup.position.copy(bpos);
+
+        const mound = new THREE.Mesh(
+          new THREE.CylinderGeometry(1.6, 2.2, 1.2, 14),
+          new THREE.MeshStandardMaterial({ color: 0x140e0a, roughness: 0.95 })
+        );
+        mound.position.y = 0.6;
+        bGroup.add(mound);
+
+        const tunnel = new THREE.Mesh(
+          new THREE.CylinderGeometry(1.0, 1.0, 1.4, 14),
+          new THREE.MeshBasicMaterial({ color: 0x010103 })
+        );
+        tunnel.position.y = 0.7;
+        tunnel.rotation.x = Math.PI / 4;
+        bGroup.add(tunnel);
+
+        worldGroup.add(bGroup);
+      });
+
+      // --- The Crownseed (Awakens upon delivering 4 seeds, Weight 18) ---
+      const CROWNSEED_START_POS = new THREE.Vector3(0.0, 0.9, -70.0);
+      const crownseedGroup = new THREE.Group();
+      crownseedGroup.position.copy(CROWNSEED_START_POS);
+      crownseedGroup.visible = false;
+
+      const crownSeedMesh = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(1.5, 1),
+        new THREE.MeshStandardMaterial({
+          color: 0xfde047,
+          emissive: 0xca8a04,
+          roughness: 0.2,
+          metalness: 0.4
+        })
+      );
+      crownSeedMesh.position.y = 0.8;
+      crownSeedMesh.castShadow = true;
+      crownseedGroup.add(crownSeedMesh);
+
+      // Crown halo ring
+      const crownHaloGeo = new THREE.TorusGeometry(1.5, 0.12, 8, 32);
+      crownHaloGeo.rotateX(Math.PI / 2);
+      const crownHaloMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+      const crownHalo = new THREE.Mesh(crownHaloGeo, crownHaloMat);
+      crownHalo.position.y = 2.2;
+      crownseedGroup.add(crownHalo);
+
+      const crownLight = new THREE.PointLight(0xfef08a, 2.5, 20);
+      crownLight.position.y = 1.4;
+      crownseedGroup.add(crownLight);
+
+      // Large styled weight tag
+      const crownTagCanvas = document.createElement('canvas');
+      crownTagCanvas.width = 256; crownTagCanvas.height = 128;
+      const crownTagTex = new THREE.CanvasTexture(crownTagCanvas);
+      const crownTagSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: crownTagTex, depthTest: false, transparent: true }));
+      crownTagSprite.position.set(0, 3.8, 0);
+      crownTagSprite.scale.set(3.8, 1.9, 1);
+      crownseedGroup.add(crownTagSprite);
+      scene.add(crownseedGroup);
+
+      const CROWNSEED_WAYPOINTS = [
+        new THREE.Vector3(0.0, 0.9, -70.0),  // Far northern grove
+        new THREE.Vector3(0.0, 0.9, -53.0),  // Across northern grove (Briar 4 site)
+        new THREE.Vector3(0.0, 0.9, -43.5),  // North bridge entrance
+        new THREE.Vector3(0.0, 0.9, -34.5),  // Over the vine bridge to south anchor
+        new THREE.Vector3(-14.0, 0.9, -20.0), // Toward stream ford
+        new THREE.Vector3(-14.0, 0.9, -8.0),  // Through Ford 1
+        new THREE.Vector3(-22.0, 0.9, 4.0),  // Past Western Clearing
+        new THREE.Vector3(-10.0, 0.9, 4.0),  // Inward path
+        new THREE.Vector3(0.0, 0.9, 0.0)     // Heartwood pedestal!
+      ];
+
+      const crownseed = {
+        id: 'crown',
+        name: 'Crownseed',
+        weight: 18,
+        mesh: crownseedGroup,
+        seedMesh: crownSeedMesh,
+        crownHalo: crownHalo,
+        tagCanvas: crownTagCanvas,
+        tagTex: crownTagTex,
+        pos: CROWNSEED_START_POS.clone(),
+        attachedWisps: [],
+        state: 'dormant', // 'dormant', 'awakened', 'moving', 'hauling', 'delivered', 'stolen'
+        delivered: false,
+        stolen: false,
+        lifted: false,
+        firstLifted: false,
+        waypointIdx: 1
+      };
+
+      // --- Shadow Beetles & Horned Beetle Factory ---
+      function createBeetleObject(id, name, startPos, burrowPos, isHorned = false, isAmbush = false, customPath = null, customFogPath = null) {
+        const group = new THREE.Group();
+        group.position.copy(startPos);
+
+        const shellMat = new THREE.MeshStandardMaterial({
+          color: isHorned ? 0x1e293b : 0x111119,
+          roughness: isHorned ? 0.35 : 0.25,
+          metalness: isHorned ? 0.75 : 0.85
+        });
+        const shell = new THREE.Mesh(new THREE.SphereGeometry(1.0, 16, 12), shellMat);
+        shell.scale.set(1.1, 0.65, 1.4);
+        shell.position.y = 0.7;
+        shell.castShadow = true;
+        group.add(shell);
+
+        // Horned Beetle armor plates over front half & broad crested horn
+        if (isHorned) {
+          const plateMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.9, roughness: 0.2 });
+          const plate = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.15, 0.6, 12, 1, false, 0, Math.PI), plateMat);
+          plate.position.set(0, 0.75, 0.6);
+          plate.rotation.y = -Math.PI / 2;
+          group.add(plate);
+
+          const hornMat = new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.8, roughness: 0.2 });
+          const horn = new THREE.Mesh(new THREE.ConeGeometry(0.24, 1.4, 6), hornMat);
+          horn.position.set(0, 1.3, 1.7);
+          horn.rotation.set(Math.PI / 3.2, 0, 0);
+          group.add(horn);
+        }
+
+        const headMat = new THREE.MeshStandardMaterial({ color: 0x181824, roughness: 0.4 });
+        const bHead = new THREE.Mesh(new THREE.SphereGeometry(0.48, 12, 10), headMat);
+        bHead.position.set(0, 0.65, 1.3);
+        group.add(bHead);
+
+        const antMat = new THREE.MeshBasicMaterial({ color: isHorned ? 0xf59e0b : 0x64748b });
+        const antL = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.8, 6), antMat);
+        antL.position.set(-0.25, 0.9, 1.6);
+        antL.rotation.set(0.4, 0, -0.3);
+        group.add(antL);
+        const antR = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.8, 6), antMat);
+        antR.position.set(0.25, 0.9, 1.6);
+        antR.rotation.set(0.4, 0, 0.3);
+        group.add(antR);
+
+        const mandMat = new THREE.MeshStandardMaterial({ color: 0x050508, metalness: 0.9, roughness: 0.2 });
+        const mandL = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.6, 6), mandMat);
+        mandL.position.set(-0.22, 0.45, 1.7);
+        mandL.rotation.set(Math.PI / 2, 0, 0.3);
+        group.add(mandL);
+        const mandR = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.6, 6), mandMat);
+        mandR.position.set(0.22, 0.45, 1.7);
+        mandR.rotation.set(Math.PI / 2, 0, -0.3);
+        group.add(mandR);
+
+        const legs = [];
+        const legMat = new THREE.MeshStandardMaterial({ color: 0x0c0c14, roughness: 0.6 });
+        for (let l = 0; l < 6; l++) {
+          const side = (l % 2 === 0) ? -1 : 1;
+          const zOffset = (Math.floor(l / 2) - 1) * 0.65;
+          const legGroup = new THREE.Group();
+          legGroup.position.set(side * 0.9, 0.5, zOffset);
+
+          const upperLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.7, 6), legMat);
+          upperLeg.rotation.z = side * 0.7;
+          upperLeg.position.set(side * 0.25, 0.15, 0);
+          legGroup.add(upperLeg);
+
+          const lowerLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.03, 0.7, 6), legMat);
+          lowerLeg.rotation.z = side * -0.5;
+          lowerLeg.position.set(side * 0.55, -0.25, 0);
+          legGroup.add(lowerLeg);
+
+          group.add(legGroup);
+          legs.push(legGroup);
+        }
+
+        const maxHealth = isHorned ? 120 : 60;
+        const hbCanvas = document.createElement('canvas');
+        hbCanvas.width = 128; hbCanvas.height = 32;
+        const hbTex = new THREE.CanvasTexture(hbCanvas);
+        const hbSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: hbTex, depthTest: false, transparent: true }));
+        hbSprite.position.set(0, isHorned ? 2.6 : 2.1, 0);
+        hbSprite.scale.set(2.2, 0.55, 1);
+        hbSprite.visible = false;
+        group.add(hbSprite);
+
+        scene.add(group);
+
+        return {
+          id: id,
+          name: name,
+          type: isHorned ? 'horned' : 'shadow',
+          isHorned: isHorned,
+          isAmbush: isAmbush,
+          cfg: {
+            id: id,
+            name: name,
+            speed: isAmbush ? 1.8 : 2.0,
+            haulSpeed: isHorned ? 1.0 : 1.2,
+            burrow: { pos: burrowPos.clone() },
+            path: customPath || [startPos.clone()],
+            fogPath: customFogPath || customPath || [startPos.clone()]
+          },
+          group: group,
+          legs: legs,
+          hbCanvas: hbCanvas,
+          hbTex: hbTex,
+          hbSprite: hbSprite,
+          pos: startPos.clone(),
+          targetWaypointIdx: 1,
+          health: maxHealth,
+          maxHealth: maxHealth,
+          state: isAmbush ? 'hunting_crown' : 'patrolling',
+          hauledSeed: null,
+          shakeTimer: 0.0,
+          shakeInterval: isHorned ? 4.0 : 5.0,
+          attachedVioletWisps: [],
+          alive: true
+        };
+      }
+
+      const beetles = [];
+      BEETLE_CONFIGS.forEach((bcfg) => {
+        beetles.push(createBeetleObject(
+          bcfg.id, bcfg.name, bcfg.path[0], bcfg.burrow.pos, false, false, bcfg.path, bcfg.fogPath
+        ));
+      });
+
+      // --- Wisps System ---
+      // 20 Amber + 10 Cerulean + 8 Violet starting = 38 wisps
+      const wisps = [];
+      const wispGeometryWing = new THREE.PlaneGeometry(0.25, 0.15);
+
+      function createWispMesh(colorType) {
+        const group = new THREE.Group();
+        let coreCol = 0xf59e0b;
+        let glowCol = 0xfef08a;
+
+        if (colorType === 'cerulean') {
+          coreCol = 0x38bdf8;
+          glowCol = 0xbae6fd;
+        } else if (colorType === 'violet') {
+          coreCol = 0xa855f7;
+          glowCol = 0xe9d5ff;
+        }
+
+        const coreMat = new THREE.MeshBasicMaterial({ color: glowCol });
+        const core = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 12), coreMat);
+        group.add(core);
+
+        const wingMat = new THREE.MeshStandardMaterial({
+          color: coreCol, transparent: true, opacity: 0.65, side: THREE.DoubleSide
+        });
+        const wingL = new THREE.Mesh(wispGeometryWing, wingMat);
+        wingL.position.set(-0.2, 0.05, 0);
+        group.add(wingL);
+        const wingR = new THREE.Mesh(wispGeometryWing, wingMat);
+        wingR.position.set(0.2, 0.05, 0);
+        group.add(wingR);
+
+        const trailGeo = new THREE.ConeGeometry(0.12, 0.6, 8);
+        trailGeo.rotateX(-Math.PI / 2);
+        const trailMat = new THREE.MeshBasicMaterial({ color: coreCol, transparent: true, opacity: 0.45 });
+        const trail = new THREE.Mesh(trailGeo, trailMat);
+        trail.position.set(0, 0, -0.35);
+        group.add(trail);
+
+        // Dizzy spinning glint
+        const glintGeo = new THREE.TorusGeometry(0.26, 0.04, 6, 16);
+        glintGeo.rotateX(Math.PI / 2);
+        const glintMat = new THREE.MeshBasicMaterial({ color: 0xfef08a, visible: false });
+        const glint = new THREE.Mesh(glintGeo, glintMat);
+        glint.position.y = 0.32;
+        group.add(glint);
+
+        // Nectar drop visual (carried while flying nectar loop)
+        const dropGeo = new THREE.SphereGeometry(0.12, 8, 8);
+        const dropMat = new THREE.MeshBasicMaterial({ color: 0xfef08a, visible: false });
+        const dropMesh = new THREE.Mesh(dropGeo, dropMat);
+        dropMesh.position.y = -0.22;
+        group.add(dropMesh);
+
+        return { group, core, wingL, wingR, trail, glint, glintMat, dropMesh, dropMat };
+      }
+
+      function instantiateWisp(id, color, startPos, initialState = 'idle') {
+        const meshData = createWispMesh(color);
+        scene.add(meshData.group);
+        return {
+          id: id,
+          color: color,
+          meshData: meshData,
+          pos: startPos.clone(),
+          startPos: new THREE.Vector3(),
+          targetPos: startPos.clone(),
+          vel: new THREE.Vector3(),
+          state: initialState, // 'following', 'thrown', 'idle', 'attached', 'carrying', 'stunned', 'nectar_drop', 'beam_drift', 'dead'
+          targetObject: null,
+          throwTime: 0.0,
+          totalThrowTime: 0.5,
+          scorchTimer: 0.0,
+          stunTimer: 0.0,
+          carryingNectar: false,
+          alive: true
+        };
+      }
+
+      // Starting 20 Amber Wisps
+      for (let i = 0; i < 20; i++) {
+        wisps.push(instantiateWisp(i + 1, 'amber', new THREE.Vector3(0, 1.2, 12 + (i + 1) * 0.7), 'following'));
+      }
+
+      // Starting 10 Cerulean Wisps
+      for (let i = 0; i < 10; i++) {
+        const angle = (i / 10) * Math.PI * 2;
+        const pX = SPRING_POOL_POS.x + Math.cos(angle) * 2.0;
+        const pZ = SPRING_POOL_POS.z + Math.sin(angle) * 2.0;
+        wisps.push(instantiateWisp(20 + i + 1, 'cerulean', new THREE.Vector3(pX, 0.8, pZ), 'idle'));
+      }
+
+      // Starting 8 Violet Wisps
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        const pX = THISTLE_HOLLOW_POS.x + Math.cos(angle) * 1.8;
+        const pZ = THISTLE_HOLLOW_POS.z + Math.sin(angle) * 1.8;
+        wisps.push(instantiateWisp(30 + i + 1, 'violet', new THREE.Vector3(pX, 0.8, pZ), 'idle'));
+      }
+
+      // --- Helper Functions ---
+      function updateTagText(canvas, text, bgColor = 'rgba(15, 23, 42, 0.85)', textColor = '#ffffff') {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = bgColor;
+        ctx.beginPath();
+        ctx.roundRect(4, 4, canvas.width - 8, canvas.height - 8, 12);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        ctx.font = 'bold 26px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = textColor;
+        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+      }
+
+      function updateHealthBar(canvas, current, max = 60) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+        ctx.roundRect(2, 2, canvas.width - 4, canvas.height - 4, 6);
+        ctx.fill();
+        const pct = Math.max(0, Math.min(1.0, current / max));
+        ctx.fillStyle = '#ef4444';
+        ctx.roundRect(4, 4, (canvas.width - 8) * pct, canvas.height - 8, 4);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      function isPointInStream(pos) {
+        const zMin = STREAM_Z - STREAM_WIDTH / 2;
+        const zMax = STREAM_Z + STREAM_WIDTH / 2;
+        if (pos.z >= zMin && pos.z <= zMax) {
+          for (let f of FORDS) {
+            const dx = pos.x - f.x;
+            const dz = pos.z - f.z;
+            if (dx * dx + dz * dz <= f.radius * f.radius) return false;
+          }
+          return true;
+        }
+        return false;
+      }
+
+      function getNearestBankPos(pos) {
+        const zMin = STREAM_Z - STREAM_WIDTH / 2;
+        const zMax = STREAM_Z + STREAM_WIDTH / 2;
+        const res = pos.clone();
+        if (Math.abs(pos.z - zMin) < Math.abs(pos.z - zMax)) {
+          res.z = zMin - 0.9;
+        } else {
+          res.z = zMax + 0.9;
+        }
+        res.y = 0.8;
+        return res;
+      }
+
+      function isPointBlockedByBriar(pos, radiusMargin = 0.5) {
+        for (let b of briars) {
+          if (!b.collapsed) {
+            if (pos.distanceTo(b.pos) < b.radius + radiusMargin) return true;
+          }
+        }
+        return false;
+      }
+
+      // --- Aim Reticle Raycasting ---
+      const raycaster = new THREE.Raycaster();
+      const aimPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      let aimGroundPoint = new THREE.Vector3();
+
+      function updateAimPoint() {
+        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+        const hit = raycaster.ray.intersectPlane(aimPlane, aimGroundPoint);
+        if (!hit) {
+          aimGroundPoint.set(wardenGroup.position.x, 0, wardenGroup.position.z).add(new THREE.Vector3(0, 0, -5));
+        }
+      }
+
+      // --- Controls & Event Listeners ---
+      function onKeyDown(e) {
+        const code = e.code || e.key;
+        keys[code] = true;
+        if (e.code) keys[e.code] = true;
+        if (e.key) keys[e.key] = true;
+
+        if (e.code === 'Enter' || e.key === 'Enter') {
+          if (phase === 'ready') {
+            phase = 'playing';
+            document.getElementById('overlay-ready').classList.add('hidden');
+            playTone(440, 0.2);
+            syncArenaState();
+          }
+        }
+
+        if (e.code === 'KeyR' || e.key === 'r' || e.key === 'R') {
+          if (phase === 'restored' || phase === 'dawn' || phase === 'playing') {
+            resetRun();
+            syncArenaState();
+          }
+        }
+
+        if (e.code === 'Tab' || e.key === 'Tab') {
+          if (e.preventDefault) e.preventDefault();
+          if (phase === 'playing') {
+            if (activeColor === 'amber') activeColor = 'cerulean';
+            else if (activeColor === 'cerulean') activeColor = 'violet';
+            else activeColor = 'amber';
+
+            updateColorBadges();
+            const toneMap = { amber: 520, cerulean: 740, violet: 960 };
+            playTone(toneMap[activeColor], 0.08);
+            syncArenaState();
+          }
+        }
+
+        // Holding F casts Gathering Beam (raising lantern)
+        if (e.code === 'KeyF' || e.key === 'f' || e.key === 'F') {
+          if (phase === 'playing' && !isBeamActive) {
+            isBeamActive = true;
+            beamMat.opacity = 0.28;
+            playTone(440, 0.15, 'triangle', 0.1);
+            syncArenaState();
+          }
+        }
+      }
+
+      function onKeyUp(e) {
+        if (e.code) keys[e.code] = false;
+        if (e.key) keys[e.key] = false;
+
+        // Releasing F ends beam pull
+        if (e.code === 'KeyF' || e.key === 'f' || e.key === 'F') {
+          if (isBeamActive) {
+            isBeamActive = false;
+            beamMat.opacity = 0.0;
+            syncArenaState();
+          }
+        }
+      }
+
+      window.addEventListener('keydown', onKeyDown);
+      document.addEventListener('keydown', onKeyDown);
+      window.addEventListener('keyup', onKeyUp);
+      document.addEventListener('keyup', onKeyUp);
+
+      window.addEventListener('mousedown', (e) => {
+        if (e.button === 0 && phase === 'playing') {
+          handleThrow();
+        }
+      });
+
+      document.body.addEventListener('click', () => {
+        if (phase === 'playing' && !isPointerLocked) {
+          container.requestPointerLock();
+        }
+      });
+
+      document.addEventListener('pointerlockchange', () => {
+        isPointerLocked = (document.pointerLockElement === container);
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (isPointerLocked) {
+          cameraYaw -= e.movementX * 0.003;
+          cameraPitch = Math.max(0.1, Math.min(1.1, cameraPitch + e.movementY * 0.003));
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      function updateColorBadges() {
+        const bAmb = document.getElementById('badge-amber');
+        const bCer = document.getElementById('badge-cerulean');
+        const bVio = document.getElementById('badge-violet');
+        const reticle = document.getElementById('reticle');
+
+        bAmb.classList.remove('active');
+        bCer.classList.remove('active');
+        bVio.classList.remove('active');
+        reticle.className = activeColor;
+
+        if (activeColor === 'amber') bAmb.classList.add('active');
+        else if (activeColor === 'cerulean') bCer.classList.add('active');
+        else bVio.classList.add('active');
+      }
+
+      // --- Throw Mechanic ---
+      function handleThrow() {
+        const candidate = wisps.find(w => w.alive && w.color === activeColor && w.state === 'following');
+        const reticle = document.getElementById('reticle');
+
+        if (!candidate) {
+          reticle.classList.remove('fail-shake');
+          void reticle.offsetWidth;
+          reticle.classList.add('fail-shake');
+          playTone(220, 0.15, 'sawtooth');
+          return;
+        }
+
+        updateAimPoint();
+        const startPos = wardenGroup.position.clone().add(new THREE.Vector3(0, 1.5, 0));
+        let throwTarget = aimGroundPoint.clone();
+        const disp = throwTarget.clone().sub(startPos);
+        disp.y = 0;
+        const dist = disp.length();
+        if (dist > THROW_RANGE) {
+          disp.normalize().multiplyScalar(THROW_RANGE);
+          throwTarget = startPos.clone().add(disp);
+          throwTarget.y = 0;
+        }
+
+        candidate.state = 'thrown';
+        candidate.pos.copy(startPos);
+        candidate.startPos = startPos.clone();
+        candidate.targetPos = throwTarget.clone();
+        candidate.throwTime = 0.0;
+        candidate.totalThrowTime = Math.max(0.35, dist / THROW_SPEED);
+
+        const throwTones = { amber: 620, cerulean: 840, violet: 1040 };
+        playTone(throwTones[activeColor], 0.12, 'sine');
+      }
+
+      // --- Heartwood Embers & Night Falters Logic (Round 7) ---
+      function triggerNightFalter() {
+        if (isFaltering) return;
+
+        if (activeSnapshot && activeEmber) {
+          isFaltering = true;
+          falterVeilTimer = 2.0;
+          faltersCount++;
+          document.getElementById('falters-count').textContent = faltersCount;
+          document.getElementById('veil-falter').classList.remove('hidden');
+          playTone(180, 0.8, 'sawtooth', 0.4);
+        } else {
+          // No ember lit: frozen DAWN BREAKS game over immediately
+          phase = 'dawn';
+          document.getElementById('lose-reason').textContent = seedLostTriggered
+            ? "A sacred seed was stolen into the shadows with no ember lit to guide the night back."
+            : "The lantern warden was left alone in the dark with no embers to rekindle the flock.";
+          document.getElementById('overlay-lose').classList.remove('hidden');
+          if (isPointerLocked) document.exitPointerLock();
+        }
+      }
+
+      function executeEmberRewind() {
+        if (!activeSnapshot || !activeEmber) return;
+
+        remainingTime = activeSnapshot.remainingTime;
+        wardenGroup.position.copy(activeSnapshot.wardenPos);
+        wardenGroup.rotation.y = activeSnapshot.wardenRotY;
+
+        // Restore seeds
+        activeSnapshot.seeds.forEach((snapS, i) => {
+          const s = seeds[i];
+          s.pos.copy(snapS.pos);
+          s.mesh.position.copy(snapS.pos);
+          s.mesh.visible = !snapS.delivered && !snapS.stolen;
+          s.state = snapS.state;
+          s.delivered = snapS.delivered;
+          s.stolen = snapS.stolen;
+          s.lifted = snapS.lifted;
+          s.attachedWisps = [];
+        });
+
+        // Restore Crownseed
+        crownseed.pos.copy(activeSnapshot.crownseed.pos);
+        crownseed.mesh.position.copy(activeSnapshot.crownseed.pos);
+        crownseed.state = activeSnapshot.crownseed.state;
+        crownseed.mesh.visible = (activeSnapshot.crownseed.state !== 'dormant' && !activeSnapshot.crownseed.delivered && !activeSnapshot.crownseed.stolen);
+        crownseed.delivered = activeSnapshot.crownseed.delivered;
+        crownseed.stolen = activeSnapshot.crownseed.stolen;
+        crownseed.lifted = activeSnapshot.crownseed.lifted;
+        crownseed.firstLifted = false; // Pending ambush timetable restarts from Crownseed's next first-lift
+        crownseed.waypointIdx = activeSnapshot.crownseed.waypointIdx;
+        crownseed.attachedWisps = [];
+
+        // Restart pending ambush timetable
+        ambushTimer = 0.0;
+        ambush1Triggered = false;
+        ambush2Triggered = false;
+        ambush3Triggered = false;
+        ambushPhase = 'none';
+
+        // Remove any ambush beetles spawned after snapshot
+        while (beetles.length > 3) {
+          const extraB = beetles.pop();
+          if (extraB && extraB.group) scene.remove(extraB.group);
+        }
+
+        // Restore beetles (beetles killed before snapshot stay dead)
+        activeSnapshot.beetles.forEach((snapB, bi) => {
+          if (bi < beetles.length) {
+            const b = beetles[bi];
+            b.alive = snapB.alive;
+            b.health = snapB.health;
+            b.group.visible = snapB.alive;
+            b.pos.copy(b.cfg.path[0]);
+            b.group.position.copy(b.pos);
+            b.targetWaypointIdx = 1;
+            b.state = 'patrolling';
+            b.hauledSeed = null;
+            b.shakeTimer = 0.0;
+            b.attachedVioletWisps = [];
+          }
+        });
+
+        // Restore bridge & briars
+        bridgeProgress = activeSnapshot.bridgeProgress;
+        bridgeCompleted = activeSnapshot.bridgeCompleted;
+        const visiblePlanks = Math.floor(bridgeProgress);
+        for (let p = 0; p < 15; p++) bridgePlanks[p].visible = (p < visiblePlanks || bridgeCompleted);
+        strandMesh.scale.z = Math.max(0.01, bridgeProgress / 15.0);
+        updateTagText(bridgeTagCanvas, bridgeCompleted ? '15/15' : `${Math.floor(bridgeProgress)}/15`, 'rgba(15, 23, 42, 0.85)', '#4ade80');
+        bridgeTagTex.needsUpdate = true;
+
+        activeSnapshot.briars.forEach((snapBr, i) => {
+          briars[i].collapsed = snapBr.collapsed;
+          briars[i].douseTimer = snapBr.douseTimer;
+          briars[i].mesh.visible = !snapBr.collapsed;
+        });
+
+        // Restore flock: "flock counts and positions (the whole flock at the ember)"
+        deathsAmber = activeSnapshot.counts.amberDead;
+        deathsCerulean = activeSnapshot.counts.ceruleanDead;
+        deathsViolet = activeSnapshot.counts.violetDead;
+        hatchedAmber = activeSnapshot.counts.amberHatched;
+        hatchedCerulean = activeSnapshot.counts.ceruleanHatched;
+        hatchedViolet = activeSnapshot.counts.violetHatched;
+
+        const emberPos = activeEmber.pos.clone();
+        wisps.forEach(w => {
+          if (activeSnapshot.livingWispsIds.includes(w.id)) {
+            w.alive = true;
+            w.state = 'following';
+            w.targetObject = null;
+            w.pos.set(
+              emberPos.x + (w.id % 4 - 1.5) * 0.5,
+              1.2 + (w.id % 3) * 0.2,
+              emberPos.z + Math.floor(w.id / 4) * 0.4
+            );
+            w.meshData.group.visible = true;
+            w.scorchTimer = 0.0;
+            w.stunTimer = 0.0;
+            w.carryingNectar = false;
+            w.meshData.dropMat.visible = false;
+            w.meshData.glintMat.visible = false;
+          } else {
+            w.alive = false;
+            w.state = 'dead';
+            w.meshData.group.visible = false;
+          }
+        });
+
+        // Undone SEED LOST & hide veil
+        seedLostTriggered = false;
+        document.getElementById('banner-seed-lost').style.display = 'none';
+        document.getElementById('veil-falter').classList.add('hidden');
+        playTone(440, 0.5, 'sine');
+      }
+
+      // --- Full Reset ---
+      function resetRun() {
+        phase = 'ready';
+        remainingTime = TOTAL_TIME;
+        activeColor = 'amber';
+        isBeamActive = false;
+        beamMat.opacity = 0.0;
+        ceruleanRecruited = false;
+        violetRecruited = false;
+        seedLostTriggered = false;
+
+        // Reset Vine Bridge
+        bridgeProgress = 0.0;
+        bridgeCompleted = false;
+        if (bridgePlanks) bridgePlanks.forEach(p => p.visible = false);
+        if (strandMesh) strandMesh.scale.set(1, 1, 0.01);
+        if (bridgeTagCanvas) {
+          updateTagText(bridgeTagCanvas, '0/15', 'rgba(15, 23, 42, 0.85)', '#4ade80');
+          bridgeTagTex.needsUpdate = true;
+        }
+
+        // Reset Night Fog
+        isFogActive = false;
+        const fogEl = document.getElementById('hud-fog');
+        if (fogEl) fogEl.classList.add('hidden');
+        if (scene && scene.fog) scene.fog.density = 0.018;
+        if (ambientLight) ambientLight.intensity = 1.2;
+        if (fogMistMat) fogMistMat.opacity = 0.0;
+        if (safeCircleRingMat) safeCircleRingMat.opacity = 0.45;
+        if (safeCircleFillMat) safeCircleFillMat.opacity = 0.04;
+
+        nectarDropsDelivered = 0;
+        dropsSinceLastHatch = 0;
+
+        deathsAmber = 0;
+        deathsCerulean = 0;
+        deathsViolet = 0;
+
+        hatchedAmber = 0;
+        hatchedCerulean = 0;
+        hatchedViolet = 0;
+
+        document.getElementById('banner-seed-lost').style.display = 'none';
+        document.getElementById('seeds-count').textContent = '0 / 4';
+        document.getElementById('crownseed-count').textContent = 'DORMANT';
+        document.getElementById('beetles-count').textContent = '3';
+
+        // Reset Embers & Night Falters (Round 7)
+        activeEmber = null;
+        activeSnapshot = null;
+        faltersCount = 0;
+        isFaltering = false;
+        falterVeilTimer = 0.0;
+        bannerEmberLitTimer = 0.0;
+        totalRunTime = 0.0;
+        totalWispSecondsWoven = 0.0;
+        briarsDousedCount = 0;
+        shadowBeetlesKilled = 0;
+        hornedBeetlesKilled = 0;
+        seedsRecoveredCount = 0;
+        crownseedGroundTime = 0.0;
+
+        document.getElementById('banner-ember-lit').classList.add('hidden');
+        document.getElementById('veil-falter').classList.add('hidden');
+        document.getElementById('ember-active').textContent = 'NONE';
+        document.getElementById('falters-count').textContent = '0';
+
+        if (typeof embers !== 'undefined' && embers) {
+          embers.forEach(e => {
+            e.lit = false;
+            e.hasWalkedAway = true;
+            e.coreMat.color.setHex(0x18181b);
+            if (e.coreMat.emissive) e.coreMat.emissive.setHex(0x000000);
+            e.light.intensity = 0.0;
+          });
+        }
+
+        // Reset Crownseed & Ambushes
+        if (typeof crownseed !== 'undefined' && crownseed) {
+          crownseed.state = 'dormant';
+          crownseed.pos.copy(CROWNSEED_START_POS);
+          crownseed.mesh.position.copy(CROWNSEED_START_POS);
+          crownseed.mesh.visible = false;
+          crownseed.attachedWisps = [];
+          crownseed.delivered = false;
+          crownseed.stolen = false;
+          crownseed.lifted = false;
+          crownseed.firstLifted = false;
+          crownseed.waypointIdx = 1;
+        }
+
+        ambushTimer = 0.0;
+        ambush1Triggered = false;
+        ambush2Triggered = false;
+        ambush3Triggered = false;
+        ambushPhase = 'none';
+        isBlooming = false;
+        bloomTimer = 0.0;
+
+        // Remove any ambush beetles beyond starting 3
+        while (beetles.length > 3) {
+          const extraB = beetles.pop();
+          if (extraB && extraB.group) scene.remove(extraB.group);
+        }
+
+        wardenGroup.position.set(0, 0, 12);
+        cameraYaw = 0.0;
+        cameraPitch = 0.35;
+
+        // Reset Seeds
+        SEED_CONFIGS.forEach((cfg, idx) => {
+          const s = seeds[idx];
+          s.weight = cfg.weight;
+          s.pos.copy(cfg.pos);
+          s.mesh.position.copy(cfg.pos);
+          s.mesh.visible = true;
+          s.attachedWisps = [];
+          s.state = 'idle';
+          s.delivered = false;
+          s.stolen = false;
+          s.lifted = false;
+        });
+
+        // Reset Briars
+        briars.forEach(b => {
+          b.collapsed = false;
+          b.mesh.visible = true;
+          b.douseTimer = 0.0;
+          b.attachedCerulean = 0;
+          b.steamMat.opacity = 0.0;
+          b.douseBeamMat.opacity = 0.0;
+        });
+
+        // Reset Beetles
+        beetles.forEach(b => {
+          b.alive = true;
+          b.health = 60;
+          b.state = 'patrolling';
+          b.pos.copy(b.cfg.path[0]);
+          b.group.position.copy(b.pos);
+          b.group.rotation.set(0, 0, 0);
+          b.group.visible = true;
+          b.hbSprite.visible = false;
+          b.targetWaypointIdx = 1;
+          b.hauledSeed = null;
+          b.shakeTimer = 0.0;
+          b.attachedVioletWisps = [];
+        });
+
+        // Remove any dynamically hatched wisps from scene
+        for (let i = 38; i < wisps.length; i++) {
+          scene.remove(wisps[i].meshData.group);
+        }
+        wisps.length = 38;
+
+        // Reset Starting Wisps: 20 Amber, 10 Cerulean, 8 Violet
+        for (let i = 0; i < 20; i++) {
+          const w = wisps[i];
+          w.alive = true;
+          w.state = 'following';
+          w.pos.set(0, 1.2, 12 + (i + 1) * 0.7);
+          w.targetObject = null;
+          w.scorchTimer = 0.0;
+          w.stunTimer = 0.0;
+          w.carryingNectar = false;
+          w.meshData.glintMat.visible = false;
+          w.meshData.dropMat.visible = false;
+          w.meshData.group.visible = true;
+        }
+        for (let i = 0; i < 10; i++) {
+          const w = wisps[20 + i];
+          const angle = (i / 10) * Math.PI * 2;
+          const pX = SPRING_POOL_POS.x + Math.cos(angle) * 2.0;
+          const pZ = SPRING_POOL_POS.z + Math.sin(angle) * 2.0;
+          w.alive = true;
+          w.state = 'idle';
+          w.pos.set(pX, 0.8, pZ);
+          w.targetObject = null;
+          w.scorchTimer = 0.0;
+          w.stunTimer = 0.0;
+          w.carryingNectar = false;
+          w.meshData.glintMat.visible = false;
+          w.meshData.dropMat.visible = false;
+          w.meshData.group.visible = true;
+        }
+        for (let i = 0; i < 8; i++) {
+          const w = wisps[30 + i];
+          const angle = (i / 8) * Math.PI * 2;
+          const pX = THISTLE_HOLLOW_POS.x + Math.cos(angle) * 1.8;
+          const pZ = THISTLE_HOLLOW_POS.z + Math.sin(angle) * 1.8;
+          w.alive = true;
+          w.state = 'idle';
+          w.pos.set(pX, 0.8, pZ);
+          w.targetObject = null;
+          w.scorchTimer = 0.0;
+          w.stunTimer = 0.0;
+          w.carryingNectar = false;
+          w.meshData.glintMat.visible = false;
+          w.meshData.dropMat.visible = false;
+          w.meshData.group.visible = true;
+        }
+
+        document.getElementById('overlay-ready').classList.remove('hidden');
+        document.getElementById('overlay-win').classList.add('hidden');
+        document.getElementById('overlay-lose').classList.add('hidden');
+        updateColorBadges();
+      }
+
+      // --- Animation & Physics Loop ---
+      let lastTimestamp = performance.now();
+
+      function syncArenaState() {
+        let livingAmber = 0;
+        let livingCerulean = 0;
+        let livingViolet = 0;
+
+        wisps.forEach(w => {
+          if (w.alive) {
+            if (w.color === 'amber') livingAmber++;
+            else if (w.color === 'cerulean') livingCerulean++;
+            else livingViolet++;
+          }
+        });
+
+        window.__arena_state = {
+          phase: phase,
+          remainingTime: parseFloat(remainingTime.toFixed(2)),
+          timeRemaining: parseFloat(remainingTime.toFixed(2)),
+          bridge: {
+            progress: parseFloat(bridgeProgress.toFixed(2)),
+            completed: bridgeCompleted,
+            workers: wisps.filter(w => w.alive && w.state === 'working').length
+          },
+          bridgeProgress: parseFloat(bridgeProgress.toFixed(2)),
+          bridgeCompleted: bridgeCompleted,
+          fog: isFogActive,
+          fogActive: isFogActive,
+          wardenPosition: {
+            x: parseFloat(wardenGroup.position.x.toFixed(3)),
+            y: parseFloat(wardenGroup.position.y.toFixed(3)),
+            z: parseFloat(wardenGroup.position.z.toFixed(3))
+          },
+          warden: {
+            position: {
+              x: parseFloat(wardenGroup.position.x.toFixed(3)),
+              y: parseFloat(wardenGroup.position.y.toFixed(3)),
+              z: parseFloat(wardenGroup.position.z.toFixed(3))
+            },
+            activeColor: activeColor,
+            beamActive: isBeamActive
+          },
+          activeColor: activeColor,
+          beamActive: isBeamActive,
+          nectar: {
+            dropsDelivered: nectarDropsDelivered,
+            currentTally: dropsSinceLastHatch,
+            target: 5
+          },
+          amberAlive: livingAmber,
+          ceruleanAlive: livingCerulean,
+          violetAlive: livingViolet,
+          amberDead: deathsAmber,
+          ceruleanDead: deathsCerulean,
+          violetDead: deathsViolet,
+          amberHatched: hatchedAmber,
+          ceruleanHatched: hatchedCerulean,
+          violetHatched: hatchedViolet,
+          counts: {
+            amberAlive: livingAmber,
+            ceruleanAlive: livingCerulean,
+            violetAlive: livingViolet,
+            amberDead: deathsAmber,
+            ceruleanDead: deathsCerulean,
+            violetDead: deathsViolet,
+            amberHatched: hatchedAmber,
+            ceruleanHatched: hatchedCerulean,
+            violetHatched: hatchedViolet
+          },
+          crownseed: {
+            state: crownseed.state,
+            position: {
+              x: parseFloat(crownseed.pos.x.toFixed(3)),
+              y: parseFloat(crownseed.pos.y.toFixed(3)),
+              z: parseFloat(crownseed.pos.z.toFixed(3))
+            },
+            attachedCount: crownseed.attachedWisps.length,
+            weight: 18,
+            lifted: crownseed.lifted,
+            delivered: crownseed.delivered,
+            stolen: crownseed.stolen
+          },
+          crownseedState: crownseed.state,
+          crownseedAttached: crownseed.attachedWisps.length,
+          ambushPhase: ambushPhase,
+          ambushTimer: parseFloat(ambushTimer.toFixed(2)),
+          ambush: {
+            phase: ambushPhase,
+            timer: parseFloat(ambushTimer.toFixed(2)),
+            ambush1Triggered: ambush1Triggered,
+            ambush2Triggered: ambush2Triggered,
+            ambush3Triggered: ambush3Triggered
+          },
+          activeEmber: activeEmber ? activeEmber.id : null,
+          activeEmberName: activeEmber ? activeEmber.name : 'NONE',
+          falters: faltersCount,
+          faltersCount: faltersCount,
+          reckoning: {
+            runTime: parseFloat(totalRunTime.toFixed(2)),
+            falters: faltersCount,
+            deathsAmber: deathsAmber,
+            deathsCerulean: deathsCerulean,
+            deathsViolet: deathsViolet,
+            hatchedAmber: hatchedAmber,
+            hatchedCerulean: hatchedCerulean,
+            violetHatched: hatchedViolet,
+            nectarDropsDelivered: nectarDropsDelivered,
+            bridgeWispSecondsWoven: parseFloat(totalWispSecondsWoven.toFixed(2)),
+            briarsDoused: briarsDousedCount,
+            shadowBeetlesKilled: shadowBeetlesKilled,
+            hornedBeetlesKilled: hornedBeetlesKilled,
+            seedsRecovered: seedsRecoveredCount,
+            crownseedGroundTime: parseFloat(crownseedGroundTime.toFixed(2))
+          },
+          embers: (typeof embers !== 'undefined' && embers) ? embers.map(e => ({
+            id: e.id,
+            name: e.name,
+            lit: e.lit,
+            position: {
+              x: parseFloat(e.pos.x.toFixed(3)),
+              y: parseFloat(e.pos.y.toFixed(3)),
+              z: parseFloat(e.pos.z.toFixed(3))
+            }
+          })) : [],
+          beetles: beetles.map(b => ({
+            id: b.id,
+            type: b.type || (b.isHorned ? 'horned' : 'shadow'),
+            health: b.health,
+            state: b.state,
+            position: {
+              x: parseFloat(b.pos.x.toFixed(3)),
+              y: parseFloat(b.pos.y.toFixed(3)),
+              z: parseFloat(b.pos.z.toFixed(3))
+            },
+            hauledSeedId: b.hauledSeed ? b.hauledSeed.id : null
+          })),
+          wisps: wisps.map(w => ({
+            id: w.id,
+            color: w.color,
+            alive: w.alive,
+            state: w.state,
+            position: {
+              x: parseFloat(w.pos.x.toFixed(3)),
+              y: parseFloat(w.pos.y.toFixed(3)),
+              z: parseFloat(w.pos.z.toFixed(3))
+            }
+          })),
+          seeds: seeds.map(s => ({
+            id: s.id,
+            name: s.name,
+            weight: s.weight,
+            attachedCount: s.attachedWisps.length,
+            state: s.state,
+            delivered: s.delivered,
+            lifted: s.lifted,
+            stolen: s.stolen,
+            position: {
+              x: parseFloat(s.pos.x.toFixed(3)),
+              y: parseFloat(s.pos.y.toFixed(3)),
+              z: parseFloat(s.pos.z.toFixed(3))
+            }
+          })),
+          briars: briars.map(b => ({
+            id: b.id,
+            collapsed: b.collapsed,
+            attachedCerulean: b.attachedCerulean,
+            douseTimer: parseFloat(b.douseTimer.toFixed(2)),
+            position: {
+              x: parseFloat(b.pos.x.toFixed(3)),
+              y: parseFloat(b.pos.y.toFixed(3)),
+              z: parseFloat(b.pos.z.toFixed(3))
+            }
+          }))
+        };
+      }
+
+      function update(dt) {
+        dt = Math.min(dt, 0.05);
+
+        // Always update camera follow
+        const camDistance = 8.5;
+        const camHeight = 3.6 + cameraPitch * 3.0;
+        const targetCamPos = new THREE.Vector3(
+          wardenGroup.position.x - Math.sin(cameraYaw) * camDistance * Math.cos(cameraPitch),
+          wardenGroup.position.y + camHeight,
+          wardenGroup.position.z - Math.cos(cameraYaw) * camDistance * Math.cos(cameraPitch)
+        );
+        camera.position.lerp(targetCamPos, 0.15);
+        camera.lookAt(wardenGroup.position.x, wardenGroup.position.y + 1.6, wardenGroup.position.z);
+
+        if (phase !== 'playing') {
+          syncArenaState();
+          return;
+        }
+
+        // Night Falters Veil State (2-second pause before rewinding to snapshot)
+        if (isFaltering) {
+          falterVeilTimer -= dt;
+          if (falterVeilTimer <= 0) {
+            isFaltering = false;
+            executeEmberRewind();
+          }
+          syncArenaState();
+          return;
+        }
+
+        totalRunTime += dt;
+
+        if (bannerEmberLitTimer > 0) {
+          bannerEmberLitTimer -= dt;
+          if (bannerEmberLitTimer <= 0) {
+            document.getElementById('banner-ember-lit').classList.add('hidden');
+          }
+        }
+
+        // --- Heartwood Embers Interaction ---
+        embers.forEach(e => {
+          const distToWarden = wardenGroup.position.distanceTo(e.pos);
+          if (distToWarden >= 10.0) {
+            e.hasWalkedAway = true;
+          }
+          if (distToWarden <= 2.0 && e.hasWalkedAway) {
+            e.lit = true;
+            e.hasWalkedAway = false;
+            activeEmber = e;
+            document.getElementById('ember-active').textContent = e.name;
+
+            e.coreMat.color.setHex(0xfef08a);
+            if (e.coreMat.emissive) e.coreMat.emissive.setHex(0xf59e0b);
+            e.light.intensity = 2.4;
+            playTone(880, 0.4, 'sine');
+            setTimeout(() => playTone(1100, 0.4, 'sine'), 120);
+
+            document.getElementById('banner-ember-lit').classList.remove('hidden');
+            bannerEmberLitTimer = 2.0;
+
+            let snapAmber = 0, snapCerulean = 0, snapViolet = 0;
+            wisps.forEach(w => {
+              if (w.alive) {
+                if (w.color === 'amber') snapAmber++;
+                else if (w.color === 'cerulean') snapCerulean++;
+                else snapViolet++;
+              }
+            });
+
+            activeSnapshot = {
+              remainingTime: remainingTime,
+              wardenPos: wardenGroup.position.clone(),
+              wardenRotY: wardenGroup.rotation.y,
+              deliveredCount: deliveredCount,
+              seeds: seeds.map(s => ({
+                id: s.id,
+                pos: s.pos.clone(),
+                state: s.state,
+                delivered: s.delivered,
+                stolen: s.stolen,
+                lifted: s.lifted
+              })),
+              crownseed: {
+                state: crownseed.state,
+                pos: crownseed.pos.clone(),
+                delivered: crownseed.delivered,
+                stolen: crownseed.stolen,
+                lifted: crownseed.lifted,
+                firstLifted: crownseed.firstLifted,
+                waypointIdx: crownseed.waypointIdx
+              },
+              counts: {
+                amberDead: deathsAmber,
+                ceruleanDead: deathsCerulean,
+                violetDead: deathsViolet,
+                amberHatched: hatchedAmber,
+                ceruleanHatched: hatchedCerulean,
+                violetHatched: hatchedViolet
+              },
+              livingWispsIds: wisps.filter(w => w.alive).map(w => w.id),
+              bridgeProgress: bridgeProgress,
+              bridgeCompleted: bridgeCompleted,
+              briars: briars.map(b => ({
+                id: b.id,
+                collapsed: b.collapsed,
+                douseTimer: b.douseTimer
+              })),
+              beetles: beetles.map(b => ({
+                id: b.id,
+                alive: b.alive,
+                health: b.health,
+                type: b.type,
+                isHorned: b.isHorned
+              }))
+            };
+          }
+        });
+
+        remainingTime = Math.max(0, remainingTime - dt);
+        if (remainingTime <= 0) {
+          phase = 'dawn';
+          document.getElementById('lose-reason').textContent = seedLostTriggered
+            ? "A sacred seed was stolen into the shadows, and dawn has broken."
+            : "The night has passed and the light fades before the grove could be saved.";
+          document.getElementById('overlay-lose').classList.remove('hidden');
+          if (isPointerLocked) document.exitPointerLock();
+        }
+
+        // --- Night Fog Schedule & Environment ---
+        // Active from 240 down to 210, and 150 down to 100
+        const prevFog = isFogActive;
+        isFogActive = (remainingTime <= 240.0 && remainingTime >= 210.0) || (remainingTime <= 150.0 && remainingTime >= 100.0);
+
+        const fogEl = document.getElementById('hud-fog');
+        if (isFogActive) {
+          fogEl.classList.remove('hidden');
+          scene.fog.density = THREE.MathUtils.lerp(scene.fog.density, 0.046, 0.05);
+          ambientLight.intensity = THREE.MathUtils.lerp(ambientLight.intensity, 0.75, 0.05);
+          fogMistMat.opacity = THREE.MathUtils.lerp(fogMistMat.opacity, 0.45, 0.05);
+          safeCircleRingMat.opacity = 0.85;
+          safeCircleFillMat.opacity = 0.12;
+
+          const pArr = fogMistGeo.attributes.position.array;
+          for (let i = 0; i < fogMistCount; i++) {
+            pArr[i * 3 + 2] += dt * 1.5;
+            if (pArr[i * 3 + 2] > GROVE_RADIUS) pArr[i * 3 + 2] = -70.0;
+          }
+          fogMistGeo.attributes.position.needsUpdate = true;
+        } else {
+          fogEl.classList.add('hidden');
+          scene.fog.density = THREE.MathUtils.lerp(scene.fog.density, 0.018, 0.05);
+          ambientLight.intensity = THREE.MathUtils.lerp(ambientLight.intensity, 1.2, 0.05);
+          fogMistMat.opacity = THREE.MathUtils.lerp(fogMistMat.opacity, 0.0, 0.05);
+          safeCircleRingMat.opacity = 0.45;
+          safeCircleFillMat.opacity = 0.04;
+        }
+
+        // Safe Circle follows warden position
+        safeCircleGroup.position.set(wardenGroup.position.x, 0.04, wardenGroup.position.z);
+
+        // --- Vine Bridge Works Update ---
+        let bridgeWorkersCount = 0;
+        wisps.forEach(w => {
+          if (w.alive && w.state === 'working') bridgeWorkersCount++;
+        });
+
+        if (bridgeProgress < 15.0) {
+          const wispSecDelta = bridgeWorkersCount * 1.0 * dt;
+          totalWispSecondsWoven += wispSecDelta;
+          bridgeProgress = Math.min(15.0, bridgeProgress + wispSecDelta);
+          const visiblePlanks = Math.floor(bridgeProgress);
+          for (let p = 0; p < 15; p++) {
+            bridgePlanks[p].visible = (p < visiblePlanks);
+          }
+          strandMesh.scale.z = Math.max(0.01, bridgeProgress / 15.0);
+          strandMat.opacity = 0.35 + (bridgeProgress / 15.0) * 0.55;
+          updateTagText(bridgeTagCanvas, `${Math.floor(bridgeProgress)}/15`, 'rgba(15, 23, 42, 0.85)', '#4ade80');
+          bridgeTagTex.needsUpdate = true;
+
+          if (bridgeProgress >= 15.0) {
+            bridgeCompleted = true;
+            for (let p = 0; p < 15; p++) bridgePlanks[p].visible = true;
+            strandMesh.scale.z = 1.0;
+            updateTagText(bridgeTagCanvas, '15/15', 'rgba(6, 78, 59, 0.95)', '#86efac');
+            bridgeTagTex.needsUpdate = true;
+            playTone(880, 0.5, 'sine');
+            wisps.forEach(w => {
+              if (w.alive && w.state === 'working') {
+                w.state = 'following';
+                w.targetObject = null;
+              }
+            });
+          }
+        }
+
+        // --- Recruitment Checks ---
+        if (!ceruleanRecruited && wardenGroup.position.distanceTo(SPRING_POOL_POS) <= 3.2) {
+          ceruleanRecruited = true;
+          for (let i = 20; i < 30; i++) {
+            if (wisps[i].alive && wisps[i].state === 'idle') wisps[i].state = 'following';
+          }
+          playTone(880, 0.4, 'sine');
+        }
+
+        if (!violetRecruited && wardenGroup.position.distanceTo(THISTLE_HOLLOW_POS) <= 3.2) {
+          violetRecruited = true;
+          for (let i = 30; i < 38; i++) {
+            if (wisps[i].alive && wisps[i].state === 'idle') wisps[i].state = 'following';
+          }
+          playTone(960, 0.4, 'sine');
+        }
+
+        // --- Warden Movement & Collision ---
+        const moveDir = new THREE.Vector3();
+        if (keys['KeyW']) moveDir.z -= 1;
+        if (keys['KeyS']) moveDir.z += 1;
+        if (keys['KeyA']) moveDir.x -= 1;
+        if (keys['KeyD']) moveDir.x += 1;
+
+        const isMoving = moveDir.lengthSq() > 0.001;
+
+        if (isMoving) {
+          moveDir.normalize();
+          const sinY = Math.sin(cameraYaw);
+          const cosY = Math.cos(cameraYaw);
+          const worldDir = new THREE.Vector3(
+            moveDir.x * cosY + moveDir.z * sinY,
+            0,
+            -moveDir.x * sinY + moveDir.z * cosY
+          );
+
+          const nextPos = wardenGroup.position.clone().addScaledVector(worldDir, WARDEN_SPEED * dt);
+
+          let blocked = false;
+
+          // Ravine & Bridge Crossing: ravine runs z in [-44.0, -34.5]
+          if (nextPos.z < -34.5 && nextPos.z > -44.0) {
+            if (bridgeCompleted && Math.abs(nextPos.x) <= 2.0) {
+              // Validly crossing on bridge
+            } else {
+              blocked = true; // Ravine blocks
+            }
+          } else if (nextPos.z <= -44.0) {
+            // In Northern Grove
+            if (!bridgeCompleted && nextPos.z < -34.5) {
+              blocked = true;
+            } else {
+              const dNorth = Math.sqrt(nextPos.x * nextPos.x + (nextPos.z - NORTH_GROVE_CENTER.z) * (nextPos.z - NORTH_GROVE_CENTER.z));
+              if (dNorth > NORTH_GROVE_RADIUS - 1.2) blocked = true;
+            }
+          } else {
+            // In Main Grove
+            const dMain = Math.sqrt(nextPos.x * nextPos.x + nextPos.z * nextPos.z);
+            if (dMain > GROVE_RADIUS - 1.2) {
+              if (nextPos.z < -33.0 && Math.abs(nextPos.x) < 3.0) {
+                // Bridge approach path
+              } else {
+                blocked = true;
+              }
+            }
+          }
+
+          if (isPointInStream(nextPos)) blocked = true;
+          if (isPointBlockedByBriar(nextPos, 1.2)) blocked = true;
+
+          // Hollow Entrance barrier roots
+          if (nextPos.x > 0.0 && nextPos.x < 1.4 && nextPos.z > 8.0 && nextPos.z < 16.0) blocked = true;
+          if (nextPos.x > 6.6 && nextPos.x < 8.0 && nextPos.z > 8.0 && nextPos.z < 16.0) blocked = true;
+
+          // Heartwood Trunk
+          if (new THREE.Vector2(nextPos.x, nextPos.z).length() < 2.8) blocked = true;
+
+          if (!blocked) wardenGroup.position.copy(nextPos);
+
+          const targetAngle = Math.atan2(worldDir.x, worldDir.z);
+          wardenGroup.rotation.y = THREE.MathUtils.lerp(wardenGroup.rotation.y, targetAngle, 0.2);
+
+          const runCycle = performance.now() * 0.012;
+          leftLeg.position.z = Math.sin(runCycle) * 0.25;
+          rightLeg.position.z = -Math.sin(runCycle) * 0.25;
+          leftArm.position.z = -Math.sin(runCycle) * 0.2;
+          rightArm.position.z = Math.sin(runCycle) * 0.2;
+          cloak.rotation.x = -0.45 + Math.sin(runCycle * 2) * 0.1;
+        } else {
+          const idleCycle = performance.now() * 0.003;
+          leftLeg.position.z = 0;
+          rightLeg.position.z = 0;
+          leftArm.position.z = 0;
+          rightArm.position.z = 0;
+          cloak.rotation.x = THREE.MathUtils.lerp(cloak.rotation.x, -0.05, 0.1);
+          torso.position.y = 1.25 + Math.sin(idleCycle) * 0.03;
+        }
+
+        // Lantern Pose & Gathering Beam
+        // While holding F, lantern is raised high and gathering beam is cast
+        const lanternArmAngle = isBeamActive ? -0.85 : (isMoving ? 0.25 : 0.0);
+        rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, lanternArmAngle, 0.2);
+        lanternGroup.position.y = isBeamActive ? 2.3 : 1.9;
+        lanternGroup.position.z = isBeamActive ? 0.5 : 0.35;
+        lanternGroup.rotation.z = Math.sin(performance.now() * 0.008) * 0.08;
+        wardenLanternLight.intensity = isBeamActive ? 3.0 : (1.7 + Math.sin(performance.now() * 0.02) * 0.3);
+
+        // Position and Orient Gathering Beam Cone
+        const lanternWorldPos = new THREE.Vector3();
+        lanternGroup.getWorldPosition(lanternWorldPos);
+
+        // Aim beam in camera forward direction
+        const beamDir = new THREE.Vector3();
+        camera.getWorldDirection(beamDir);
+
+        beamMesh.position.copy(lanternWorldPos);
+        const lookTarget = lanternWorldPos.clone().add(beamDir);
+        beamMesh.lookAt(lookTarget);
+
+        // --- Lantern Gathering Beam Logic ---
+        if (isBeamActive) {
+          const wardenFeet = wardenGroup.position.clone();
+          wardenFeet.y = 0.5;
+
+          wisps.forEach(w => {
+            if (!w.alive) return;
+            if (w.state === 'following' || w.state === 'dead') return;
+            if (w.state === 'stunned') return; // Stunned wisps are not moved by the beam
+
+            // Check if wisp is inside the 12-unit cone with 25-degree half-angle
+            const toWisp = w.pos.clone().sub(lanternWorldPos);
+            const dist = toWisp.length();
+
+            if (dist <= BEAM_RANGE) {
+              const toWispDir = toWisp.clone().normalize();
+              const angle = beamDir.angleTo(toWispDir);
+
+              if (angle <= BEAM_HALF_ANGLE) {
+                // Inside the cone! Detach from any task and begin drift to warden's feet
+                if (w.state === 'attached' || w.state === 'carrying') {
+                  if (w.targetObject && w.targetObject.attachedWisps) {
+                    const idx = w.targetObject.attachedWisps.indexOf(w);
+                    if (idx !== -1) w.targetObject.attachedWisps.splice(idx, 1);
+                  }
+                  if (w.targetObject && w.targetObject.attachedVioletWisps) {
+                    const bIdx = w.targetObject.attachedVioletWisps.indexOf(w);
+                    if (bIdx !== -1) w.targetObject.attachedVioletWisps.splice(bIdx, 1);
+                  }
+                }
+                w.state = 'beam_drift';
+                w.targetObject = null;
+                w.carryingNectar = false;
+                w.meshData.dropMat.visible = false;
+              }
+            }
+          });
+        }
+
+        // Process Wisps in 'beam_drift' (drifting to warden's feet at 6 u/s, complete return even if F released)
+        const wardenFeetPos = wardenGroup.position.clone().setY(0.6);
+        wisps.forEach(w => {
+          if (w.alive && w.state === 'beam_drift') {
+            const toFeet = wardenFeetPos.clone().sub(w.pos);
+            const dist = toFeet.length();
+            if (dist <= 0.8) {
+              w.state = 'following';
+            } else {
+              toFeet.normalize();
+              w.pos.addScaledVector(toFeet, BEAM_DRIFT_SPEED * dt);
+            }
+          }
+        });
+
+        // --- Ember Briars Logic (Dousing) ---
+        briars.forEach(b => {
+          if (b.collapsed) return;
+
+          let attachedCeruleanCount = 0;
+          wisps.forEach(w => {
+            if (w.alive && w.color === 'cerulean' && w.state === 'attached' && w.targetObject === b) {
+              attachedCeruleanCount++;
+            }
+          });
+          b.attachedCerulean = attachedCeruleanCount;
+
+          if (attachedCeruleanCount >= 4) {
+            b.douseTimer += dt;
+            b.steamMat.opacity = 0.0;
+            b.douseBeamMat.opacity = 0.75;
+            b.douseBeam.rotation.y += 0.05;
+
+            updateTagText(b.tagCanvas, `${attachedCeruleanCount}/4`, 'rgba(14, 116, 144, 0.9)', '#67e8f9');
+            b.emberLight.intensity = Math.max(0.3, 2.2 - (b.douseTimer / 3.0) * 1.8);
+
+            if (b.douseTimer >= 3.0) {
+              b.collapsed = true;
+              b.mesh.visible = false;
+              briarsDousedCount++;
+              playTone(330, 0.6, 'sawtooth');
+
+              wisps.forEach(w => {
+                if (w.alive && w.targetObject === b) {
+                  w.state = 'following';
+                  w.targetObject = null;
+                }
+              });
+            }
+          } else {
+            b.douseTimer = 0.0;
+            b.douseBeamMat.opacity = 0.0;
+            if (attachedCeruleanCount > 0) {
+              b.steamMat.opacity = 0.4 + Math.sin(performance.now() * 0.01) * 0.2;
+              b.steamMesh.position.y = 1.8 + Math.sin(performance.now() * 0.005) * 0.3;
+            } else {
+              b.steamMat.opacity = 0.0;
+            }
+            updateTagText(b.tagCanvas, `${attachedCeruleanCount}/4`, 'rgba(69, 10, 10, 0.85)', '#f87171');
+            b.emberLight.intensity = 2.2;
+          }
+          b.tagTex.needsUpdate = true;
+        });
+
+        // --- Shadow Beetles Logic & AI ---
+        let aliveBeetlesCount = 0;
+        beetles.forEach(b => {
+          if (!b.alive) {
+            b.group.visible = false;
+            return;
+          }
+          aliveBeetlesCount++;
+
+          const bitingCount = b.attachedVioletWisps.length;
+          if (bitingCount > 0) {
+            const damage = bitingCount * 2.0 * dt;
+            b.health = Math.max(0, b.health - damage);
+
+            b.hbSprite.visible = true;
+            updateHealthBar(b.hbCanvas, b.health, b.maxHealth || 60);
+            b.hbTex.needsUpdate = true;
+
+            b.shakeTimer += dt;
+            const currentShakeInterval = b.shakeInterval || 5.0;
+            if (b.shakeTimer >= currentShakeInterval) {
+              b.shakeTimer = 0.0;
+              playTone(300, 0.4, 'triangle', 0.25);
+
+              if (b.hauledSeed) {
+                b.hauledSeed.pos.copy(b.pos);
+                b.hauledSeed.mesh.position.copy(b.pos);
+                if (b.hauledSeed === crownseed) crownseed.state = 'awakened';
+                b.hauledSeed = null;
+                b.state = 'patrolling';
+                seedsRecoveredCount++;
+              }
+
+              const flunkList = [...b.attachedVioletWisps];
+              b.attachedVioletWisps = [];
+              flunkList.forEach((w, idx) => {
+                const fAngle = (idx / flunkList.length) * Math.PI * 2;
+                const fTarget = b.pos.clone().add(new THREE.Vector3(Math.cos(fAngle) * 3.5, 0.8, Math.sin(fAngle) * 3.5));
+                w.state = 'stunned';
+                w.targetObject = null;
+                w.stunTimer = 3.0;
+                w.pos.copy(fTarget);
+                w.meshData.glintMat.visible = true;
+              });
+            }
+          } else {
+            b.shakeTimer = 0.0;
+            if (b.health < (b.maxHealth || 60) || b.hauledSeed) {
+              b.hbSprite.visible = true;
+              updateHealthBar(b.hbCanvas, b.health, b.maxHealth || 60);
+              b.hbTex.needsUpdate = true;
+            } else {
+              b.hbSprite.visible = false;
+            }
+          }
+
+          if (b.health <= 0) {
+            b.alive = false;
+            b.state = 'dead';
+            b.group.visible = false;
+            playTone(180, 0.6, 'sawtooth');
+
+            if (b.isHorned) hornedBeetlesKilled++;
+            else shadowBeetlesKilled++;
+
+            if (b.hauledSeed) {
+              b.hauledSeed.pos.copy(b.pos);
+              b.hauledSeed.mesh.position.copy(b.pos);
+              if (b.hauledSeed === crownseed) crownseed.state = 'awakened';
+              b.hauledSeed = null;
+              seedsRecoveredCount++;
+            }
+
+            b.attachedVioletWisps.forEach(w => {
+              w.state = 'following';
+              w.targetObject = null;
+            });
+            b.attachedVioletWisps = [];
+            return;
+          }
+
+          // Ambush beetle preference for Crownseed:
+          // while the Crownseed is grounded (attached count below weight), every ambush beetle within 12 units converges on it
+          if (b.isAmbush && !b.hauledSeed && crownseed.state !== 'dormant' && !crownseed.delivered && !crownseed.stolen) {
+            if (!crownseed.lifted && b.pos.distanceTo(crownseed.pos) <= 12.0) {
+              b.state = 'hunting_crown';
+            }
+          }
+
+          if (b.state === 'hunting_crown') {
+            if (crownseed.lifted || crownseed.delivered || crownseed.stolen) {
+              b.state = 'patrolling';
+            } else {
+              targetDest = crownseed.pos;
+              if (b.pos.distanceTo(crownseed.pos) < 2.0) {
+                b.hauledSeed = crownseed;
+                b.state = 'hauling';
+                crownseed.state = 'hauling';
+                playTone(260, 0.3, 'square');
+              }
+            }
+          }
+
+          // Steal unlifted seeds (respects new weights: attachedCount < weight)
+          if (!b.hauledSeed && b.state === 'patrolling') {
+            // Check Crownseed if nearby and grounded
+            if (crownseed.state !== 'dormant' && !crownseed.delivered && !crownseed.stolen && !crownseed.lifted) {
+              if (b.pos.distanceTo(crownseed.pos) <= 6.0) {
+                b.state = 'hunting_crown';
+              }
+            }
+            if (b.state === 'patrolling') {
+              for (let s of seeds) {
+                if (!s.delivered && !s.stolen && !s.lifted) {
+                  if (b.pos.distanceTo(s.pos) <= 6.0) {
+                    b.state = 'hunting';
+                    b.targetHuntSeed = s;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+
+          let targetDest = null;
+          let currentSpeed = b.cfg.speed;
+
+          if (b.state === 'patrolling') {
+            const currentPath = (isFogActive && b.cfg.fogPath) ? b.cfg.fogPath : b.cfg.path;
+            if (prevFog !== isFogActive) {
+              // Fog transitioned this frame! Pick closest waypoint on the active loop
+              let closestIdx = 0;
+              let minDist = Infinity;
+              for (let pi = 0; pi < currentPath.length; pi++) {
+                const d = b.pos.distanceTo(currentPath[pi]);
+                if (d < minDist) { minDist = d; closestIdx = pi; }
+              }
+              b.targetWaypointIdx = closestIdx;
+            }
+            targetDest = currentPath[b.targetWaypointIdx % currentPath.length];
+            if (b.pos.distanceTo(targetDest) < 1.0) {
+              b.targetWaypointIdx = (b.targetWaypointIdx + 1) % currentPath.length;
+              targetDest = currentPath[b.targetWaypointIdx % currentPath.length];
+            }
+          } else if (b.state === 'hunting') {
+            const s = b.targetHuntSeed;
+            if (!s || s.delivered || s.stolen || s.lifted) {
+              b.state = 'patrolling';
+              b.targetHuntSeed = null;
+            } else {
+              targetDest = s.pos;
+              if (b.pos.distanceTo(s.pos) < 1.5) {
+                b.hauledSeed = s;
+                b.state = 'hauling';
+                b.targetHuntSeed = null;
+                playTone(260, 0.3, 'square');
+              }
+            }
+          } else if (b.state === 'hauling') {
+            // A hauling beetle moves the Crownseed at only 0.6 units per second!
+            currentSpeed = (b.hauledSeed === crownseed) ? 0.6 : b.cfg.haulSpeed;
+            targetDest = b.cfg.burrow.pos;
+
+            const headForward = new THREE.Vector3(0, 0, 1.6).applyAxisAngle(new THREE.Vector3(0, 1, 0), b.group.rotation.y);
+            b.hauledSeed.pos.copy(b.pos).add(headForward);
+            b.hauledSeed.pos.y = (b.hauledSeed === crownseed) ? 0.9 : 0.7;
+            b.hauledSeed.mesh.position.copy(b.hauledSeed.pos);
+
+            if (b.pos.distanceTo(b.cfg.burrow.pos) < 2.0) {
+              b.hauledSeed.stolen = true;
+              b.hauledSeed.mesh.visible = false;
+              b.hauledSeed = null;
+              b.state = 'patrolling';
+              seedLostTriggered = true;
+              document.getElementById('banner-seed-lost').style.display = 'block';
+              playTone(150, 0.8, 'sawtooth', 0.35);
+              triggerNightFalter();
+            }
+          }
+
+          if (targetDest) {
+            const moveVec = targetDest.clone().sub(b.pos);
+            moveVec.y = 0;
+            if (moveVec.lengthSq() > 0.001) {
+              moveVec.normalize();
+              b.pos.addScaledVector(moveVec, currentSpeed * dt);
+              b.group.position.copy(b.pos);
+
+              const faceAngle = Math.atan2(moveVec.x, moveVec.z);
+              b.group.rotation.y = THREE.MathUtils.lerp(b.group.rotation.y, faceAngle, 0.15);
+
+              const legFreq = (b.state === 'hauling') ? 0.01 : 0.016;
+              const legCycle = performance.now() * legFreq;
+              b.legs.forEach((leg, idx) => {
+                const phaseShift = (idx % 2 === 0 ? 0 : Math.PI) + Math.floor(idx / 2) * 1.0;
+                leg.rotation.x = Math.sin(legCycle + phaseShift) * 0.35;
+              });
+            }
+          }
+
+          // Warden Safe Circle avoidance (radius 6.0 on ground)
+          // A beetle whose head enters the circle recoils to the circle's rim and skirts around it
+          const bDx = b.pos.x - wardenGroup.position.x;
+          const bDz = b.pos.z - wardenGroup.position.z;
+          const bDistToWarden = Math.sqrt(bDx * bDx + bDz * bDz);
+          if (bDistToWarden < 6.0) {
+            const nx = bDx / (bDistToWarden || 1);
+            const nz = bDz / (bDistToWarden || 1);
+            b.pos.x = wardenGroup.position.x + nx * 6.05;
+            b.pos.z = wardenGroup.position.z + nz * 6.05;
+            b.group.position.copy(b.pos);
+          }
+
+          // Beetle Head Wisp Predation
+          const headPos = b.pos.clone().add(new THREE.Vector3(0, 0.65, 1.4).applyAxisAngle(new THREE.Vector3(0, 1, 0), b.group.rotation.y));
+          wisps.forEach(w => {
+            if (!w.alive) return;
+            if (w.state === 'attached' && w.targetObject === b) return;
+
+            // Never snap a wisp inside the warden's safe circle (radius 6.0)
+            const wDistToWarden = w.pos.distanceTo(wardenGroup.position);
+            if (wDistToWarden <= 6.0) return;
+
+            // Outside the safe circle:
+            // During fog, follow hover no longer protects wisps in the follow line!
+            // When not in fog, follow hover protects following wisps.
+            if (!isFogActive && w.state === 'following') return;
+
+            if (w.pos.distanceTo(headPos) < 1.1) {
+              w.alive = false;
+              w.state = 'dead';
+              w.meshData.group.visible = false;
+              if (w.color === 'amber') deathsAmber++;
+              else if (w.color === 'cerulean') deathsCerulean++;
+              else deathsViolet++;
+              playTone(190, 0.35, 'sawtooth', 0.25);
+            }
+          });
+        });
+
+        // --- Sacred Seeds Logic & Three-Tier Carrying Speeds ---
+        // Exactly 1.2 u/s for [weight, weight + 2]
+        // Exactly 2.4 u/s for [weight + 3, weight + 5]
+        // Exactly 3.6 u/s for [weight + 6...]
+        let deliveredCount = 0;
+        seeds.forEach(s => {
+          if (s.delivered) {
+            deliveredCount++;
+            return;
+          }
+          if (s.stolen) return;
+
+          const attachedCount = s.attachedWisps.length;
+          s.lifted = (attachedCount >= s.weight);
+
+          updateTagText(s.tagCanvas, `${attachedCount}/${s.weight}`, s.lifted ? 'rgba(6, 78, 59, 0.9)' : 'rgba(30, 41, 59, 0.85)');
+          s.tagTex.needsUpdate = true;
+
+          s.attachedWisps.forEach((w, idx) => {
+            const angle = (idx / attachedCount) * Math.PI * 2 + performance.now() * 0.002;
+            const ringRadius = 1.25;
+            w.pos.set(
+              s.pos.x + Math.cos(angle) * ringRadius,
+              s.pos.y + 0.35 + (attachedCount < s.weight ? Math.sin(performance.now() * 0.02 + idx) * 0.1 : 0),
+              s.pos.z + Math.sin(angle) * ringRadius
+            );
+            w.state = s.lifted ? 'carrying' : 'attached';
+          });
+
+          let beingHauled = false;
+          for (let b of beetles) {
+            if (b.hauledSeed === s) {
+              beingHauled = true;
+              break;
+            }
+          }
+          if (beingHauled) return;
+
+          if (s.lifted) {
+            s.mesh.position.y = 1.05;
+
+            // Three-tier carry speed calculation
+            let speed = 1.2;
+            if (attachedCount >= s.weight + 6) {
+              speed = 3.6;
+            } else if (attachedCount >= s.weight + 3) {
+              speed = 2.4;
+            }
+
+            const toPed = PEDESTAL_POS.clone().sub(s.pos);
+            toPed.y = 0;
+            const distToPed = toPed.length();
+
+            if (distToPed < 1.6) {
+              s.delivered = true;
+              s.mesh.visible = false;
+              s.state = 'delivered';
+              s.lifted = false;
+              playTone(880, 0.5, 'sine');
+
+              s.attachedWisps.forEach(w => {
+                w.state = 'following';
+                w.targetObject = null;
+              });
+              s.attachedWisps = [];
+            } else {
+              toPed.normalize();
+              let moveVector = toPed.clone();
+
+              // If seed is in Northern Grove or crossing bridge
+              if (s.pos.z < -34.5) {
+                if (s.pos.z < -44.0) {
+                  // Heading towards northern bridge entrance (0, 0, -43.5)
+                  const toBridgeN = new THREE.Vector3(0, 0, -43.5).sub(s.pos);
+                  toBridgeN.y = 0;
+                  if (toBridgeN.length() > 0.6) moveVector = toBridgeN.normalize();
+                } else {
+                  // Crossing bridge towards south anchor (0, 0, -34.0)
+                  if (!bridgeCompleted) {
+                    moveVector.set(0, 0, 0); // Cannot cross unfinished bridge
+                  } else {
+                    const toBridgeS = new THREE.Vector3(0, 0, -34.0).sub(s.pos);
+                    toBridgeS.y = 0;
+                    if (toBridgeS.length() > 0.6) moveVector = toBridgeS.normalize();
+                  }
+                }
+              } else if (s.pos.z < STREAM_Z - 0.5) {
+                const targetFord = FORDS[1];
+                const toFord = new THREE.Vector3(targetFord.x, 0, targetFord.z).sub(s.pos);
+                toFord.y = 0;
+                if (toFord.length() > 0.8) moveVector = toFord.normalize();
+              }
+
+              const nextSeedPos = s.pos.clone().addScaledVector(moveVector, speed * dt);
+
+              if (isPointBlockedByBriar(nextSeedPos, 1.2)) {
+                s.state = 'lifting';
+              } else {
+                s.pos.copy(nextSeedPos);
+                s.mesh.position.x = s.pos.x;
+                s.mesh.position.z = s.pos.z;
+                s.state = 'moving';
+              }
+            }
+          } else {
+            s.mesh.position.y = 0.5;
+            s.state = 'idle';
+          }
+        });
+
+        // --- Nectar Drops Loop & Wisp Hatching ---
+        // A wisp in 'nectar_drop' loops between Nectar Spring and Pedestal
+        wisps.forEach(w => {
+          if (!w.alive || w.state !== 'nectar_drop') return;
+
+          const NECTAR_FLY_SPEED = 4.0; // exactly 4 units/sec
+
+          if (w.carryingNectar) {
+            // Flying to Heartwood Pedestal
+            const toPed = PEDESTAL_POS.clone().add(new THREE.Vector3(0, 1.2, 0)).sub(w.pos);
+            const dist = toPed.length();
+            if (dist <= 0.6) {
+              // Delivered nectar drop!
+              w.carryingNectar = false;
+              w.meshData.dropMat.visible = false;
+              nectarDropsDelivered++;
+              dropsSinceLastHatch++;
+              playTone(660, 0.15, 'triangle');
+
+              // Check Hatching: every 5 drops hatches 1 wisp of color that delivered 5th drop
+              if (dropsSinceLastHatch >= 5) {
+                dropsSinceLastHatch = 0;
+                const hatchColor = w.color;
+                const newWisp = instantiateWisp(nextWispId++, hatchColor, PEDESTAL_POS.clone().setY(1.5), 'following');
+                wisps.push(newWisp);
+
+                if (hatchColor === 'amber') hatchedAmber++;
+                else if (hatchColor === 'cerulean') hatchedCerulean++;
+                else hatchedViolet++;
+
+                playTone(1080, 0.4, 'sine', 0.25);
+              }
+            } else {
+              toPed.normalize();
+              w.pos.addScaledVector(toPed, NECTAR_FLY_SPEED * dt);
+            }
+          } else {
+            // Returning to Nectar Spring
+            const toSpring = NECTAR_SPRING_POS.clone().add(new THREE.Vector3(0, 1.0, 0)).sub(w.pos);
+            const dist = toSpring.length();
+            if (dist <= 0.6) {
+              // Scooped another drop!
+              w.carryingNectar = true;
+              w.meshData.dropMat.visible = true;
+              playTone(540, 0.1, 'sine');
+            } else {
+              toSpring.normalize();
+              w.pos.addScaledVector(toSpring, NECTAR_FLY_SPEED * dt);
+            }
+          }
+        });
+
+        // Awaken Crownseed when all 4 ordinary seeds are delivered
+        if (deliveredCount === 4 && crownseed.state === 'dormant') {
+          crownseed.state = 'awakened';
+          crownseed.mesh.visible = true;
+          playTone(523, 0.2, 'sine');
+          setTimeout(() => playTone(659, 0.2, 'sine'), 150);
+          setTimeout(() => playTone(784, 0.3, 'sine'), 300);
+          setTimeout(() => playTone(1046, 0.5, 'sine'), 450);
+        }
+
+        // --- The Crownseed Convoy Logic ---
+        if (crownseed.state !== 'dormant' && !crownseed.delivered && !crownseed.stolen) {
+          crownseed.crownHalo.rotation.z += 0.02;
+
+          const crownAttachedCount = crownseed.attachedWisps.length;
+          crownseed.lifted = (crownAttachedCount >= crownseed.weight);
+
+          if (crownseed.lifted && !crownseed.firstLifted) {
+            crownseed.firstLifted = true;
+            playTone(880, 0.3, 'sine');
+          }
+
+          updateTagText(
+            crownseed.tagCanvas,
+            `${crownAttachedCount}/${crownseed.weight}`,
+            crownseed.lifted ? 'rgba(6, 78, 59, 0.95)' : 'rgba(30, 41, 59, 0.9)',
+            crownseed.lifted ? '#86efac' : '#fde047'
+          );
+          crownseed.tagTex.needsUpdate = true;
+
+          // Position attached wisps in a wider ring around the large Crownseed
+          crownseed.attachedWisps.forEach((w, idx) => {
+            const angle = (idx / Math.max(1, crownAttachedCount)) * Math.PI * 2 + performance.now() * 0.002;
+            const ringRadius = 2.1;
+            w.pos.set(
+              crownseed.pos.x + Math.cos(angle) * ringRadius,
+              crownseed.pos.y + 0.5 + (crownAttachedCount < crownseed.weight ? Math.sin(performance.now() * 0.02 + idx) * 0.12 : 0),
+              crownseed.pos.z + Math.sin(angle) * ringRadius
+            );
+            w.state = crownseed.lifted ? 'carrying' : 'attached';
+          });
+
+          let beingHauled = false;
+          for (let b of beetles) {
+            if (b.hauledSeed === crownseed) {
+              beingHauled = true;
+              break;
+            }
+          }
+
+          if (!beingHauled) {
+            if (crownseed.lifted) {
+              crownseed.mesh.position.y = 1.45;
+
+              // Three-tier carry speeds: [18, 20] -> 1.2, [21, 23] -> 2.4, [24...] -> 3.6
+              let speed = 1.2;
+              if (crownAttachedCount >= crownseed.weight + 6) speed = 3.6;
+              else if (crownAttachedCount >= crownseed.weight + 3) speed = 2.4;
+
+              // Follow fixed long route CROWNSEED_WAYPOINTS to Heartwood pedestal
+              const targetWP = CROWNSEED_WAYPOINTS[crownseed.waypointIdx];
+              const toWP = targetWP.clone().sub(crownseed.pos);
+              toWP.y = 0;
+              const distToWP = toWP.length();
+
+              if (distToWP < 1.4) {
+                if (crownseed.waypointIdx < CROWNSEED_WAYPOINTS.length - 1) {
+                  crownseed.waypointIdx++;
+                }
+              }
+
+              // Check arrival at Heartwood pedestal
+              const distToPed = crownseed.pos.distanceTo(PEDESTAL_POS);
+              if (distToPed < 2.0 && crownseed.waypointIdx >= CROWNSEED_WAYPOINTS.length - 2) {
+                crownseed.delivered = true;
+                crownseed.mesh.visible = false;
+                crownseed.state = 'delivered';
+                crownseed.lifted = false;
+
+                crownseed.attachedWisps.forEach(w => {
+                  w.state = 'following';
+                  w.targetObject = null;
+                });
+                crownseed.attachedWisps = [];
+
+                // Trigger Grove-wide Bloom Animation
+                isBlooming = true;
+                bloomTimer = 0.0;
+                playTone(523, 0.3, 'sine');
+                setTimeout(() => playTone(659, 0.3, 'sine'), 200);
+                setTimeout(() => playTone(784, 0.4, 'sine'), 400);
+                setTimeout(() => playTone(1046, 0.6, 'sine'), 600);
+              } else {
+                toWP.normalize();
+                const nextCrownPos = crownseed.pos.clone().addScaledVector(toWP, speed * dt);
+                if (isPointBlockedByBriar(nextCrownPos, 1.2)) {
+                  crownseed.state = 'lifting';
+                } else if (nextCrownPos.z < -34.5 && nextCrownPos.z > -44.0 && !bridgeCompleted) {
+                  crownseed.state = 'lifting';
+                } else {
+                  crownseed.pos.copy(nextCrownPos);
+                  crownseed.mesh.position.x = crownseed.pos.x;
+                  crownseed.mesh.position.z = crownseed.pos.z;
+                  crownseed.state = 'moving';
+                }
+              }
+            } else {
+              crownseed.mesh.position.y = 0.9;
+              crownseed.state = 'awakened';
+              if (crownseed.firstLifted) {
+                crownseedGroundTime += dt;
+              }
+            }
+          }
+        }
+
+        // --- Timed Ambushes Timetable (Measured from Crownseed first lift) ---
+        if (crownseed.firstLifted && !crownseed.delivered && !crownseed.stolen) {
+          ambushTimer += dt;
+
+          // Ambush I at +10s (2 shadow beetles near Northern Grove route)
+          if (ambushTimer >= 10.0 && !ambush1Triggered) {
+            ambush1Triggered = true;
+            ambushPhase = 'ambush1';
+            const b1 = createBeetleObject(4, 'Ambush Prowler 1', AMBUSH_BURROWS[0], BURROW_CONFIGS[2].pos, false, true);
+            const b2 = createBeetleObject(5, 'Ambush Prowler 2', AMBUSH_BURROWS[1], BURROW_CONFIGS[2].pos, false, true);
+            beetles.push(b1, b2);
+            playTone(220, 0.4, 'sawtooth', 0.3);
+          }
+
+          // Ambush II at +40s (2 shadow beetles near Bridge south end)
+          if (ambushTimer >= 40.0 && !ambush2Triggered) {
+            ambush2Triggered = true;
+            ambushPhase = 'ambush2';
+            const b3 = createBeetleObject(6, 'Bridge Lurker 1', AMBUSH_BURROWS[2], BURROW_CONFIGS[0].pos, false, true);
+            const b4 = createBeetleObject(7, 'Bridge Lurker 2', AMBUSH_BURROWS[3], BURROW_CONFIGS[1].pos, false, true);
+            beetles.push(b3, b4);
+            playTone(200, 0.5, 'sawtooth', 0.3);
+          }
+
+          // Ambush III at +70s (1 Horned Beetle near Western Clearing)
+          if (ambushTimer >= 70.0 && !ambush3Triggered) {
+            ambush3Triggered = true;
+            ambushPhase = 'ambush3';
+            const hornedB = createBeetleObject(8, 'Ironhorn Goliath', AMBUSH_BURROWS[4], BURROW_CONFIGS[0].pos, true, true);
+            beetles.push(hornedB);
+            playTone(150, 0.7, 'sawtooth', 0.4);
+          }
+
+          if (ambush3Triggered && ambushTimer >= 90.0) {
+            ambushPhase = 'complete';
+          }
+        }
+
+        // --- Grove-wide Bloom Animation & The Reckoning ---
+        if (isBlooming) {
+          bloomTimer += dt;
+          ambientLight.intensity = THREE.MathUtils.lerp(ambientLight.intensity, 3.5, 0.08);
+          wardenLanternLight.intensity = THREE.MathUtils.lerp(wardenLanternLight.intensity, 5.0, 0.08);
+
+          if (bloomTimer >= 2.0 && phase === 'playing') {
+            isBlooming = false;
+            phase = 'restored';
+            document.getElementById('overlay-win').classList.remove('hidden');
+            if (isPointerLocked) document.exitPointerLock();
+
+            // Populate The Reckoning Panel with live tallies
+            const rMin = Math.floor(totalRunTime / 60);
+            const rSec = Math.floor(totalRunTime % 60);
+            document.getElementById('rec-runtime').textContent = `${String(rMin).padStart(2, '0')}:${String(rSec).padStart(2, '0')}`;
+            document.getElementById('rec-falters').textContent = faltersCount;
+            document.getElementById('rec-lost').textContent = `A:${deathsAmber} | C:${deathsCerulean} | V:${deathsViolet}`;
+            document.getElementById('rec-hatched').textContent = `A:${hatchedAmber} | C:${hatchedCerulean} | V:${hatchedViolet}`;
+            document.getElementById('rec-nectar').textContent = nectarDropsDelivered;
+            document.getElementById('rec-bridge').textContent = `${totalWispSecondsWoven.toFixed(1)}s`;
+            document.getElementById('rec-briars').textContent = briarsDousedCount;
+            document.getElementById('rec-beetles').textContent = shadowBeetlesKilled;
+            document.getElementById('rec-horned').textContent = hornedBeetlesKilled;
+            document.getElementById('rec-recovered').textContent = seedsRecoveredCount;
+            document.getElementById('rec-crownground').textContent = `${crownseedGroundTime.toFixed(1)}s`;
+          }
+        }
+
+        // --- Wisps General Update Loop ---
+        let livingAmber = 0;
+        let livingCerulean = 0;
+        let livingViolet = 0;
+
+        let followIndex = 0;
+        const wardenBackDir = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), wardenGroup.rotation.y);
+
+        wisps.forEach(w => {
+          if (!w.alive) {
+            w.meshData.group.visible = false;
+            return;
+          }
+
+          if (w.color === 'amber') livingAmber++;
+          else if (w.color === 'cerulean') livingCerulean++;
+          else livingViolet++;
+
+          const isFlying = (w.state === 'thrown' || w.state === 'following' || w.state === 'nectar_drop' || w.state === 'beam_drift' || w.state === 'working');
+          const wingFreq = isFlying ? 0.045 : 0.02;
+          const wingAngle = Math.sin(performance.now() * wingFreq) * 0.6;
+          w.meshData.wingL.rotation.z = wingAngle;
+          w.meshData.wingR.rotation.z = -wingAngle;
+
+          const speed = w.vel.length();
+          w.meshData.trail.scale.set(1.0, 1.0, Math.min(3.0, 1.0 + speed * 0.15));
+
+          if (w.state === 'stunned') {
+            w.stunTimer = Math.max(0, w.stunTimer - dt);
+            w.meshData.glintMat.visible = true;
+            w.meshData.glint.rotation.y += 0.1;
+            if (w.stunTimer <= 0) {
+              w.meshData.glintMat.visible = false;
+              w.state = 'idle';
+            }
+          } else {
+            w.meshData.glintMat.visible = false;
+          }
+
+          if (w.state === 'attached' && w.targetObject && w.targetObject.cfg) {
+            const b = w.targetObject;
+            const bIdx = b.attachedVioletWisps.indexOf(w);
+            const biteAngle = (bIdx >= 0 ? (bIdx / Math.max(1, b.attachedVioletWisps.length)) : 0) * Math.PI * 2;
+            const shellPos = b.pos.clone().add(new THREE.Vector3(Math.cos(biteAngle) * 0.85, 1.2 + Math.sin(performance.now() * 0.04) * 0.1, Math.sin(biteAngle) * 0.9));
+            w.pos.copy(shellPos);
+            w.meshData.core.material.color.setHex((Math.sin(performance.now() * 0.05) > 0) ? 0xf472b6 : 0xe9d5ff);
+          }
+
+          // Worker wisps weaving on the vine bridge
+          if (w.state === 'working') {
+            const weavePhase = performance.now() * 0.003 + (w.id * 1.5);
+            const weaveT = 0.15 + (Math.sin(weavePhase) * 0.5 + 0.5) * 0.7; // 0.15 .. 0.85 span
+            w.pos.set(
+              Math.sin(weavePhase * 2.5) * 1.3,
+              0.55 + Math.sin(weavePhase * 4.0) * 0.15,
+              -34.5 - weaveT * 8.5
+            );
+          }
+
+          if (w.state === 'following') {
+            followIndex++;
+            const row = Math.floor(followIndex / 2);
+            const side = (followIndex % 2 === 0 ? 1 : -1);
+            const slotTarget = wardenGroup.position.clone()
+              .addScaledVector(wardenBackDir, 1.4 + row * 0.85)
+              .add(new THREE.Vector3(side * 0.55, 1.2 + Math.sin(performance.now() * 0.004 + followIndex) * 0.2, 0));
+
+            if (w.color === 'amber' && isPointInStream(w.pos)) {
+              w.pos.copy(getNearestBankPos(w.pos));
+              w.state = 'idle';
+              playTone(280, 0.15, 'triangle');
+            } else {
+              w.pos.lerp(slotTarget, 0.08);
+            }
+          } else if (w.state === 'thrown') {
+            w.throwTime += dt;
+            const t = Math.min(1.0, w.throwTime / w.totalThrowTime);
+            const currentGround = new THREE.Vector3().lerpVectors(w.startPos, w.targetPos, t);
+            const arcHeight = Math.sin(t * Math.PI) * 3.5;
+            w.pos.set(currentGround.x, currentGround.y + arcHeight, currentGround.z);
+
+            if (t >= 1.0) {
+              // 1. Check Beetle collision
+              let hitTarget = false;
+              for (let b of beetles) {
+                if (b.alive && w.pos.distanceTo(b.pos) <= 2.2) {
+                  hitTarget = true;
+                  if (w.color === 'violet') {
+                    if (b.isHorned) {
+                      // Front armor is absolute: throws landing on front half glance off and land idle
+                      const headFwd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), b.group.rotation.y);
+                      const toWisp = w.pos.clone().sub(b.pos);
+                      toWisp.y = 0;
+                      const isFront = toWisp.dot(headFwd) > 0;
+                      if (isFront) {
+                        const bounceDir = toWisp.normalize();
+                        w.pos.copy(b.pos).addScaledVector(bounceDir, 2.5);
+                        w.pos.y = 0.8;
+                        w.state = 'idle';
+                        playTone(340, 0.15, 'sawtooth');
+                      } else {
+                        // Throws landing on rear half attach and bite!
+                        w.state = 'attached';
+                        w.targetObject = b;
+                        b.attachedVioletWisps.push(w);
+                        playTone(880, 0.15, 'sine');
+                      }
+                    } else {
+                      w.state = 'attached';
+                      w.targetObject = b;
+                      b.attachedVioletWisps.push(w);
+                      playTone(880, 0.15, 'sine');
+                    }
+                  } else {
+                    const bounceDir = w.pos.clone().sub(b.pos).setY(0).normalize();
+                    w.pos.copy(b.pos).addScaledVector(bounceDir, 2.5);
+                    w.pos.y = 0.8;
+                    w.state = 'idle';
+                    playTone(320, 0.15, 'triangle');
+                  }
+                  break;
+                }
+              }
+
+              // 2. Check Nectar Spring landing
+              if (!hitTarget && w.pos.distanceTo(NECTAR_SPRING_POS) <= 2.8) {
+                hitTarget = true;
+                w.state = 'nectar_drop';
+                w.carryingNectar = true;
+                w.meshData.dropMat.visible = true;
+                playTone(660, 0.15, 'sine');
+              }
+
+              // 3. Water landing
+              if (!hitTarget && isPointInStream(w.pos)) {
+                hitTarget = true;
+                if (w.color === 'amber') {
+                  w.pos.copy(getNearestBankPos(w.pos));
+                  w.state = 'idle';
+                  playTone(280, 0.15, 'triangle');
+                } else {
+                  w.pos.y = 0.4;
+                  w.state = 'idle';
+                }
+              }
+
+              // 4. Ground landing, seeds, briars, bridge & Crownseed
+              if (!hitTarget) {
+                w.pos.y = 0.8;
+                w.state = 'idle';
+
+                // Check Broken Vine Bridge attachment
+                let attachedToBridge = false;
+                if (!bridgeCompleted && (w.pos.distanceTo(BRIDGE_ANCHOR_POS) <= 3.2 || (Math.abs(w.pos.x) <= 2.2 && w.pos.z >= -44.0 && w.pos.z <= -34.0))) {
+                  w.state = 'working';
+                  w.targetObject = { type: 'bridge' };
+                  attachedToBridge = true;
+                  playTone(660, 0.15, 'triangle');
+                }
+
+                // Check Crownseed attachment
+                let attachedToSeed = false;
+                if (!attachedToBridge && crownseed.state !== 'dormant' && !crownseed.delivered && !crownseed.stolen && w.pos.distanceTo(crownseed.pos) <= 2.8) {
+                  w.state = 'attached';
+                  w.targetObject = crownseed;
+                  crownseed.attachedWisps.push(w);
+                  attachedToSeed = true;
+                  playTone(660, 0.12, 'sine');
+                }
+
+                if (!attachedToBridge && !attachedToSeed) {
+                  for (let s of seeds) {
+                    if (!s.delivered && !s.stolen && w.pos.distanceTo(s.pos) <= 2.2) {
+                      w.state = 'attached';
+                      w.targetObject = s;
+                      s.attachedWisps.push(w);
+                      attachedToSeed = true;
+                      playTone(600, 0.12, 'sine');
+                      break;
+                    }
+                  }
+                }
+
+                if (!attachedToBridge && !attachedToSeed) {
+                  for (let b of briars) {
+                    if (!b.collapsed && w.pos.distanceTo(b.pos) <= b.radius) {
+                      if (w.color === 'cerulean') {
+                        w.state = 'attached';
+                        w.targetObject = b;
+                        playTone(720, 0.12, 'sine');
+                      }
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          // Briar Scorching Check
+          let insideBriar = false;
+          for (let b of briars) {
+            if (!b.collapsed && w.pos.distanceTo(b.pos) <= b.radius) {
+              if (w.color === 'cerulean' && w.state === 'attached' && w.targetObject === b) {
+                // Safe
+              } else if (w.state === 'idle' || w.state === 'stunned' || (w.color !== 'cerulean' && (w.state === 'thrown' || w.state === 'attached'))) {
+                insideBriar = true;
+                break;
+              }
+            }
+          }
+
+          if (insideBriar) {
+            w.scorchTimer += dt;
+            w.meshData.core.material.color.setHex((Math.sin(performance.now() * 0.05) > 0) ? 0xef4444 : 0xf97316);
+            if (w.scorchTimer >= 1.0) {
+              w.alive = false;
+              w.state = 'dead';
+              w.meshData.group.visible = false;
+              if (w.color === 'amber') deathsAmber++;
+              else if (w.color === 'cerulean') deathsCerulean++;
+              else deathsViolet++;
+              playTone(180, 0.35, 'sawtooth', 0.25);
+            }
+          } else if (w.state !== 'attached' || !w.targetObject || !w.targetObject.cfg) {
+            w.scorchTimer = 0.0;
+            const coreCols = { amber: 0xfef08a, cerulean: 0xbae6fd, violet: 0xe9d5ff };
+            w.meshData.core.material.color.setHex(coreCols[w.color]);
+          }
+
+          w.meshData.group.position.copy(w.pos);
+        });
+
+        // Trigger Night Falter on total flock loss
+        if (livingAmber + livingCerulean + livingViolet === 0) {
+          triggerNightFalter();
+        }
+
+        // --- HUD Updating ---
+        document.getElementById('count-amber').textContent = livingAmber;
+        document.getElementById('count-cerulean').textContent = livingCerulean;
+        document.getElementById('count-violet').textContent = livingViolet;
+        document.getElementById('seeds-count').textContent = `${deliveredCount} / 4`;
+
+        let crownText = 'DORMANT';
+        if (crownseed.delivered) crownText = 'DELIVERED';
+        else if (crownseed.stolen) crownText = 'LOST';
+        else if (crownseed.state !== 'dormant') {
+          crownText = `${crownseed.attachedWisps.length} / 18`;
+        }
+        document.getElementById('crownseed-count').textContent = crownText;
+        document.getElementById('ember-active').textContent = activeEmber ? activeEmber.name : 'NONE';
+        document.getElementById('falters-count').textContent = faltersCount;
+
+        document.getElementById('nectar-count').textContent = `${dropsSinceLastHatch}/5`;
+        document.getElementById('beetles-count').textContent = aliveBeetlesCount;
+
+        const minutes = Math.floor(remainingTime / 60);
+        const seconds = Math.floor(remainingTime % 60);
+        const clockEl = document.getElementById('hud-clock');
+        clockEl.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        if (remainingTime <= 60) clockEl.classList.add('clock-warning');
+        else clockEl.classList.remove('clock-warning');
+
+        syncArenaState();
+      }
+
+      function animate(now) {
+        requestAnimationFrame(animate);
+        const dt = (now - lastTimestamp) / 1000.0;
+        lastTimestamp = now;
+
+        update(dt);
+        renderer.render(scene, camera);
+      }
+
+      // Continuous fallback ticker for headless/test environments
+      let simLastTime = performance.now();
+      setInterval(() => {
+        const now = performance.now();
+        if (now - lastTimestamp > 70) {
+          const dt = Math.min((now - simLastTime) / 1000.0, 0.05);
+          simLastTime = now;
+          update(dt);
+        }
+      }, 33);
+
+      // Initialize HUD & start loop
+      updateColorBadges();
+      resetRun();
+      syncArenaState();
+      requestAnimationFrame((now) => {
+        lastTimestamp = now;
+        animate(now);
+      });
+
+    })();
+  </script>
+</body>
+</html>

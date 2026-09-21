@@ -1,0 +1,2049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TITRATION ATELIER</title>
+<style>
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#140b06; }
+  #stage { position:fixed; inset:0; }
+  canvas { display:block; }
+  #hud { position:fixed; inset:0; pointer-events:none; font-family:Georgia,'Times New Roman',serif; color:#f0e3c2; z-index:5; opacity:1; transition:opacity .4s; }
+  body.phase-title #hud { opacity:0; }
+  .panel { position:absolute; background:rgba(22,11,5,0.66); border:1px solid rgba(214,178,112,0.45); border-radius:8px; padding:10px 14px; box-shadow:0 4px 18px rgba(0,0,0,.45); }
+  #contract-panel { top:14px; left:14px; max-width:380px; }
+  #contract-panel .k { font-size:11px; letter-spacing:.18em; color:#d6b270; }
+  #contract-panel .n { font-size:17px; letter-spacing:.06em; margin:2px 0; }
+  #contract-panel .t { font-size:12px; color:#e8d9b0; margin-top:1px; }
+  #mix-panel { top:14px; right:14px; display:flex; gap:12px; align-items:center; }
+  #swatch { width:52px; height:52px; border-radius:6px; border:2px solid rgba(240,227,194,.55); background:#241207; flex:none; }
+  #hueline { font-size:15px; color:#f0e3c2; margin-top:2px; white-space:nowrap; letter-spacing:.05em; }
+  #fillline, #heftline, #rline { font-size:12px; color:#dcc99b; margin-top:2px; white-space:nowrap; }
+  #tincture-panel { bottom:14px; left:14px; display:flex; gap:8px; padding:8px 10px; }
+  .chip { display:flex; align-items:center; gap:6px; padding:5px 9px; border:1px solid rgba(214,178,112,.35); border-radius:6px; font-size:12px; letter-spacing:.08em; opacity:.55; }
+  .chip .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .chip.active { opacity:1; border-color:#e8c98a; box-shadow:0 0 10px rgba(232,201,138,.35); }
+  #waste-panel { bottom:14px; right:14px; font-size:13px; letter-spacing:.1em; }
+  #controls-panel { bottom:14px; left:50%; transform:translateX(-50%); font-size:11px; letter-spacing:.12em; color:#d8c49a; }
+  #hint { position:absolute; bottom:66px; left:50%; transform:translateX(-50%); font-size:14px; letter-spacing:.06em; color:#ffe9b8; background:rgba(22,11,5,.75); border:1px solid rgba(214,178,112,.5); padding:7px 16px; border-radius:6px; opacity:0; transition:opacity .25s; white-space:nowrap; }
+  #hint.show { opacity:1; }
+  .card-overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:10; background:rgba(8,4,2,.55); opacity:0; pointer-events:none; transition:opacity .35s; }
+  .card-overlay.visible { opacity:1; }
+  .card { background:linear-gradient(160deg,#241109,#1a0c06); border:1px solid #b99455; box-shadow:0 0 0 4px rgba(185,148,85,.15), 0 18px 60px rgba(0,0,0,.7); border-radius:10px; padding:30px 42px; max-width:660px; max-height:92vh; overflow:auto; text-align:center; color:#f0e3c2; font-family:Georgia,serif; }
+  .card h1 { margin:0 0 6px; font-size:38px; letter-spacing:.14em; font-weight:normal; color:#e9c87f; }
+  .card h1.met { color:#a7d69a; }
+  .card h1.rej { color:#e08a6a; }
+  .card .sub { font-size:14px; letter-spacing:.22em; color:#c9a86a; margin-bottom:16px; }
+  .card .chan { font-size:19px; letter-spacing:.22em; margin:-4px 0 10px; }
+  .card .chan.off { color:#e08a6a; }
+  .card .chan.ok { color:#a7d69a; }
+  .card .rule { height:1px; background:linear-gradient(90deg,transparent,#b99455,transparent); margin:14px 0; }
+  .card .body { font-size:14px; line-height:1.75; color:#e6d6ae; }
+  .card table.controls { margin:10px auto 0; border-collapse:collapse; font-size:13.5px; }
+  .card table.controls td { padding:3px 12px; text-align:left; }
+  .card table.controls td.k { text-align:right; color:#e9c87f; letter-spacing:.1em; white-space:nowrap; }
+  .card .press { margin-top:18px; font-size:15px; letter-spacing:.24em; color:#ffe9b8; animation:pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:.55} 50%{opacity:1} }
+  .card table.ledger { margin:8px auto; border-collapse:collapse; font-size:15px; }
+  .card table.ledger td { padding:6px 16px; text-align:left; }
+  .card table.ledger td.k { letter-spacing:.14em; color:#dcc99b; }
+  .card table.ledger td.v { text-align:right; color:#e9c87f; font-size:18px; min-width:90px; }
+  .card table.ledger tr.total td { border-top:1px solid rgba(185,148,85,.4); padding-top:10px; }
+  .card table.ledger tr.total td.v { font-size:28px; }
+  #err { position:fixed; left:0; right:0; bottom:0; z-index:50; background:#4a1410; color:#ffd9c0; font:12px monospace; padding:8px 12px; display:none; white-space:pre-wrap; }
+</style>
+</head>
+<body class="phase-title">
+<div id="stage"></div>
+
+<div id="hud">
+  <div class="panel" id="contract-panel">
+    <div class="k" id="cp-num">CONTRACT I</div>
+    <div class="n" id="cp-name">THE CRIMSON QUAFF</div>
+    <div class="t" id="cp-target">TARGET: PURE RED &mdash; (20 &middot; 0 &middot; 0)</div>
+    <div class="t" id="cp-spec">HUE 0.583 &plusmn;0.04 &middot; HEFT 1.000 &plusmn;0.015</div>
+    <div class="t" id="cp-drips">DRIPS 0 &middot; IDEAL 20</div>
+    <div class="t" id="cp-client">for Madame Rosethorn</div>
+  </div>
+  <div class="panel" id="mix-panel">
+    <div id="swatch"></div>
+    <div>
+      <div id="hueline">HUE &mdash;</div>
+      <div id="fillline">FILL 0.00 / 1.00</div>
+      <div id="heftline">HEFT &mdash; &middot; HYDROMETER ON STAND</div>
+      <div id="rline">R 0 &middot; NOT ASKED</div>
+    </div>
+  </div>
+  <div class="panel" id="tincture-panel"></div>
+  <div class="panel" id="waste-panel">WASTE 0 EMPTIES &middot; 0.00 UNITS</div>
+  <div class="panel" id="controls-panel">1&middot;2&middot;3 TINCTURE &mdash; 4 REAGENT R &mdash; E DROP &mdash; Q EMPTY &mdash; ENTER DELIVER &mdash; A/P VET &mdash; TAB LEDGER &mdash; R TITLE</div>
+  <div id="hint"></div>
+</div>
+
+<div id="title-card" class="card-overlay visible">
+  <div class="card">
+    <h1>TITRATION ATELIER</h1>
+    <div class="sub">A THREE-DIMENSIONAL ALCHEMY PUZZLE</div>
+    <div class="rule"></div>
+    <div class="body">
+      Three stock tinctures stand upon a lacquered bench beneath a tall window.
+      Squeeze drops into the graduated beaker until the hue and the heft of the mix
+      match the client&rsquo;s sample &mdash; then deliver the beaker and collect your due.
+      <table class="controls">
+        <tr><td class="k">1 &middot; 2 &middot; 3</td><td>choose a tincture &mdash; red &middot; cyan &middot; yellow</td></tr>
+        <tr><td class="k">4</td><td>choose reagent R &mdash; the cloud-test</td></tr>
+        <tr><td class="k">E</td><td>squeeze one drop (0.05 units &mdash; twenty fills the beaker)</td></tr>
+        <tr><td class="k">Q</td><td>empty the beaker into the waste pail</td></tr>
+        <tr><td class="k">ENTER</td><td>deliver the beaker to the client</td></tr>
+        <tr><td class="k">R</td><td>full reset to this title card</td></tr>
+        <tr><td class="k">TAB</td><td>the ledger &mdash; outside an active blend</td></tr>
+      </table>
+      The glass never lies: the liquid&rsquo;s colour is the written linear-RGB formula,
+      the etched marks are the fill, and the hydrometer&rsquo;s depth is the heft &mdash;
+      stocks weigh 1.00 / 1.20 / 0.85, blended by volume, banded to 0.05, then a fixed
+      correction; a denser mix sinks the float visibly deeper. Reagent R reads one
+      bit: a drop clouds the mix if and only if its heft has reached 1.10 &mdash; below,
+      it stays clear. And pour order hides in the glass: red before cyan grows a
+      sediment worth +0.02 heft; cyan-first reads clean; yellow never matters.
+      Contracts judge three channels at once &mdash; hue within &plusmn;0.04 on the
+      atelier dial, heft within &plusmn;0.015, and the reagent bit &mdash; miss any and
+      the banner names it. Eight orders hang in fixed sequence: a pure colour, a
+      dual match, a cloud-test, a layered pour, a hard three-tincture blend, and
+      three rival samples to vet. Every contract carries a written ideal drip
+      count: reagent drops, wasted batches and re-makes all tally against it &mdash;
+      finish within +2 for three stars, +6 for two, +12 for one. Stars bank per
+      contract, and correct accusations bank points. There is no ratio readout on
+      this bench: your instruments are the hue, the hydrometer, the reagent, and
+      your own arithmetic. The rival samples&rsquo; grey cutter is written and never
+      varies (no hue, &rho; 1.100) &mdash; measure, then accuse with the grey volume
+      within &plusmn;0.02, or pass; a false charge pays a penalty. Tab &mdash; outside
+      an active blend &mdash; opens the ledger: contracts &times; 150, correct
+      accusations &times; 100, stars &times; 40, wastes &times; &minus;30; S at 950,
+      A at 800, B at 650, C below. R is the master reset. Everything runs on fixed
+      1/60&nbsp;s steps &mdash; no chance, only craft.
+    </div>
+    <div class="press">PRESS ENTER TO BEGIN</div>
+  </div>
+</div>
+
+<div id="result-card" class="card-overlay">
+  <div class="card">
+    <h1 id="rc-title">CONTRACT MET</h1>
+    <div class="chan" id="rc-chan"></div>
+    <div class="sub" id="rc-sub"></div>
+    <div class="rule"></div>
+    <div class="body" id="rc-body"></div>
+    <div class="press" id="rc-press">ENTER &mdash; NEXT CONTRACT &nbsp;&middot;&nbsp; R &mdash; TITLE CARD</div>
+  </div>
+</div>
+
+<div id="ledger-card" class="card-overlay">
+  <div class="card">
+    <h1>THE ATELIER LEDGER</h1>
+    <div class="sub">THE BOUND BOOK OF THE BENCH</div>
+    <div class="rule"></div>
+    <table class="ledger">
+      <tr><td class="k">CONTRACTS FULFILLED</td><td id="lg-contracts">0 &times; 150</td><td class="v" id="lg-contracts-v">0</td></tr>
+      <tr><td class="k">CORRECT ACCUSATIONS</td><td id="lg-accusations">0 &times; 100</td><td class="v" id="lg-accusations-v">0</td></tr>
+      <tr><td class="k">STARS BANKED</td><td id="lg-stars">0 &times; 40</td><td class="v" id="lg-stars-v">0</td></tr>
+      <tr><td class="k">WASTES</td><td id="lg-wastes">0 &times; &minus;30</td><td class="v" id="lg-wastes-v">0</td></tr>
+      <tr class="total"><td class="k">SCORE</td><td></td><td class="v" id="lg-score">0</td></tr>
+      <tr class="total"><td class="k">RATING</td><td></td><td class="v" id="lg-rating">C</td></tr>
+    </table>
+    <div class="rule"></div>
+    <div class="body" id="lg-note">S &ge; 950 &middot; A &ge; 800 &middot; B &ge; 650 &middot; C below.</div>
+    <div class="press">TAB / ENTER &mdash; CLOSE THE BOOK &nbsp;&middot;&nbsp; R &mdash; MASTER RESET</div>
+  </div>
+</div>
+
+<div id="err"></div>
+
+<script src="./assets/_shared/three/build/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+// ---------------- read-only arena state (defined before anything can fail) ----------------
+var __arenaStateValue = { phase:'boot' };
+try {
+  if (!Object.prototype.hasOwnProperty.call(window, '__arena_state')) {
+    Object.defineProperty(window, '__arena_state', {
+      get: function(){ return __arenaStateValue; },
+      set: function(){ /* read-only: assignments are ignored */ },
+      configurable: false,
+      enumerable: true
+    });
+  }
+} catch (e) { /* ignore */ }
+
+function showErr(msg){
+  var el = document.getElementById('err');
+  if (el){ el.style.display='block'; el.textContent = 'TITRATION ATELIER failed to start:\n' + msg; }
+}
+window.addEventListener('error', function(ev){ showErr(ev.message || 'unknown error'); });
+
+// ============================================================================
+//  TITRATION ATELIER — game boot
+// ============================================================================
+var booted = false;
+function boot(THREE){
+  if (booted) return;
+  booted = true;
+
+  // ---------------- tiny helpers ----------------
+  function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+  function smooth(t){ t=clamp(t,0,1); return t*t*(3-2*t); }
+  function hash(n){ // deterministic integer hash -> [0,1). No randomness anywhere.
+    var x = Math.imul(n ^ 0x9e3779b9, 0x85ebca6b);
+    x ^= x >>> 13; x = Math.imul(x, 0xc2b2ae35); x ^= x >>> 16;
+    return (x >>> 0) / 4294967296;
+  }
+  function srgbToLinear(c){ return c <= 0.04045 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); }
+  function linOfHex(h){ return [srgbToLinear(((h>>16)&255)/255), srgbToLinear(((h>>8)&255)/255), srgbToLinear((h&255)/255)]; }
+  function linToSrgb255(v){
+    var c = v <= 0.0031308 ? 12.92*v : 1.055*Math.pow(v, 1/2.4) - 0.055;
+    return clamp(Math.round(c*255), 0, 255);
+  }
+  function cssOfLin(lin){
+    return 'rgb(' + linToSrgb255(lin[0]) + ',' + linToSrgb255(lin[1]) + ',' + linToSrgb255(lin[2]) + ')';
+  }
+  function col(h){ // THREE.Color from sRGB hex, stored as raw linear values (version-proof)
+    var l = linOfHex(h);
+    return new THREE.Color().setRGB(l[0], l[1], l[2]);
+  }
+  function setLin(color, lin){ color.setRGB(lin[0], lin[1], lin[2]); return color; }
+  function tagSRGB(tex){
+    if (tex.colorSpace !== undefined && THREE.SRGBColorSpace !== undefined){ tex.colorSpace = THREE.SRGBColorSpace; }
+    else if (THREE.sRGBEncoding !== undefined){ tex.encoding = THREE.sRGBEncoding; }
+    return tex;
+  }
+  function canvasTex(w, h, drawFn, aniso){
+    var c = document.createElement('canvas'); c.width = w; c.height = h;
+    drawFn(c.getContext('2d'), w, h);
+    var t = new THREE.CanvasTexture(c);
+    t.anisotropy = aniso || 4;
+    return tagSRGB(t);
+  }
+  function el(id){ return document.getElementById(id); }
+  function setText(node, s){ if (node && node.__last !== s){ node.__last = s; node.textContent = s; } }
+
+  // ---------------- constants ----------------
+  var STEP = 1/60;
+  var LIQ_H = 0.83;          // liquid column height at full fill
+  var BK_BOT = 0.03;         // beaker inner bottom y
+  var DROP_VOL = 0.05;       // units per drop
+  var BOTTLE_CAP_DROPS = 48; // stock bottle capacity in drops
+  var TUBE_CHARGES = 6;      // drops a full dropper holds
+  var GRAV = 9.0;
+  var BOTTLE_POS = [[-2, 1], [0, 1], [2, 1], [-1, -1]]; // bench spots (x, z); index 3 is reagent R
+  // The three stock tinctures. Colours are LINEAR RGB — the written mix operates here.
+  // Stock densities (the heft channel): red 1.00 · cyan 1.20 · yellow 0.85.
+  var TINCTURES = [
+    { name:'RED',    title:'TINCTURA RUBRA',  sub:'RED · No. 1',    lin:[0.82, 0.045, 0.06], density:1.00 },
+    { name:'CYAN',   title:'TINCTURA CYANEA', sub:'CYAN · No. 2',   lin:[0.045, 0.60, 0.63], density:1.20 },
+    { name:'YELLOW', title:'TINCTURA AUREA',  sub:'YELLOW · No. 3', lin:[0.92, 0.74, 0.10],  density:0.85 }
+  ];
+  // REAGENT R — the third, binary channel. A fourth bottle at (−1,−1); one drop of R
+  // turns the mix CLOUDY if and only if the mix's heft is ≥ CLOUDY_AT (equality
+  // counts), below it stays clear. R drops count toward the drip tally and the fill
+  // but add no tint and no heft — they only ask the question.
+  var REAGENT_R = { name:'R', lin:[0.83, 0.80, 0.74] };
+  var CLOUDY_AT = 1.10;
+  var BOTTLE_NAMES = ['RED', 'CYAN', 'YELLOW', 'R'];
+  // THE WRITTEN MIX: linear-RGB blend. mix = sum(count_i * tint_i) / n. The rendered
+  // liquid colour is set from this function's output with no artistic correction.
+  var CONTRACTS = [
+    { num:'I',   name:'THE CRIMSON QUAFF', client:'Madame Rosethorn',       target:[20,0,0], titleName:'PURE RED', ideal:20,
+      brief:'Pure red \u2014 twenty red drops and nothing else.', paid:'PAID: 3s 6d' },
+    { num:'II',  name:'THE ROSY DRAFT',    client:'the Perfusionists\u2019 Guild', target:[14,6,0], titleName:'DUSTED ROSE', ideal:20,
+      brief:'Hue 0.580 on the dial, heft 1.06 \u2014 fourteen red, six cyan, no gold.', paid:'PAID: 4s 2d' },
+    { num:'III', name:'VERDIGRIS TONIC',   client:'the Clockmakers\u2019 Guild', target:[5,12,3], titleName:'VERDIGRIS', ideal:21,
+      brief:'A pale Verdigris \u2014 the reagent knows what the client will accept.', paid:'PAID: 5s 0d', rExpected:'clear' },
+    { num:'IV',  name:'THE SUNKEN ROSE',   client:'Widow Amethyst',         target:[14,6,0], titleName:'DUSTED ROSE, SUNKEN', ideal:20,
+      brief:'Heft 1.08 at the rosy hue \u2014 pour the red before the cyan and let the sediment speak.', paid:'PAID: 5s 4d', sediment:true },
+    { num:'V',   name:'THE AMBER MEASURE', client:'the Guild of Scriveners', target:[8,7,5], titleName:'WORKING AMBER', ideal:20,
+      brief:'A hard three-tincture blend \u2014 eight red, seven cyan, five yellow, chased to the drip.', paid:'PAID: 6s 0d' },
+    { num:'VI',  name:'THE ORCHID VIAL',   client:'Lady Fenwick',           target:[8,4,8], titleName:'PALE ORCHID', ideal:20,
+      brief:'A rival\u2019s pale orchid vial \u2014 measure it, then accuse the cut or pass it clean.', paid:'FEE: 2s 0d', sample:{ a:6, b:3, c:6, g:5 } },
+    { num:'VII', name:'THE SCARLET LEDGER', client:'the Quartermasters\u2019 Circle', target:[10,5,5], titleName:'SCARLET PAR', ideal:20,
+      brief:'The scarlet ledger smells of profit \u2014 weigh the heft before you swear the charge.', paid:'FEE: 2s 2d', sample:{ a:6, b:3, c:3, g:8 } },
+    { num:'VIII',name:'THE TIDE-WATER VIAL', client:'the Harbourmaster',     target:[12,4,4], titleName:'TIDE ROSE', ideal:20,
+      brief:'Tide-water tint, they claim \u2014 the hydrometer knows what they cut it with.', paid:'FEE: 2s 4d', sample:{ a:6, b:2, c:2, g:10 } }
+  ];
+  function mixLinear(counts){
+    var n = counts[0]+counts[1]+counts[2];
+    if (n === 0) return null;
+    var out = [0,0,0];
+    for (var t=0;t<3;t++){
+      var tint = TINCTURES[t].lin, c = counts[t];
+      for (var k=0;k<3;k++) out[k] += c*tint[k];
+    }
+    return [out[0]/n, out[1]/n, out[2]/n];
+  }
+  // THE WRITTEN HEFT — volume-weighted average of the stock densities, rounded to
+  // the nearest 0.05 band, then this fixed non-linear correction is applied:
+  //   0.85→+0.02 · 0.90→+0.01 · 0.95→−0.01 · 1.00→+0.00
+  //   1.05→+0.00 · 1.10→+0.00 · 1.15→+0.01 · 1.20→+0.02
+  // The HUD number and the hydrometer's float depth both use the final reading.
+  // Anchors: 14R+6C → raw 1.06, band 1.05, +0.00, reads 1.06.
+  //          12R+8Y → raw 0.94, band 0.95, −0.01, reads 0.93.
+  var DENSITY_CORRECTION = {
+    '0.85': 0.02, '0.90': 0.01, '0.95': -0.01, '1.00': 0.00,
+    '1.05': 0.00, '1.10': 0.00, '1.15': 0.01, '1.20': 0.02
+  };
+  function mixDensity(counts){ // raw volume-weighted average; exact via integers (raw*20 = (20a+24b+17c)/n)
+    var n = counts[0] + counts[1] + counts[2];
+    if (n === 0) return null;
+    return (counts[0]*20 + counts[1]*24 + counts[2]*17) / (n*20);
+  }
+  function densityBand(raw){ return Math.round(raw*20)/20; }
+  function densityCorrection(raw){ return DENSITY_CORRECTION[densityBand(raw).toFixed(2)] || 0; }
+  // THE SEDIMENT — the hidden pour-order term. When red reaches the beaker before
+  // cyan (first red drop earlier than the first cyan drop, both present), a
+  // sediment grows and the heft reads +0.02 over the same ratio poured cyan-first;
+  // cyan before red reads clean; yellow never matters, in any position. Flecks
+  // render in the glass while the term applies, and the hydrometer sinks to the
+  // shifted reading. Anchors: 14/6 red-first → 1.06 + 0.02 = 1.08; the same ratio
+  // cyan-first → 1.06; 13/7 cyan-first → 1.07.
+  var SEDIMENT_CORRECTION = 0.02;
+  function readDensityFor(counts, sediment){
+    var raw = mixDensity(counts);
+    if (raw === null) return null;
+    return raw + densityCorrection(raw) + (sediment ? SEDIMENT_CORRECTION : 0);
+  }
+  function readDensity(counts){ return readDensityFor(counts, sedimentOn()); }
+  // THE WRITTEN HUE — hue is read on the atelier's own dial: the standard hue of the
+  // blended colour (HSV hue of its sRGB value), rotated by a fixed house offset that
+  // is calibrated once, at load, so the guild's anchor blend (14 red / 6 cyan) reads
+  // exactly 0.580 — the same blend whose heft reads 1.06. Distances on the dial wrap
+  // at 1, so 0.999 and 0.001 are neighbours. A contract passes hue when the dial
+  // distance to its target is within HUE_TOL (±0.04); the boundary is exact.
+  var HUE_TOL = 0.04, DENSITY_TOL = 0.015;
+  function linToSrgbF(v){ return v <= 0.0031308 ? 12.92*v : 1.055*Math.pow(v, 1/2.4) - 0.055; }
+  function hueStd(lin){
+    var r = linToSrgbF(lin[0]), g = linToSrgbF(lin[1]), b = linToSrgbF(lin[2]);
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    if (d < 1e-9) return 0;
+    var h;
+    if (mx === r) h = ((g - b) / d) % 6;
+    else if (mx === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h /= 6;
+    return h - Math.floor(h);
+  }
+  var HUE_DIAL_OFFSET = 0.58 - hueStd(mixLinear([14, 6, 0]));
+  function hueDial(lin){
+    var h = hueStd(lin) + HUE_DIAL_OFFSET;
+    return h - Math.floor(h);
+  }
+  function readHue(counts){
+    var m = mixLinear(counts);
+    if (!m) return null;
+    return hueDial(m);
+  }
+  function hueDelta(a, b){
+    var d = Math.abs(a - b) % 1;
+    return d > 0.5 ? 1 - d : d;
+  }
+  // Contract targets are derived from each written solution, so delivering the
+  // solution exactly always passes both channels.
+  CONTRACTS.forEach(function(ct){
+    ct.hueTarget = readHue(ct.target);
+    ct.denTarget = readDensityFor(ct.target, !!ct.sediment);
+  });
+  // THE GREY CUTTER — written once, never varying: no hue (neutral grey), density
+  // 1.10. Rival samples (orders VI–VIII) are honest recipes with part of their
+  // volume cut and replaced by the grey: the hue still matches an honest ratio,
+  // but the heft reads +0.03 to +0.05 high. You measure, then either accuse —
+  // naming the adulteration volume within ±0.02 — or pass. A correct accusation
+  // banks points; accusing a clean sample is a false charge and pays a penalty.
+  var GREY_TINCTURE = { name:'GREY', lin:[0.5, 0.5, 0.5], density:1.10 };
+  function sampleLin(ct){
+    var s = ct.sample, n = s.a + s.b + s.c + s.g;
+    return [
+      (s.a*TINCTURES[0].lin[0] + s.b*TINCTURES[1].lin[0] + s.c*TINCTURES[2].lin[0] + s.g*GREY_TINCTURE.lin[0]) / n,
+      (s.a*TINCTURES[0].lin[1] + s.b*TINCTURES[1].lin[1] + s.c*TINCTURES[2].lin[1] + s.g*GREY_TINCTURE.lin[1]) / n,
+      (s.a*TINCTURES[0].lin[2] + s.b*TINCTURES[1].lin[2] + s.c*TINCTURES[2].lin[2] + s.g*GREY_TINCTURE.lin[2]) / n
+    ];
+  }
+  function sampleDensity(ct){ // the guild's assay of the sample, same written instrument
+    var s = ct.sample;
+    var raw = (s.a*20 + s.b*24 + s.c*17 + s.g*22) / ((s.a + s.b + s.c + s.g)*20);
+    return raw + densityCorrection(densityBand(raw));
+  }
+  function sampleHue(ct){ return hueDial(sampleLin(ct)); }
+
+  // ---------------- audio (WebAudio, all synthesized, deterministic) ----------------
+  var A = { ctx:null, master:null, noise:null };
+  function audioInit(){
+    if (A.ctx) return;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try {
+      A.ctx = new AC();
+      A.master = A.ctx.createGain();
+      A.master.gain.value = 0.45;
+      A.master.connect(A.ctx.destination);
+      var len = Math.floor(A.ctx.sampleRate*0.4);
+      var buf = A.ctx.createBuffer(1, len, A.ctx.sampleRate);
+      var d = buf.getChannelData(0), s = 1234567;
+      for (var i=0;i<len;i++){ s = (Math.imul(s, 1103515245) + 12345) & 0x7fffffff; d[i] = (s/0x3fffffff) - 1; }
+      A.noise = buf;
+    } catch(e){ A.ctx = null; }
+  }
+  function aResume(){ if (A.ctx && A.ctx.state === 'suspended'){ try { A.ctx.resume(); } catch(e){} } }
+  function tone(opt){
+    if (!A.ctx) return;
+    aResume();
+    var t0 = A.ctx.currentTime + (opt.delay||0);
+    var o = A.ctx.createOscillator(), g = A.ctx.createGain();
+    o.type = opt.type || 'sine';
+    o.frequency.setValueAtTime(opt.f0, t0);
+    if (opt.f1) o.frequency.exponentialRampToValueAtTime(opt.f1, t0 + opt.dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(opt.vol, t0 + (opt.att||0.008));
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + opt.dur);
+    o.connect(g); g.connect(A.master);
+    o.start(t0); o.stop(t0 + opt.dur + 0.05);
+  }
+  function noiseBurst(opt){
+    if (!A.ctx || !A.noise) return;
+    aResume();
+    var t0 = A.ctx.currentTime + (opt.delay||0);
+    var src = A.ctx.createBufferSource(); src.buffer = A.noise; src.loop = true;
+    var f = A.ctx.createBiquadFilter();
+    f.type = opt.ftype || 'lowpass';
+    f.frequency.value = opt.freq || 1000;
+    f.Q.value = opt.q || 0.8;
+    var g = A.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(opt.vol, t0 + (opt.att||0.01));
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + opt.dur);
+    src.connect(f); f.connect(g); g.connect(A.master);
+    src.start(t0); src.stop(t0 + opt.dur + 0.05);
+  }
+  var SFX = {
+    click: function(){ tone({type:'square', f0:1350, dur:0.035, vol:0.06}); },
+    draw:  function(){ tone({f0:300, f1:190, dur:0.20, vol:0.10}); noiseBurst({freq:520, dur:0.18, vol:0.05}); },
+    squeeze: function(){ noiseBurst({ftype:'bandpass', freq:760, dur:0.09, vol:0.10}); tone({f0:260, f1:170, dur:0.08, vol:0.06}); },
+    tick: function(fill){
+      tone({f0:470 + fill*430, f1:(470 + fill*430)*0.72, dur:0.075, vol:0.16});
+      noiseBurst({freq:1500, dur:0.07, vol:0.05});
+    },
+    ripple: function(){ tone({f0:185, f1:128, dur:0.34, vol:0.07}); },
+    plink: function(){ tone({f0:900, f1:640, dur:0.09, vol:0.12}); },
+    gurgle: function(){
+      tone({f0:330, f1:95, dur:0.5, vol:0.14});
+      noiseBurst({freq:420, dur:0.45, vol:0.07});
+      tone({f0:210, f1:80, dur:0.42, vol:0.08, delay:0.09});
+    },
+    bell: function(){
+      var f = 523.25;
+      tone({f0:f,       dur:1.5, vol:0.20});
+      tone({f0:f*2.71,  dur:1.1, vol:0.09});
+      tone({f0:f*4.05,  dur:0.8, vol:0.05});
+      tone({f0:f*0.5,   dur:1.7, vol:0.10});
+      noiseBurst({freq:3200, ftype:'highpass', dur:0.03, vol:0.05});
+    },
+    buzz: function(){
+      tone({type:'sawtooth', f0:132, dur:0.42, vol:0.10});
+      tone({type:'sawtooth', f0:126, dur:0.42, vol:0.10});
+    },
+    deny: function(){ tone({type:'triangle', f0:180, f1:150, dur:0.12, vol:0.09}); },
+    fog: function(){ noiseBurst({freq:320, dur:0.35, vol:0.10}); tone({f0:220, f1:170, dur:0.30, vol:0.05}); }
+  };
+
+  // ---------------- procedural textures (all deterministic) ----------------
+  var maxAniso = 4;
+  function texAgedPaper(w, h){
+    return canvasTex(w, h, function(g){
+      g.fillStyle = '#ece0c2'; g.fillRect(0,0,w,h);
+      for (var i=0;i<Math.floor(w*h/160);i++){
+        var h1=hash(i*7+1), h2=hash(i*7+2), h3=hash(i*7+3);
+        g.fillStyle = 'rgba(120,90,40,' + (0.02 + h3*0.05).toFixed(3) + ')';
+        g.fillRect(h1*w, h2*h, 2+h3*3, 1+h1*2);
+      }
+    });
+  }
+  function texBottleLabel(t){
+    return canvasTex(256, 192, function(g){
+      g.drawImage(texAgedPaper(256,192).image, 0, 0);
+      g.strokeStyle = '#6d4f26'; g.lineWidth = 3; g.strokeRect(8,8,240,176);
+      g.lineWidth = 1; g.strokeRect(14,14,228,164);
+      g.fillStyle = '#3c2a16'; g.textAlign = 'center';
+      g.font = '13px Georgia'; g.fillText('TINCTURA', 128, 42);
+      g.font = 'bold 30px Georgia'; g.fillText(t.title.split(' ')[1], 128, 80);
+      g.font = 'italic 15px Georgia'; g.fillText(t.sub, 128, 110);
+      g.fillStyle = '#7a3030'; g.beginPath(); g.arc(128, 136, 9, 0, Math.PI*2); g.fill();
+      g.fillStyle = '#3c2a16'; g.font = '11px Georgia';
+      g.fillText('NET 2.4 UNITS · KEEP STOPPERED', 128, 168);
+    }, 8);
+  }
+  function texReagentLabel(){
+    return canvasTex(256, 192, function(g){
+      g.drawImage(texAgedPaper(256,192).image, 0, 0);
+      g.strokeStyle = '#4a443c'; g.lineWidth = 3; g.strokeRect(8,8,240,176);
+      g.lineWidth = 1; g.strokeRect(14,14,228,164);
+      g.fillStyle = '#2c2620'; g.textAlign = 'center';
+      g.font = 'bold 26px Georgia'; g.fillText('REAGENT R', 128, 58);
+      g.font = 'italic 15px Georgia'; g.fillText('THE CLOUD-TEST', 128, 88);
+      g.fillStyle = '#7a3030'; g.beginPath(); g.arc(128, 118, 9, 0, Math.PI*2); g.fill();
+      g.fillStyle = '#2c2620'; g.font = '12px Georgia';
+      g.fillText('ONE DROP: CLOUDS IFF \u03c1 \u2265 1.10', 128, 150);
+      g.font = '11px Georgia';
+      g.fillText('COUNTS THE TALLY \u00b7 ADDS NO TINT, NO HEFT', 128, 170);
+    }, 8);
+  }
+  function texGraduations(){
+    return canvasTex(1024, 160, function(g, w, h){
+      g.clearRect(0,0,w,h);
+      for (var k=1;k<=20;k++){
+        var frac = (k/20) * LIQ_H / 0.86;
+        var y = (1 - frac) * h;
+        var major = (k % 5) === 0;
+        g.strokeStyle = major ? 'rgba(238,244,244,0.95)' : 'rgba(232,240,240,0.5)';
+        g.lineWidth = major ? 3 : 1.5;
+        g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
+        if (major){
+          g.fillStyle = 'rgba(240,246,246,0.95)';
+          g.font = 'bold 24px Georgia'; g.textAlign = 'center';
+          g.fillText((k*DROP_VOL).toFixed(2), w*0.5, y - 10);
+        }
+      }
+    }, 8);
+  }
+  function texHygroScale(){
+    // Printed strip spans stem-local depth 0.16..0.50. A deeper-floating (denser)
+    // mix lifts the waterline up the strip: 0.87 sits at the bottom, 1.22 at the top.
+    return canvasTex(64, 256, function(g, w, h){
+      g.clearRect(0,0,w,h);
+      g.fillStyle = 'rgba(245,240,225,0.92)'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#33241a'; g.fillRect(0,0,w,4);
+      function pOf(rho){ return (rho - 0.87) / 0.35; }
+      var labels = [0.87, 0.90, 0.95, 1.00, 1.05, 1.10, 1.15, 1.20, 1.22];
+      for (var i=0;i<labels.length;i++){
+        var p = pOf(labels[i]);
+        var y = (1 - p) * h;
+        g.strokeStyle = '#33241a'; g.lineWidth = 2;
+        g.beginPath(); g.moveTo(4, y); g.lineTo(20, y); g.stroke();
+        g.font = 'bold 11px Georgia'; g.textAlign = 'left';
+        g.fillText(labels[i].toFixed(2), 24, y + 4);
+        if (i < labels.length - 1){
+          var ym = (1 - (pOf(labels[i]) + pOf(labels[i+1]))/2) * h;
+          g.lineWidth = 1;
+          g.beginPath(); g.moveTo(4, ym); g.lineTo(13, ym); g.stroke();
+        }
+      }
+    }, 8);
+  }
+  function texFloor(){
+    return canvasTex(256, 256, function(g, w, h){
+      for (var row=0; row<8; row++){
+        var l = 0.5 + hash(row*3+11)*0.5;
+        g.fillStyle = 'rgb(' + Math.round(34+22*l) + ',' + Math.round(20+13*l) + ',' + Math.round(11+7*l) + ')';
+        g.fillRect(0, row*32, w, 32);
+        g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(0, row*32, w, 2);
+        var joint = Math.floor(hash(row*5+2)*w);
+        g.fillRect(joint, row*32, 2, 32);
+        for (var i=0;i<10;i++){
+          var hx = hash(row*97+i*3), hy = hash(row*97+i*3+1);
+          g.fillStyle = 'rgba(0,0,0,' + (0.04+hash(row+i)*0.08).toFixed(3) + ')';
+          g.fillRect(hx*w, row*32 + hy*30, 10+hy*22, 1);
+        }
+      }
+    });
+  }
+  function texRug(){
+    return canvasTex(256, 160, function(g, w, h){
+      g.fillStyle = '#552019'; g.fillRect(0,0,w,h);
+      for (var i=0;i<300;i++){
+        var h1=hash(i*13+5), h2=hash(i*13+6);
+        g.fillStyle = 'rgba(200,140,70,' + (0.03+h2*0.05).toFixed(3) + ')';
+        g.fillRect(h1*w, h2*h, 2, 2);
+      }
+      g.strokeStyle = '#c9a86a'; g.lineWidth = 3; g.strokeRect(8,8,w-16,h-16);
+      g.lineWidth = 1; g.strokeRect(15,15,w-30,h-30);
+      g.fillStyle = '#c9a86a';
+      [[24,24],[w-24,24],[24,h-24],[w-24,h-24]].forEach(function(p){
+        g.save(); g.translate(p[0],p[1]); g.rotate(Math.PI/4); g.fillRect(-6,-6,12,12); g.restore();
+      });
+    });
+  }
+  function texSky(){
+    return canvasTex(256, 256, function(g, w, h){
+      var gr = g.createLinearGradient(0,0,0,h);
+      gr.addColorStop(0, '#ffeec0'); gr.addColorStop(0.45, '#f7bd72');
+      gr.addColorStop(0.8, '#c47a3c'); gr.addColorStop(1, '#7c4826');
+      g.fillStyle = gr; g.fillRect(0,0,w,h);
+      g.fillStyle = 'rgba(255,246,214,0.95)';
+      g.beginPath(); g.arc(w*0.62, h*0.30, 30, 0, Math.PI*2); g.fill();
+      g.fillStyle = 'rgba(255,240,200,0.35)';
+      g.beginPath(); g.arc(w*0.62, h*0.30, 52, 0, Math.PI*2); g.fill();
+      g.fillStyle = '#422413';
+      g.fillRect(0, h*0.82, w, h*0.18);
+      for (var i=0;i<7;i++){
+        var bx = i*(w/7), bh = 10 + hash(i*31+4)*26;
+        g.fillRect(bx, h*0.82 - bh, w/7 - 3, bh);
+      }
+    }, 8);
+  }
+  function texRag(){
+    return canvasTex(128, 128, function(g, w, h){
+      g.fillStyle = '#6a5140'; g.fillRect(0,0,w,h);
+      for (var i=0;i<500;i++){
+        var h1=hash(i*17+9), h2=hash(i*17+10);
+        g.fillStyle = 'rgba(30,16,8,' + (0.05+h2*0.10).toFixed(3) + ')';
+        g.fillRect(h1*w, h2*h, 3, 1);
+      }
+      for (var s=0;s<7;s++){
+        var cx = hash(s*23+1)*w, cy = hash(s*23+2)*h, r = 8 + hash(s*23+3)*20;
+        g.fillStyle = 'rgba(28,12,6,' + (0.22 + hash(s)*0.25).toFixed(3) + ')';
+        g.beginPath(); g.arc(cx, cy, r, 0, Math.PI*2); g.fill();
+      }
+    });
+  }
+  function texCaustic(){
+    return canvasTex(128, 128, function(g, w, h){
+      var gr = g.createRadialGradient(w/2, h/2, 4, w/2, h/2, w/2);
+      gr.addColorStop(0, 'rgba(255,255,255,0.85)');
+      gr.addColorStop(0.5, 'rgba(255,255,255,0.28)');
+      gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.fillRect(0,0,w,h);
+    });
+  }
+  function drawContractCard(g, ct){
+    g.drawImage(texAgedPaper(256,352).image, 0, 0);
+    g.strokeStyle = '#6d4f26'; g.lineWidth = 3; g.strokeRect(9,9,238,334);
+    g.fillStyle = '#3c2a16'; g.textAlign = 'center';
+    g.font = 'bold 17px Georgia'; g.fillText('CONTRACT ' + ct.num, 128, 44);
+    g.font = 'italic 13px Georgia'; g.fillText('for ' + ct.client, 128, 66);
+    g.strokeStyle = '#6d4f26'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(34,80); g.lineTo(222,80); g.stroke();
+    g.font = 'bold 19px Georgia'; g.fillText(ct.name, 128, 108);
+    g.font = '12px Georgia'; g.fillText('TARGET RATIO', 128, 138);
+    g.font = 'bold 22px Georgia';
+    g.fillText('(' + ct.target.join(' \u00b7 ') + ')', 128, 162);
+    g.font = '12px Georgia';
+    g.fillText(ct.sample ? 'VET THE SAMPLE \u2014 ACCUSE (A) OR PASS (P)'
+      : 'HUE ' + ct.hueTarget.toFixed(3) + ' \u00b1' + HUE_TOL.toFixed(2) + ' \u00b7 HEFT ' + ct.denTarget.toFixed(3) + ' \u00b1' + DENSITY_TOL.toFixed(3), 128, 188);
+    var css = cssOfLin(mixLinear(ct.target));
+    g.fillStyle = css; g.fillRect(99, 198, 58, 50);
+    g.strokeStyle = '#3c2a16'; g.lineWidth = 2; g.strokeRect(99, 198, 58, 50);
+    g.fillStyle = '#3c2a16';
+    g.font = 'bold 12px Georgia';
+    g.fillText(ct.sample ? 'GREY CUTTER: \u03c1 1.100 \u00b7 NO HUE (WRITTEN)'
+      : ct.rExpected ? 'R: SEALED BY THE CLIENT'
+      : (ct.sediment ? 'SEDIMENT +0.02 \u00b7 RED BEFORE CYAN' : 'R: NOT GRADED'), 128, 264);
+    g.font = 'italic 12px Georgia';
+    var words = ct.brief.split(' '), line = '', ly = 284;
+    for (var i=0;i<words.length;i++){
+      if ((line + ' ' + words[i]).length > 30){ g.fillText(line, 128, ly); ly += 16; line = words[i]; }
+      else line = (line ? line + ' ' : '') + words[i];
+    }
+    if (line) g.fillText(line, 128, ly);
+    g.font = 'bold 13px Georgia'; g.fillText(ct.paid + ' \u00b7 IDEAL ' + ct.ideal + ' DRIPS', 128, 330);
+  }
+  function drawStar(g, cx, cy, r, filled){
+    g.beginPath();
+    for (var k=0;k<10;k++){
+      var ang = -Math.PI/2 + k*Math.PI/5;
+      var rr = (k % 2 === 0) ? r : r*0.45;
+      var px = cx + Math.cos(ang)*rr, py = cy + Math.sin(ang)*rr;
+      if (k === 0) g.moveTo(px, py); else g.lineTo(px, py);
+    }
+    g.closePath();
+    if (filled){ g.fillStyle = '#c9a227'; g.fill(); }
+    g.strokeStyle = filled ? '#8a6a2c' : 'rgba(60,42,22,0.35)';
+    g.lineWidth = 1.2; g.stroke();
+  }
+  var cardCanvases = [];
+  function texContractCard(ct, idx){
+    var cnv = document.createElement('canvas'); cnv.width = 256; cnv.height = 352;
+    drawContractCard(cnv.getContext('2d'), ct);
+    cardCanvases[idx] = cnv;
+    var t = new THREE.CanvasTexture(cnv);
+    t.anisotropy = 8;
+    return tagSRGB(t);
+  }
+  function redrawCardStars(i){
+    var cnv = cardCanvases[i];
+    if (!cnv) return;
+    var g = cnv.getContext('2d');
+    drawContractCard(g, CONTRACTS[i]);
+    for (var s=0;s<3;s++) drawStar(g, 28 + s*20, 30, 7, s < (starsBank[i] || 0));
+    if (cardMats[i] && cardMats[i].map) cardMats[i].map.needsUpdate = true;
+  }
+  function texNoteCard(title, body){
+    return canvasTex(256, 160, function(g, w, h){
+      g.drawImage(texAgedPaper(256,160).image, 0, 0);
+      g.strokeStyle = '#6d4f26'; g.lineWidth = 2; g.strokeRect(8,8,240,144);
+      g.fillStyle = '#3c2a16'; g.textAlign = 'center';
+      g.font = 'bold 17px Georgia'; g.fillText(title, 128, 40);
+      g.font = 'italic 13px Georgia';
+      var words = body.split(' '), line = '', ly = 70;
+      for (var i=0;i<words.length;i++){
+        if ((line + ' ' + words[i]).length > 34){ g.fillText(line, 128, ly); ly += 18; line = words[i]; }
+        else line = (line ? line + ' ' : '') + words[i];
+      }
+      if (line) g.fillText(line, 128, ly);
+    }, 8);
+  }
+  function texSampleCardBase(){
+    return canvasTex(512, 192, function(g, w, h){
+      g.drawImage(texAgedPaper(512,192).image, 0, 0);
+      g.strokeStyle = '#6d4f26'; g.lineWidth = 3; g.strokeRect(8,8,496,176);
+      g.fillStyle = '#3c2a16'; g.textAlign = 'left';
+      g.font = 'bold 20px Georgia'; g.fillText('CLIENT\u2019S SAMPLE', 26, 42);
+      g.font = '14px Georgia';
+      g.fillText('RATIO', 26, 78);
+      g.fillText('HUE', 26, 110);
+      g.fillText('HEFT', 26, 142);
+      g.fillText('R', 26, 172);
+    }, 8);
+  }
+  function redrawSampleBase(g){
+    g.clearRect(0,0,512,192);
+    var ct = CONTRACTS[contractIdx];
+    if (ct.sample){
+      // vetting order — the strip becomes the rival sample's assay report
+      g.drawImage(texAgedPaper(512,192).image, 0, 0);
+      g.strokeStyle = '#6d4f26'; g.lineWidth = 3; g.strokeRect(8,8,496,176);
+      g.fillStyle = '#3c2a16'; g.textAlign = 'left';
+      g.font = 'bold 20px Georgia'; g.fillText('RIVAL SAMPLE \u2014 VET IT', 26, 40);
+      g.font = '14px Georgia';
+      g.fillText('COMMISSIONED', 26, 78);
+      g.fillText('MEASURED \u03c1', 26, 110);
+      g.fillText('DIAL HUE', 26, 142);
+      g.fillText('GREY CUTTER', 26, 168);
+      g.font = 'bold 22px Georgia';
+      g.fillText('(' + ct.target.join(', ') + ')', 200, 78);
+      g.font = '14px Georgia';
+      g.fillText(sampleDensity(ct).toFixed(3), 200, 110);
+      g.fillText(sampleHue(ct).toFixed(3), 200, 142);
+      g.fillText('\u03c1 1.100 \u00b7 NO HUE', 200, 168);
+      g.fillStyle = '#6d4f26'; g.font = 'italic 13px Georgia';
+      g.fillText('a 20-drop batch \u00b7 A accuse (name the grey volume) \u00b7 P pass', 26, 188);
+      g.fillStyle = cssOfLin(sampleLin(ct)) || '#241207';
+      g.fillRect(320, 24, 150, 144);
+      g.strokeStyle = '#3c2a16'; g.lineWidth = 3; g.strokeRect(320, 24, 150, 144);
+      return;
+    }
+    g.drawImage(texSampleCardBase().image, 0, 0);
+    var css = cssOfLin(mixLinear(ct.target)) || '#241207';
+    g.fillStyle = css; g.fillRect(320, 24, 150, 144);
+    g.strokeStyle = '#3c2a16'; g.lineWidth = 3; g.strokeRect(320, 24, 150, 144);
+    g.fillStyle = '#3c2a16'; g.textAlign = 'left';
+    g.font = 'bold 22px Georgia';
+    g.fillText('(' + ct.target.join(', ') + ')', 150, 78);
+    g.font = '14px Georgia';
+    g.fillText(ct.hueTarget.toFixed(3) + ' \u00b1' + HUE_TOL.toFixed(2), 150, 110);
+    g.fillText(ct.denTarget.toFixed(3) + ' \u00b1' + DENSITY_TOL.toFixed(3) + (ct.sediment ? ' \u00b7 SED +0.02' : ''), 150, 142);
+    g.fillText(ct.rExpected ? ct.rExpected.toUpperCase() + ' \u00b7 \u03c1 ' + (ct.rExpected === 'clear' ? '< 1.10' : '\u2265 1.10')
+      : (ct.sediment ? 'SEDIMENT \u00b7 RED FIRST' : '\u2014 NOT GRADED'), 150, 172);
+  }
+
+  // ---------------- renderer / scene / camera ----------------
+  var renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias:true });
+  } catch(e){ showErr('WebGL could not start: ' + e); return; }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  try { maxAniso = renderer.capabilities.getMaxAnisotropy(); } catch(e){}
+  if (renderer.outputColorSpace !== undefined && THREE.SRGBColorSpace !== undefined){
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+  } else if (THREE.sRGBEncoding !== undefined){
+    renderer.outputEncoding = THREE.sRGBEncoding;
+  }
+  el('stage').appendChild(renderer.domElement);
+
+  var scene = new THREE.Scene();
+  scene.background = col(0x160c07);
+  scene.fog = new THREE.Fog(col(0x160c07).getHex(), 9, 22);
+
+  var camera = new THREE.PerspectiveCamera(46, window.innerWidth/window.innerHeight, 0.1, 60);
+  camera.position.set(3.05, 2.05, 4.35);
+  camera.lookAt(-0.35, 0.5, 0.05);
+
+  window.addEventListener('resize', function(){
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // environment reflections from a tiny procedural equirect
+  try {
+    var eq = canvasTex(128, 64, function(g, w, h){
+      var gr = g.createLinearGradient(0,0,0,h);
+      gr.addColorStop(0, '#3a2c1c'); gr.addColorStop(0.45, '#6b4a2a');
+      gr.addColorStop(0.75, '#241610'); gr.addColorStop(1, '#0e0805');
+      g.fillStyle = gr; g.fillRect(0,0,w,h);
+      g.fillStyle = 'rgba(255,225,170,0.95)'; g.fillRect(w*0.40, h*0.10, w*0.2, h*0.30);
+    });
+    eq.mapping = THREE.EquirectangularReflectionMapping;
+    var pm = new THREE.PMREMGenerator(renderer);
+    var envRT = pm.fromEquirectangular(eq);
+    scene.environment = envRT.texture;
+    pm.dispose(); eq.dispose();
+  } catch(e){ /* reflections are a nicety, not a requirement */ }
+
+  // ---------------- lights ----------------
+  var hemi = new THREE.HemisphereLight(0xffe4c0, 0x3a2414, 0.55);
+  scene.add(hemi);
+  var amb = new THREE.AmbientLight(0x584532, 0.42);
+  scene.add(amb);
+  var key = new THREE.DirectionalLight(0xffdfae, 1.55);
+  key.position.set(0.6, 3.4, 2.6);
+  key.target.position.set(0.2, 0, -0.6);
+  key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.camera.left = -5; key.shadow.camera.right = 5;
+  key.shadow.camera.top = 5; key.shadow.camera.bottom = -5;
+  key.shadow.camera.near = 0.5; key.shadow.camera.far = 12;
+  key.shadow.bias = -0.0004;
+  scene.add(key); scene.add(key.target);
+  var fill = new THREE.DirectionalLight(0xc9d2dd, 0.35);
+  fill.position.set(-3.5, 2.2, 2.0);
+  scene.add(fill);
+  var rim = new THREE.DirectionalLight(0xffd9a0, 0.6);
+  rim.position.set(-1.5, 2.6, -3.0);
+  scene.add(rim);
+
+  // ---------------- materials ----------------
+  var matLacquer  = new THREE.MeshPhysicalMaterial({ color:col(0x4a2417), roughness:0.42, metalness:0.0, clearcoat:1.0, clearcoatRoughness:0.22, envMapIntensity:0.7 });
+  var matLacqBody = new THREE.MeshPhysicalMaterial({ color:col(0x331a10), roughness:0.55, metalness:0.0, clearcoat:0.6, clearcoatRoughness:0.35, envMapIntensity:0.5 });
+  var matBrass    = new THREE.MeshStandardMaterial({ color:col(0xb9913f), roughness:0.28, metalness:1.0, envMapIntensity:1.15 });
+  var matBrassDark= new THREE.MeshStandardMaterial({ color:col(0x8a6a2c), roughness:0.36, metalness:1.0, envMapIntensity:1.0 });
+  var matWoodDark = new THREE.MeshStandardMaterial({ color:col(0x2e1a0e), roughness:0.7, metalness:0.0 });
+  var matWoodMid  = new THREE.MeshStandardMaterial({ color:col(0x53341c), roughness:0.62, metalness:0.0 });
+  var matWall     = new THREE.MeshStandardMaterial({ color:col(0x5a4130), roughness:0.9, metalness:0.0 });
+  var matGlass    = new THREE.MeshPhysicalMaterial({ color:col(0xd8e6e2), roughness:0.06, metalness:0.0, transparent:true, opacity:0.16, envMapIntensity:1.35, side:THREE.DoubleSide, depthWrite:false });
+  var matFrost    = new THREE.MeshPhysicalMaterial({ color:col(0xd8e6e2), roughness:0.45, metalness:0.0, transparent:true, opacity:0.5, envMapIntensity:0.8, side:THREE.DoubleSide, depthWrite:false });
+  var matTincture = TINCTURES.map(function(t){
+    return new THREE.MeshPhysicalMaterial({ roughness:0.12, metalness:0.0, clearcoat:0.6, clearcoatRoughness:0.2, envMapIntensity:0.8 });
+  });
+  matTincture.forEach(function(m, i){ setLin(m.color, TINCTURES[i].lin); });
+  var matReagent = new THREE.MeshPhysicalMaterial({ roughness:0.35, metalness:0.0, clearcoat:0.3, clearcoatRoughness:0.3, envMapIntensity:0.5 });
+  setLin(matReagent.color, REAGENT_R.lin);
+  matTincture.push(matReagent); // index 3 = reagent R (milky)
+  var matMix = new THREE.MeshPhysicalMaterial({ roughness:0.12, metalness:0.0, clearcoat:0.6, clearcoatRoughness:0.2, envMapIntensity:0.8 });
+  var matMetalDark= new THREE.MeshStandardMaterial({ color:col(0x4a4238), roughness:0.5, metalness:0.75, envMapIntensity:0.8 });
+  var matCloth    = new THREE.MeshStandardMaterial({ map:texRag(), roughness:0.95 });
+  var matBulb     = new THREE.MeshStandardMaterial({ color:col(0x2c2119), roughness:0.6, metalness:0.0 });
+
+  function mesh(geo, mat, x, y, z, opts){
+    var m = new THREE.Mesh(geo, mat);
+    if (x !== undefined) m.position.set(x, y || 0, z || 0);
+    if (opts){
+      if (opts.rx) m.rotation.x = opts.rx;
+      if (opts.ry) m.rotation.y = opts.ry;
+      if (opts.rz) m.rotation.z = opts.rz;
+      if (opts.sx) m.scale.set(opts.sx, opts.sy || opts.sx, opts.sz || opts.sx);
+      if (opts.cast) m.castShadow = true;
+      if (opts.recv) m.receiveShadow = true;
+      if (opts.order) m.renderOrder = opts.order;
+    }
+    return m;
+  }
+  function box(w, h, d){ return new THREE.BoxGeometry(w, h, d); }
+  function cyl(rt, rb, h, seg, open, t0, tl){ return new THREE.CylinderGeometry(rt, rb, h, seg, 1, !!open, t0 || 0, tl === undefined ? Math.PI*2 : tl); }
+
+  // ---------------- room ----------------
+  var floorTex = texFloor(); floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping; floorTex.repeat.set(6, 6);
+  var floor = mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshStandardMaterial({ map:floorTex, roughness:0.9 }), 0, -1.5, 0, { rx:-Math.PI/2, recv:true });
+  scene.add(floor);
+  var rugTex = texRug();
+  var rug = mesh(new THREE.PlaneGeometry(9.4, 5.6), new THREE.MeshStandardMaterial({ map:rugTex, roughness:1.0 }), 0.2, -1.49, 0.6, { rx:-Math.PI/2, recv:true });
+  scene.add(rug);
+
+  var wall = mesh(box(11, 5.0, 0.2), matWall, 0, 1.0, 2.5, { recv:true });
+  scene.add(wall);
+  scene.add(mesh(box(0.24, 5.0, 8), matWall, -5.7, 1.0, -1.0, { recv:true }));
+  scene.add(mesh(box(0.24, 5.0, 8), matWall,  5.7, 1.0, -1.0, { recv:true }));
+  scene.add(mesh(box(10.6, 0.5, 0.14), matWoodDark, 0, -1.22, 2.38)); // wainscot
+  scene.add(mesh(box(10.6, 0.08, 0.18), matWoodMid, 0, -0.95, 2.38));
+
+  // tall window (recessed emissive pane + muntins + sill)
+  var skyTex = texSky();
+  var pane = mesh(new THREE.PlaneGeometry(2.5, 2.7), new THREE.MeshBasicMaterial({ map:skyTex }), 0, 2.05, 2.39);
+  pane.material.fog = false;
+  scene.add(pane);
+  var frameMat = matWoodDark;
+  scene.add(mesh(box(2.9, 0.16, 0.16), frameMat, 0, 3.46, 2.34));
+  scene.add(mesh(box(2.9, 0.18, 0.16), frameMat, 0, 0.66, 2.34));
+  scene.add(mesh(box(0.16, 2.98, 0.16), frameMat, -1.37, 2.06, 2.34));
+  scene.add(mesh(box(0.16, 2.98, 0.16), frameMat,  1.37, 2.06, 2.34));
+  scene.add(mesh(box(2.58, 0.06, 0.06), frameMat, 0, 1.59, 2.33));
+  scene.add(mesh(box(2.58, 0.06, 0.06), frameMat, 0, 2.53, 2.33));
+  scene.add(mesh(box(0.06, 2.86, 0.06), frameMat, 0, 2.06, 2.33));
+  scene.add(mesh(box(3.1, 0.1, 0.26), matWoodMid, 0, 0.56, 2.30)); // sill
+  var glow = mesh(new THREE.PlaneGeometry(2.7, 2.9), new THREE.MeshBasicMaterial({ color:col(0xffe9c0), transparent:true, opacity:0.16, blending:THREE.AdditiveBlending, depthWrite:false, fog:false }), 0, 2.05, 2.30, { order:5 });
+  scene.add(glow);
+
+  // ---------------- the lacquered bench ----------------
+  var bench = new THREE.Group(); scene.add(bench);
+  bench.add(mesh(box(7.4, 0.18, 3.3), matLacquer, 0, -0.09, 0, { recv:true, cast:true }));
+  bench.add(mesh(box(7.4, 0.024, 0.03), matBrass, 0, -0.002, 1.655));
+  bench.add(mesh(box(7.4, 0.024, 0.03), matBrass, 0, -0.002, -1.655));
+  bench.add(mesh(box(7.0, 0.34, 3.0), matLacqBody, 0, -0.35, 0, { cast:true }));
+  [[-3.35,1.4],[3.35,1.4],[-3.35,-1.4],[3.35,-1.4]].forEach(function(p){
+    bench.add(mesh(box(0.24, 1.16, 0.24), matWoodDark, p[0], -0.87, p[1], { cast:true }));
+  });
+  bench.add(mesh(box(6.5, 0.06, 2.5), matWoodMid, 0, -1.12, 0, { recv:true }));
+  bench.add(mesh(box(0.8, 0.4, 0.6), matWoodMid, 2.2, -0.89, -0.5, { cast:true }));
+
+  // waste pail beneath the bench lip + floor stain
+  var pail = new THREE.Group(); pail.position.set(2.35, 0, 1.35); scene.add(pail);
+  pail.add(mesh(cyl(0.21, 0.155, 0.4, 20, true), matMetalDark, 0, -1.30, 0, { cast:true, order:1 }));
+  pail.children[0].material = matMetalDark.clone(); pail.children[0].material.side = THREE.DoubleSide;
+  pail.add(mesh(new THREE.TorusGeometry(0.205, 0.012, 8, 24), matBrassDark, 0, -1.105, 0, { rx:Math.PI/2 }));
+  pail.add(mesh(new THREE.CircleGeometry(0.15, 20), matWoodDark, 0, -1.47, 0, { rx:-Math.PI/2 }));
+  var stain = mesh(new THREE.CircleGeometry(0.32, 24), new THREE.MeshBasicMaterial({ color:col(0x1a0d06), transparent:true, opacity:0.45, depthWrite:false }), 2.05, -1.489, 1.15, { rx:-Math.PI/2, order:2 });
+  scene.add(stain);
+
+  // stained rag draped over the front lip
+  var ragG = new THREE.Group(); ragG.position.set(-1.35, 0, 1.52); ragG.rotation.y = 0.3; scene.add(ragG);
+  ragG.add(mesh(box(0.36, 0.04, 0.30), matCloth, 0, 0.025, 0, { cast:true }));
+  ragG.add(mesh(box(0.36, 0.24, 0.04), matCloth, 0, -0.10, 0.155, { cast:true }));
+
+  // brass balance with small weights
+  var balance = new THREE.Group(); balance.position.set(3.05, 0, 0.35); balance.rotation.y = -0.4; scene.add(balance);
+  balance.add(mesh(cyl(0.16, 0.18, 0.04, 24), matBrass, 0, 0.02, 0, { cast:true }));
+  balance.add(mesh(cyl(0.018, 0.024, 0.48, 12), matBrass, 0, 0.28, 0));
+  balance.add(mesh(new THREE.SphereGeometry(0.028, 12, 10), matBrass, 0, 0.545, 0));
+  var beam = new THREE.Group(); beam.position.y = 0.53; balance.add(beam);
+  beam.add(mesh(box(0.92, 0.024, 0.03), matBrass, 0, 0, 0, { cast:true }));
+  beam.add(mesh(cyl(0.01, 0.01, 0.05, 10), matBrassDark, 0, 0.01, 0));
+  var pans = [];
+  [[-0.45,1],[0.45,-1]].forEach(function(sd){
+    var pg = new THREE.Group(); pg.position.set(sd[0], -0.012, 0); beam.add(pg);
+    pg.add(mesh(cyl(0.004, 0.004, 0.24, 6), matBrassDark, 0, -0.12, 0));
+    pg.add(mesh(cyl(0.14, 0.11, 0.018, 20), matBrass, 0, -0.255, 0, { cast:true }));
+    if (sd[0] < 0){
+      pg.add(mesh(cyl(0.03, 0.03, 0.045, 12), matBrassDark, 0.03, -0.285, 0.02));
+      pg.add(mesh(cyl(0.022, 0.022, 0.034, 12), matBrassDark, -0.045, -0.278, -0.015));
+    }
+    pans.push({ pg:pg, sgn:sd[1] });
+  });
+  var weights = [ [3.30, 0.60, 0.05], [3.42, 0.50, 0.04], [3.20, 0.50, 0.032] ];
+  weights.forEach(function(w, i){
+    var g2 = new THREE.Group(); g2.position.set(w[0], 0, w[1]); g2.rotation.y = i*0.9; scene.add(g2);
+    g2.add(mesh(cyl(w[2]*0.7, w[2]*0.7, w[2], 12), matBrassDark, 0, w[2]/2 + 0.004, 0));
+    g2.add(mesh(new THREE.SphereGeometry(w[2]*0.32, 8, 6), matBrassDark, 0, w[2] + w[2]*0.26, 0));
+  });
+
+  // swatch rack of finished colour cards
+  var rack = new THREE.Group(); rack.position.set(-3.0, 0, 0.45); rack.rotation.y = 0.5; scene.add(rack);
+  rack.add(mesh(box(0.94, 0.05, 0.32), matWoodMid, 0, 0.025, 0, { cast:true }));
+  rack.add(mesh(box(0.94, 0.52, 0.03), matWoodMid, 0, 0.30, -0.13, { rx:-0.12, cast:true }));
+  var swatchCols = [0x7a2230, 0x2e6b66, 0x6b6b2e, 0xb07d2a, 0x5c3a66, 0x46505c];
+  swatchCols.forEach(function(hx, i){
+    var cm = new THREE.MeshStandardMaterial({ color:col(hx), roughness:0.5, metalness:0.05 });
+    rack.add(mesh(box(0.125, 0.185, 0.012), cm, -0.36 + i*0.144, 0.33, -0.075, { rx:-0.12 }));
+  });
+  rack.add(mesh(box(0.40, 0.085, 0.012), matBrassDark, 0, 0.09, 0.06));
+
+  // ---------------- pegboard of client contracts ----------------
+  var board = new THREE.Group(); board.position.set(-2.6, 1.8, 2.36); scene.add(board);
+  board.add(mesh(box(2.5, 1.5, 0.06), matWoodMid, 0, 0, 0, { recv:true }));
+  board.add(mesh(box(2.58, 0.06, 0.07), matBrassDark, 0, 0.78, 0.01));
+  board.add(mesh(box(2.58, 0.06, 0.07), matBrassDark, 0, -0.78, 0.01));
+  board.add(mesh(box(0.06, 1.62, 0.07), matBrassDark, -1.28, 0, 0.01));
+  board.add(mesh(box(0.06, 1.62, 0.07), matBrassDark,  1.28, 0, 0.01));
+  var cardMats = CONTRACTS.map(function(ct, i){
+    var m = new THREE.MeshStandardMaterial({ map:texContractCard(ct, i), roughness:0.85, metalness:0.0 });
+    var card = mesh(new THREE.PlaneGeometry(0.46, 0.633), m, -1.02 + i*0.51, 0.28, 0.045, { order:3 });
+    board.add(card);
+    board.add(mesh(new THREE.SphereGeometry(0.014, 10, 8), matBrass, -1.02 + i*0.51, 0.62, 0.05));
+    return m;
+  });
+  var sampleCanvas = document.createElement('canvas'); sampleCanvas.width = 512; sampleCanvas.height = 192;
+  var sampleTex = new THREE.CanvasTexture(sampleCanvas); tagSRGB(sampleTex); sampleTex.anisotropy = 8;
+  function redrawSample(){
+    redrawSampleBase(sampleCanvas.getContext('2d'));
+    sampleTex.needsUpdate = true;
+  }
+  board.add(mesh(new THREE.PlaneGeometry(0.94, 0.36), new THREE.MeshStandardMaterial({ map:sampleTex, roughness:0.85 }), 0, -0.50, 0.045, { order:3 }));
+  board.add(mesh(new THREE.PlaneGeometry(0.42, 0.26), new THREE.MeshStandardMaterial({ map:texNoteCard('TARIFF OF WASTE', 'Each emptied beaker is marked against your name.'), roughness:0.85 }), -0.92, -0.48, 0.045, { order:3 }));
+  board.add(mesh(new THREE.PlaneGeometry(0.42, 0.26), new THREE.MeshStandardMaterial({ map:texNoteCard('HOUSE RULE', 'The glass is the ledger — read it, do not argue.'), roughness:0.85 }), 0.92, -0.48, 0.045, { order:3 }));
+  // decor shelf on the right wall
+  var shelfR = new THREE.Group(); shelfR.position.set(3.1, 1.75, 2.30); scene.add(shelfR);
+  shelfR.add(mesh(box(1.7, 0.05, 0.32), matWoodMid, 0, 0, 0.05, { cast:true }));
+  for (var sb=0; sb<3; sb++){
+    var bg = new THREE.Group(); bg.position.set(-0.55 + sb*0.5, 0, 0.02); bg.rotation.y = (sb-1)*0.15; shelfR.add(bg);
+    bg.add(mesh(cyl(0.09, 0.11, 0.30, 14), matGlass, 0, 0.175, 0, { order:10 }));
+    bg.add(mesh(cyl(0.085, 0.085, 0.24, 12), matTincture[sb], 0, 0.145, 0));
+    bg.add(mesh(cyl(0.05, 0.062, 0.09, 10), matFrost, 0, 0.365, 0, { order:10 }));
+  }
+
+  // window light shaft + caustic pool (tinted by the mix)
+  var shaftMat = new THREE.MeshBasicMaterial({ color:col(0xffdca0), transparent:true, opacity:0.07, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide, fog:false });
+  var shaft1 = mesh(new THREE.PlaneGeometry(2.1, 3.1), shaftMat, 0.1, 1.25, 0.75, { rx:-0.55, ry:0.06, order:5 });
+  var shaft2 = mesh(new THREE.PlaneGeometry(1.0, 3.1), shaftMat, 0.55, 1.25, 0.35, { rx:-0.55, ry:-0.05, order:5 });
+  scene.add(shaft1); scene.add(shaft2);
+  var causticMat = new THREE.MeshBasicMaterial({ map:texCaustic(), color:col(0xffdca0), transparent:true, opacity:0.30, blending:THREE.AdditiveBlending, depthWrite:false, fog:false });
+  var caustic = mesh(new THREE.CircleGeometry(0.55, 28), causticMat, 0, 0.012, -0.9, { rx:-Math.PI/2, order:6 });
+  scene.add(caustic);
+
+  // ---------------- stock bottles ----------------
+  function beakerInnerR(y){ return 0.27 + 0.07*(y/0.9) - 0.013; }
+  var bottleProfile = [
+    [0.001,0.0],[0.20,0.0],[0.30,0.02],[0.345,0.14],[0.36,0.30],[0.345,0.44],
+    [0.24,0.565],[0.13,0.645],[0.115,0.70],[0.112,0.90],[0.13,0.925]
+  ].map(function(p){ return new THREE.Vector2(p[0], p[1]); });
+  var bottles = [];
+  BOTTLE_POS.slice(0, 3).forEach(function(bp, i){
+    var g3 = new THREE.Group(); g3.position.set(bp[0], 0, bp[1]); scene.add(g3);
+    var body = mesh(new THREE.LatheGeometry(bottleProfile, 30), matGlass, 0, 0, 0, { cast:true, order:10 });
+    g3.add(body);
+    var liqGeo = cyl(0.275, 0.275, 0.44, 24); liqGeo.translate(0, 0.22, 0);
+    var liq = mesh(liqGeo, matTincture[i], 0, 0.03, 0);
+    g3.add(liq);
+    var liqTop = mesh(new THREE.CircleGeometry(0.275, 24), matTincture[i], 0, 0.03, 0, { rx:-Math.PI/2 });
+    g3.add(liqTop);
+    var label = mesh(cyl(0.375, 0.375, 0.30, 24, true, -0.95, 1.9),
+      new THREE.MeshStandardMaterial({ map:texBottleLabel(TINCTURES[i]), roughness:0.85 }), 0, 0.28, 0, { cast:true });
+    g3.add(label);
+    var stopper = new THREE.Group(); stopper.position.y = 0.90; g3.add(stopper);
+    var stopProfile = [[0.001,0],[0.095,0],[0.11,0.06],[0.075,0.13],[0.05,0.16]].map(function(p){ return new THREE.Vector2(p[0], p[1]); });
+    stopper.add(mesh(new THREE.LatheGeometry(stopProfile, 18), matFrost, 0, 0, 0, { order:10 }));
+    stopper.add(mesh(new THREE.SphereGeometry(0.07, 14, 10), matFrost, 0, 0.20, 0, { order:10 }));
+    bottles.push({ group:g3, stopper:stopper, liq:liq, liqTop:liqTop, x:bp[0] });
+  });
+
+  // reagent R — fourth bottle at (−1,−1): smoked glass, milky charge
+  var matSmoked = new THREE.MeshPhysicalMaterial({ color:col(0x4a443c), roughness:0.15, metalness:0.0, transparent:true, opacity:0.34, envMapIntensity:1.0, side:THREE.DoubleSide, depthWrite:false });
+  (function(){
+    var g3 = new THREE.Group(); g3.position.set(BOTTLE_POS[3][0], 0, BOTTLE_POS[3][1]); scene.add(g3);
+    g3.add(mesh(new THREE.LatheGeometry(bottleProfile, 24), matSmoked, 0, 0, 0, { cast:true, order:10 }));
+    var liqGeo = cyl(0.275, 0.275, 0.44, 24); liqGeo.translate(0, 0.22, 0);
+    var liq = mesh(liqGeo, matTincture[3], 0, 0.03, 0);
+    g3.add(liq);
+    var liqTop = mesh(new THREE.CircleGeometry(0.275, 24), matTincture[3], 0, 0.03, 0, { rx:-Math.PI/2 });
+    g3.add(liqTop);
+    g3.add(mesh(cyl(0.375, 0.375, 0.30, 24, true, -0.95, 1.9),
+      new THREE.MeshStandardMaterial({ map:texReagentLabel(), roughness:0.85 }), 0, 0.28, 0, { cast:true }));
+    var stopProfileR = [[0.001,0],[0.095,0],[0.11,0.06],[0.075,0.13],[0.05,0.16]].map(function(p){ return new THREE.Vector2(p[0], p[1]); });
+    var stopper = new THREE.Group(); stopper.position.y = 0.90; g3.add(stopper);
+    stopper.add(mesh(new THREE.LatheGeometry(stopProfileR, 14), matFrost, 0, 0, 0, { order:10 }));
+    stopper.add(mesh(new THREE.SphereGeometry(0.07, 12, 10), matFrost, 0, 0.20, 0, { order:10 }));
+    bottles.push({ group:g3, stopper:stopper, liq:liq, liqTop:liqTop, x:BOTTLE_POS[3][0] });
+  })();
+  var squeezed = [0, 0, 0]; // drops drawn from each bottle
+  function bottleLevel(i){
+    var frac = clamp(1 - squeezed[i]/BOTTLE_CAP_DROPS, 0.04, 1);
+    return 0.05 + 0.42*frac;
+  }
+  function updateBottleVisual(i){
+    var lv = bottleLevel(i);
+    bottles[i].liq.scale.y = lv/0.44;
+    bottles[i].liqTop.position.y = lv;
+  }
+  for (var bi=0; bi<bottles.length; bi++) updateBottleVisual(bi);
+
+  // ---------------- graduated beaker ----------------
+  var beaker = new THREE.Group(); beaker.position.set(0, 0, -1); scene.add(beaker);
+  beaker.add(mesh(cyl(0.34, 0.27, 0.9, 40, true), matGlass, 0, 0.45, 0, { order:10 }));
+  beaker.add(mesh(new THREE.CircleGeometry(0.27, 40), matGlass, 0, 0.028, 0, { rx:-Math.PI/2, order:10 }));
+  beaker.add(mesh(new THREE.TorusGeometry(0.335, 0.009, 8, 40), matGlass, 0, 0.9, 0, { rx:Math.PI/2, order:10 }));
+  beaker.add(mesh(cyl(0.006, 0.045, 0.12, 6), matGlass, 0.36, 0.845, 0, { rz:-1.95, order:10 })); // pouring lip
+  var bandMat = new THREE.MeshBasicMaterial({ map:texGraduations(), transparent:true, opacity:0.9, depthWrite:false, fog:false });
+  var band = mesh(cyl(0.3512, 0.2843, 0.86, 40, true, -1.1, 2.2), bandMat, 0, 0.46, 0, { order:12 });
+  beaker.add(band);
+  var liqBottom = mesh(new THREE.CircleGeometry(beakerInnerR(BK_BOT) - 0.003, 36), matMix, 0, BK_BOT + 0.001, 0, { rx:-Math.PI/2 });
+  liqBottom.visible = false;
+  beaker.add(liqBottom);
+  // liquid side wall — positions rewritten on every impact
+  var S_LIQ = 36, R_LIQ = 20;
+  var liqColGeo = new THREE.BufferGeometry();
+  (function(){
+    var n = (R_LIQ+1)*(S_LIQ+1);
+    var pos = new Float32Array(n*3), idx = [];
+    for (var i=0;i<=R_LIQ;i++) for (var j=0;j<=S_LIQ;j++){
+      var k = i*(S_LIQ+1)+j, th = j/S_LIQ*Math.PI*2, r = beakerInnerR(BK_BOT)-0.003;
+      pos[k*3] = Math.cos(th)*r; pos[k*3+1] = BK_BOT; pos[k*3+2] = Math.sin(th)*r;
+    }
+    for (var i2=0;i2<R_LIQ;i2++) for (var j2=0;j2<S_LIQ;j2++){
+      var a = i2*(S_LIQ+1)+j2, b = (i2+1)*(S_LIQ+1)+j2, c = a+1, d = b+1;
+      idx.push(a,b,c, b,d,c);
+    }
+    liqColGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    liqColGeo.setIndex(idx);
+    liqColGeo.computeVertexNormals();
+  })();
+  var liqCol = new THREE.Mesh(liqColGeo, matMix); liqCol.visible = false; beaker.add(liqCol);
+  function fixWinding(geo, vertIdx, expect){
+    geo.computeVertexNormals();
+    var nrm = geo.attributes.normal;
+    var dot = nrm.getX(vertIdx)*expect[0] + nrm.getY(vertIdx)*expect[1] + nrm.getZ(vertIdx)*expect[2];
+    if (dot < 0){ geo.index.array.reverse(); geo.computeVertexNormals(); }
+  }
+  fixWinding(liqColGeo, 0, [1,0,0]);
+  function updateLiquidColumn(){
+    var pos = liqColGeo.attributes.position, k = 0;
+    for (var i=0;i<=R_LIQ;i++){
+      var t = i/R_LIQ;
+      var y = BK_BOT + t*fill*LIQ_H;
+      var r = beakerInnerR(y) - 0.003;
+      for (var j=0;j<=S_LIQ;j++){
+        var th = j/S_LIQ*Math.PI*2;
+        pos.setXYZ(k++, Math.cos(th)*r, y, Math.sin(th)*r);
+      }
+    }
+    pos.needsUpdate = true;
+    liqColGeo.computeVertexNormals();
+    liqCol.visible = fill > 0;
+    liqBottom.visible = fill > 0;
+  }
+  // rippling, swirling liquid surface — rebuilt per impact, animated every step
+  var surf = { geo:null, r:0.26, pr:null, pt:null, count:0 };
+  var surfMesh = new THREE.Mesh(new THREE.BufferGeometry(), matMix);
+  surfMesh.visible = false; beaker.add(surfMesh);
+  function rebuildSurface(){
+    var yTop = BK_BOT + fill*LIQ_H;
+    var rad = beakerInnerR(yTop) - 0.004;
+    var rings = 12, segs = 40;
+    var n = (rings+1)*(segs+1);
+    var pos = new Float32Array(n*3), idx = [];
+    surf.pr = new Float32Array(n); surf.pt = new Float32Array(n); surf.count = n;
+    for (var i=0;i<=rings;i++){
+      for (var j=0;j<=segs;j++){
+        var k = i*(segs+1)+j, rr = rad*i/rings, th = j/segs*Math.PI*2;
+        surf.pr[k] = rr; surf.pt[k] = th;
+        pos[k*3] = Math.cos(th)*rr; pos[k*3+1] = 0; pos[k*3+2] = Math.sin(th)*rr;
+      }
+    }
+    for (var i2=0;i2<rings;i2++) for (var j2=0;j2<segs;j2++){
+      var a = i2*(segs+1)+j2, b = a+1, c = (i2+1)*(segs+1)+j2, d = c+1;
+      idx.push(a,b,c, b,d,c);
+    }
+    if (surf.geo) surf.geo.dispose();
+    surf.geo = new THREE.BufferGeometry();
+    surf.geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    surf.geo.setIndex(idx);
+    fixWinding(surf.geo, 0, [0,1,0]);
+    surf.r = rad;
+    surfMesh.geometry = surf.geo;
+    surfMesh.position.y = yTop;
+    surfMesh.visible = fill > 0;
+  }
+
+  // sediment flecks — settle at the beaker's bottom and render while the
+  // pour-order correction applies; drawn over the opaque liquid, under the glass
+  var sedimentGroup = new THREE.Group(); sedimentGroup.visible = false; beaker.add(sedimentGroup);
+  (function(){
+    var fleckGeo = new THREE.BoxGeometry(1, 1, 1);
+    var fleckMat = new THREE.MeshStandardMaterial({ color:col(0x4a1612), roughness:0.9, metalness:0.05, depthTest:false, depthWrite:false });
+    for (var i=0;i<42;i++){
+      var a = hash(i*3+101), b = hash(i*3+102), c = hash(i*3+103);
+      var fr = (beakerInnerR(BK_BOT) - 0.012) * Math.sqrt(a);
+      var fth = b * Math.PI * 2;
+      var f = mesh(fleckGeo, fleckMat, Math.cos(fth)*fr, BK_BOT + 0.004 + c*0.045, Math.sin(fth)*fr, { sx:0.006 + hash(i)*0.010, order:2 });
+      f.rotation.set(hash(i*7)*3, hash(i*7+1)*3, hash(i*7+2)*3);
+      sedimentGroup.add(f);
+    }
+  })();
+
+  // ---------------- the dropper ----------------
+  var dropperG = new THREE.Group(); scene.add(dropperG);
+  var bulbMesh = mesh(new THREE.SphereGeometry(0.075, 16, 12), matBulb, 0, 0, 0, { cast:true });
+  bulbMesh.scale.set(1, 1.3, 1);
+  dropperG.add(bulbMesh);
+  dropperG.add(mesh(new THREE.TorusGeometry(0.032, 0.012, 8, 16), matBrass, 0, -0.075, 0, { rx:Math.PI/2 }));
+  dropperG.add(mesh(cyl(0.026, 0.02, 0.30, 16), matGlass, 0, -0.24, 0, { order:10 }));
+  dropperG.add(mesh(cyl(0.02, 0.007, 0.06, 12), matGlass, 0, -0.42, 0, { order:10 }));
+  var tubeLiqGeo = cyl(0.014, 0.014, 0.20, 10); tubeLiqGeo.translate(0, 0.10, 0);
+  var tubeLiq = mesh(tubeLiqGeo, matTincture[0], 0, -0.40, 0);
+  tubeLiq.scale.y = 0.001;
+  dropperG.add(tubeLiq);
+  // dropper parking stand
+  var dStand = new THREE.Group(); scene.add(dStand);
+  dStand.add(mesh(cyl(0.10, 0.11, 0.03, 16), matBrass, 2.55, 0.015, -0.35, { cast:true }));
+  dStand.add(mesh(cyl(0.012, 0.014, 1.24, 10), matBrass, 2.55, 0.62, -0.35, { cast:true }));
+  dStand.add(mesh(cyl(0.010, 0.010, 0.22, 10), matBrass, 2.55, 1.24, -0.45, { rx:Math.PI/2 }));
+  dStand.add(mesh(new THREE.TorusGeometry(0.035, 0.007, 8, 16), matBrassDark, 2.55, 1.22, -0.55, { rx:Math.PI/2 }));
+
+  // ---------------- hydrometer ----------------
+  var hygroG = new THREE.Group(); scene.add(hygroG);
+  var bulb2 = mesh(new THREE.SphereGeometry(0.058, 14, 10), matGlass, 0, 0.058, 0, { cast:true, order:10 });
+  bulb2.scale.set(1, 1.15, 1);
+  hygroG.add(bulb2);
+  hygroG.add(mesh(cyl(0.028, 0.004, 0.05, 10), matMetalDark, 0, 0.022, 0)); // ballast shot
+  hygroG.add(mesh(cyl(0.017, 0.017, 0.46, 10), matGlass, 0, 0.33, 0, { order:10 }));
+  hygroG.add(mesh(cyl(0.0185, 0.0185, 0.34, 10, true, -0.8, 1.6),
+    new THREE.MeshStandardMaterial({ map:texHygroScale(), roughness:0.9, side:THREE.DoubleSide }), 0, 0.33, 0));
+  hygroG.add(mesh(new THREE.SphereGeometry(0.02, 8, 6), matGlass, 0, 0.57, 0, { order:10 }));
+  // hydrometer rest stand
+  var hStand = new THREE.Group(); scene.add(hStand);
+  hStand.add(mesh(cyl(0.10, 0.11, 0.025, 18), matBrass, 0.95, 0.0125, -0.70, { cast:true }));
+  hStand.add(mesh(cyl(0.008, 0.008, 0.52, 8), matBrass, 0.86, 0.27, -0.70));
+  hStand.add(mesh(new THREE.TorusGeometry(0.03, 0.006, 6, 14), matBrassDark, 0.895, 0.40, -0.70, { ry:Math.PI/2 }));
+  var HYGRO_STAND = { x:0.93, y:0.035, z:-0.70, rz:0.06 };
+  var HYGRO_BEAKER = { x:0.10, z:-0.99 };
+
+  // ---------------- game state ----------------
+  var phase = 'title', simTime = 0;
+  var counts = [0,0,0,0], fill = 0; // counts[3] = reagent R drops
+  var firstRedTime = null, firstCyanTime = null; // pour order, for the sediment term
+  function sedimentOn(){
+    return counts[0] > 0 && counts[1] > 0 && firstRedTime !== null && firstCyanTime !== null && firstRedTime < firstCyanTime;
+  }
+  var wasteEmpties = 0, wasteUnits = 0;
+  var selected = 0;
+  var dropHistory = [];
+  var inFlight = [];
+  var pendingE = 0, pendingDeliver = false;
+  var contractIdx = 0, contractStatus = 'active', attempts = 0, metTotal = 0;
+  var dispensed = 0, emptiesThis = 0;
+  var starsBank = [0,0,0,0,0];
+  var blendMet = 0, vetCorrect = 0;
+  var ledgerOpen = false;
+  // THE LEDGER — the bound book. Score = contracts × 150 + correct accusations
+  // × 100 + stars × 40 − wastes × 30. Rating: S ≥ 950 / A ≥ 800 / B ≥ 650 / C.
+  function ledgerLines(){
+    var totalStars = starsBank.reduce(function(a, b){ return a + b; }, 0);
+    var cLine = blendMet * 150, aLine = vetCorrect * 100, sLine = totalStars * 40, wLine = wasteEmpties * 30;
+    var score = cLine + aLine + sLine - wLine;
+    var rating = score >= 950 ? 'S' : (score >= 800 ? 'A' : (score >= 650 ? 'B' : 'C'));
+    return { blendMet:blendMet, vetCorrect:vetCorrect, stars:totalStars, wastes:wasteEmpties,
+      cLine:cLine, aLine:aLine, sLine:sLine, wLine:wLine, score:score, rating:rating };
+  }
+  var accusationPoints = 0;
+  var accusing = false, estimateStep = 20; // accusation UI: grey volume in 0.01-unit steps
+  function orderIsVerdict(){ return CONTRACTS[contractIdx].sample != null; }
+  function accusationHint(){
+    return 'ACCUSATION \u2014 grey volume ' + (estimateStep * 0.01).toFixed(2) + ' u: , / . adjust \u00b7 ENTER swear \u00b7 P withdraw';
+  }
+  // DRIP ECONOMY — every contract carries a written ideal drip count. The actual
+  // count includes reagent drops and the drops of any wasted and re-made batch,
+  // and it keeps accumulating across struck (rejected) retries until a fresh
+  // contract begins. Within +2 of ideal = three stars, +6 = two, +12 = one.
+  function starGrade(drips, ideal){
+    var d = drips - ideal;
+    return d <= 2 ? 3 : (d <= 6 ? 2 : (d <= 12 ? 1 : 0));
+  }
+  var ripples = [];
+  var swirlAmp = 0, swirlT = 9;
+  var stopperLift = [0,0,0];
+  var queue = [];
+  var cam = { px:3.05, py:2.05, pz:4.35, tx:-0.35, ty:0.5 };
+
+  var dropper = {
+    state:'HOME', t:0, dur:0,
+    pos:new THREE.Vector3(2.55, 1.14, -0.55),
+    from:new THREE.Vector3(2.55, 1.14, -0.55),
+    to:new THREE.Vector3(2.55, 1.14, -0.55),
+    bottle:0, charges:0, cooldown:0, squeezeT:-1, released:true,
+    bulbScale:1, bulbVel:0, tubeFill:0
+  };
+  var DROP_OVER_BEAKER = new THREE.Vector3(0.03, 1.80, -1.0);
+  var hygro = { mode:'stand', t:0, fx:0, fy:0, fz:0, d:0.3, dVel:0 };
+
+  // ---------------- HUD ----------------
+  var hudHue = el('hueline'), hudFill = el('fillline'), hudHeft = el('heftline'),
+      hudR = el('rline'),
+      hudWaste = el('waste-panel'), hudSwatch = el('swatch'),
+      cpNum = el('cp-num'), cpName = el('cp-name'), cpTarget = el('cp-target'), cpSpec = el('cp-spec'), cpDrips = el('cp-drips'), cpClient = el('cp-client'),
+      hintEl = el('hint'), titleCard = el('title-card'), resultCard = el('result-card'),
+      rcTitle = el('rc-title'), rcChan = el('rc-chan'), rcSub = el('rc-sub'), rcBody = el('rc-body'), rcPress = el('rc-press'),
+      ledgerCard = el('ledger-card'),
+      lgContracts = el('lg-contracts'), lgContractsV = el('lg-contracts-v'),
+      lgAccusations = el('lg-accusations'), lgAccusationsV = el('lg-accusations-v'),
+      lgStars = el('lg-stars'), lgStarsV = el('lg-stars-v'),
+      lgWastes = el('lg-wastes'), lgWastesV = el('lg-wastes-v'),
+      lgScore = el('lg-score'), lgRating = el('lg-rating');
+  var chips = [];
+  TINCTURES.forEach(function(t, i){
+    var d = document.createElement('div');
+    d.className = 'chip';
+    d.innerHTML = '<span class="dot" style="background:' + cssOfLin(t.lin) + '"></span>' + (i+1) + ' &middot; ' + t.name;
+    el('tincture-panel').appendChild(d);
+    chips.push(d);
+  });
+  (function(){
+    var d = document.createElement('div');
+    d.className = 'chip';
+    d.innerHTML = '<span class="dot" style="background:' + cssOfLin(REAGENT_R.lin) + '"></span>4 &middot; R';
+    el('tincture-panel').appendChild(d);
+    chips.push(d);
+  })();
+  var hintTimer = null, hintSticky = false;
+  function hint(s, sticky){
+    hintEl.textContent = s;
+    hintEl.classList.add('show');
+    if (hintTimer){ clearTimeout(hintTimer); hintTimer = null; }
+    hintSticky = !!sticky;
+    if (!hintSticky) hintTimer = setTimeout(function(){ hintEl.classList.remove('show'); }, 2400);
+  }
+  function setPhase(p){ phase = p; document.body.className = 'phase-' + p; }
+
+  function densityDepth(){
+    // the float matches the number: a denser reading sinks the hydrometer deeper.
+    // Reading 0.87 → depth 0.16 (waterline at strip bottom), 1.22 → 0.50 (strip top);
+    // the printed scale on the stem is drawn to the same mapping.
+    var rd = readDensity(counts);
+    if (rd === null) return 0.16;
+    return clamp(0.16 + 0.34*(rd - 0.87)/0.35, 0.10, 0.52);
+  }
+  // THE CLOUD-TEST — reagent R reads one bit of the density band: with R present,
+  // the mix clouds exactly when the corrected heft reaches 1.10 (equality counts);
+  // below it stays clear. The reading is live: it re-asks on every drop.
+  function rReading(){
+    if (counts[3] === 0) return null;
+    var den = readDensity(counts);
+    return (den !== null && den >= CLOUDY_AT - 1e-9) ? 'cloudy' : 'clear';
+  }
+  var cloudState = false;
+  var CLOUD_WHITE = new THREE.Color(1, 1, 1);
+  function applyCloud(on){
+    if (cloudState === on) return;
+    cloudState = on;
+    matMix.transparent = on;
+    matMix.opacity = on ? 0.92 : 1.0;
+    matMix.roughness = on ? 0.45 : 0.12;
+    matMix.clearcoat = on ? 0.1 : 0.6;
+    matMix.needsUpdate = true;
+  }
+  function hygroFloating(){
+    var yTop = BK_BOT + fill*LIQ_H;
+    return (yTop - 0.045) >= densityDepth() + 0.02;
+  }
+  function hygroWord(){
+    if (hygro.mode === 'stand' || hygro.mode === 'toStand') return 'HYDROMETER ON STAND';
+    if (hygro.mode === 'toBeaker') return 'HYDROMETER DIPPING';
+    return hygroFloating() ? 'HYDROMETER FLOATING' : 'HYDROMETER GROUNDED';
+  }
+  function refreshHUD(){
+    var ct = CONTRACTS[contractIdx];
+    var hue = readHue(counts);
+    setText(hudHue, hue === null
+      ? 'HUE \u2014 \u00b7 TARGET ' + ct.hueTarget.toFixed(3) + ' \u00b1' + HUE_TOL.toFixed(2)
+      : 'HUE ' + hue.toFixed(3) + ' \u00b7 TARGET ' + ct.hueTarget.toFixed(3) + ' \u00b1' + HUE_TOL.toFixed(2));
+    setText(hudFill, 'FILL ' + fill.toFixed(2) + ' / 1.00');
+    var rho = readDensity(counts);
+    setText(hudHeft, rho === null ? 'HEFT \u2014 \u00b7 ' + hygroWord()
+      : 'HEFT \u03c1 ' + rho.toFixed(3) + (sedimentOn() ? ' \u00b7 SEDIMENT +0.02' : '') + ' \u00b7 ' + hygroWord());
+    var reading = rReading();
+    setText(hudR, counts[3] === 0 ? 'R 0 \u00b7 NOT ASKED'
+      : 'R ' + counts[3] + ' \u00b7 ' + reading.toUpperCase() + (reading === 'cloudy' ? ' (\u03c1 \u2265 1.10)' : ' (\u03c1 < 1.10)'));
+    var banked = starsBank[contractIdx] || 0;
+    setText(hudDrips, 'DRIPS ' + dispensed + ' \u00b7 IDEAL ' + ct.ideal + (dispensed > ct.ideal ? ' (+' + (dispensed - ct.ideal) + ')' : '') + ' \u00b7 BANKED ' + (banked > 0 ? '\u2605'.repeat(banked) : '\u2014'));
+    var m = mixLinear(counts);
+    hudSwatch.style.background = m ? cssOfLin(m) : '#241207';
+    setText(hudWaste, 'WASTE ' + wasteEmpties + ' EMPTIES \u00b7 ' + wasteUnits.toFixed(2) + ' UNITS');
+    chips.forEach(function(ch, i){ ch.classList.toggle('active', i === selected); });
+  }
+  function setShaftTint(){
+    var m = mixLinear(counts);
+    var warm = [1.0, 0.88, 0.66];
+    var c = warm;
+    if (m) c = [ warm[0] + (m[0]-warm[0])*0.55, warm[1] + (m[1]-warm[1])*0.55, warm[2] + (m[2]-warm[2])*0.55 ];
+    shaftMat.color.setRGB(c[0], c[1], c[2]);
+    causticMat.color.setRGB(c[0], c[1], c[2]);
+  }
+
+  // ---------------- contracts ----------------
+  function loadContract(i){
+    contractIdx = i;
+    contractStatus = 'active';
+    var ct = CONTRACTS[i];
+    setText(cpNum, 'CONTRACT ' + ct.num);
+    setText(cpName, ct.name);
+    setText(cpTarget, 'TARGET: ' + ct.titleName + ' \u2014 (' + ct.target.join(' \u00b7 ') + ')');
+    setText(cpSpec, ct.sample
+      ? 'VET THE RIVAL SAMPLE \u2014 A ACCUSE \u00b7 P PASS \u00b7 GREY \u03c1 1.100'
+      : 'HUE ' + ct.hueTarget.toFixed(3) + ' \u00b1' + HUE_TOL.toFixed(2) + ' \u00b7 HEFT ' + ct.denTarget.toFixed(3) + ' \u00b1' + DENSITY_TOL.toFixed(3));
+    if (ct.sample){ accusing = false; estimateStep = 20; }
+    setText(cpClient, 'for ' + ct.client);
+    cardMats.forEach(function(m, k){
+      m.emissive.setRGB(k === i ? 0.10 : 0, k === i ? 0.075 : 0, k === i ? 0.03 : 0);
+    });
+    redrawSample();
+    refreshHUD();
+  }
+  function clearBeaker(){
+    counts = [0,0,0,0]; fill = 0;
+    liqCol.visible = false; liqBottom.visible = false; surfMesh.visible = false;
+    ripples.length = 0; swirlAmp = 0; swirlT = 9;
+    applyCloud(false);
+    firstRedTime = null; firstCyanTime = null;
+    sedimentGroup.visible = false;
+    setShaftTint();
+    refreshHUD();
+  }
+  function startAtelier(){
+    audioInit();
+    setPhase('atelier');
+    titleCard.classList.remove('visible');
+    resultCard.classList.remove('visible');
+    dropperFlyToBottle(selected);
+    hint('CONTRACT ' + CONTRACTS[contractIdx].num + ' \u2014 ' + CONTRACTS[contractIdx].brief);
+    SFX.click();
+  }
+  function fullReset(){
+    setPhase('title');
+    titleCard.classList.add('visible');
+    resultCard.classList.remove('visible');
+    counts = [0,0,0,0]; fill = 0;
+    liqCol.visible = false; liqBottom.visible = false; surfMesh.visible = false;
+    ripples.length = 0; swirlAmp = 0; swirlT = 9;
+    applyCloud(false);
+    firstRedTime = null; firstCyanTime = null;
+    sedimentGroup.visible = false;
+    wasteEmpties = 0; wasteUnits = 0;
+    squeezed = [0,0,0,0];
+    for (var i=0;i<bottles.length;i++) updateBottleVisual(i);
+    dropHistory.length = 0;
+    for (var d=inFlight.length-1;d>=0;d--) scene.remove(inFlight[d].mesh);
+    inFlight.length = 0;
+    pendingE = 0; pendingDeliver = false;
+    contractIdx = 0; metTotal = 0;
+    attempts = 0; dispensed = 0; emptiesThis = 0;
+    starsBank = [0,0,0,0,0];
+    accusationPoints = 0; accusing = false;
+    blendMet = 0; vetCorrect = 0;
+    closeLedger();
+    for (var sc=0; sc<CONTRACTS.length; sc++) redrawCardStars(sc);
+    loadContract(0);
+    selected = 0;
+    dropper.state = 'HOME'; dropper.t = 0; dropper.charges = 0; dropper.tubeFill = 0;
+    dropper.cooldown = 0; dropper.squeezeT = -1; dropper.released = true; dropper.bulbScale = 1; dropper.bulbVel = 0;
+    dropper.pos.set(2.55, 1.14, -0.55);
+    tubeLiq.scale.y = 0.001;
+    hygro.mode = 'stand'; hygro.d = 0.3; hygro.dVel = 0;
+    hygroG.position.set(HYGRO_STAND.x, HYGRO_STAND.y, HYGRO_STAND.z);
+    hygroG.rotation.z = HYGRO_STAND.rz;
+    stopperLift = [0,0,0,0];
+    cam.px = 3.05; cam.py = 2.05; cam.pz = 4.35; cam.tx = -0.35; cam.ty = 0.5;
+    setShaftTint();
+  }
+  function evaluate(){
+    pendingDeliver = false;
+    var ct = CONTRACTS[contractIdx];
+    // Three channels, a conjunction: hue within ±0.04 on the dial, heft within
+    // ±0.015, and — when the contract names it — the reagent-R cloud reading.
+    // Off by exactly the tolerance passes; one notch beyond fails.
+    var hue = readHue(counts);
+    var den = readDensity(counts);
+    var hDelta = hueDelta(hue, ct.hueTarget);
+    var dDelta = Math.abs(den - ct.denTarget);
+    var hueOff = hDelta > HUE_TOL + 1e-9;
+    var denOff = dDelta > DENSITY_TOL + 1e-9;
+    var reading = rReading();
+    var rOff = ct.rExpected != null && reading !== ct.rExpected;
+    var met = !hueOff && !denOff && !rOff;
+    attempts++;
+    contractStatus = met ? 'met' : 'rejected';
+    setPhase('result');
+    var n = counts[0] + counts[1] + counts[2] + counts[3];
+    var lines = [];
+    if (met){
+      metTotal++;
+      blendMet++;
+      var stars = starGrade(dispensed, ct.ideal);
+      if (stars > (starsBank[contractIdx] || 0)) starsBank[contractIdx] = stars;
+      redrawCardStars(contractIdx);
+      rcTitle.textContent = (contractIdx === CONTRACTS.length - 1) ? 'ALL CONTRACTS FULFILLED' : 'CONTRACT MET';
+      rcTitle.className = 'met';
+      rcChan.textContent = 'HUE \u2713 \u00b7 HEFT \u2713' + (ct.rExpected != null ? ' \u00b7 R \u2713' : '') + ' \u2014 WITHIN TOLERANCE';
+      rcChan.className = 'chan ok';
+      rcSub.textContent = ct.name + ' \u2014 delivered to ' + ct.client;
+      lines.push('Delivered \u2014 hue \u0394 ' + hDelta.toFixed(3) + ' \u00b7 heft \u0394 ' + dDelta.toFixed(3) + '.' + (ct.rExpected != null ? ' The reagent bit was within spec.' : ''));
+      var dripsDelta = dispensed - ct.ideal;
+      lines.push('DRIP ECONOMY: ' + dispensed + ' drips against an ideal of ' + ct.ideal + ' (' + (dripsDelta >= 0 ? '+' : '') + dripsDelta + ') \u2014 ' + (stars > 0 ? '\u2605'.repeat(stars) + ' banked.' : 'no stars banked.'));
+      lines.push('DROPS IN BEAKER: ' + n + ' \u00b7 DISPENSED THIS CONTRACT: ' + dispensed);
+      lines.push('WASTE TALLY: ' + emptiesThis + ' empt' + (emptiesThis === 1 ? 'y' : 'ies') + ' (' + wasteUnits.toFixed(2) + ' units total)');
+      if (contractIdx === CONTRACTS.length - 1){
+        var totStars = starsBank.reduce(function(a, b){ return a + b; }, 0);
+        lines.push('The atelier glows. The bench begins anew \u2014 ' + totStars + ' of ' + (CONTRACTS.length * 3) + ' stars banked.');
+      }
+      rcPress.textContent = 'ENTER \u2014 NEXT CONTRACT \u00b7 R \u2014 TITLE CARD';
+      SFX.bell();
+    } else {
+      rcTitle.textContent = 'CONTRACT REJECTED';
+      rcTitle.className = 'rej';
+      rcChan.textContent = [hueOff ? 'HUE OFF' : null, denOff ? 'DENSITY OFF' : null, rOff ? 'R OFF' : null].filter(Boolean).join(' & ');
+      rcChan.className = 'chan off';
+      rcSub.textContent = ct.name + ' \u2014 ' + ct.client + ' is not pleased.';
+      lines.push(hueOff
+        ? 'HUE OFF \u2014 dial ' + hue.toFixed(3) + ' against ' + ct.hueTarget.toFixed(3) + ' (off by ' + hDelta.toFixed(3) + ', tolerance ' + HUE_TOL.toFixed(3) + ').'
+        : 'Hue within tolerance (\u0394 ' + hDelta.toFixed(3) + ' \u2264 ' + HUE_TOL.toFixed(3) + ').');
+      lines.push(denOff
+        ? 'DENSITY OFF \u2014 ' + den.toFixed(3) + ' against ' + ct.denTarget.toFixed(3) + ' (off by ' + dDelta.toFixed(3) + ', tolerance ' + DENSITY_TOL.toFixed(3) + ').'
+        : 'Heft within tolerance (\u0394 ' + dDelta.toFixed(3) + ' \u2264 ' + DENSITY_TOL.toFixed(3) + ').');
+      if (rOff){
+        lines.push(reading === null
+          ? 'R OFF \u2014 the beaker was never interrogated, and the client\u2019s expectation is sealed.'
+          : 'R OFF \u2014 the glass reads ' + reading.toUpperCase() + '; the client\u2019s expectation is sealed.');
+      } else if (ct.rExpected != null){
+        lines.push('R reading within spec.');
+      }
+      lines.push('DROPS IN BEAKER: ' + n + ' \u00b7 DISPENSED ' + dispensed + ' OF AN IDEAL ' + ct.ideal + ' DRIPS');
+      lines.push('WASTE TALLY: ' + emptiesThis + ' empt' + (emptiesThis === 1 ? 'y' : 'ies') + ' (' + wasteUnits.toFixed(2) + ' units total)');
+      lines.push('The beaker is struck; the bench is reset.');
+      rcPress.textContent = 'ENTER \u2014 TRY THIS CONTRACT AGAIN \u00b7 R \u2014 TITLE CARD';
+      SFX.buzz();
+    }
+    rcBody.innerHTML = lines.map(function(l){ return '<div>' + l + '</div>'; }).join('');
+    resultCard.classList.add('visible');
+  }
+  function evaluateVerdict(kind){
+    var ct = CONTRACTS[contractIdx];
+    attempts++;
+    var trueVol = ct.sample.g * DROP_VOL;
+    var est = estimateStep * 0.01;
+    var points, headline, outcome;
+    if (kind === 'accuse'){
+      if (ct.sample.g > 0){
+        var off = Math.abs(est - trueVol);
+        if (off <= 0.02 + 1e-9){
+          points = 3; headline = 'ACCUSATION UPHELD';
+          outcome = 'The guild assays the sample: cut with ' + trueVol.toFixed(2) + ' units of grey. Your estimate ' + est.toFixed(2) + ' (off by ' + off.toFixed(2) + ', tolerance 0.02) \u2014 +3 points.';
+        } else {
+          points = 1; headline = 'ACCUSATION UPHELD, MEASURE SLIPPED';
+          outcome = 'The sample is indeed cut \u2014 ' + trueVol.toFixed(2) + ' units of grey \u2014 but your estimate ' + est.toFixed(2) + ' missed by ' + off.toFixed(2) + ' (tolerance 0.02). +1 point.';
+        }
+      } else {
+        points = -2; headline = 'FALSE CHARGE';
+        outcome = 'The sample is honest. The guild fines the false charge 2 points.';
+      }
+    } else {
+      if (ct.sample.g > 0){
+        points = 0; headline = 'FRAUD PASSES UNCHALLENGED';
+        outcome = 'The sample carried ' + trueVol.toFixed(2) + ' units of grey cutter. Passing banks nothing.';
+      } else {
+        points = 2; headline = 'CLEAN BILL';
+        outcome = 'The sample is honest and you passed it \u2014 +2 points.';
+      }
+    }
+    accusationPoints += points;
+    var stars = starGrade(dispensed, ct.ideal);
+    if (stars > (starsBank[contractIdx] || 0)) starsBank[contractIdx] = stars;
+    redrawCardStars(contractIdx);
+    contractStatus = 'met'; // a verdict resolves the order either way
+    metTotal++;
+    if (points > 0) vetCorrect++;
+    setPhase('result');
+    rcTitle.textContent = headline;
+    rcTitle.className = points > 0 ? 'met' : 'rej';
+    rcChan.textContent = 'POINTS ' + (points >= 0 ? '+' : '') + points + ' \u00b7 TOTAL ' + accusationPoints;
+    rcChan.className = 'chan ' + (points > 0 ? 'ok' : 'off');
+    rcSub.textContent = ct.name + ' \u2014 ' + ct.client;
+    var lines = [outcome];
+    var dripsDelta = dispensed - ct.ideal;
+    lines.push('DRIP ECONOMY: ' + dispensed + ' drips against an ideal of ' + ct.ideal + ' (' + (dripsDelta >= 0 ? '+' : '') + dripsDelta + ') \u2014 ' + (stars > 0 ? '\u2605'.repeat(stars) + ' banked.' : 'no stars banked.'));
+    lines.push('DROPS IN BEAKER: ' + Math.round(fill / DROP_VOL) + ' \u00b7 DISPENSED ' + dispensed);
+    if (contractIdx === CONTRACTS.length - 1){
+      var totStars = starsBank.reduce(function(a, b){ return a + b; }, 0);
+      lines.push('The board is cleared \u2014 ' + totStars + ' of ' + (CONTRACTS.length * 3) + ' stars banked, ' + accusationPoints + ' assay points earned.');
+    }
+    rcPress.textContent = 'ENTER \u2014 NEXT ORDER \u00b7 R \u2014 TITLE CARD';
+    rcBody.innerHTML = lines.map(function(l){ return '<div>' + l + '</div>'; }).join('');
+    resultCard.classList.add('visible');
+    if (points > 0) SFX.bell(); else SFX.buzz();
+  }
+  function openLedger(){
+    var L = ledgerLines();
+    setText(lgContracts, blendMet + ' \u00d7 150');
+    setText(lgContractsV, String(L.cLine));
+    setText(lgAccusations, vetCorrect + ' \u00d7 100');
+    setText(lgAccusationsV, String(L.aLine));
+    setText(lgStars, L.stars + ' \u00d7 40');
+    setText(lgStarsV, String(L.sLine));
+    setText(lgWastes, L.wastes + ' \u00d7 \u221230');
+    setText(lgWastesV, L.wLine > 0 ? '\u2212' + L.wLine : '0');
+    setText(lgScore, String(L.score));
+    setText(lgRating, L.rating);
+    ledgerCard.classList.add('visible');
+    ledgerOpen = true;
+    SFX.click();
+  }
+  function closeLedger(){
+    ledgerCard.classList.remove('visible');
+    ledgerOpen = false;
+  }
+  function toggleLedger(){
+    if (ledgerOpen){ closeLedger(); return; }
+    if (phase === 'atelier' && !orderIsVerdict()){ hint('The ledger waits \u2014 finish or strike the active blend first.'); return; }
+    openLedger();
+  }
+  function deliver(){
+    if (orderIsVerdict()){ hint('This order wants a verdict, not a beaker \u2014 press A to accuse or P to pass.'); return; }
+    if (fill <= 0){ hint('Nothing to deliver \u2014 the beaker is empty.'); SFX.deny(); return; }
+    if (inFlight.length > 0){ pendingDeliver = true; hint('Waiting for the last drop to settle\u2026'); return; }
+    evaluate();
+  }
+  function resultContinue(){
+    resultCard.classList.remove('visible');
+    clearBeaker();
+    if (hygro.mode === 'toBeaker' || hygro.mode === 'float' || hygro.mode === 'grounded') startHygroToStand();
+    pendingE = 0; pendingDeliver = false;
+    var next = (contractStatus === 'met') ? (contractIdx + 1) % CONTRACTS.length : contractIdx;
+    if (contractStatus === 'met'){ attempts = 0; dispensed = 0; emptiesThis = 0; } // a fresh contract starts a fresh tally; a struck retry keeps counting
+    loadContract(next);
+    setPhase('atelier');
+    dropperFlyToBottle(selected);
+    hint('CONTRACT ' + CONTRACTS[next].num + ' \u2014 ' + CONTRACTS[next].brief);
+  }
+
+  // ---------------- input ----------------
+  window.addEventListener('keydown', function(e){
+    if (e.repeat) return;
+    var k = e.key;
+    if (k === 'r' || k === 'R'){ fullReset(); return; }
+    if (k === 'Enter'){ queue.push('enter'); return; }
+    if (phase !== 'atelier') return;
+    if (k === '1') queue.push('s0');
+    else if (k === '2') queue.push('s1');
+    else if (k === '3') queue.push('s2');
+    else if (k === '4') queue.push('s3');
+    else if (k === 'a' || k === 'A') queue.push('accuse');
+    else if (k === 'p' || k === 'P') queue.push('pass');
+    else if (k === ',') queue.push('estdn');
+    else if (k === '.') queue.push('estup');
+    else if (k === 'Escape') queue.push('cancel');
+    else if (k === 'Tab'){ if (e.preventDefault) e.preventDefault(); queue.push('ledger'); }
+    else if (k === 'e' || k === 'E') queue.push('drop');
+    else if (k === 'q' || k === 'Q') queue.push('empty');
+  });
+  function processQueue(){
+    for (var i=0;i<queue.length;i++){
+      var a = queue[i];
+      if (ledgerOpen){
+        if (a === 'ledger' || a === 'enter' || a === 'cancel') closeLedger();
+        continue;
+      }
+      if (a === 'ledger'){ toggleLedger(); continue; }
+      if (phase === 'title'){ if (a === 'enter') startAtelier(); }
+      else if (phase === 'result'){ if (a === 'enter') resultContinue(); }
+      else if (accusing){
+        if (a === 'estdn'){ estimateStep = Math.max(0, estimateStep - 1); hint(accusationHint(), true); }
+        else if (a === 'estup'){ estimateStep = Math.min(60, estimateStep + 1); hint(accusationHint(), true); }
+        else if (a === 'enter'){ accusing = false; evaluateVerdict('accuse'); }
+        else if (a === 'pass' || a === 'cancel'){ accusing = false; hint('The charge is withdrawn.'); }
+        else hint('The accusation is being sworn \u2014 , / . adjust \u00b7 ENTER swear \u00b7 P withdraw.', true);
+      }
+      else {
+        if (a === 's0') trySelect(0);
+        else if (a === 's1') trySelect(1);
+        else if (a === 's2') trySelect(2);
+        else if (a === 's3') trySelect(3);
+        else if (a === 'accuse'){
+          if (!orderIsVerdict()) hint('This order is a blending commission \u2014 deliver the beaker (ENTER).');
+          else { accusing = true; estimateStep = 20; hint(accusationHint(), true); SFX.click(); }
+        }
+        else if (a === 'pass'){
+          if (!orderIsVerdict()) hint('This order is a blending commission \u2014 deliver the beaker (ENTER).');
+          else evaluateVerdict('pass');
+        }
+        else if (a === 'cancel'){ /* nothing pending */ }
+        else if (a === 'drop') tryDrop();
+        else if (a === 'empty') emptyBeaker();
+        else if (a === 'enter') deliver();
+      }
+    }
+    queue.length = 0;
+  }
+  function trySelect(i){
+    if (i === selected && (dropper.state === 'READY' || dropper.state === 'TO_BEAKER') && dropper.charges > 0){ SFX.click(); return; }
+    selected = i;
+    SFX.click();
+    dropperFlyToBottle(i);
+    refreshHUD();
+  }
+  function tryDrop(){
+    if (pendingDeliver){ hint('The client is waiting \u2014 the beaker is spoken for.'); return; }
+    var D = dropper;
+    if (D.state !== 'READY' || D.cooldown > 0){ if (pendingE < 3) pendingE++; return; }
+    if (D.charges <= 0){ if (pendingE < 3) pendingE++; return; }
+    if (fill >= 1.0 - 1e-9){ pendingE = 0; hint('The beaker is full \u2014 deliver it (ENTER) or empty it (Q).'); SFX.deny(); return; }
+    if (squeezed[D.bottle] >= BOTTLE_CAP_DROPS){ pendingE = 0; hint('The ' + BOTTLE_NAMES[D.bottle] + ' bottle is spent \u2014 press R to restock the bench.'); SFX.deny(); return; }
+    doSqueeze();
+  }
+  function emptyBeaker(){
+    if (fill <= 0){ hint('The beaker is already empty.'); SFX.click(); return; }
+    wasteEmpties++;
+    wasteUnits += fill;
+    emptiesThis++;
+    if (pendingDeliver){ pendingDeliver = false; hint('Delivery cancelled \u2014 the beaker is emptied.'); }
+    clearBeaker();
+    if (hygro.mode === 'toBeaker' || hygro.mode === 'float' || hygro.mode === 'grounded') startHygroToStand();
+    SFX.gurgle();
+    hint('Emptied into the pail \u2014 the waste tally ticks.');
+  }
+
+  // ---------------- dropper ----------------
+  function dropperFlyToBottle(i){
+    dropper.state = 'TO_BOTTLE'; dropper.t = 0; dropper.dur = 0.65;
+    dropper.from.copy(dropper.pos);
+    dropper.to.set(BOTTLE_POS[i][0], 1.30, BOTTLE_POS[i][1]);
+    dropper.bottle = i;
+  }
+  function doSqueeze(){
+    var D = dropper;
+    D.charges--;
+    D.tubeFill = D.charges / TUBE_CHARGES;
+    tubeLiq.scale.y = Math.max(D.tubeFill, 0.001);
+    squeezed[D.bottle]++;
+    updateBottleVisual(D.bottle);
+    dispensed++;
+    D.cooldown = 0.34;
+    D.squeezeT = 0; D.released = false; D.bulbScale = 1; D.bulbVel = 0;
+    SFX.squeeze();
+    spawnDrop(D.bottle);
+  }
+  function spawnDrop(t){
+    var m = new THREE.Mesh(dropGeo, matTincture[t]);
+    m.castShadow = true;
+    scene.add(m);
+    inFlight.push({ x:dropper.pos.x, y:dropper.pos.y - 0.45, z:dropper.pos.z, v:-0.25, t:t, mesh:m });
+  }
+  function updateDropper(dt){
+    var D = dropper;
+    D.t += dt;
+    if (D.state === 'TO_BOTTLE' || D.state === 'TO_BEAKER'){
+      var k = smooth(D.t / D.dur);
+      D.pos.lerpVectors(D.from, D.to, k);
+      if (D.t >= D.dur){
+        if (D.state === 'TO_BOTTLE'){ D.state = 'DRAW'; D.t = 0; D.dur = 0.5; SFX.draw(); }
+        else { D.state = 'READY'; D.t = 0; }
+      }
+    } else if (D.state === 'DRAW'){
+      D.tubeFill = smooth(D.t / 0.35);
+      tubeLiq.scale.y = Math.max(D.tubeFill, 0.001);
+      tubeLiq.material = matTincture[D.bottle];
+      if (D.t >= D.dur){
+        D.charges = TUBE_CHARGES; D.tubeFill = 1;
+        D.state = 'TO_BEAKER'; D.t = 0; D.dur = 0.65;
+        D.from.copy(D.pos); D.to.copy(DROP_OVER_BEAKER);
+      }
+    } else if (D.state === 'READY'){
+      D.cooldown -= dt;
+      if (D.cooldown <= 0){
+        if (D.charges <= 0) dropperFlyToBottle(selected);
+        else if (pendingE > 0){ pendingE--; doSqueeze(); }
+      }
+    }
+    // bulb: squeeze press then damped rebound; inflate while drawing
+    if (D.state === 'DRAW'){
+      D.bulbScale = 1 + 0.18 * Math.sin(Math.PI * clamp(D.t / D.dur, 0, 1));
+    } else if (D.squeezeT >= 0){
+      D.squeezeT += dt;
+      if (D.squeezeT < 0.12){ D.bulbScale = 1 - 0.32 * (D.squeezeT / 0.12); }
+      else if (!D.released){ D.released = true; D.bulbVel = 2.4; }
+    }
+    if (D.released || D.squeezeT < 0){
+      D.bulbVel += ((1 - D.bulbScale)*200 - D.bulbVel*12) * dt;
+      D.bulbScale += D.bulbVel * dt;
+      D.bulbScale = clamp(D.bulbScale, 0.6, 1.4);
+    }
+    bulbMesh.scale.set(1 + (1 - D.bulbScale)*0.4, 1.3*D.bulbScale, 1 + (1 - D.bulbScale)*0.4);
+    dropperG.position.copy(D.pos);
+    dropperG.position.y += 0.008 * Math.sin(simTime*1.6);
+    dropperG.rotation.z = 0.03 * Math.sin(simTime*1.3);
+  }
+
+  // ---------------- drops ----------------
+  var dropGeo = new THREE.SphereGeometry(0.028, 12, 10);
+  function updateDrops(dt){
+    for (var i=inFlight.length-1;i>=0;i--){
+      var d = inFlight[i];
+      d.v -= GRAV*dt;
+      d.y += d.v*dt;
+      var plane = fill > 0 ? BK_BOT + fill*LIQ_H : 0.073;
+      if (d.y <= plane + 0.026){
+        impact(d);
+        inFlight.splice(i, 1);
+      } else {
+        var s = 1 + Math.min(-d.v, 3.2)*0.20;
+        d.mesh.scale.set(1/Math.sqrt(s), s, 1/Math.sqrt(s));
+        d.mesh.position.set(d.x, d.y, d.z);
+      }
+    }
+  }
+  function impact(d){
+    scene.remove(d.mesh);
+    counts[d.t]++;
+    if (d.t === 0 && firstRedTime === null) firstRedTime = simTime;
+    if (d.t === 1 && firstCyanTime === null) firstCyanTime = simTime;
+    fill = (counts[0] + counts[1] + counts[2] + counts[3]) * DROP_VOL;
+    dropHistory.push({ time:simTime, tincture:d.t });
+    updateLiquidColumn();
+    rebuildSurface();
+    var m = mixLinear(counts);
+    setLin(matMix.color, m || REAGENT_R.lin); // a lone R drop shows as the reagent itself
+    if (cloudState) matMix.color.lerp(CLOUD_WHITE, 0.4);
+    ripples.push({ age:0, ox:d.x, oz:d.z + 1, amp:1 });
+    swirlAmp = Math.min(swirlAmp + 0.45, 0.9);
+    swirlT = 0;
+    setShaftTint();
+    if (fill > DROP_VOL + 1e-9){ SFX.tick(fill); SFX.ripple(); } else { SFX.plink(); }
+    var wasCloudy = cloudState;
+    applyCloud(rReading() === 'cloudy'); // the cloud-test re-asks on every drop
+    if (!wasCloudy && cloudState) SFX.fog();
+    sedimentGroup.visible = sedimentOn(); // flecks render while the order term applies
+    if (hygro.mode === 'stand') startHygroToBeaker();
+    if (hygro.mode === 'float') hygro.dVel += 0.42;
+    refreshHUD();
+    if (pendingDeliver && inFlight.length <= 1) evaluate();
+  }
+
+  // ---------------- liquid surface motion ----------------
+  function updateSurface(dt){
+    swirlT += dt;
+    for (var i=ripples.length-1;i>=0;i--){ ripples[i].age += dt; if (ripples[i].age > 2.2) ripples.splice(i,1); }
+    if (fill <= 0 || !surf.geo) return;
+    var pos = surf.geo.attributes.position;
+    for (var v=0;v<surf.count;v++){
+      var rr = surf.pr[v], th = surf.pt[v];
+      var ang = swirlAmp * Math.exp(-swirlT*1.9) * (1 - rr/surf.r*0.6);
+      var x = rr*Math.cos(th + ang), z = rr*Math.sin(th + ang);
+      var y = 0.0025*Math.sin(rr*26 - simTime*3.1)*Math.min(1, rr*10);
+      y -= 0.045*Math.exp(-(rr*rr)/(0.075*0.075))*Math.exp(-swirlT*2.4);
+      for (var r2=0;r2<ripples.length;r2++){
+        var rp = ripples[r2];
+        var dx = x - rp.ox, dz = z - rp.oz;
+        var dd = Math.sqrt(dx*dx + dz*dz);
+        var g = dd - 1.4*rp.age;
+        y += rp.amp * 0.035 * Math.exp(-rp.age*2.3) * Math.sin(16*g) * Math.exp(-g*g*30);
+      }
+      pos.setXYZ(v, x, y, z);
+    }
+    pos.needsUpdate = true;
+    surf.geo.computeVertexNormals();
+  }
+
+  // ---------------- hydrometer ----------------
+  function startHygroToBeaker(){
+    hygro.mode = 'toBeaker'; hygro.t = 0;
+    hygro.fx = hygroG.position.x; hygro.fy = hygroG.position.y; hygro.fz = hygroG.position.z;
+  }
+  function startHygroToStand(){
+    hygro.mode = 'toStand'; hygro.t = 0;
+    hygro.fx = hygroG.position.x; hygro.fy = hygroG.position.y; hygro.fz = hygroG.position.z;
+  }
+  function updateHygro(dt){
+    var yTop = BK_BOT + fill*LIQ_H;
+    if (hygro.mode === 'stand'){
+      hygroG.position.set(HYGRO_STAND.x, HYGRO_STAND.y, HYGRO_STAND.z);
+      hygroG.rotation.z = HYGRO_STAND.rz;
+    } else if (hygro.mode === 'toBeaker' || hygro.mode === 'toStand'){
+      hygro.t += dt;
+      var k = smooth(hygro.t / 0.85);
+      var toBeak = hygro.mode === 'toBeaker';
+      var tx = toBeak ? HYGRO_BEAKER.x : HYGRO_STAND.x;
+      var tz = toBeak ? HYGRO_BEAKER.z : HYGRO_STAND.z;
+      var ty2 = toBeak ? 0.30 : HYGRO_STAND.y;
+      var rz = toBeak ? HYGRO_STAND.rz*(1-k) : HYGRO_STAND.rz*k;
+      hygroG.position.set(
+        hygro.fx + (tx - hygro.fx)*k,
+        hygro.fy + (ty2 - hygro.fy)*k + Math.sin(Math.PI*k)*0.18,
+        hygro.fz + (tz - hygro.fz)*k
+      );
+      hygroG.rotation.z = rz;
+      if (hygro.t >= 0.85){
+        if (toBeak){
+          hygro.mode = hygroFloating() ? 'float' : 'grounded';
+          hygro.d = clamp(yTop - 0.10, 0.06, 0.6);
+          hygro.dVel = 0;
+        } else {
+          hygro.mode = 'stand';
+        }
+      }
+    } else if (hygro.mode === 'float'){
+      if (!hygroFloating()){ hygro.mode = 'grounded'; hygroG.position.y = 0.045; }
+      else {
+        var tgt = densityDepth();
+        hygro.dVel += ((tgt - hygro.d)*30 - hygro.dVel*7)*dt;
+        hygro.d += hygro.dVel*dt;
+        hygro.d = clamp(hygro.d, 0.05, 0.62);
+        hygroG.position.set(HYGRO_BEAKER.x, yTop - hygro.d, HYGRO_BEAKER.z);
+        hygroG.rotation.z = 0;
+      }
+    } else if (hygro.mode === 'grounded'){
+      hygroG.position.set(HYGRO_BEAKER.x, 0.045, HYGRO_BEAKER.z);
+      hygroG.rotation.z = 0;
+      if (hygroFloating()){ hygro.mode = 'float'; hygro.d = yTop - 0.045; hygro.dVel = 0; }
+    }
+  }
+
+  // ---------------- secondary motion & camera ----------------
+  function updateStoppers(dt){
+    for (var i=0;i<bottles.length;i++){
+      var target = 0;
+      if (dropper.state === 'DRAW' && dropper.bottle === i) target = 1;
+      else if (dropper.state === 'TO_BOTTLE' && dropper.bottle === i) target = 0.55;
+      stopperLift[i] += (target - stopperLift[i]) * Math.min(1, dt*6);
+      bottles[i].stopper.position.y = 0.90 + stopperLift[i]*0.16;
+      bottles[i].stopper.position.x = stopperLift[i]*0.17;
+      bottles[i].stopper.rotation.z = -stopperLift[i]*0.45;
+    }
+  }
+  function updateCamera(dt){
+    var gx, gy, gz, px, py, pz;
+    if (phase === 'title'){
+      px = 3.05 + Math.sin(simTime*0.13)*0.30;
+      py = 2.10 + Math.sin(simTime*0.09)*0.07;
+      pz = 4.35 + Math.cos(simTime*0.11)*0.20;
+      gx = -0.35 + Math.sin(simTime*0.07)*0.15; gy = 0.55; gz = 0.05;
+    } else {
+      var bx = BOTTLE_POS[selected][0];
+      px = 3.05 + bx*0.10; py = 2.05; pz = 4.35;
+      gx = -0.35 + bx*0.20; gy = 0.50; gz = 0.05;
+    }
+    var k = 1 - Math.exp(-2.8*dt);
+    cam.px += (px - cam.px)*k; cam.py += (py - cam.py)*k; cam.pz += (pz - cam.pz)*k;
+    cam.tx += (gx - cam.tx)*k; cam.ty += (gy - cam.ty)*k;
+    camera.position.set(cam.px, cam.py, cam.pz);
+    camera.lookAt(cam.tx, cam.ty, gz);
+  }
+  function updateIdle(dt){
+    beam.rotation.z = Math.sin(simTime*0.8)*0.03;
+    pans.forEach(function(p){ p.pg.rotation.z = -beam.rotation.z; });
+    shaftMat.opacity = 0.07 + 0.012*Math.sin(simTime*0.5);
+    causticMat.opacity = 0.30 + 0.03*Math.sin(simTime*0.8);
+  }
+
+  // ---------------- simulation step ----------------
+  function simStep(dt){
+    processQueue();
+    if (phase !== 'title'){
+      // simulation is paused on the title card — only input is serviced there
+      updateDropper(dt);
+      updateDrops(dt);
+      updateSurface(dt);
+      updateHygro(dt);
+      updateStoppers(dt);
+      updateIdle(dt);
+      simTime += dt;
+    }
+    updateCamera(dt);
+    refreshHUD();
+  }
+
+  // ---------------- read-only arena state, written every frame ----------------
+  function writeArenaState(){
+    var n = counts[0] + counts[1] + counts[2] + counts[3];
+    var m = mixLinear(counts);
+    var ct = CONTRACTS[contractIdx];
+    var raw = mixDensity(counts);
+    var bnd = raw === null ? null : densityBand(raw);
+    var cor = raw === null ? 0 : densityCorrection(raw);
+    var hueNow = readHue(counts);
+    var denNow = readDensity(counts); // live: includes the sediment term when it applies
+    var hdNow = hueNow === null ? null : hueDelta(hueNow, ct.hueTarget);
+    var ddNow = denNow === null ? null : Math.abs(denNow - ct.denTarget);
+    var reading = rReading();
+    __arenaStateValue = Object.freeze({
+      phase: phase,
+      simTime: simTime,
+      beaker: Object.freeze({
+        fill: fill,
+        drops: n,
+        colourLinear: m ? Object.freeze(m.slice()) : null,
+        colourCSS: m ? cssOfLin(m) : null,
+        hue: hueNow,
+        density: denNow,
+        densityRaw: raw,
+        densityBand: bnd,
+        densityCorrection: cor,
+        rDrops: counts[3],
+        rReading: reading,
+        cloudy: cloudState,
+        sediment: sedimentOn(),
+        sedimentCorrection: sedimentOn() ? SEDIMENT_CORRECTION : 0,
+        hydrometerDepth: hygro.mode === 'float' ? hygro.d : null,
+        hydrometer: hygro.mode
+      }),
+      selectedTincture: selected,
+      dropHistory: Object.freeze(dropHistory.map(function(h){
+        return Object.freeze({ time:h.time, tincture:h.tincture });
+      })),
+      dropsInFlight: inFlight.length,
+      waste: Object.freeze({ empties:wasteEmpties, units:wasteUnits }),
+      accusationPoints: accusationPoints,
+      contract: Object.freeze({
+        index: contractIdx, num: ct.num, name: ct.name, client: ct.client,
+        target: Object.freeze(ct.target.slice()),
+        hueTarget: ct.hueTarget, denTarget: ct.denTarget,
+        hueTolerance: HUE_TOL, densityTolerance: DENSITY_TOL,
+        hueDeltaNow: hdNow, huePassNow: hdNow === null ? null : hdNow <= HUE_TOL + 1e-9,
+        densityDeltaNow: ddNow, densityPassNow: ddNow === null ? null : ddNow <= DENSITY_TOL + 1e-9,
+        rExpected: ct.rExpected === undefined ? null : ct.rExpected,
+        sedimentTarget: !!ct.sediment,
+        isVerdict: !!ct.sample,
+        sampleGreyVolume: ct.sample ? ct.sample.g * DROP_VOL : null,
+        sampleDensity: ct.sample ? sampleDensity(ct) : null,
+        sampleHue: ct.sample ? sampleHue(ct) : null,
+        idealDrips: ct.ideal,
+        dripsDelta: dispensed - ct.ideal,
+        starsBanked: starsBank[contractIdx] || 0,
+        starsTotal: starsBank.reduce(function(a, b){ return a + b; }, 0),
+        rReadingNow: reading,
+        rPassNow: ct.rExpected == null ? null : reading === ct.rExpected,
+        status: contractStatus, attempts: attempts, metTotal: metTotal,
+        dropsDispensed: dispensed, emptiesThisContract: emptiesThis
+      }),
+      ledger: Object.freeze({
+        contractsFulfilled: blendMet, contractsLine: blendMet * 150,
+        correctAccusations: vetCorrect, accusationsLine: vetCorrect * 100,
+        starsBanked: starsBank.reduce(function(a, b){ return a + b; }, 0),
+        starsLine: starsBank.reduce(function(a, b){ return a + b; }, 0) * 40,
+        wastes: wasteEmpties, wastesLine: wasteEmpties * 30,
+        score: ledgerLines().score, rating: ledgerLines().rating
+      }),
+      bottles: Object.freeze(squeezed.map(function(sq, i){
+        return Object.freeze({ name:BOTTLE_NAMES[i], dropsUsed:sq, remaining:Math.max(BOTTLE_CAP_DROPS - sq, 0) });
+      }))
+    });
+  }
+
+  // ---------------- main loop (fixed 1/60 s steps, no randomness) ----------------
+  var lastFrame = (typeof performance !== 'undefined' ? performance.now() : 0), acc = 0;
+  function frame(now){
+    requestAnimationFrame(frame);
+    var dt = (now - lastFrame)/1000;
+    lastFrame = now;
+    if (!(dt > 0)) dt = STEP;
+    if (dt > 0.25) dt = 0.25;
+    acc += dt;
+    var steps = 0;
+    while (acc >= STEP && steps < 8){ simStep(STEP); acc -= STEP; steps++; }
+    if (steps === 8) acc = 0;
+    writeArenaState();
+    renderer.render(scene, camera);
+  }
+
+  // ---------------- initial pose ----------------
+  hygroG.position.set(HYGRO_STAND.x, HYGRO_STAND.y, HYGRO_STAND.z);
+  hygroG.rotation.z = HYGRO_STAND.rz;
+  dropperG.position.copy(dropper.pos);
+  loadContract(0);
+  setShaftTint();
+  requestAnimationFrame(frame);
+  }
+
+  window.__bootTITRATION = boot;
+  if (window.THREE){
+    try { boot(window.THREE); }
+    catch(e){ showErr(e && e.stack ? e.stack : String(e)); }
+  }
+})();
+
+</script>
+<script type="module">
+// Fallback loader: if the shared classic build is missing on an http(s) origin,
+// boot from the vendored ES-module build instead. (Under file:// the classic
+// script above is the supported path.)
+try {
+  if (!window.THREE) {
+    import('./vendor/three/three.module.min.js').then(function(mod){
+      window.THREE = mod;
+      if (window.__bootTITRATION) window.__bootTITRATION(mod);
+    }).catch(function(e){ console.error(e); });
+  }
+} catch (e) { console.error(e); }
+</script>
+</body>
+</html>

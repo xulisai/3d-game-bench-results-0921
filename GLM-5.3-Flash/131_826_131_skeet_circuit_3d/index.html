@@ -1,0 +1,2211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SKEET CIRCUIT — Station 4</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#1a1208;}
+  #c{position:fixed;inset:0;display:block;cursor:crosshair;}
+  #hud{position:fixed;inset:0;pointer-events:none;font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;color:#fdf3dd;user-select:none;-webkit-user-select:none;}
+  .panel{position:absolute;background:linear-gradient(160deg,rgba(46,27,10,.78),rgba(30,17,6,.62));
+    border:1px solid rgba(255,205,120,.38);border-radius:10px;padding:10px 16px;
+    box-shadow:0 6px 20px rgba(20,10,0,.4);}
+  .panel .big{font-size:17px;font-weight:700;letter-spacing:.06em;}
+  .panel .small{font-size:12.5px;font-weight:600;letter-spacing:.05em;opacity:.85;margin-top:3px;}
+  #stationPanel{top:16px;left:16px;}
+  #tallyPanel{top:16px;right:16px;text-align:right;}
+  #deadLine{color:#ffb43a;}
+  #targetLine{color:#a8d9a0;}
+  #houseLine{color:#ffca7a;}
+  #mapPanel{position:absolute;right:16px;bottom:16px;padding:8px 10px 6px;}
+  #mapPanel .mapTitle{font-size:10px;font-weight:700;letter-spacing:.28em;color:#ffca7a;text-align:center;margin-bottom:2px;}
+  #mapSvg circle.pad{fill:rgba(253,243,221,.22);stroke:#e8d9b0;stroke-width:1.5;}
+  #mapSvg circle.pad.cur{fill:#ffb43a;stroke:#fff3d0;stroke-width:2;}
+  #strip{position:absolute;top:12px;left:50%;transform:translateX(-50%);display:none;}
+  .stripRow{display:flex;gap:2px;align-items:center;margin-bottom:3px;}
+  .stripLabel{width:58px;font-size:9px;font-weight:800;letter-spacing:.08em;color:#ffca7a;text-align:right;padding-right:5px;}
+  .qcell{width:9px;height:15px;border:1px solid rgba(255,214,140,.4);border-radius:2px;background:rgba(30,17,6,.45);}
+  .qcell.dead{background:#ff8c1a;border-color:#ffb43a;}
+  .qcell.lost{background:#697280;border-color:#9aa3ad;}
+  #standLine{color:#a8d9a0;}
+  #summary{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;
+    padding:22px 34px;font-size:15px;font-weight:600;letter-spacing:.05em;}
+  #summary.hidden{display:none;}
+  #sumTitle{font-size:22px;font-weight:900;letter-spacing:.14em;color:#ffca7a;margin-bottom:10px;}
+  #sumScore{font-size:44px;font-weight:900;color:#ffb43a;margin-bottom:8px;
+    text-shadow:0 2px 0 #7a3c00,0 8px 22px rgba(0,0,0,.45);}
+  #sumLost{margin-bottom:8px;color:#c9d6e2;}
+  #sumStations{margin-bottom:8px;color:#a8d9a0;font-size:13.5px;}
+  #sumRival{margin-bottom:12px;color:#ffca7a;font-size:14px;}
+  #sumHint{font-size:12px;opacity:.8;letter-spacing:.2em;}
+  #tierFlash{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);
+    font-size:36px;font-weight:900;letter-spacing:.16em;opacity:0;white-space:nowrap;}
+  #tierFlash.tracked{color:#8fe07a;text-shadow:0 2px 0 #1e5a20,0 6px 18px rgba(0,0,0,.45);}
+  #tierFlash.edge{color:#ffb43a;text-shadow:0 2px 0 #7a3c00,0 6px 18px rgba(0,0,0,.45);}
+  #tierFlash.show{animation:tierPop .95s ease-out forwards;}
+  @keyframes tierPop{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.7);}
+    14%{opacity:1;transform:translate(-50%,-50%) scale(1.06);}
+    30%{transform:translate(-50%,-50%) scale(1);}
+    72%{opacity:1;}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(1);}
+  }
+  #prompt{position:absolute;left:50%;bottom:38px;transform:translateX(-50%);text-align:center;
+    font-size:16px;font-weight:700;letter-spacing:.09em;color:#ffe9c2;
+    text-shadow:0 2px 6px rgba(20,10,0,.85),0 0 2px rgba(20,10,0,.9);white-space:nowrap;}
+  #banner{position:absolute;left:50%;top:26%;transform:translate(-50%,-50%);
+    font-size:74px;font-weight:900;letter-spacing:.07em;color:#ffb43a;white-space:nowrap;
+    text-shadow:0 3px 0 #7a3c00,0 10px 30px rgba(0,0,0,.5);opacity:0;}
+  #banner.dead{color:#ffb43a;}
+  #banner.lost{color:#c9d6e2;text-shadow:0 3px 0 #33414f,0 10px 30px rgba(0,0,0,.5);}
+  #banner.pass{color:#8fe07a;text-shadow:0 3px 0 #1e5a20,0 10px 30px rgba(0,0,0,.5);}
+  #banner.short{color:#ff7a5a;text-shadow:0 3px 0 #6b1e10,0 10px 30px rgba(0,0,0,.5);}
+  #banner.show{animation:bannerPop 1.15s ease-out forwards;}
+  #banner.hold{animation:bannerHold .9s ease-out forwards;}
+  @keyframes bannerPop{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.6);}
+    12%{opacity:1;transform:translate(-50%,-50%) scale(1.1);}
+    24%{transform:translate(-50%,-50%) scale(1);}
+    75%{opacity:1;}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(1);}
+  }
+  @keyframes bannerHold{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.6);}
+    14%{opacity:1;transform:translate(-50%,-50%) scale(1.08);}
+    28%{transform:translate(-50%,-50%) scale(1);}
+    100%{opacity:1;transform:translate(-50%,-50%) scale(1);}
+  }
+  #reticle{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;
+    border:2px solid rgba(255,190,90,.95);box-shadow:0 0 0 1px rgba(50,25,0,.45),0 0 10px rgba(0,0,0,.35);}
+  #reticle::after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;
+    border-radius:50%;background:#ffd27a;box-shadow:0 0 0 1px rgba(50,25,0,.5);}
+  #title{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(120% 90% at 50% 30%,rgba(28,16,5,.35),rgba(20,11,3,.78));
+    pointer-events:none;font-family:Georgia,"Times New Roman",serif;color:#f7e8c8;}
+  #title.hidden{display:none;}
+  #titleCard{text-align:center;max-width:760px;padding:20px;}
+  #titleKicker{font-family:"Segoe UI",Arial,sans-serif;font-size:14px;font-weight:700;letter-spacing:.5em;color:#ffca7a;margin-bottom:14px;}
+  #titleCard h1{margin:0;font-size:min(11vw,92px);line-height:1.02;letter-spacing:.08em;color:#ffd27a;
+    text-shadow:0 4px 0 rgba(90,40,0,.85),0 14px 44px rgba(0,0,0,.55);}
+  #titleSub{font-style:italic;font-size:min(4vw,21px);color:#f0dcb2;margin-top:10px;}
+  #titleControls{display:inline-block;text-align:left;margin-top:26px;font-family:"Segoe UI",Arial,sans-serif;
+    font-size:15px;line-height:1.85;color:#f3e3bd;background:rgba(30,17,6,.55);
+    border:1px solid rgba(255,205,120,.32);border-radius:12px;padding:16px 30px;}
+  #titleControls b{color:#ffca7a;font-weight:700;letter-spacing:.04em;}
+  #titleStart{margin-top:28px;font-family:"Segoe UI",Arial,sans-serif;font-size:20px;font-weight:800;
+    letter-spacing:.28em;color:#ffe9c2;animation:pulse 1.5s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.45;}}
+  #titleFoot{margin-top:22px;font-family:"Segoe UI",Arial,sans-serif;font-size:12.5px;color:#cbb891;letter-spacing:.05em;}
+  #windPanel{top:120px;right:16px;padding:7px 12px;display:none;}
+  #windPanel .windRow{display:flex;align-items:center;gap:9px;}
+  #windArrow{display:block;transition:opacity .25s;}
+  #windArrow path{fill:#9fd4f0;stroke:rgba(20,40,60,.55);stroke-width:0.8;}
+  #glareGlow{position:absolute;width:1150px;height:1150px;border-radius:50%;display:none;
+    transform:translate(-50%,-50%);mix-blend-mode:screen;pointer-events:none;
+    background:radial-gradient(circle,rgba(255,226,150,.9) 0%,rgba(255,192,105,.38) 28%,rgba(255,164,66,.14) 52%,rgba(255,155,55,0) 70%);}
+  #glareTint{position:absolute;inset:0;opacity:0;mix-blend-mode:screen;pointer-events:none;
+    background:linear-gradient(185deg,rgba(255,200,115,.34),rgba(255,178,92,.12) 55%,rgba(255,170,85,.05));}
+  #gpScreen{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;
+    padding:22px 36px;min-width:560px;pointer-events:none;}
+  #gpScreen.hidden{display:none;}
+  #gpTitle{font-size:24px;font-weight:900;letter-spacing:.2em;color:#ffca7a;margin-bottom:14px;}
+  .gpLine{font-size:15.5px;font-weight:600;letter-spacing:.04em;color:#f3e3bd;text-align:left;margin:7px 0;}
+  .gpLine em{font-style:normal;color:#ffb43a;}
+  .gpLine i{font-style:normal;color:#a8d9a0;}
+  #gpTotal{font-size:27px;font-weight:900;color:#ffb43a;margin-top:14px;
+    text-shadow:0 2px 0 #7a3c00,0 6px 18px rgba(0,0,0,.4);}
+  #gpHint{font-size:11.5px;opacity:.75;letter-spacing:.18em;margin-top:12px;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div id="glareTint"></div>
+  <div id="glareGlow"></div>
+  <div id="stationPanel" class="panel">
+    <div class="big" id="stationLine">STATION 4 — PRACTICE</div>
+    <div class="small" id="houseLine">HOUSE · —</div>
+    <div class="small" id="birdLine">BIRD 1 / 16</div>
+    <div class="small" id="shellLine">SHELL · LOADED</div>
+  </div>
+  <div id="tallyPanel" class="panel">
+    <div class="big" id="deadLine">DEAD 0</div>
+    <div class="small" id="lostLine">LOST 0</div>
+    <div class="small" id="standLine">—</div>
+    <div class="small" id="targetLine">TARGET 11</div>
+  </div>
+  <div id="windPanel" class="panel">
+    <div class="windRow">
+      <svg id="windArrow" width="20" height="20" viewBox="0 0 20 20"><path d="M10 2 L15.6 14.5 L10 11.4 L4.4 14.5 Z"></path></svg>
+      <span class="small" id="windLine">WIND · CALM</span>
+    </div>
+  </div>
+  <div id="mapPanel" class="panel">
+    <div class="mapTitle">CIRCUIT MAP</div>
+    <svg id="mapSvg" width="150" height="100" viewBox="0 0 150 100"></svg>
+  </div>
+  <div id="banner"></div>
+  <div id="strip"></div>
+  <div id="tierFlash"></div>
+  <div id="summary" class="panel hidden">
+    <div id="sumTitle">QUALIFYING ROUND COMPLETE</div>
+    <div id="sumScore">SCORE 0 / 25</div>
+    <div id="sumLost">LOST BIRDS: NONE</div>
+    <div id="sumStations"></div>
+    <div id="sumRival"></div>
+    <div id="sumHint">PRESS ENTER TO DISMISS</div>
+  </div>
+  <div id="reticle" style="display:none"></div>
+  <div id="prompt"></div>
+</div>
+
+<div id="title">
+  <div id="titleCard">
+    <div id="titleKicker">COUNTRYSIDE SKEET RANGE</div>
+    <h1>SKEET CIRCUIT</h1>
+    <div id="titleSub">Station 4 · High-House Practice</div>
+    <div id="titleControls">
+      <b>MOUSE</b> — swing the gun<br>
+      <b>HOLD SPACE</b> — mount and steady &nbsp;·&nbsp; <b>RELEASE</b> — call "PULL!"<br>
+      <b>CLICK</b> — fire &nbsp;·&nbsp; <b>C</b> — camera view &nbsp;·&nbsp; <b>R</b> — full reset<br>
+      <b>N / B</b> — next / previous station &nbsp;·&nbsp; <b>1-8</b> — jump to a station<br>
+      <b>G</b> — qualifying round (25 birds) &nbsp;·&nbsp; <b>H</b> — the championship final<br>
+      <b>ESC</b> — abort a round &nbsp;·&nbsp; ties go to a sudden-death shoot-off<br>
+      <b>SWING</b> — stay with the bird: a moving swing scores TRACKED, a still one EDGE<br>
+      <b>WIND</b> — birds 9–24 of a card blow at 2 across the line: hold upwind · glare at station 6 is visual only<br>
+      <b>TAB</b> — grand prix totals and rating, between rounds<br>
+      <b>GOLDEN BIRD</b> — the card's 25th clay flies gold: break it for a 60-point bonus
+    </div>
+    <div id="titleStart">PRESS ENTER TO START</div>
+    <div id="titleFoot">The eight-station circuit: two birds per visit — station 4 is a double. Take the 25-bird qualifier (G), then beat rival D. VANCE's 22/25 in the championship (H) — ties go to a sudden-death shoot-off. Fully deterministic: no randomness anywhere.</div>
+  </div>
+</div>
+
+<div id="gpScreen" class="panel hidden">
+  <div id="gpTitle">GRAND PRIX</div>
+  <div class="gpLine" id="gpL1"></div>
+  <div class="gpLine" id="gpL2"></div>
+  <div class="gpLine" id="gpL3"></div>
+  <div class="gpLine" id="gpL4"></div>
+  <div id="gpTotal"></div>
+  <div id="gpHint">TAB OR ENTER — BACK · R — FULL RESET</div>
+</div>
+
+<script src="./assets/_shared/three/build/three.min.js"></script>
+<script>
+"use strict";
+(function(){
+  function boot(){
+    if(!window.THREE){ return; }
+    var THREE = window.THREE;
+
+    /* ================= constants ================= */
+    var STEP = 1/60, DEG = Math.PI/180;
+    var UP = new THREE.Vector3(0,1,0);
+    var PIVOT = new THREE.Vector3(0,1.6,-15);      // muzzle pivot, 1.6 above the current pad
+    var AIM_YAW = 60*DEG, PITCH_MIN = -10*DEG, PITCH_MAX = 45*DEG;
+    // the eight station pads on the arc (station 8 stands inside it)
+    var STATION_POS=[[-15,0],[-13,-7.5],[-7.5,-13],[0,-15],[7.5,-13],[13,-7.5],[15,0],[0,-7]];
+    var stationYaw=0;                              // neutral facing of the current pad (toward the flag)
+    // the two traphouses (windows flap on their own tracks)
+    var HOUSES={
+      H:{flapSign:1,flapStart:-1,flap:null},
+      L:{flapSign:-1,flapStart:-1,flap:null}
+    };
+    // the written trajectory table: station, house, window, crossing point
+    var TABLE=[
+      [1,'H',[-18,2.5,0],[-5,3.0,-1]],
+      [1,'L',[18,0.8,0],[-3,2.8,-3]],
+      [2,'H',[-18,2.5,0],[-4,3.4,-4]],
+      [2,'L',[18,0.8,0],[-2,3.0,-5]],
+      [3,'H',[-18,2.5,0],[2,3.5,-5]],
+      [3,'L',[18,0.8,0],[-4,3.2,-5]],
+      [4,'H',[-18,2.5,0],[0,3.4,0]],
+      [4,'L',[18,0.8,0],[0,1.8,-2]],
+      [5,'H',[-18,2.5,0],[4,3.2,-5]],
+      [5,'L',[18,0.8,0],[-2,3.5,-5]],
+      [6,'H',[-18,2.5,0],[2,3.0,-5]],
+      [6,'L',[18,0.8,0],[4,3.0,-4]],
+      [7,'H',[-18,2.5,0],[3,2.8,-3]],
+      [7,'L',[18,0.8,0],[5,3.0,-1]],
+      [8,'H',[-18,2.5,0],[-1.5,3.8,-4]],
+      [8,'L',[18,0.8,0],[1.5,3.4,-4]]
+    ];
+    var BIRDS=TABLE.map(function(r,i){
+      var home=new THREE.Vector3(r[2][0],r[2][1],r[2][2]);
+      var cross=new THREE.Vector3(r[3][0],r[3][1],r[3][2]);
+      var dir=cross.clone().sub(home).normalize();
+      return {index:i,station:r[0],houseKey:r[1],label:(r[1]==='H'?'HIGH':'LOW'),
+              home:home,cross:cross,dir:dir,
+              tumble:new THREE.Vector3().crossVectors(dir,UP).normalize(),
+              len:cross.distanceTo(home)};
+    });
+    function birdFor(station,serve){ return BIRDS[(station-1)*2+serve]; }
+    var birdDef=BIRDS[0];
+    // the qualifying round: 23 visits, 25 birds, walked automatically
+    var QUAL_VISITS=(function(){
+      var spec=[[1,'H'],[1,'L'],[2,'H'],[2,'L'],[3,'H'],[3,'L'],[4,'P'],
+                [5,'H'],[5,'L'],[6,'H'],[6,'L'],[7,'H'],[7,'L'],[8,'H'],[8,'L'],
+                [1,'H'],[1,'L'],[2,'H'],[2,'L'],[3,'H'],[3,'L'],[4,'P'],[8,'L']];
+      var list=[],n=0;
+      for(var i=0;i<spec.length;i++){
+        var s=spec[i][0];
+        if(spec[i][1]==='P'){
+          list.push({station:s,startBird:n,pair:true,birds:[BIRDS[(s-1)*2],BIRDS[(s-1)*2+1]]}); n+=2;
+        } else {
+          list.push({station:s,startBird:n,pair:false,birds:[BIRDS[(s-1)*2+(spec[i][1]==='H'?0:1)]]}); n+=1;
+        }
+      }
+      return list;
+    })();
+    var QUAL_N=25;
+    // rival D. VANCE: a fixed written ledger — he breaks every single bird and the
+    // first clay of every double pair, and under wind he also drops bird 16, the
+    // station-8 low in the wind stretch: exactly 22/25, losing birds 8, 16 and 24
+    var RIVAL_LEDGER=(function(){
+      var r=new Array(QUAL_N).fill('DEAD');
+      for(var v=0;v<QUAL_VISITS.length;v++){
+        if(QUAL_VISITS[v].pair) r[QUAL_VISITS[v].startBird+1]='LOST';
+      }
+      r[15]='LOST';
+      return r;
+    })();
+    function qualResolvedCount(){
+      var n=0;
+      for(var i=0;i<QUAL_N;i++){ if(qual&&qual.results[i]!==null) n++; }
+      return n;
+    }
+    function rivalRevealedCount(){ return qual?qualResolvedCount():0; }
+    function rivalTotal(){
+      var n=0;
+      for(var i=0;i<rivalRevealedCount();i++){ if(RIVAL_LEDGER[i]==='DEAD') n++; }
+      return n;
+    }
+    var RIVAL_CARD_TOTAL=(function(){
+      var n=0;
+      for(var i=0;i<QUAL_N;i++){ if(RIVAL_LEDGER[i]==='DEAD') n++; }
+      return n;
+    })();
+    /* the written wind schedule, keyed to the 0-based bird index of a 25-bird card:
+       birds 1-8 calm · birds 9-16 crosswind 2 toward -z · birds 17-24 reversed, 2 toward +z ·
+       bird 25 calm. free practice and shoot-off pairs are always calm. */
+    var WIND_CALM=[0,0,0], WIND_NEGZ=[0,0,-2], WIND_POSZ=[0,0,2];
+    function windForBirdIndex(i){
+      return (i>=8&&i<16)?WIND_NEGZ:((i>=16&&i<24)?WIND_POSZ:WIND_CALM);
+    }
+    function currentWind(){
+      return (qual&&!qual.shootoff)?windForBirdIndex(qual.curStart):WIND_CALM;
+    }
+    // the low evening sun: toward the high house as seen from station 6, about 9° up
+    var GLARE_SUN=(function(){
+      var dx=-18-13, dz=0-(-7.5), hl=Math.hypot(dx,dz), el=9*DEG, ce=Math.cos(el);
+      return new THREE.Vector3(dx/hl*ce,Math.sin(el),dz/hl*ce).multiplyScalar(300);
+    })();
+    var CALL_DELAY = 0.80, CLAY_SPEED = 8.8, CLAY_LIFE = 3.6;
+    var PELLET_SPEED = 38, CONE_HALF = 1.6*DEG, CLAY_R = 0.2; // C9 tuning: 3.2° full cone · 38 units/s
+    var SWING_TRACK = 0.70, EDGE_EXTRA = 0.5;
+    var ROUND_N = 16, TARGET = 11, RELOAD_T = 1.4;
+
+    /* ================= deterministic helpers ================= */
+    function clamp(x,a,b){ return x<a?a:(x>b?b:x); }
+    function lerp(a,b,t){ return a+(b-a)*t; }
+    function fracf(x){ return x-Math.floor(x); }
+    function h1(n){ return fracf(Math.sin(n*127.1+311.7)*43758.5453123); }
+    function h2(x,y){ return fracf(Math.sin(x*127.1+y*311.7)*43758.5453123); }
+    function vnoise(x,y){
+      var xi=Math.floor(x), yi=Math.floor(y), xf=x-xi, yf=y-yi;
+      var s=h2(xi,yi), t=h2(xi+1,yi), u=h2(xi,yi+1), v=h2(xi+1,yi+1);
+      var sx=xf*xf*(3-2*xf), sy=yf*yf*(3-2*yf);
+      return s+(t-s)*sx+(u-s)*sy+(s-t-u+v)*sx*sy;
+    }
+    function easeIO(t){ t=clamp(t,0,1); return t*t*(3-2*t); }
+    function easeOut(t){ t=clamp(t,0,1); return 1-(1-t)*(1-t); }
+    function aimDirOf(yaw,pitch,out){
+      var cp=Math.cos(pitch);
+      out.set(Math.sin(yaw)*cp, Math.sin(pitch), Math.cos(yaw)*cp);
+      return out;
+    }
+    function terrainH(x,z){
+      var dx=Math.max(0,Math.abs(x)-32), dz=Math.max(0,Math.abs(z)-27);
+      var d=Math.sqrt(dx*dx+dz*dz);
+      if(d<=0) return 0;
+      var t=easeIO(Math.min(1,d/48));
+      var n=vnoise(x*0.02+7.3, z*0.02+2.9);
+      var n2=vnoise(x*0.045+13.1, z*0.045+5.7);
+      return t*(3+9*n+2.5*n2);
+    }
+
+    /* ================= renderer / scene ================= */
+    var canvas=document.getElementById('c');
+    var renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+    renderer.setSize(window.innerWidth,window.innerHeight);
+    renderer.shadowMap.enabled=true;
+    renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+    if('outputColorSpace' in renderer && THREE.SRGBColorSpace){ renderer.outputColorSpace=THREE.SRGBColorSpace; }
+    else if(THREE.sRGBEncoding!==undefined){ renderer.outputEncoding=THREE.sRGBEncoding; }
+    if(THREE.ACESFilmicToneMapping!==undefined){ renderer.toneMapping=THREE.ACESFilmicToneMapping; }
+    renderer.toneMappingExposure=1.02;
+
+    var scene=new THREE.Scene();
+    scene.background=new THREE.Color(0xf2dcae);
+    scene.fog=new THREE.Fog(0xf2dcae, 90, 300);
+
+    var camera=new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.08, 700);
+    camera.position.set(0,8.6,-30.5);
+    camera.lookAt(0,2,0);
+
+    window.addEventListener('resize',function(){
+      camera.aspect=window.innerWidth/window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth,window.innerHeight);
+    });
+
+    /* ================= lights ================= */
+    var hemi=new THREE.HemisphereLight(0xbfd8ff,0x7c8a52,0.75); scene.add(hemi);
+    var amb=new THREE.AmbientLight(0xffe9c8,0.26); scene.add(amb);
+    var sun=new THREE.DirectionalLight(0xffdca8,1.75);
+    sun.position.set(-40,34,22);
+    sun.castShadow=true;
+    sun.shadow.mapSize.set(2048,2048);
+    sun.shadow.camera.left=-55; sun.shadow.camera.right=55;
+    sun.shadow.camera.top=55; sun.shadow.camera.bottom=-55;
+    sun.shadow.camera.near=5; sun.shadow.camera.far=170;
+    sun.shadow.bias=-0.0006;
+    if('normalBias' in sun.shadow) sun.shadow.normalBias=0.03;
+    scene.add(sun);
+    scene.add(sun.target);
+
+    /* ================= materials helper ================= */
+    function std(color,rough,metal){
+      return new THREE.MeshStandardMaterial({color:color,roughness:(rough===undefined?0.9:rough),metalness:(metal||0)});
+    }
+    function box(w,h,d,mat,x,y,z){
+      var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+      m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true;
+      return m;
+    }
+
+    /* ================= sky ================= */
+    (function(){
+      var geo=new THREE.SphereGeometry(330,32,16);
+      var pos=geo.attributes.position;
+      var colors=new Float32Array(pos.count*3);
+      var cHor=new THREE.Color(0xffe2b0), cZen=new THREE.Color(0x74b6e6), c=new THREE.Color();
+      for(var i=0;i<pos.count;i++){
+        var t=clamp(pos.getY(i)/330,0,1);
+        c.copy(cHor).lerp(cZen,Math.pow(t,0.62));
+        colors[i*3]=c.r; colors[i*3+1]=c.g; colors[i*3+2]=c.b;
+      }
+      geo.setAttribute('color',new THREE.BufferAttribute(colors,3));
+      var mat=new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.BackSide,fog:false,depthWrite:false});
+      var sky=new THREE.Mesh(geo,mat); sky.renderOrder=-2; scene.add(sky);
+      // sun glow sprite
+      var cvS=document.createElement('canvas'); cvS.width=cvS.height=128;
+      var g=cvS.getContext('2d');
+      var gr=g.createRadialGradient(64,64,4,64,64,62);
+      gr.addColorStop(0,'rgba(255,246,214,1)'); gr.addColorStop(0.25,'rgba(255,226,160,0.85)');
+      gr.addColorStop(0.6,'rgba(255,206,130,0.28)'); gr.addColorStop(1,'rgba(255,206,130,0)');
+      g.fillStyle=gr; g.fillRect(0,0,128,128);
+      var texS=new THREE.CanvasTexture(cvS);
+      var sm=new THREE.SpriteMaterial({map:texS,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,fog:false});
+      var spr=new THREE.Sprite(sm);
+      spr.position.copy(GLARE_SUN); // the low evening sun, toward the high house from station 6
+      spr.scale.set(64,64,1); scene.add(spr);
+    })();
+
+    /* ================= ground ================= */
+    (function(){
+      var geo=new THREE.PlaneGeometry(440,440,110,110);
+      geo.rotateX(-Math.PI/2);
+      var pos=geo.attributes.position;
+      var colors=new Float32Array(pos.count*3);
+      var g1=new THREE.Color(0x55923a), g2=new THREE.Color(0x8fc45c), dry=new THREE.Color(0xb9a75c);
+      var c=new THREE.Color();
+      for(var i=0;i<pos.count;i++){
+        var x=pos.getX(i), z=pos.getZ(i);
+        pos.setY(i, terrainH(x,z));
+        var n=vnoise(x*0.05+3.1, z*0.05+8.7);
+        var d2=vnoise(x*0.013+21.4, z*0.013+2.2);
+        c.copy(g1).lerp(g2,n).lerp(dry,clamp((d2-0.62)*1.8,0,0.5));
+        if(Math.abs(x)<33 && z>-27 && z<24){ if(Math.floor((x+200)/3.1)%2===0) c.multiplyScalar(0.93); }
+        colors[i*3]=c.r; colors[i*3+1]=c.g; colors[i*3+2]=c.b;
+      }
+      geo.setAttribute('color',new THREE.BufferAttribute(colors,3));
+      geo.computeVertexNormals();
+      var ground=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,metalness:0}));
+      ground.receiveShadow=true;
+      scene.add(ground);
+    })();
+
+    /* dirt paths from pad to houses */
+    (function(){
+      var mat=std(0x9a7c50,1);
+      var mk=function(mid,ang){
+        var geo=new THREE.PlaneGeometry(1.7,20); geo.rotateX(-Math.PI/2);
+        var m=new THREE.Mesh(geo,mat);
+        m.position.set(mid[0],0.03,mid[1]); m.rotation.y=ang; m.receiveShadow=true;
+        scene.add(m);
+      };
+      mk(-9.4,-0.876); mk(9.4,0.876);
+    })();
+
+    /* ================= the eight station pads ================= */
+    function stationNumTexture(n){
+      var cv=document.createElement('canvas'); cv.width=96; cv.height=72;
+      var g=cv.getContext('2d');
+      g.fillStyle='#e8d9b0'; g.fillRect(0,0,96,72);
+      g.strokeStyle='#5f3f22'; g.lineWidth=6; g.strokeRect(3,3,90,66);
+      g.fillStyle='#3a2412'; g.font='bold 44px Georgia,serif'; g.textAlign='center'; g.textBaseline='middle';
+      g.fillText(String(n),48,38);
+      var tex=new THREE.CanvasTexture(cv);
+      if('colorSpace' in tex && THREE.SRGBColorSpace){ tex.colorSpace=THREE.SRGBColorSpace; }
+      else if(THREE.sRGBEncoding!==undefined){ tex.encoding=THREE.sRGBEncoding; }
+      return tex;
+    }
+    (function(){
+      var padMat=std(0xb5ac9c,0.95), postMat=std(0x7d5a34,0.9);
+      for(var s=1;s<=8;s++){
+        var p=STATION_POS[s-1];
+        var pad=new THREE.Mesh(new THREE.CylinderGeometry(2.35,2.55,0.14,28),padMat);
+        pad.position.set(p[0],0.07,p[1]); pad.receiveShadow=true; pad.castShadow=true; scene.add(pad);
+        var ring=new THREE.Mesh(new THREE.RingGeometry(1.7,1.9,40),
+          new THREE.MeshBasicMaterial({color:0xe8dcc0,transparent:true,opacity:0.7,side:THREE.DoubleSide}));
+        ring.rotation.x=-Math.PI/2; ring.position.set(p[0],0.145,p[1]); scene.add(ring);
+        // numbered post on the flag-opposite edge, board facing the center flag
+        var outLen=Math.hypot(p[0],p[1])||1;
+        var px=p[0]+p[0]/outLen*2.0, pz=p[1]+p[1]/outLen*2.0;
+        var post=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.055,1.4,8),postMat);
+        post.position.set(px,0.7,pz); post.castShadow=true; scene.add(post);
+        var board=new THREE.Mesh(new THREE.PlaneGeometry(0.36,0.27),
+          new THREE.MeshBasicMaterial({map:stationNumTexture(s)}));
+        board.position.set(px,1.22,pz);
+        board.rotation.y=Math.atan2(-px,-pz);
+        scene.add(board);
+      }
+      var crate=box(0.72,0.42,0.5,std(0x8a6a42,0.85),2.0,0.35,-16.8); crate.rotation.y=0.5; scene.add(crate);
+      for(var i=0;i<3;i++){
+        var sh=new THREE.Mesh(new THREE.CylinderGeometry(0.028,0.028,0.1,8),std(0xc23b22,0.6));
+        sh.position.set(1.85+i*0.1,0.61,-16.85); sh.castShadow=true; scene.add(sh);
+      }
+      // crossing-point marker ring + orange flag at (0,0,0)
+      var ring2=new THREE.Mesh(new THREE.RingGeometry(0.55,0.85,40),
+        new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.35,side:THREE.DoubleSide}));
+      ring2.rotation.x=-Math.PI/2; ring2.position.set(0,0.02,0); scene.add(ring2);
+      var pole=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.05,3.2,8),std(0xe8e0cc,0.7));
+      pole.position.set(0,1.6,0); pole.castShadow=true; scene.add(pole);
+    })();
+
+    /* ================= flag (waving, fixed track) ================= */
+    var flagGeo=new THREE.PlaneGeometry(1.05,0.62,10,4);
+    flagGeo.translate(0.525,0,0);
+    var flagMesh=new THREE.Mesh(flagGeo,new THREE.MeshStandardMaterial({color:0xff7a1a,roughness:0.8,side:THREE.DoubleSide}));
+    flagMesh.position.set(0,2.86,0); flagMesh.castShadow=true; scene.add(flagMesh);
+
+    /* ================= traphouses ================= */
+    function plaqueTexture(text){
+      var cv=document.createElement('canvas'); cv.width=256; cv.height=80;
+      var g=cv.getContext('2d');
+      g.fillStyle='#e8d9b0'; g.fillRect(0,0,256,80);
+      g.strokeStyle='#5f3f22'; g.lineWidth=8; g.strokeRect(4,4,248,72);
+      g.fillStyle='#3a2412'; g.font='bold 38px Georgia,serif'; g.textAlign='center'; g.textBaseline='middle';
+      g.fillText(text,128,42);
+      var tex=new THREE.CanvasTexture(cv);
+      if('colorSpace' in tex && THREE.SRGBColorSpace){ tex.colorSpace=THREE.SRGBColorSpace; }
+      else if(THREE.sRGBEncoding!==undefined){ tex.encoding=THREE.sRGBEncoding; }
+      return tex;
+    }
+    function gableRoof(hw,hh,depth,col){
+      var sh=new THREE.Shape();
+      sh.moveTo(-hw,0); sh.lineTo(hw,0); sh.lineTo(0,hh); sh.lineTo(-hw,0);
+      var geo=new THREE.ExtrudeGeometry(sh,{depth:depth,bevelEnabled:false});
+      var m=new THREE.Mesh(geo,std(col,0.95));
+      m.castShadow=true; m.receiveShadow=true;
+      return m;
+    }
+    var highFlap=null, lowFlap=null;
+    (function(){
+      var g=new THREE.Group(); g.position.set(-19.6,0,0);
+      var wallMat=std(0xa97b46,0.9), trimMat=std(0xe9dcb4,0.85);
+      g.add(box(3.7,0.3,3.5,std(0x9a9184,0.95),0,0.15,0));
+      g.add(box(3.2,2.75,3.0,wallMat,0,1.675,0));
+      g.add(box(0.12,2.75,0.12,trimMat,1.56,1.675,-1.44));
+      g.add(box(0.12,2.75,0.12,trimMat,1.56,1.675,1.44));
+      var roof=gableRoof(1.95,1.0,3.5,0x63432a); roof.position.set(0,3.05,-1.75); g.add(roof);
+      g.add(box(0.10,0.09,3.6,std(0x4c331f,0.9),0,4.06,0));
+      g.add(box(0.22,0.55,0.22,std(0x8a4a3a,0.95),-0.9,4.05,0.6));
+      // launch window on +x face (world x = -18, y = 2.5)
+      g.add(box(0.10,0.62,0.80,std(0x140d06,1),1.60,2.5,0));
+      g.add(box(0.06,0.09,0.94,trimMat,1.63,2.855,0));
+      g.add(box(0.06,0.09,0.94,trimMat,1.63,2.145,0));
+      g.add(box(0.06,0.80,0.09,trimMat,1.63,2.5,0.425));
+      g.add(box(0.06,0.80,0.09,trimMat,1.63,2.5,-0.425));
+      var hinge=new THREE.Group(); hinge.position.set(1.645,2.83,0); g.add(hinge);
+      var flap=box(0.045,0.64,0.84,std(0x8a6a42,0.9),0,-0.32,0); hinge.add(flap);
+      highFlap=hinge;
+      // door on -z face
+      g.add(box(0.75,1.65,0.07,std(0x4f341c,0.85),0.55,1.12,-1.52));
+      g.add(box(0.91,0.08,0.05,trimMat,0.55,1.98,-1.53));
+      var knob=new THREE.Mesh(new THREE.SphereGeometry(0.032,8,8),std(0xc9a23e,0.4,0.7));
+      knob.position.set(0.82,1.05,-1.57); g.add(knob);
+      // small window on -x face
+      g.add(box(0.06,0.5,0.5,std(0x2a1c10,1),-1.62,1.9,0.3));
+      // plaque
+      var pl=new THREE.Mesh(new THREE.PlaneGeometry(1.35,0.42),
+        new THREE.MeshBasicMaterial({map:plaqueTexture('HIGH HOUSE')}));
+      pl.position.set(-0.55,2.5,-1.53); pl.rotation.y=Math.PI; g.add(pl);
+      scene.add(g);
+    })();
+    (function(){
+      var g=new THREE.Group(); g.position.set(19.5,0,0);
+      var wallMat=std(0x96703f,0.9), trimMat=std(0xe9dcb4,0.85);
+      g.add(box(3.4,0.28,3.2,std(0x9a9184,0.95),0,0.14,0));
+      g.add(box(3.0,1.5,2.8,wallMat,0,1.03,0));
+      var roof=gableRoof(1.85,0.72,3.2,0x5f422c); roof.position.set(0,1.78,-1.6); g.add(roof);
+      g.add(box(0.09,0.08,3.3,std(0x463019,0.9),0,2.51,0));
+      // launch window on -x face (world x = 18, y = 0.8)
+      g.add(box(0.10,0.52,0.72,std(0x140d06,1),-1.50,0.8,0));
+      g.add(box(0.06,0.08,0.84,trimMat,-1.53,1.09,0));
+      g.add(box(0.06,0.08,0.84,trimMat,-1.53,0.51,0));
+      g.add(box(0.06,0.66,0.08,trimMat,-1.53,0.8,0.40));
+      g.add(box(0.06,0.66,0.08,trimMat,-1.53,0.8,-0.40));
+      var hinge=new THREE.Group(); hinge.position.set(-1.545,1.09,0); g.add(hinge);
+      var flap=box(0.045,0.55,0.76,std(0x8a6a42,0.9),0,-0.275,0); hinge.add(flap);
+      lowFlap=hinge;
+      // door on +x face
+      g.add(box(0.07,1.3,0.7,std(0x4f341c,0.85),1.51,0.93,0.35));
+      var knob=new THREE.Mesh(new THREE.SphereGeometry(0.03,8,8),std(0xc9a23e,0.4,0.7));
+      knob.position.set(1.57,0.86,0.12); g.add(knob);
+      // plaque on +z face
+      var pl=new THREE.Mesh(new THREE.PlaneGeometry(1.2,0.38),
+        new THREE.MeshBasicMaterial({map:plaqueTexture('LOW HOUSE')}));
+      pl.position.set(0,1.25,1.41); g.add(pl);
+      scene.add(g);
+    })();
+    HOUSES.H.flap=highFlap;
+    HOUSES.L.flap=lowFlap;
+
+    /* ================= scoreboard hut ================= */
+    var scoreCanvas=document.createElement('canvas'); scoreCanvas.width=512; scoreCanvas.height=320;
+    var scoreTex=new THREE.CanvasTexture(scoreCanvas);
+    if('colorSpace' in scoreTex && THREE.SRGBColorSpace){ scoreTex.colorSpace=THREE.SRGBColorSpace; }
+    else if(THREE.sRGBEncoding!==undefined){ scoreTex.encoding=THREE.sRGBEncoding; }
+    (function(){
+      var g=new THREE.Group(); g.position.set(-8.2,0,-20.8); g.rotation.y=0.955;
+      g.add(box(2.7,2.1,2.0,std(0xa97b46,0.9),0,1.05,0));
+      var roofSlab=box(3.0,0.12,2.5,std(0x63432a,0.95),0,2.3,-0.15); roofSlab.rotation.x=0.16; g.add(roofSlab);
+      g.add(box(2.1,1.35,0.1,std(0x2b1a08,1),0,1.25,1.0));
+      var board=new THREE.Mesh(new THREE.PlaneGeometry(1.9,1.18),
+        new THREE.MeshBasicMaterial({map:scoreTex}));
+      board.position.set(0,1.25,1.06); g.add(board);
+      scene.add(g);
+    })();
+    function updateScore(){
+      var g=scoreCanvas.getContext('2d');
+      g.fillStyle='#f4e9c8'; g.fillRect(0,0,512,320);
+      g.strokeStyle='#5f3f22'; g.lineWidth=14; g.strokeRect(7,7,498,306);
+      g.fillStyle='#2b1a08'; g.textAlign='center';
+      g.font='bold 42px Georgia,serif'; g.fillText('SKEET CIRCUIT',256,56);
+      g.font='bold 21px Arial,sans-serif'; g.fillStyle='#7a5a30';
+      g.fillText(qual?(qual.shootoff?'SHOOT-OFF · SUDDEN DEATH':(qual.kind==='CHAMPIONSHIP'?'THE CHAMPIONSHIP · 25 BIRDS':'THE QUALIFIER · 25 BIRDS')):'STATION '+stationIndex+' · HIGH HOUSE',256,90);
+      // standings: you vs the rival ledger
+      g.font='bold 27px Arial,sans-serif';
+      g.textAlign='left'; g.fillStyle='#2b1a08';
+      g.fillText('YOU',56,132); g.fillText('D. VANCE',56,172);
+      g.textAlign='right';
+      g.fillStyle='#d96a10'; g.fillText('DEAD '+tallyDead+' · LOST '+tallyLost,456,132);
+      g.fillStyle=qual?'#2b1a08':'#a09272';
+      g.fillText(qual?(rivalTotal()+' / '+QUAL_N):'—',456,172);
+      g.textAlign='center';
+      g.font='bold 24px Arial,sans-serif'; g.fillStyle='#2b1a08';
+      var line;
+      if(qual&&qual.shootoff){
+        line='SHOOT-OFF · PAIR '+qual.soPair+' — YOU '+pairBroken+' · D. VANCE 1';
+        if(champVerdict) line=(champVerdict==='CHAMPION'?'CHAMPION — ':'RUNNER-UP — ')+'DECIDED IN '+qual.soPair+' PAIR'+(qual.soPair>1?'S':'');
+      }
+      else if(qual) line='BIRD '+Math.min(qualResolvedCount()+1,QUAL_N)+' / '+QUAL_N+' · STATION '+stationIndex;
+      else line='STATION '+stationIndex+(stationIndex===4?' · DOUBLE':' · BIRD '+Math.min(tallyDead+tallyLost+1,ROUND_N)+' / '+ROUND_N+' · HOUSE '+birdDef.houseKey)+'   ·   TARGET '+TARGET;
+      if(roundResult==='PASSED') line='ROUND PASSED — '+tallyDead+' OF '+ROUND_N;
+      if(roundResult==='SHORT') line='ROUND SHORT — '+tallyDead+' OF '+ROUND_N;
+      g.fillText(line,256,228);
+      if(roundResult==='PASSED'){ g.fillStyle='#2e7d32'; }
+      else if(roundResult==='SHORT'){ g.fillStyle='#b3402a'; }
+      else if(qual){ g.fillStyle='#7a5a30'; g.font='bold 21px Arial,sans-serif'; g.fillText(qual.shootoff?'BREAK BOTH CLAYS TO TAKE THE TITLE':'D. VANCE SHOWS HIS CARD BIRD BY BIRD',256,262); g.fillText('ONE POINT PER DEAD BIRD',256,292); scoreTex.needsUpdate=true; return; }
+      else { g.fillStyle='#7a5a30'; g.font='bold 22px Arial,sans-serif'; g.fillText('BREAK '+TARGET+' TO PASS',256,262); scoreTex.needsUpdate=true; return; }
+      g.font='bold 30px Arial,sans-serif';
+      g.fillText(roundResult==='PASSED'?'WELL SHOT!':'KEEP SWINGING',256,266);
+      scoreTex.needsUpdate=true;
+    }
+
+    /* ================= boundary fence ================= */
+    (function(){
+      var postGeo=new THREE.BoxGeometry(0.14,1.15,0.14);
+      var railGeo=new THREE.BoxGeometry(1,0.08,0.05);
+      var posts=[], rails=[];
+      var x0=-30,x1=30,z0=-24,z1=22,stepN=3.2;
+      var edges=[[x0,z0,x1,z0],[x1,z0,x1,z1],[x1,z1,x0,z1],[x0,z1,x0,z0]];
+      for(var e=0;e<edges.length;e++){
+        var E=edges[e], dx=E[2]-E[0], dz=E[3]-E[1];
+        var len=Math.sqrt(dx*dx+dz*dz), n=Math.round(len/stepN);
+        var ux=dx/n, uz=dz/n, ang=Math.atan2(dx,dz);
+        for(var i=0;i<=n;i++){
+          posts.push([E[0]+ux*i,0.575,E[1]+uz*i]);
+          if(i<n){
+            rails.push([E[0]+ux*(i+0.5),0.42,E[1]+uz*(i+0.5),ang,len/n]);
+            rails.push([E[0]+ux*(i+0.5),0.85,E[1]+uz*(i+0.5),ang,len/n]);
+          }
+        }
+      }
+      var postMesh=new THREE.InstancedMesh(postGeo,std(0x7d5a34,0.9),posts.length);
+      var railMesh=new THREE.InstancedMesh(railGeo,std(0x8f6a3e,0.9),rails.length);
+      var m=new THREE.Matrix4(), q=new THREE.Quaternion(), sc=new THREE.Vector3(1,1,1), p=new THREE.Vector3();
+      for(var i=0;i<posts.length;i++){
+        p.set(posts[i][0],posts[i][1],posts[i][2]);
+        m.compose(p,new THREE.Quaternion(),sc); postMesh.setMatrixAt(i,m);
+      }
+      for(var i=0;i<rails.length;i++){
+        p.set(rails[i][0],rails[i][1],rails[i][2]);
+        q.setFromAxisAngle(UP,rails[i][3]);
+        m.compose(p,q,new THREE.Vector3(rails[i][4],1,1)); railMesh.setMatrixAt(i,m);
+      }
+      postMesh.castShadow=true; railMesh.castShadow=true;
+      scene.add(postMesh); scene.add(railMesh);
+    })();
+
+    /* ================= windsock by the fence (swings with the written wind) ================= */
+    var sockYawG=new THREE.Group(), sockPitchG=new THREE.Group();
+    (function(){
+      var pole=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.06,4.2,10),std(0x9aa3ad,0.6,0.5));
+      pole.position.set(26,2.1,8); pole.castShadow=true; scene.add(pole);
+      var cage=new THREE.Mesh(new THREE.TorusGeometry(0.19,0.02,8,18),std(0x5f6a73,0.5,0.6));
+      cage.position.set(26,4.2,8); cage.rotation.x=Math.PI/2; cage.castShadow=true; scene.add(cage);
+      sockYawG.position.set(26,4.2,8); scene.add(sockYawG);
+      sockYawG.add(sockPitchG);
+      // three striped cone segments, ring at the pole and tail along local +z
+      var cols=[0xff7a1a,0xf4e9c8,0xff7a1a];
+      for(var i=0;i<3;i++){
+        var z0=i*0.32, z1=z0+0.32;
+        var r0=0.175-0.105*(z0/0.96), r1=0.175-0.105*(z1/0.96);
+        var seg=new THREE.CylinderGeometry(r1,r0,z1-z0,10,1,true);
+        seg.rotateX(Math.PI/2);
+        seg.translate(0,0,(z0+z1)/2);
+        var m=new THREE.Mesh(seg,new THREE.MeshStandardMaterial({color:cols[i],roughness:0.85,side:THREE.DoubleSide}));
+        m.castShadow=true;
+        sockPitchG.add(m);
+      }
+    })();
+
+    /* ================= hills + treeline + barn ================= */
+    (function(){
+      var hillMat=std(0x6f9a4b,1);
+      var spots=[[-80,0,-95,55],[70,0,-100,62],[-110,0,-20,58],[115,0,-5,60],[-60,0,80,52],[80,0,70,56],[0,0,-130,80]];
+      for(var i=0;i<spots.length;i++){
+        var s=spots[i];
+        var h=new THREE.Mesh(new THREE.SphereGeometry(s[3],20,12),hillMat);
+        h.position.set(s[0],-s[3]*0.72,s[2]); h.scale.set(1,0.34,0.8);
+        h.receiveShadow=true; scene.add(h);
+      }
+      // trees
+      var N=140;
+      var trunkGeo=new THREE.CylinderGeometry(0.13,0.2,1.5,6);
+      var folGeo=new THREE.SphereGeometry(1,8,6);
+      var trunks=new THREE.InstancedMesh(trunkGeo,std(0x6b4a2c,0.95),N);
+      var fols=new THREE.InstancedMesh(folGeo,std(0x4c8a33,0.95),N);
+      var m=new THREE.Matrix4(), q=new THREE.Quaternion(), p=new THREE.Vector3(), sc=new THREE.Vector3(), col=new THREE.Color();
+      for(var i=0;i<N;i++){
+        var x,z;
+        if(i%2===0){ x=-95+190*h2(i,2); z=-(46+26*h2(i,1)); }
+        else if(i%5===0){ x=(36+28*h2(i,5))*(i%2?1:-1); z=-28+52*h2(i,6); }
+        else { x=-95+190*h2(i,4); z=36+26*h2(i,3); }
+        var s=0.9+1.5*h2(i,7);
+        var y=terrainH(x,z);
+        p.set(x,y+0.7*s-0.15,z); sc.set(s,s*(1+0.35*h2(i,8)),s);
+        m.compose(p,q,sc); trunks.setMatrixAt(i,m);
+        var fs=s*(0.95+0.55*h2(i,9));
+        p.set(x,y+1.5*s+0.55*fs-0.15,z); sc.set(fs,fs*1.15,fs);
+        m.compose(p,q,sc); fols.setMatrixAt(i,m);
+        col.setHSL(0.26+0.07*h2(i,10),0.5,0.27+0.13*h2(i,11));
+        if(fols.setColorAt) fols.setColorAt(i,col);
+      }
+      trunks.instanceMatrix.needsUpdate=true; fols.instanceMatrix.needsUpdate=true;
+      if(fols.instanceColor) fols.instanceColor.needsUpdate=true;
+      trunks.castShadow=true; fols.castShadow=true;
+      scene.add(trunks); scene.add(fols);
+      // distant barn
+      var barn=new THREE.Group(); barn.position.set(-48,terrainH(-48,-46),-46); barn.rotation.y=0.55;
+      barn.add(box(9,4.6,6.5,std(0xb0432f,0.9),0,2.3,0));
+      var br=gableRoof(5.0,2.3,6.9,0x8a8378); br.position.set(0,4.6,-3.45); barn.add(br);
+      barn.add(box(1.8,2.4,0.15,std(0x7a2f20,0.9),0,1.2,3.3));
+      barn.add(box(0.16,2.2,0.16,std(0xe8e0cc,0.85),-0.7,1.2,3.4));
+      barn.add(box(0.16,2.2,0.16,std(0xe8e0cc,0.85),0.7,1.2,3.4));
+      var silo=new THREE.Mesh(new THREE.CylinderGeometry(1.25,1.25,5.6,12),std(0xd8cdb4,0.9));
+      silo.position.set(6.2,2.8,1.5); silo.castShadow=true; barn.add(silo);
+      var dome=new THREE.Mesh(new THREE.SphereGeometry(1.25,12,8,0,Math.PI*2,0,Math.PI/2),std(0x9aa3ad,0.8,0.3));
+      dome.position.set(6.2,5.6,1.5); barn.add(dome);
+      scene.add(barn);
+      // hay bales near the hut
+      for(var i=0;i<2;i++){
+        var bale=new THREE.Mesh(new THREE.CylinderGeometry(0.55,0.55,0.95,12),std(0xc9a94e,1));
+        bale.position.set(8.6+i*1.6,0.55,-21.5+i*1.2); bale.rotation.set(0,0.4+i,Math.PI/2);
+        bale.castShadow=true; scene.add(bale);
+      }
+    })();
+
+    /* ================= clouds (fixed paths) ================= */
+    var clouds=[];
+    (function(){
+      var mat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:1,emissive:0x40382e});
+      for(var i=0;i<6;i++){
+        var grp=new THREE.Group();
+        var nb=4+Math.floor(h1(i*3+1)*3);
+        for(var b=0;b<nb;b++){
+          var s=new THREE.Mesh(new THREE.SphereGeometry(1,10,8),mat);
+          s.position.set((b-nb/2)*1.6+(h1(i*7+b)-0.5),h1(i*11+b)*0.5,(h1(i*13+b)-0.5)*1.2);
+          s.scale.set(1.6+0.8*h1(i*17+b),0.8+0.4*h1(i*19+b),1.2);
+          grp.add(s);
+        }
+        var rec={
+          grp:grp, cx:-70+140*h1(i*23+2), cz:-40+120*h1(i*29+3), cy:24+13*h1(i*31+4),
+          R:24+38*h1(i*37+5), w:0.008+0.01*h1(i*41+6), ph:h1(i*43+7)*6.28, s:2.2+1.8*h1(i*47+8)
+        };
+        grp.scale.set(rec.s,rec.s,rec.s);
+        scene.add(grp); clouds.push(rec);
+      }
+    })();
+
+    /* ================= the shotgun ================= */
+    var gunRoot=new THREE.Group(); gunRoot.position.copy(PIVOT); scene.add(gunRoot);
+    var gunYaw=new THREE.Group(); gunRoot.add(gunYaw);
+    var gunPitch=new THREE.Group(); gunYaw.add(gunPitch);
+    var breakG=new THREE.Group(); breakG.position.set(0,0,0.155); gunPitch.add(breakG);
+    var steel=new THREE.MeshStandardMaterial({color:0x3a3f45,roughness:0.38,metalness:0.78});
+    var steelDark=new THREE.MeshStandardMaterial({color:0x23262b,roughness:0.45,metalness:0.7});
+    var wood=new THREE.MeshStandardMaterial({color:0x6e4a26,roughness:0.6});
+    var barrelGeo=new THREE.CylinderGeometry(0.0215,0.0215,0.62,10); barrelGeo.rotateX(Math.PI/2);
+    var bU=new THREE.Mesh(barrelGeo,steel); bU.position.set(0,0.020,0.285); breakG.add(bU);
+    var bL=new THREE.Mesh(barrelGeo,steel); bL.position.set(0,-0.020,0.285); breakG.add(bL);
+    var bead=new THREE.Mesh(new THREE.SphereGeometry(0.006,6,6),std(0xd8b23a,0.3,0.8));
+    bead.position.set(0,0.046,0.59); breakG.add(bead);
+    var forend=box(0.042,0.034,0.30,wood,0,-0.050,0.24); breakG.add(forend);
+    gunPitch.add(box(0.052,0.078,0.21,steelDark,0,-0.006,0.05));
+    var stock=box(0.046,0.085,0.30,wood,0,-0.078,-0.16); stock.rotation.x=0.22; gunPitch.add(stock);
+    gunPitch.add(box(0.05,0.095,0.022,std(0x2a2320,0.8),0,-0.108,-0.305));
+    var guard=new THREE.Mesh(new THREE.TorusGeometry(0.026,0.0045,8,20),steelDark);
+    guard.rotation.y=Math.PI/2; guard.position.set(0,-0.056,0.052); gunPitch.add(guard);
+    gunPitch.add(box(0.006,0.024,0.006,steelDark,0,-0.046,0.052));
+    var muzzleTip=new THREE.Object3D(); muzzleTip.position.set(0,0.020,0.60); breakG.add(muzzleTip);
+    // shells
+    function shellMesh(){
+      var grp=new THREE.Group();
+      var body=new THREE.Mesh(new THREE.CylinderGeometry(0.0115,0.0115,0.05,10),std(0xc23b22,0.55));
+      grp.add(body);
+      var base=new THREE.Mesh(new THREE.CylinderGeometry(0.0125,0.0125,0.014,10),std(0xc9a23e,0.35,0.8));
+      base.position.y=-0.028; grp.add(base);
+      grp.rotation.x=Math.PI/2;
+      return grp;
+    }
+    var spentShell=shellMesh(); spentShell.visible=false; gunPitch.add(spentShell);
+    var freshShell=shellMesh(); freshShell.visible=false; gunPitch.add(freshShell);
+    // lowered rest pose while the simulation is paused (title card)
+    gunYaw.rotation.y=0.3;
+    gunPitch.rotation.x=-0.55;
+
+    /* ================= clays, fragments, tracers, smoke ================= */
+    function makeClayMesh(){
+      var pts=[
+        new THREE.Vector2(0.001,-0.024), new THREE.Vector2(0.105,-0.024), new THREE.Vector2(0.16,-0.011),
+        new THREE.Vector2(0.2,0.0), new THREE.Vector2(0.19,0.012), new THREE.Vector2(0.15,0.027),
+        new THREE.Vector2(0.10,0.041), new THREE.Vector2(0.05,0.053), new THREE.Vector2(0.001,0.058)
+      ];
+      var geo=new THREE.LatheGeometry(pts,26);
+      var m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:0xff7a1a,roughness:0.55,emissive:0x3a1502,side:THREE.DoubleSide}));
+      var groove=new THREE.Mesh(new THREE.TorusGeometry(0.168,0.0055,6,26),std(0xc24f0e,0.6));
+      groove.rotation.x=Math.PI/2; groove.position.y=0.006; m.add(groove);
+      m.castShadow=true; m.visible=false; scene.add(m);
+      return m;
+    }
+    var clayMeshes=[makeClayMesh(),makeClayMesh()]; // two slots: singles and station-4 doubles
+
+    var fragPool=[];
+    (function(){
+      for(var k=0;k<20;k++){
+        var j=k%10; // fragment params depend on the within-burst index only
+        var geo=(j%3===0)?new THREE.BoxGeometry(0.055,0.02,0.05):new THREE.TetrahedronGeometry(0.05);
+        var mat=new THREE.MeshStandardMaterial({color:0xff7a1a,roughness:0.6,transparent:true,opacity:1});
+        var mesh=new THREE.Mesh(geo,mat); mesh.visible=false; scene.add(mesh);
+        fragPool.push({mesh:mesh,active:false,t:0,vel:new THREE.Vector3(),
+          ax:new THREE.Vector3(h1(j*3+1)-0.5,h1(j*3+2)-0.5,h1(j*3+3)-0.5).normalize(),
+          rate:6+4*h1(j*7+2)});
+      }
+    })();
+    function spawnFragments(P,fdir,base,golden){
+      for(var j=0;j<10;j++){
+        var f=fragPool[base+j]; f.active=true; f.t=0;
+        f.mesh.visible=true; f.mesh.material.opacity=1;
+        f.mesh.material.color.set(golden?0xf5c542:0xff7a1a);
+        var az=(j*36+8)*DEG, el=(16+(j%4)*11)*DEG, sp=2.0+0.42*((j*7)%5);
+        f.vel.set(Math.sin(az)*Math.cos(el),Math.sin(el),Math.cos(az)*Math.cos(el)).multiplyScalar(sp);
+        f.vel.x+=fdir.x*CLAY_SPEED*0.32; f.vel.z+=fdir.z*CLAY_SPEED*0.32;
+        f.mesh.position.set(P.x+Math.sin(az)*0.03,P.y+0.02,P.z+Math.cos(az)*0.03);
+        f.mesh.rotation.set(j*0.7,j*1.3,j*0.4);
+      }
+    }
+
+    var tracerPool=[];
+    (function(){
+      var geo=new THREE.BoxGeometry(1,1,1);
+      for(var k=0;k<18;k++){
+        var j=k%9;
+        var mat=new THREE.MeshBasicMaterial({color:(j===0?0xfff2b0:0xffd070),transparent:true,opacity:1,
+          blending:THREE.AdditiveBlending,depthWrite:false});
+        var mesh=new THREE.Mesh(geo,mat); mesh.visible=false;
+        mesh.scale.set(j===0?0.013:0.009,j===0?0.013:0.009,0.55);
+        scene.add(mesh);
+        tracerPool.push({mesh:mesh,active:false,t:0,life:0.9,origin:new THREE.Vector3(),dir:new THREE.Vector3(),
+          wind:new THREE.Vector3()});
+      }
+    })();
+    var tmpQ1=null,tmpQ2=null,tmpQ3=null;
+    tmpQ1=new THREE.Quaternion(); tmpQ2=new THREE.Quaternion(); tmpQ3=new THREE.Quaternion();
+    var ZAXIS=new THREE.Vector3(0,0,1);
+    var shotWind=new THREE.Vector3(); // the written wind riding the current shot's cloud
+    function spawnTracers(origin,aimDir,d,base){
+      var qYaw=new THREE.Quaternion().setFromAxisAngle(UP,stationYaw+aimYaw);
+      var qPitch=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),-aimPitch);
+      var qBase=new THREE.Quaternion().multiplyQuaternions(qYaw,qPitch);
+      var life=clamp((d+3)/PELLET_SPEED,0.35,1.0);
+      for(var j=0;j<9;j++){
+        var tr=tracerPool[base+j]; tr.active=true; tr.t=0; tr.life=life;
+        tr.origin.copy(origin);
+        if(j===0){ tr.dir.copy(aimDir); }
+        else {
+          var a=(j*45+22.5)*DEG;
+          tmpQ1.setFromAxisAngle(new THREE.Vector3(Math.cos(a),Math.sin(a),0),CONE_HALF);
+          tmpQ2.multiplyQuaternions(qBase,tmpQ1);
+          tr.dir.set(0,0,1).applyQuaternion(tmpQ2);
+        }
+        tr.wind.copy(shotWind);
+        tr.mesh.visible=true; tr.mesh.material.opacity=1;
+        tr.mesh.position.copy(origin);
+        tr.mesh.quaternion.setFromUnitVectors(ZAXIS,tr.dir);
+      }
+    }
+
+    var smokePool=[];
+    (function(){
+      var geo=new THREE.SphereGeometry(0.06,8,6);
+      for(var k=0;k<16;k++){
+        var j=k%8;
+        var mat=new THREE.MeshStandardMaterial({color:0xf0e8dc,roughness:1,transparent:true,opacity:0.4,depthWrite:false});
+        var mesh=new THREE.Mesh(geo,mat); mesh.visible=false; scene.add(mesh);
+        smokePool.push({mesh:mesh,active:false,t:0,
+          vel:new THREE.Vector3(),
+          baseVel:new THREE.Vector3((h1(j*5+3)-0.5)*0.8,0.9+h1(j*7+4)*0.7,0.7+h1(j*9+5)*0.8),
+          scale:1.2+h1(j*11+6)*1.4});
+      }
+    })();
+    function spawnSmoke(origin,aimDir,base){
+      var right=new THREE.Vector3(-Math.cos(stationYaw+aimYaw),0,Math.sin(stationYaw+aimYaw));
+      for(var j=0;j<8;j++){
+        var s=smokePool[base+j]; s.active=true; s.t=0;
+        s.mesh.visible=true; s.mesh.material.opacity=0.4;
+        s.mesh.position.copy(origin).addScaledVector(aimDir,0.12)
+          .addScaledVector(right,(h1(j*13+7)-0.5)*0.1);
+        s.vel.copy(s.baseVel).applyAxisAngle(UP,aimYaw);
+        var cw=currentWind(); s.vel.x+=cw[0]; s.vel.z+=cw[2];
+      }
+    }
+    var flashMeshes=[];
+    (function(){
+      for(var k=0;k<2;k++){
+        var m=new THREE.Mesh(new THREE.SphereGeometry(0.05,8,6),
+          new THREE.MeshBasicMaterial({color:0xffd890,transparent:true,opacity:0.9,blending:THREE.AdditiveBlending,depthWrite:false}));
+        m.visible=false; scene.add(m);
+        flashMeshes.push({mesh:m,age:9});
+      }
+    })();
+    var flashIdx=0;
+
+    /* championship trophy: gold cup on a walnut pedestal, shown to the champion */
+    var trophyGroup=(function(){
+      var grp=new THREE.Group();
+      var gold=new THREE.MeshStandardMaterial({color:0xf5c542,metalness:0.9,roughness:0.25});
+      var pedestal=new THREE.Mesh(new THREE.CylinderGeometry(0.52,0.62,0.2,20),std(0x5a3a20,0.6));
+      pedestal.position.y=0.1; grp.add(pedestal);
+      var base=new THREE.Mesh(new THREE.CylinderGeometry(0.34,0.44,0.14,20),gold);
+      base.position.y=0.27; base.castShadow=true; grp.add(base);
+      var stem=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.13,0.38,14),gold);
+      stem.position.y=0.53; stem.castShadow=true; grp.add(stem);
+      var cup=new THREE.Mesh(new THREE.CylinderGeometry(0.36,0.09,0.42,20),gold);
+      cup.position.y=0.92; cup.castShadow=true; grp.add(cup);
+      var rim=new THREE.Mesh(new THREE.TorusGeometry(0.35,0.028,10,24),gold);
+      rim.rotation.x=Math.PI/2; rim.position.y=1.13; grp.add(rim);
+      var handleGeo=new THREE.TorusGeometry(0.13,0.026,8,16,Math.PI);
+      var h1m=new THREE.Mesh(handleGeo,gold); h1m.position.set(0.34,0.96,0); h1m.rotation.z=-Math.PI/2; grp.add(h1m);
+      var h2m=new THREE.Mesh(handleGeo,gold); h2m.position.set(-0.34,0.96,0); h2m.rotation.z=Math.PI/2; grp.add(h2m);
+      grp.visible=false; scene.add(grp);
+      return grp;
+    })();
+
+    /* ================= audio (all synthesized) ================= */
+    var AC=null, master=null, noiseB=null;
+    function audioInit(){
+      if(AC){ if(AC.state==='suspended') AC.resume(); return; }
+      var Ctor=window.AudioContext||window.webkitAudioContext;
+      if(!Ctor) return;
+      AC=new Ctor();
+      master=AC.createGain(); master.gain.value=0.55; master.connect(AC.destination);
+      var n=Math.floor(AC.sampleRate*0.6);
+      noiseB=AC.createBuffer(1,n,AC.sampleRate);
+      var d=noiseB.getChannelData(0);
+      for(var i=0;i<n;i++){ d[i]=h1(i*0.731+3.7)*2-1; }
+    }
+    function noiseHit(t,dur,filterType,freq,q,gain){
+      var src=AC.createBufferSource(); src.buffer=noiseB;
+      var f=AC.createBiquadFilter(); f.type=filterType; f.frequency.value=freq; if(q) f.Q.value=q;
+      var g=AC.createGain();
+      g.gain.setValueAtTime(gain,t);
+      g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+      src.connect(f); f.connect(g); g.connect(master);
+      src.start(t); src.stop(t+dur+0.02);
+    }
+    function tone(t,dur,type,f0,f1,gain){
+      var o=AC.createOscillator(); o.type=type;
+      o.frequency.setValueAtTime(f0,t);
+      if(f1) o.frequency.exponentialRampToValueAtTime(f1,t+dur);
+      var g=AC.createGain();
+      g.gain.setValueAtTime(gain,t);
+      g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+      o.connect(g); g.connect(master);
+      o.start(t); o.stop(t+dur+0.02);
+    }
+    function sShotgun(){ if(!AC) return; var t=AC.currentTime;
+      noiseHit(t,0.05,'highpass',1400,0,0.9);
+      noiseHit(t,0.30,'lowpass',950,0,1.0);
+      tone(t,0.22,'sine',130,48,1.1);
+    }
+    function sThunk(){ if(!AC) return; var t=AC.currentTime;
+      tone(t,0.30,'sine',95,42,0.85);
+      noiseHit(t,0.12,'lowpass',180,0,0.5);
+    }
+    function sCrack(){ if(!AC) return; var t=AC.currentTime;
+      noiseHit(t,0.05,'highpass',2400,0,0.8);
+      noiseHit(t,0.09,'bandpass',5200,6,0.6);
+      noiseHit(t+0.045,0.07,'bandpass',4400,6,0.3);
+      tone(t,0.06,'triangle',3400,2600,0.3);
+    }
+    function sBeep(){ if(!AC) return; var t=AC.currentTime;
+      var o=AC.createOscillator(); o.type='square'; o.frequency.value=960;
+      var g=AC.createGain();
+      g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(0.2,t+0.012);
+      g.gain.setValueAtTime(0.2,t+0.09); g.gain.exponentialRampToValueAtTime(0.001,t+0.14);
+      o.connect(g); g.connect(master); o.start(t); o.stop(t+0.16);
+    }
+    function sDry(){ if(!AC) return; noiseHit(AC.currentTime,0.03,'bandpass',2000,3,0.12); }
+    function sClack(freq){ if(!AC) return; noiseHit(AC.currentTime,0.045,'bandpass',freq,2,0.3); }
+    function sJingle(pass){ if(!AC) return; var t=AC.currentTime;
+      if(pass){ tone(t,0.16,'sine',660,0,0.3); tone(t+0.17,0.24,'sine',880,0,0.3); }
+      else { tone(t,0.16,'sine',440,0,0.3); tone(t+0.17,0.24,'sine',330,0,0.3); }
+    }
+
+    /* ================= game state ================= */
+    var phase='TITLE';                 // TITLE | PRACTICE
+    var birdState='WAITING';           // WAITING | CALLED | FLIGHT | RESOLVE | RELOAD | VISIT_DONE | SUMMARY | ROUND_END
+    var stationIndex=1, serveIndex=0, birdsServed=0;
+    var tallyDead=0, tallyLost=0, roundResult=null;
+    var clays=[];                      // live/settled clays of the current visit (1, or 2 at the double)
+    var visitShots=[];                 // shot records of the current visit (one per shell)
+    var shellsLeft=1;                  // 2 when the station-4 double is up
+    var pairResult=null, pairBroken=0, pairLost=0;
+    var resolveT=0, resolveWait=1.5;
+    var qual=null;                     // null in free practice, else {vi,results,curStart,kind,...}
+    var champVerdict=null;             // championship verdict: CHAMPION | RUNNER-UP | null (tie/shoot-off)
+    var gpOpen=false;                  // the grand prix results screen (Tab, between rounds)
+    var grandPrix={has:false,broken:0,perfect:[false,false,false,false,false,false,false,false],
+                   perfectCount:0,golden:false,missed:0,total:0,tier:'C'};
+    var simTime=0, callT=0, stateT=0, reloadT=0, prevReloadT=0;
+    var spaceHeld=false, mounted=false, restB=1;
+    var pointer={nx:0,ny:0,has:false};
+    var aimYaw=0, aimPitch=12*DEG, sYaw=0, sPitch=12*DEG;
+    var recoilT=9;
+    var shot=null, justCalled=false;
+    var aimHist=[];                    // recent aim directions for the swing-ratio measurement
+    var tierT=0;
+    var bannerT=0, bannerHold=false;
+    var queue=[];
+    var clay={alive:false,hit:false,age:0,pos:BIRDS[0].home.clone(),fall:new THREE.Vector3()};
+    var camMode='TITLE';
+    var trans={active:false,t:0,dur:0.9,fromPos:new THREE.Vector3(),fromQuat:new THREE.Quaternion(),fromFov:52};
+
+    /* ================= DOM refs ================= */
+    var elStation=document.getElementById('stationLine');
+    var elBird=document.getElementById('birdLine'), elShell=document.getElementById('shellLine');
+    var elDead=document.getElementById('deadLine'), elLost=document.getElementById('lostLine');
+    var elPrompt=document.getElementById('prompt'), elBanner=document.getElementById('banner');
+    var elRet=document.getElementById('reticle'), elTitle=document.getElementById('title');
+    var elHouse=document.getElementById('houseLine'), elTier=document.getElementById('tierFlash');
+    var elStrip=document.getElementById('strip'), elSummary=document.getElementById('summary');
+    var elStand=document.getElementById('standLine');
+    var elWindPanel=document.getElementById('windPanel'), elWindLine=document.getElementById('windLine'),
+        windArrowEl=document.getElementById('windArrow');
+    var elGlareGlow=document.getElementById('glareGlow'), elGlareTint=document.getElementById('glareTint');
+    var elGP=document.getElementById('gpScreen');
+    var gpEls={l1:document.getElementById('gpL1'),l2:document.getElementById('gpL2'),
+               l3:document.getElementById('gpL3'),l4:document.getElementById('gpL4'),
+               total:document.getElementById('gpTotal')};
+    var stripRows=[]; // two rows: YOU and D. VANCE, 25 cells each
+    (function(){
+      var labels=['YOU','D. VANCE'];
+      for(var r=0;r<2;r++){
+        var row=document.createElement('div');
+        row.setAttribute('class','stripRow');
+        var lab=document.createElement('span');
+        lab.setAttribute('class','stripLabel');
+        lab.textContent=labels[r];
+        row.appendChild(lab);
+        var cells=[];
+        for(var i=0;i<QUAL_N;i++){
+          var d=document.createElement('div');
+          d.setAttribute('class','qcell');
+          row.appendChild(d);
+          cells.push(d);
+        }
+        elStrip.appendChild(row);
+        stripRows.push(cells);
+      }
+    })();
+    var textCache={};
+    function setText(el,key,txt){ if(textCache[key]!==txt){ textCache[key]=txt; el.textContent=txt; } }
+
+    function showBanner(txt,cls,hold){
+      elBanner.className='';
+      void elBanner.offsetWidth;
+      elBanner.textContent=txt;
+      elBanner.className=(cls||'')+' '+(hold?'hold':'show');
+      bannerT=hold?9999:1.15; bannerHold=!!hold;
+    }
+    function hideBanner(){ elBanner.className=''; bannerT=0; bannerHold=false; }
+    function showTier(tier){
+      elTier.className='';
+      void elTier.offsetWidth;
+      elTier.textContent=tier;
+      elTier.className='show '+(tier==='TRACKED'?'tracked':'edge');
+      tierT=1.0;
+    }
+
+    /* ================= camera ================= */
+    var camPos=new THREE.Vector3(), camLook=new THREE.Vector3(), camFov=52;
+    var tmpA=new THREE.Vector3(), tmpB=new THREE.Vector3(), tmpC=new THREE.Vector3(),
+        tmpD=new THREE.Vector3(), tmpE=new THREE.Vector3(), tmpF=new THREE.Vector3(),
+        tmpM=new THREE.Matrix4(), tmpQ=new THREE.Quaternion();
+    function camTarget(mode,pos,look){
+      if(mode==='SHOULDER'){
+        var yw=stationYaw+sYaw; // world swing angle (pad neutral + relative aim)
+        tmpA.set(0.36,0.35,-1.06).applyAxisAngle(UP,yw);
+        pos.copy(PIVOT).add(tmpA);
+        if(pos.y<0.45) pos.y=0.45;
+        aimDirOf(yw,sPitch*0.85,tmpB);
+        tmpC.set(-Math.cos(yw),0,Math.sin(yw)); // shooter-right
+        look.copy(PIVOT).addScaledVector(tmpB,26).addScaledVector(tmpC,0.55);
+        return 55;
+      }
+      if(mode==='WIDE'){ pos.set(0,8.6,-30.5); look.set(0,2.0,0); return 50; }
+      if(mode==='TRAP'){ pos.set(0,6.2,21); look.set(0,1.6,-10); return 62; }
+      pos.set(-9,8.2,-40); look.set(1.5,2.2,-2); return 50; // TITLE
+    }
+    function setCam(mode){
+      if(mode===camMode) return;
+      trans.fromPos.copy(camera.position);
+      trans.fromQuat.copy(camera.quaternion);
+      trans.fromFov=camera.fov;
+      camMode=mode; trans.active=true; trans.t=0;
+    }
+    function updateCamera(rdt){
+      var fov=camTarget(camMode,camPos,camLook);
+      tmpM.lookAt(camPos,camLook,UP);
+      tmpQ.setFromRotationMatrix(tmpM);
+      if(trans.active){
+        trans.t+=rdt;
+        var e=easeIO(trans.t/trans.dur);
+        camera.position.lerpVectors(trans.fromPos,camPos,e);
+        camera.quaternion.copy(trans.fromQuat).slerp(tmpQ,e);
+        camera.fov=lerp(trans.fromFov,fov,e);
+        camera.updateProjectionMatrix();
+        if(trans.t>=trans.dur) trans.active=false;
+      } else {
+        camera.position.copy(camPos);
+        camera.quaternion.copy(tmpQ);
+        if(Math.abs(camera.fov-fov)>0.01){ camera.fov=fov; camera.updateProjectionMatrix(); }
+      }
+    }
+
+    /* ================= state transitions ================= */
+    function clearFieldFx(){
+      for(var k=0;k<20;k++){ var f=fragPool[k]; f.active=false; f.mesh.visible=false; }
+      for(var k=0;k<18;k++){ var t=tracerPool[k]; t.active=false; t.mesh.visible=false; }
+      for(var k=0;k<16;k++){ var s=smokePool[k]; s.active=false; s.mesh.visible=false; }
+      for(var k=0;k<2;k++){ flashMeshes[k].mesh.visible=false; flashMeshes[k].age=9; }
+      for(var k=0;k<2;k++){ clayMeshes[k].visible=false; }
+      aimHist.length=0; tierT=0; elTier.className='';
+      HOUSES.H.flapStart=-1; HOUSES.L.flapStart=-1;
+      if(HOUSES.H.flap) HOUSES.H.flap.rotation.z=0;
+      if(HOUSES.L.flap) HOUSES.L.flap.rotation.z=0;
+    }
+    function applyStation(s){
+      var pad=STATION_POS[s-1];
+      PIVOT.set(pad[0],1.6,pad[1]);
+      stationYaw=Math.atan2(-pad[0],-pad[1]); // pad neutral faces the center flag
+    }
+    function setStation(s){
+      if(qual) return false; // the qualifier walks the shooter itself
+      if(s<1||s>8||s===stationIndex) return false;
+      if(!(birdState==='WAITING'||birdState==='VISIT_DONE')) return false;
+      stationIndex=s; serveIndex=0;
+      birdDef=birdFor(s,0); shot=null; visitShots.length=0;
+      applyStation(s);
+      clays.length=0;
+      shellsLeft=(s===4)?2:1; // the station-4 double loads both barrels
+      for(var k=0;k<2;k++){ clayMeshes[k].visible=false; }
+      birdState='WAITING';
+      // glide the camera to the new pad
+      trans.fromPos.copy(camera.position);
+      trans.fromQuat.copy(camera.quaternion);
+      trans.fromFov=camera.fov;
+      trans.active=true; trans.t=0;
+      updateScore();
+      return true;
+    }
+    function resetVisitState(){
+      clays.length=0; visitShots.length=0;
+      pairResult=null; pairBroken=0; pairLost=0;
+      resolveT=0; resolveWait=1.5;
+    }
+    function startRound(){
+      phase='PRACTICE';
+      qual=null; hideSummary(); champVerdict=null;
+      birdState='WAITING'; stationIndex=1; serveIndex=0; birdsServed=0;
+      tallyDead=0; tallyLost=0; roundResult=null;
+      simTime=0; callT=0; stateT=0; reloadT=0; prevReloadT=0;
+      shellsLeft=1; shot=null; recoilT=9; breakG.rotation.x=0; justCalled=false;
+      birdDef=birdFor(1,0);
+      applyStation(1);
+      resetVisitState();
+      clearFieldFx(); hideBanner(); updateScore();
+      if(camMode==='TITLE') setCam('SHOULDER');
+    }
+    function fullReset(){
+      phase='TITLE';
+      qual=null; hideSummary(); champVerdict=null; gpOpen=false; resetGrandPrix();
+      birdState='WAITING'; stationIndex=1; serveIndex=0; birdsServed=0;
+      tallyDead=0; tallyLost=0; roundResult=null;
+      simTime=0; callT=0; stateT=0; reloadT=0; prevReloadT=0;
+      shellsLeft=1; shot=null; recoilT=9; breakG.rotation.x=0; justCalled=false;
+      birdDef=birdFor(1,0);
+      applyStation(1);
+      spaceHeld=false; mounted=false; restB=1;
+      resetVisitState();
+      clearFieldFx(); hideBanner(); updateScore();
+      setCam('TITLE');
+    }
+    /* ================= qualifying round ================= */
+    function gotoVisit(v){
+      resetVisitState();
+      stationIndex=v.station; serveIndex=0;
+      birdDef=v.birds[0];
+      applyStation(v.station);
+      shellsLeft=v.pair?2:1;
+      if(qual) qual.curStart=v.startBird;
+      clearFieldFx();
+      birdState='WAITING';
+      // glide the camera to the visit's pad (auto-walk)
+      trans.fromPos.copy(camera.position);
+      trans.fromQuat.copy(camera.quaternion);
+      trans.fromFov=camera.fov;
+      trans.active=true; trans.t=0;
+      updateScore();
+    }
+    function startCardRound(kind){
+      qual={vi:0,results:new Array(QUAL_N).fill(null),curStart:0,kind:kind,
+            shootoff:false,soPair:0,soMine:[],soRival:[]};
+      champVerdict=null;
+      tallyDead=0; tallyLost=0; roundResult=null; birdsServed=0;
+      gotoVisit(QUAL_VISITS[0]);
+      showBanner(kind==='CHAMPIONSHIP'?'THE CHAMPIONSHIP — 25 BIRDS':'THE QUALIFIER — 25 BIRDS','pass');
+      updateScore();
+    }
+    function qualifierNext(){
+      qual.vi++;
+      if(qual.vi>=QUAL_VISITS.length){ showSummary(); return; }
+      gotoVisit(QUAL_VISITS[qual.vi]);
+    }
+    function abortQualifier(){
+      qual=null; champVerdict=null;
+      tallyDead=0; tallyLost=0; roundResult=null; birdsServed=0;
+      resetVisitState(); clearFieldFx(); hideBanner();
+      hideSummary();
+      shellsLeft=(stationIndex===4)?2:1;
+      serveIndex=0; birdDef=birdFor(stationIndex,0);
+      birdState='WAITING'; updateScore();
+    }
+    function showSummary(){
+      birdState='SUMMARY';
+      hideBanner();
+      captureGrandPrix();
+      var total=0, lost=[];
+      for(var i=0;i<QUAL_N;i++){
+        if(qual.results[i]==='DEAD') total++;
+        else lost.push(i+1);
+      }
+      // per-station breakdown from the true schedule
+      var per=[[1,0,0],[2,0,0],[3,0,0],[4,0,0],[5,0,0],[6,0,0],[7,0,0],[8,0,0]];
+      for(var v=0;v<QUAL_VISITS.length;v++){
+        var vis=QUAL_VISITS[v];
+        for(var i2=0;i2<vis.birds.length;i2++){
+          var idx=vis.startBird+i2;
+          for(var p=0;p<per.length;p++){
+            if(per[p][0]===vis.station){ per[p][2]++; if(qual.results[idx]==='DEAD') per[p][1]++; break; }
+          }
+        }
+      }
+      var parts=[];
+      for(var p2=0;p2<per.length;p2++) parts.push('ST'+per[p2][0]+' '+per[p2][1]+'/'+per[p2][2]);
+      var rTotal=0;
+      for(var i3=0;i3<QUAL_N;i3++){ if(RIVAL_LEDGER[i3]==='DEAD') rTotal++; }
+      var verdict=total>rTotal?'AHEAD':(total<rTotal?'BEHIND':'TIE');
+      setText(document.getElementById('sumScore'),'ss','SCORE '+total+' / '+QUAL_N);
+      setText(document.getElementById('sumLost'),'sl',lost.length?('LOST BIRDS: '+lost.join(', ')):'LOST BIRDS: NONE');
+      setText(document.getElementById('sumStations'),'sp',parts.join('  ·  '));
+      setText(document.getElementById('sumRival'),'sr','D. VANCE '+rTotal+' / '+QUAL_N+'  —  VERDICT: '+verdict);
+      elSummary.classList.remove('hidden');
+      showBanner(verdict+' OF D. VANCE', verdict==='AHEAD'?'pass':(verdict==='BEHIND'?'short':'edge'), true);
+      sJingle(total>=TARGET);
+    }
+    function dismissSummary(){
+      qual=null; champVerdict=null;
+      birdsServed=0;
+      hideSummary();
+      birdState='VISIT_DONE';
+      updateScore();
+    }
+    function hideSummary(){ elSummary.classList.add('hidden'); }
+    /* ================= grand prix ================= */
+    function gpTier(t){ return t>=1000?'S':(t>=800?'A':(t>=650?'B':'C')); }
+    function resetGrandPrix(){
+      grandPrix.has=false; grandPrix.broken=0; grandPrix.perfectCount=0;
+      for(var s=0;s<8;s++) grandPrix.perfect[s]=false;
+      grandPrix.golden=false; grandPrix.missed=0; grandPrix.total=0; grandPrix.tier='C';
+    }
+    // snapshots the just-completed 25-bird card into the grand prix ledgers:
+    // broken ×40 · perfect stations ×60 (1-4: 4 birds, 5-7: 2, 8: 3) ·
+    // golden bird 25 +60 · missed shots ×10 (broken + missed = 25)
+    function captureGrandPrix(){
+      var broken=0,missed=0,i;
+      for(i=0;i<QUAL_N;i++){ if(qual.results[i]==='DEAD') broken++; else missed++; }
+      var perfect=[true,true,true,true,true,true,true,true];
+      for(var v=0;v<QUAL_VISITS.length;v++){
+        var vis=QUAL_VISITS[v];
+        for(var j=0;j<vis.birds.length;j++){
+          if(qual.results[vis.startBird+j]!=='DEAD') perfect[vis.station-1]=false;
+        }
+      }
+      var pc=0;
+      for(i=0;i<8;i++){ if(perfect[i]) pc++; }
+      var golden=qual.results[QUAL_N-1]==='DEAD';
+      var total=broken*40+pc*60+(golden?60:0)-missed*10;
+      grandPrix.has=true; grandPrix.broken=broken; grandPrix.missed=missed;
+      grandPrix.perfect=perfect; grandPrix.perfectCount=pc; grandPrix.golden=golden;
+      grandPrix.total=total; grandPrix.tier=gpTier(total);
+    }
+    function canOpenGP(){
+      if(phase==='TITLE') return true;
+      if(phase!=='PRACTICE') return false;
+      if(qual){ return qual.shootoff?birdState==='WAITING':birdState==='SUMMARY'; }
+      return birdState==='WAITING'||birdState==='VISIT_DONE'||birdState==='ROUND_END';
+    }
+    function toggleGP(){
+      if(gpOpen){ gpOpen=false; return; }
+      if(!canOpenGP()) return;
+      gpOpen=true; spaceHeld=false;
+    }
+    function renderGPLines(){
+      var gp=grandPrix,l1,l2,l3,l4,tot,plist,s;
+      if(!gp.has){
+        l1='BIRDS BROKEN × 40 — NO CARD ON RECORD';
+        l2='PERFECT STATIONS × 60 — NONE';
+        l3='GOLDEN BIRD + 60 — PENDING';
+        l4='MISSED SHOTS × 10 — NONE';
+        tot='TOTAL 0 · RATING C';
+      } else {
+        l1='BIRDS BROKEN × 40 — '+gp.broken+' × 40 = '+(gp.broken*40);
+        plist=[];
+        for(s=0;s<8;s++){ if(gp.perfect[s]) plist.push('ST'+(s+1)); }
+        l2='PERFECT STATIONS × 60 — '+gp.perfectCount+' × 60 = '+(gp.perfectCount*60)+' · '+(plist.length?plist.join(' '):'NONE');
+        l3='GOLDEN BIRD + 60 — '+(gp.golden?'BROKEN = +60':'MISSED = 0');
+        l4='MISSED SHOTS × 10 — '+gp.missed+' × 10 = −'+(gp.missed*10);
+        tot='TOTAL '+gp.total+' · RATING '+gp.tier;
+      }
+      setText(gpEls.l1,'g1',l1); setText(gpEls.l2,'g2',l2);
+      setText(gpEls.l3,'g3',l3); setText(gpEls.l4,'g4',l4);
+      setText(gpEls.total,'gt',tot);
+    }
+    /* ================= championship final ================= */
+    function endChampionshipCard(){
+      captureGrandPrix(); // the 25-bird card is final before any shoot-off
+      var total=tallyDead;
+      if(total>RIVAL_CARD_TOTAL){ showChampionshipEnd('CHAMPION'); }
+      else if(total<RIVAL_CARD_TOTAL){ showChampionshipEnd('RUNNER-UP'); }
+      else { startShootOff(); }
+    }
+    function startShootOff(){
+      qual.shootoff=true; qual.soPair=0; qual.soMine=[]; qual.soRival=[];
+      shootOffVisit();
+    }
+    function shootOffVisit(){
+      resetVisitState();
+      stationIndex=4; serveIndex=0;
+      birdDef=BIRDS[6];
+      applyStation(4);
+      shellsLeft=2;
+      qual.soPair++;
+      clearFieldFx();
+      birdState='WAITING';
+      updateScore();
+    }
+    function showChampionshipEnd(verdict){
+      champVerdict=verdict;
+      birdState='SUMMARY';
+      hideBanner();
+      var total=0, lost=[];
+      for(var i=0;i<QUAL_N;i++){
+        if(qual.results[i]==='DEAD') total++;
+        else lost.push(i+1);
+      }
+      var per=[[1,0,0],[2,0,0],[3,0,0],[4,0,0],[5,0,0],[6,0,0],[7,0,0],[8,0,0]];
+      for(var v=0;v<QUAL_VISITS.length;v++){
+        var vis=QUAL_VISITS[v];
+        for(var i2=0;i2<vis.birds.length;i2++){
+          var idx=vis.startBird+i2;
+          for(var p=0;p<per.length;p++){
+            if(per[p][0]===vis.station){ per[p][2]++; if(qual.results[idx]==='DEAD') per[p][1]++; break; }
+          }
+        }
+      }
+      var parts=[];
+      for(var p2=0;p2<per.length;p2++) parts.push('ST'+per[p2][0]+' '+per[p2][1]+'/'+per[p2][2]);
+      setText(document.getElementById('sumTitle'),'st2',verdict==='CHAMPION'?'CHAMPIONSHIP FINAL — YOU WIN THE TITLE':(verdict==='RUNNER-UP'?'CHAMPIONSHIP FINAL — D. VANCE TAKES THE TITLE':'CHAMPIONSHIP FINAL'));
+      setText(document.getElementById('sumScore'),'ss','SCORE '+total+' / '+QUAL_N);
+      setText(document.getElementById('sumLost'),'sl',lost.length?('LOST BIRDS: '+lost.join(', ')):'LOST BIRDS: NONE');
+      setText(document.getElementById('sumStations'),'sp',parts.join('  ·  '));
+      var extra=qual.soPair>0?('  ·  SHOOT-OFF IN '+qual.soPair+' PAIR'+(qual.soPair>1?'S':'')):'';
+      setText(document.getElementById('sumRival'),'sr','D. VANCE '+RIVAL_CARD_TOTAL+' / '+QUAL_N+'  —  VERDICT: '+verdict+extra);
+      elSummary.classList.remove('hidden');
+      showBanner(verdict, verdict==='CHAMPION'?'pass':'short', true);
+      sJingle(verdict==='CHAMPION');
+      if(verdict==='CHAMPION'){
+        // the trophy lands on the range ahead of the current pad
+        trophyGroup.position.set(
+          PIVOT.x+Math.sin(stationYaw)*3.4, 0,
+          PIVOT.z+Math.cos(stationYaw)*3.4);
+        trophyGroup.rotation.y=stationYaw;
+        updateScore();
+      }
+      updateScore();
+    }
+    function callBird(){
+      birdState='CALLED'; callT=0; justCalled=true;
+      showBanner('PULL!',''); sBeep();
+    }
+    function makeClay(bird,slot){
+      return {bird:bird,slot:slot,alive:true,hit:false,age:0,qualIndex:null,golden:false,
+              pos:bird.home.clone(),fall:new THREE.Vector3(),
+              resolved:false,broken:false,finalAge:0,
+              pendingBreak:null,mesh:clayMeshes[slot]};
+    }
+    function launchVisit(){
+      clays.length=0; visitShots.length=0;
+      pairResult=null; pairBroken=0; pairLost=0; resolveT=0;
+      if(stationIndex===4){
+        // the station-4 double: both windows launch on the same frame
+        clays.push(makeClay(BIRDS[6],0), makeClay(BIRDS[7],1));
+        birdsServed+=2;
+        HOUSES.H.flapStart=simTime; HOUSES.L.flapStart=simTime;
+        sThunk(); sThunk();
+      } else {
+        clays.push(makeClay(birdDef,0));
+        birdsServed++;
+        HOUSES[birdDef.houseKey].flapStart=simTime; sThunk();
+      }
+      for(var i=0;i<clays.length;i++){
+        var c=clays[i];
+        if(qual&&!qual.shootoff) c.qualIndex=qual.curStart+i;
+        // bird 25, the station-8 low finale, flies as the golden clay on every card
+        c.golden=(c.qualIndex===QUAL_N-1);
+        c.mesh.material.color.set(c.golden?0xf5c542:0xff7a1a);
+        c.mesh.material.emissive.set(c.golden?0x6a4a08:0x3a1502);
+        c.mesh.visible=true;
+        c.mesh.position.copy(c.pos);
+        c.mesh.quaternion.setFromAxisAngle(c.bird.tumble,0.5);
+      }
+      birdState='FLIGHT';
+    }
+    function allResolved(){
+      for(var i=0;i<clays.length;i++){ if(!clays[i].resolved) return false; }
+      return clays.length>0;
+    }
+    function resolveClay(c,broken){
+      c.resolved=true; c.broken=broken; c.alive=false;
+      c.finalAge=c.age;
+      if(broken){
+        c.hit=true; tallyDead++; pairBroken++;
+        c.mesh.visible=false;
+        spawnFragments(c.pos,c.bird.dir,c.slot*10,c.golden);
+        sCrack();
+      } else {
+        tallyLost++; pairLost++;
+        c.fall.set(c.bird.dir.x*CLAY_SPEED,0,c.bird.dir.z*CLAY_SPEED);
+      }
+      var last=allResolved();
+      if(clays.length===2){
+        // the pair banner reports the true result when the second clay resolves
+        if(!last){ showBanner(broken?'DEAD!':'LOST!', broken?'dead':'lost'); }
+        else {
+          pairResult=pairBroken===2?'DOUBLE DEAD':('PAIR '+pairBroken+'/2');
+          showBanner(pairResult, pairBroken===2?'pass':(pairBroken===1?'edge':'lost'), true);
+        }
+      } else {
+        showBanner(broken?'DEAD!':'LOST!', broken?'dead':'lost');
+      }
+      if(qual&&c.qualIndex!=null&&qual.results[c.qualIndex]===null){
+        qual.results[c.qualIndex]=broken?'DEAD':'LOST';
+      }
+      if(qual&&!qual.shootoff&&allResolved()&&qual.vi>=QUAL_VISITS.length-1){
+        if(qual.kind==='CHAMPIONSHIP') endChampionshipCard();
+        else showSummary();
+        return;
+      }
+      updateScore();
+    }
+    function afterVisit(){
+      if(qual){
+        if(qual.shootoff){
+          // sudden death: 2/2 wins now, 0/2 loses now, 1/1 ties into the next pair
+          if(pairBroken===2){ showChampionshipEnd('CHAMPION'); return; }
+          if(pairBroken===0){ showChampionshipEnd('RUNNER-UP'); return; }
+          birdState='RELOAD'; reloadT=0; prevReloadT=0;
+          return;
+        }
+        qualifierNext(); return;
+      }
+      if(birdsServed>=ROUND_N){
+        roundResult=tallyDead>=TARGET?'PASSED':'SHORT';
+        showBanner(roundResult==='PASSED'?'ROUND PASSED':'ROUND SHORT', roundResult==='PASSED'?'pass':'short', true);
+        sJingle(roundResult==='PASSED');
+      }
+      birdState='RELOAD'; reloadT=0; prevReloadT=0;
+    }
+    function attemptFire(){
+      var anyAlive=false;
+      for(var i=0;i<clays.length;i++){ if(clays[i].alive){ anyAlive=true; break; } }
+      var canFire=birdState==='FLIGHT' && anyAlive && shellsLeft>0 && spaceHeld && phase==='PRACTICE';
+      if(!canFire){ sDry(); return; }
+      shellsLeft--; recoilT=0;
+      var WINDCUR=currentWind(); // the written wind drifts the shot cloud, never the clay
+      scene.updateMatrixWorld();
+      var dir=aimDirOf(stationYaw+aimYaw,aimPitch,new THREE.Vector3());
+      var mo=new THREE.Vector3(); muzzleTip.getWorldPosition(mo);
+      var record={origin:[PIVOT.x,PIVOT.y,PIVOT.z],dir:[dir.x,dir.y,dir.z],hit:false,
+                  missDistance:null,judgeAge:null,range:null,firedAge:clays.length?clays[0].age:0,
+                  swingRatio:0,tier:'EDGE',omegaC:0,omegaM:0,omegaMProjected:0,
+                  judgments:[]};
+      // muzzle angular velocity from the recent aim history (rad/s internally)
+      var omM=new THREE.Vector3();
+      var hn=aimHist.length;
+      if(hn>=2){
+        var old=aimHist[0];
+        var mang=Math.acos(clamp(old.dot(dir),-1,1));
+        if(mang>1e-9){
+          var ax=new THREE.Vector3().crossVectors(old,dir);
+          if(ax.lengthSq()>1e-20){ ax.normalize(); omM.copy(ax).multiplyScalar(mang/((hn-1)*STEP)); }
+        }
+      }
+      record.omegaM=omM.length()*180/Math.PI;
+      // one independent judgment per live clay
+      var best=-1;
+      for(var i=0;i<clays.length;i++){
+        var c=clays[i]; if(!c.alive) continue;
+        var bird=c.bird;
+        var P0=tmpA.copy(bird.home).addScaledVector(bird.dir,CLAY_SPEED*c.age);
+        var d=P0.distanceTo(PIVOT);
+        var tArr=d/PELLET_SPEED, ageJ=c.age+tArr;
+        var dvx=WINDCUR[0]*tArr, dvy=WINDCUR[1]*tArr, dvz=WINDCUR[2]*tArr;
+        var v=tmpC.copy(P0).sub(PIVOT);
+        var vp=tmpD.copy(bird.dir).multiplyScalar(CLAY_SPEED);
+        var wc=new THREE.Vector3().crossVectors(v,vp).divideScalar(Math.max(v.lengthSq(),1e-9));
+        var wcMag=wc.length();
+        var proj=wcMag>1e-12?(omM.dot(wc)/wcMag):0;
+        var ratio=wcMag>1e-12?(proj/wcMag):0;
+        var tier=ratio>=SWING_TRACK?'TRACKED':'EDGE';
+        var jg={houseKey:bird.houseKey,ratio:ratio,tier:tier,hit:false,missDistance:null,
+                range:d,judgeAge:ageJ,omegaC:wcMag*180/Math.PI};
+        if(ageJ<=CLAY_LIFE+1e-9){
+          var Pj=tmpB.copy(bird.home).addScaledVector(bird.dir,CLAY_SPEED*ageJ);
+          // both tiers judge against the drifted cloud: the whole pattern displaces
+          // downwind by wind × flight time, so the tested offset runs from the
+          // displaced apex (with calm air the math is untouched)
+          var vj=tmpE.copy(Pj).sub(PIVOT); vj.x-=dvx; vj.y-=dvy; vj.z-=dvz;
+          var r=vj.length(); vj.multiplyScalar(1/r);
+          if(tier==='TRACKED'){
+            // cloud resolves at the cone center
+            var ang=Math.acos(clamp(dir.dot(vj),-1,1));
+            var limit=CONE_HALF+Math.atan(CLAY_R/d);
+            jg.missDistance=Math.sin(ang)*r;
+            if(ang<=limit){ jg.hit=true; c.pendingBreak={t:simTime+tArr}; }
+          } else {
+            // cloud resolves at the trailing edge: 0.5 units beyond the arrival point,
+            // hit window = the clay's own 0.2-unit radius around that point
+            var Q=new THREE.Vector3().copy(Pj).addScaledVector(bird.dir,EDGE_EXTRA);
+            var w=new THREE.Vector3().copy(Q).sub(PIVOT); w.x-=dvx; w.y-=dvy; w.z-=dvz;
+            var perp=new THREE.Vector3().crossVectors(dir,w).length();
+            jg.missDistance=perp;
+            if(perp<=CLAY_R){ jg.hit=true; c.pendingBreak={t:simTime+tArr}; }
+          }
+        }
+        record.judgments.push(jg);
+        if(jg.hit) record.hit=true;
+        if(best<0 || (jg.missDistance!==null && jg.missDistance<(record.missDistance===null?1e9:record.missDistance))){
+          best=i;
+          record.missDistance=jg.missDistance; record.judgeAge=ageJ; record.range=d;
+          record.swingRatio=ratio; record.tier=tier;
+          record.omegaC=wcMag*180/Math.PI; record.omegaMProjected=proj*180/Math.PI;
+        }
+      }
+      if(best>=0) showTier(record.tier);
+      visitShots.push(record);
+      shot=record;
+      var base=flashIdx*9; shotWind.set(WINDCUR[0],WINDCUR[1],WINDCUR[2]);
+      spawnTracers(mo,dir,record.range!==null?record.range:20,base);
+      spawnSmoke(mo,dir,flashIdx*8);
+      var fl=flashMeshes[flashIdx]; fl.age=0; fl.mesh.visible=true; fl.mesh.position.copy(mo);
+      flashIdx=1-flashIdx;
+      sShotgun();
+    }
+
+    /* ================= input queue ================= */
+    function pushKey(code,up,repeat){ queue.push({type:'key',code:code,up:up,repeat:repeat}); }
+    window.addEventListener('keydown',function(e){
+      audioInit();
+      if(e.code==='Space'||e.code==='Enter'||e.code==='Tab') e.preventDefault();
+      if(e.code==='Space'&&e.repeat) return;
+      pushKey(e.code,false,e.repeat);
+    });
+    window.addEventListener('keyup',function(e){
+      if(e.code==='Space'||e.code==='Enter'||e.code==='Tab') e.preventDefault();
+      pushKey(e.code,true,false);
+    });
+    window.addEventListener('mousedown',function(e){
+      audioInit();
+      if(e.button===0) queue.push({type:'fire'});
+    });
+    window.addEventListener('mousemove',function(e){
+      pointer.nx=(e.clientX/window.innerWidth)*2-1;
+      pointer.ny=-(e.clientY/window.innerHeight)*2+1;
+      pointer.has=true;
+    });
+    window.addEventListener('blur',function(){ spaceHeld=false; });
+
+    function processInput(){
+      while(queue.length){
+        var e=queue.shift();
+        if(e.type==='key'){
+          if(gpOpen){
+            // the grand prix screen swallows everything except its own keys
+            if(e.code==='Space'&&e.up){ spaceHeld=false; }
+            else if(!e.up&&!e.repeat){
+              if(e.code==='Tab'||e.code==='Enter'||e.code==='Escape'){ gpOpen=false; }
+              else if(e.code==='KeyR'){ gpOpen=false; fullReset(); }
+            }
+            continue;
+          }
+          if(e.code==='Enter'){
+            if(phase==='TITLE') startRound();
+            else if(birdState==='SUMMARY') dismissSummary();
+            else if(birdState==='ROUND_END') startRound();
+          }
+          else if(e.code==='KeyG'){
+            if(phase==='PRACTICE'&&!qual&&(birdState==='WAITING'||birdState==='VISIT_DONE'||birdState==='ROUND_END')) startCardRound('QUALIFIER');
+          }
+          else if(e.code==='KeyH'){
+            if(phase==='PRACTICE'&&!qual&&(birdState==='WAITING'||birdState==='VISIT_DONE'||birdState==='ROUND_END')) startCardRound('CHAMPIONSHIP');
+          }
+          else if(e.code==='Escape'){
+            if(!e.up&&!e.repeat&&qual) abortQualifier();
+          }
+          else if(e.code==='Tab'){
+            if(!e.up&&!e.repeat) toggleGP();
+          }
+          else if(e.code==='KeyC'){
+            if(phase==='PRACTICE'){
+              var order=['SHOULDER','WIDE','TRAP'];
+              setCam(order[(order.indexOf(camMode)+1)%3]);
+            }
+          }
+          else if(e.code==='KeyR'){ fullReset(); }
+          else if(e.code==='KeyN'){ if(phase==='PRACTICE') setStation(stationIndex+1); }
+          else if(e.code==='KeyB'){ if(phase==='PRACTICE') setStation(stationIndex-1); }
+          else if(e.code.length===6&&e.code.slice(0,5)==='Digit'&&e.code.charAt(5)>='1'&&e.code.charAt(5)<='8'){
+            if(phase==='PRACTICE') setStation(parseInt(e.code.charAt(5),10));
+          }
+          else if(e.code==='Space'){
+            if(phase!=='PRACTICE') continue;
+            if(e.up){
+              spaceHeld=false;
+              if(phase==='PRACTICE'&&birdState==='WAITING') callBird();
+            } else if(!e.repeat){ spaceHeld=true; }
+          }
+        }
+        else if(e.type==='fire'){
+          if(phase==='PRACTICE'&&!gpOpen) attemptFire();
+        }
+      }
+    }
+
+    /* ================= simulation step ================= */
+    function updateFragments(dt){
+      for(var k=0;k<20;k++){
+        var f=fragPool[k]; if(!f.active) continue;
+        f.t+=dt;
+        f.vel.y-=9.8*dt;
+        f.mesh.position.addScaledVector(f.vel,dt);
+        if(f.mesh.position.y<0.05){
+          f.mesh.position.y=0.05;
+          f.vel.y=Math.abs(f.vel.y)*0.25;
+          f.vel.x*=0.5; f.vel.z*=0.5;
+        }
+        f.mesh.rotateOnAxis(f.ax,f.rate*dt);
+        if(f.t>0.85){ f.mesh.material.opacity=Math.max(0,1-(f.t-0.85)/0.55); }
+        if(f.t>1.4||f.mesh.position.y<-1){ f.active=false; f.mesh.visible=false; }
+      }
+    }
+    function updateTracers(dt){
+      for(var k=0;k<18;k++){
+        var t=tracerPool[k]; if(!t.active) continue;
+        t.t+=dt;
+        if(t.t>=t.life){ t.active=false; t.mesh.visible=false; continue; }
+        t.mesh.position.copy(t.origin).addScaledVector(t.dir,PELLET_SPEED*t.t).addScaledVector(t.wind,t.t);
+        var rem=t.life-t.t;
+        t.mesh.material.opacity=rem<0.15?rem/0.15:1;
+      }
+    }
+    function updateSmoke(dt){
+      for(var k=0;k<16;k++){
+        var s=smokePool[k]; if(!s.active) continue;
+        s.t+=dt;
+        if(s.t>0.75){ s.active=false; s.mesh.visible=false; continue; }
+        s.mesh.position.addScaledVector(s.vel,dt);
+        s.mesh.position.y+=0.25*dt;
+        var g=s.mesh.scale;
+        g.setScalar(1+s.t*3.2*s.scale);
+        s.mesh.material.opacity=0.4*(1-s.t/0.75);
+      }
+    }
+    function breakAngleAt(t){
+      if(t<0.22) return easeOut(t/0.22)*0.62;
+      if(t<0.78) return 0.62;
+      if(t<1.05) return 0.62*(1-easeIO((t-0.78)/0.27));
+      return 0;
+    }
+    function updateGun(dt){
+      var back=0.11*Math.exp(-recoilT*11);
+      var rise=0.10*Math.exp(-recoilT*8);
+      var yawVis=stationYaw+aimYaw+0.3*restB;
+      var pitchVis=aimPitch+rise+0.55*restB;
+      gunYaw.rotation.y=yawVis;
+      gunPitch.rotation.x=-pitchVis;
+      gunRoot.position.copy(PIVOT);
+      gunRoot.position.y-=0.28*restB;
+      aimDirOf(stationYaw+aimYaw,aimPitch,tmpA);
+      gunRoot.position.addScaledVector(tmpA,-back);
+      var open=0;
+      if(birdState==='RELOAD'){
+        open=breakAngleAt(reloadT);
+        // spent shell ejection on a fixed arc
+        if(reloadT>=0.20&&reloadT<0.75){
+          var tau=(reloadT-0.20)/0.55;
+          spentShell.visible=true;
+          spentShell.position.set(0.15*tau,-0.005+0.42*Math.sin(Math.PI*tau),0.105-0.4*tau);
+          spentShell.rotation.set(9*tau,0,Math.PI/2);
+        } else spentShell.visible=false;
+        // fresh shell slides in from below
+        if(reloadT>=0.5&&reloadT<0.78){
+          freshShell.visible=true;
+          freshShell.position.set(0,-0.22+0.22*easeOut((reloadT-0.5)/0.28),0.105);
+          freshShell.rotation.set(Math.PI/2,0,0);
+        } else freshShell.visible=false;
+      } else {
+        spentShell.visible=false; freshShell.visible=false;
+      }
+      breakG.rotation.x=open;
+      // muzzle flash decay (two flashes for a pair of quick shots)
+      for(var k=0;k<2;k++){
+        var fl=flashMeshes[k];
+        fl.age+=dt;
+        if(fl.mesh.visible){
+          if(fl.age>0.08){ fl.mesh.visible=false; }
+          else {
+            fl.mesh.material.opacity=0.9*(1-fl.age/0.08);
+            fl.mesh.scale.setScalar(1+fl.age*9);
+          }
+        }
+      }
+    }
+    function updateFlap(dt){
+      updateHouseFlap(HOUSES.H);
+      updateHouseFlap(HOUSES.L);
+      if(HOUSES.L.flap&&HOUSES.L.flapStart<0&&phase==='PRACTICE'){
+        HOUSES.L.flap.rotation.z=0.012*Math.sin(simTime*1.7+2.0);
+      }
+    }
+    function updateHouseFlap(h){
+      if(!h.flap) return;
+      if(h.flapStart>=0){
+        var ft=simTime-h.flapStart;
+        if(ft<0.16) h.flap.rotation.z=h.flapSign*easeOut(ft/0.16)*1.30;
+        else if(ft<1.25) h.flap.rotation.z=h.flapSign*1.30;
+        else if(ft<1.7) h.flap.rotation.z=h.flapSign*1.30*(1-easeIO((ft-1.25)/0.45));
+        else { h.flap.rotation.z=0; h.flapStart=-1; }
+      }
+    }
+    function updateWindsock(){
+      // pose is a pure function of simTime and the written wind — stateless, deterministic
+      var W=currentWind(), sp=Math.hypot(W[0],W[2]), f=clamp(sp/2,0,1);
+      if(sp>0.01){ sockYawG.rotation.y=Math.atan2(W[0],W[2])+Math.sin(simTime*1.7)*0.09*f; }
+      sockPitchG.rotation.x=lerp(1.45,0.34,f)+Math.sin(simTime*2.3)*0.05*f;
+    }
+    function updateGlare(){
+      // purely visual: the low sun flares the sightline when the muzzle points within 15°
+      var strength=0;
+      if(phase==='PRACTICE'&&stationIndex===6){
+        aimDirOf(stationYaw+aimYaw,aimPitch,tmpD);
+        tmpC.copy(GLARE_SUN).sub(PIVOT).normalize();
+        var ang=Math.acos(clamp(tmpD.dot(tmpC),-1,1));
+        if(ang<=15*DEG) strength=1;
+        else if(ang<19*DEG) strength=1-easeIO((ang-15*DEG)/(4*DEG));
+      }
+      if(strength>0){
+        tmpE.copy(GLARE_SUN).project(camera);
+        if(tmpE.z<1){
+          elGlareGlow.style.display='block';
+          elGlareGlow.style.left=((tmpE.x*0.5+0.5)*window.innerWidth)+'px';
+          elGlareGlow.style.top=((-tmpE.y*0.5+0.5)*window.innerHeight)+'px';
+        } else {
+          elGlareGlow.style.display='none';
+        }
+        elGlareGlow.style.opacity=strength;
+        elGlareTint.style.opacity=(strength*0.55).toFixed(3);
+      } else {
+        elGlareGlow.style.display='none';
+        elGlareTint.style.opacity='0';
+      }
+    }
+    function updateClays(dt){
+      for(var i=0;i<clays.length;i++){
+        var c=clays[i];
+        if(c.resolved){
+          if(!c.broken){
+            // a lost clay keeps falling on its fixed track until it rests
+            c.fall.y-=9.8*dt;
+            c.pos.addScaledVector(c.fall,dt);
+            if(c.pos.x>17.6){ c.pos.x=17.6; c.fall.x=0; c.fall.z=0; }
+            if(c.pos.y<=0.11){ c.pos.y=0.11; c.fall.set(0,0,0); }
+            c.mesh.position.copy(c.pos);
+            c.mesh.quaternion.setFromAxisAngle(c.bird.tumble,3.6*6.5+0.5+(simTime-c.lostAt)*2.0);
+          }
+          continue;
+        }
+        if(c.pendingBreak&&simTime+1e-9>=c.pendingBreak.t){
+          c.pendingBreak=null;
+          resolveClay(c,true);
+          continue;
+        }
+        c.age+=dt;
+        c.pos.copy(c.bird.home).addScaledVector(c.bird.dir,CLAY_SPEED*c.age);
+        c.mesh.position.copy(c.pos);
+        c.mesh.quaternion.setFromAxisAngle(c.bird.tumble,c.age*6.5+0.5);
+        if(c.age+1e-9>=CLAY_LIFE){
+          c.lostAt=simTime;
+          resolveClay(c,false);
+        }
+      }
+      if(birdState==='FLIGHT'&&allResolved()){
+        // every clay has broken or landed — the visit resolves (reload only now)
+        if(qual&&qual.shootoff){ qual.soMine.push(pairBroken); qual.soRival.push(1); }
+        birdState='RESOLVE';
+        stateT=0;
+        resolveWait=1.5;
+        for(var i=0;i<clays.length;i++){ if(!clays[i].broken){ resolveWait=1.7; break; } }
+      }
+    }
+    function stateMachine(dt){
+      if(birdState==='CALLED'){
+        if(justCalled){ justCalled=false; } // the release step itself does not count toward the 0.80 s
+        else {
+          callT+=dt;
+          if(callT+1e-9>=CALL_DELAY) launchVisit();
+        }
+      }
+      else if(birdState==='RESOLVE'){
+        stateT+=dt;
+        if(stateT>=resolveWait) afterVisit();
+      }
+      else if(birdState==='RELOAD'){
+        prevReloadT=reloadT; reloadT+=dt;
+        if(prevReloadT<0.22&&reloadT>=0.22) sClack(1500);
+        if(prevReloadT<1.02&&reloadT>=1.02) sClack(900);
+        if(reloadT>=RELOAD_T){
+          // the last visit's shot records stay exported until the next launch
+          shellsLeft=(stationIndex===4)?2:1;
+          if(qual&&qual.shootoff){
+            // tied pair — the same pad is re-primed for the next sudden-death pair
+            qual.soPair++;
+            resetVisitState();
+            shellsLeft=2;
+            clearFieldFx();
+            birdState='WAITING'; updateScore();
+          }
+          else if(qual){ qualifierNext(); updateScore(); }
+          else if(birdsServed>=ROUND_N){
+            birdState='ROUND_END'; updateScore();
+          } else if(stationIndex!==4&&serveIndex===0){
+            // first single of the visit done — the low house serves next
+            serveIndex=1; birdDef=birdFor(stationIndex,1);
+            birdState='WAITING'; updateScore();
+          } else {
+            // visit complete — walk to keep the circuit going
+            birdState='VISIT_DONE'; updateScore();
+          }
+        }
+      }
+    }
+    function step(dt){
+      simTime+=dt;
+      aimYaw=-clamp(pointer.nx,-1,1)*AIM_YAW;
+      aimPitch=lerp(PITCH_MIN,PITCH_MAX,(clamp(pointer.ny,-1,1)+1)/2);
+      aimDirOf(stationYaw+aimYaw,aimPitch,tmpF); // world swing direction
+      aimHist.push(tmpF.clone());
+      if(aimHist.length>6) aimHist.shift();
+      processInput();
+      mounted=spaceHeld&&phase==='PRACTICE';
+      restB+=((mounted?0:1)-restB)*(1-Math.exp(-dt/0.13));
+      recoilT+=dt;
+      stateMachine(dt);
+      updateClays(dt);
+      updateGun(dt);
+      updateFlap(dt);
+      updateFragments(dt);
+      updateTracers(dt);
+      updateSmoke(dt);
+      sYaw+=(aimYaw-sYaw)*(1-Math.exp(-dt/0.11));
+      sPitch+=(aimPitch-sPitch)*(1-Math.exp(-dt/0.10));
+      if(bannerT>0&&!bannerHold){
+        bannerT-=dt;
+        if(bannerT<=0) elBanner.className='';
+      }
+      if(tierT>0){
+        tierT-=dt;
+        if(tierT<=0) elTier.className='';
+      }
+    }
+
+    /* ================= HUD ================= */
+    var mapCur=0;
+    function renderHUD(){
+      setText(elDead,'d','DEAD '+tallyDead);
+      setText(elLost,'l','LOST '+tallyLost);
+      var inGame=phase==='PRACTICE';
+      var dbl=!qual&&inGame&&stationIndex===4;
+      setText(elStation,'st',inGame?(qual?('STATION '+stationIndex+' / 8 — QUALIFIER'):('STATION '+stationIndex+' / 8 — PRACTICE')):'STATION 4 — PRACTICE');
+      if(qual){
+        var n=Math.min(qualResolvedCount()+1,QUAL_N);
+        var pend=QUAL_VISITS[Math.min(qual.vi,QUAL_VISITS.length-1)];
+        setText(elStation,'st','STATION '+stationIndex+' / 8 — '+(qual.kind==='CHAMPIONSHIP'?'CHAMPIONSHIP':'QUALIFIER'));
+        if(qual.shootoff){
+          setText(elBird,'b','SHOOT-OFF · PAIR '+qual.soPair);
+          setText(elHouse,'h','SUDDEN DEATH — BREAK BOTH TO WIN');
+        } else {
+          setText(elBird,'b','BIRD '+n+' / '+QUAL_N+' · '+(pend.pair?'DOUBLE':pend.birds[0].label));
+          setText(elHouse,'h',pend.pair?'HOUSE · DOUBLE (H+L)':'HOUSE · '+pend.birds[0].houseKey+' ('+pend.birds[0].label+')');
+        }
+      } else {
+        setText(elBird,'b',inGame?('BIRD '+Math.min(tallyDead+tallyLost+1,ROUND_N)+' / '+ROUND_N+' · '+(dbl?'DOUBLE':birdDef.label)):'—');
+        setText(elHouse,'h',inGame?(dbl?'HOUSE · DOUBLE (H+L)':'HOUSE · '+birdDef.houseKey+' ('+birdDef.label+')'):'HOUSE · —');
+      }
+      var sh;
+      if(!inGame) sh='SHELL · —';
+      else if(birdState==='RELOAD') sh='SHELL · RELOADING';
+      else if(stationIndex===4&&(qual||dbl)) sh='SHELLS · '+shellsLeft+' OF 2';
+      else sh=shellsLeft>0?'SHELL · LOADED':'SHELL · FIRED';
+      setText(elShell,'s',sh);
+      var p='';
+      if(inGame){
+        if(birdState==='WAITING') p=spaceHeld?'HOLD — RELEASE TO CALL "PULL!"':'HOLD SPACE TO MOUNT · STATION '+stationIndex+(dbl||qual?' · DOUBLE':' · HOUSE '+birdDef.houseKey);
+        else if(birdState==='CALLED') p=dbl||qual&&QUAL_VISITS[qual.vi].pair?'PULL! — DOUBLE! TWO BIRDS, TWO SHELLS':'PULL! — MOUNT AND TRACK THE BIRD';
+        else if(birdState==='FLIGHT'){
+          if(shellsLeft===0) p='SHELL FIRED — WATCH THE BIRD';
+          else if(stationIndex===4&&visitShots.length===1) p='ONE AWAY — TAKE THE SECOND BIRD';
+          else p=spaceHeld?'TRACK AHEAD OF THE BIRD — CLICK TO FIRE':'HOLD SPACE TO MOUNT · CLICK TO FIRE';
+        }
+        else if(birdState==='RESOLVE') p=dbl&&pairResult?pairResult:'';
+        else if(birdState==='RELOAD') p='RELOADING…';
+        else if(birdState==='VISIT_DONE') p='VISIT COMPLETE — N FOR THE NEXT STATION · B BACK · 1-8 TO JUMP';
+        else if(birdState==='SUMMARY') p='';
+        else if(birdState==='ROUND_END') p='DEAD '+tallyDead+' · TARGET '+TARGET+' — PRESS ENTER FOR A NEW ROUND · R FOR TITLE';
+      }
+      setText(elPrompt,'p',p);
+      elTitle.classList.toggle('hidden',phase!=='TITLE');
+      // live standings (YOU vs D. VANCE) during the qualifier
+      setText(elStand,'stand',qual?('YOU '+tallyDead+' · D. VANCE '+rivalTotal()):'—');
+      // result strip: two rows (you above, rival below), visible only in the qualifier
+      elStrip.style.display=qual?'block':'none';
+      if(qual){
+        var rc=rivalRevealedCount();
+        for(var i=0;i<QUAL_N;i++){
+          var mine=qual.results[i];
+          var cls='qcell'+(mine==='DEAD'?' dead':(mine==='LOST'?' lost':''));
+          if(stripRows[0][i].getAttribute('class')!==cls) stripRows[0][i].setAttribute('class',cls);
+          var rcls='qcell'+(i<rc?(RIVAL_LEDGER[i]==='DEAD'?' dead':' lost'):'');
+          if(stripRows[1][i].getAttribute('class')!==rcls) stripRows[1][i].setAttribute('class',rcls);
+        }
+      }
+      // written wind readout for the current card bird (arrow matches the minimap: +z is up)
+      var WINDC=currentWind();
+      var windLabel=WINDC[2]<0?'2 → −z':(WINDC[2]>0?'2 → +z':'CALM');
+      setText(elWindLine,'wl','WIND · '+windLabel);
+      elWindPanel.style.display=inGame?'block':'none';
+      windArrowEl.style.opacity=WINDC[2]===0?'0.25':'0.95';
+      windArrowEl.style.transform=WINDC[2]<0?'rotate(180deg)':'rotate(0deg)';
+      elSummary.classList.toggle('hidden',birdState!=='SUMMARY'||gpOpen);
+      // grand prix results screen (Tab, between rounds)
+      elGP.classList.toggle('hidden',!gpOpen);
+      if(gpOpen) renderGPLines();
+      // minimap highlight
+      if(mapCur!==stationIndex){
+        if(mapCur) setMapPad(mapCur,false);
+        setMapPad(stationIndex,true);
+        mapCur=stationIndex;
+      }
+      // reticle: project the muzzle ray point
+      if(inGame&&camMode==='SHOULDER'){
+        aimDirOf(stationYaw+aimYaw,aimPitch,tmpD);
+        tmpE.copy(PIVOT).addScaledVector(tmpD,22).project(camera);
+        if(tmpE.z<1){
+          elRet.style.display='block';
+          elRet.style.left=((tmpE.x*0.5+0.5)*window.innerWidth)+'px';
+          elRet.style.top=((-tmpE.y*0.5+0.5)*window.innerHeight)+'px';
+        } else elRet.style.display='none';
+      } else elRet.style.display='none';
+    }
+
+    /* ================= minimap ================= */
+    var mapPads={};
+    (function(){
+      var svg=document.getElementById('mapSvg');
+      function pt(wx,wz){ return [75+wx*3.7, 20-wz*3.7]; }
+      function add(el){ svg.appendChild(el); return el; }
+      function mk(tag,attrs,txt){
+        var el=document.createElementNS('http://www.w3.org/2000/svg',tag);
+        for(var k in attrs) el.setAttribute(k,attrs[k]);
+        if(txt!==undefined) el.textContent=txt;
+        return add(el);
+      }
+      // faint arc through pads 1-7
+      var d='';
+      for(var i=0;i<=24;i++){
+        var u=Math.PI*i/24;
+        var q=pt(-15*Math.cos(u),-15*Math.sin(u));
+        d+=(i===0?'M ':'L ')+q[0].toFixed(1)+' '+q[1].toFixed(1)+' ';
+      }
+      mk('path',{d:d,fill:'none',stroke:'rgba(255,214,140,.28)','stroke-dasharray':'3 3'});
+      // flag + houses
+      var f=pt(0,0);
+      mk('circle',{cx:f[0],cy:f[1],r:2.6,fill:'#ff7a1a'});
+      var hH=pt(-18,0), hL=pt(18,0);
+      mk('rect',{x:hH[0]-6.5,y:hH[1]-6.5,width:13,height:13,rx:2.5,fill:'#8a5a33',stroke:'#e8d9b0','stroke-width':1});
+      mk('rect',{x:hL[0]-6.5,y:hL[1]-6.5,width:13,height:13,rx:2.5,fill:'#8a5a33',stroke:'#e8d9b0','stroke-width':1});
+      mk('text',{x:hH[0],y:hH[1]+3.4,'text-anchor':'middle','font-size':9,'font-weight':700,fill:'#ffe9c2'},'H');
+      mk('text',{x:hL[0],y:hL[1]+3.4,'text-anchor':'middle','font-size':9,'font-weight':700,fill:'#ffe9c2'},'L');
+      // pads
+      for(var s=1;s<=8;s++){
+        var p=STATION_POS[s-1], q=pt(p[0],p[1]);
+        mapPads[s]=mk('circle',{cx:q[0],cy:q[1],r:4,'class':'pad'});
+        mk('text',{x:q[0],y:q[1]+15,'text-anchor':'middle','font-size':8.5,'font-weight':700,
+          fill:'rgba(253,243,221,.85)'},String(s));
+      }
+    })();
+    function setMapPad(s,on){
+      var el=mapPads[s];
+      if(el) el.setAttribute('class',on?'pad cur':'pad');
+    }
+
+    /* ================= arena state ================= */
+    function clayTable(bird){
+      var sd=bird.cross.distanceTo(PIVOT);
+      var dvec=tmpA.copy(bird.cross).sub(bird.home);
+      return {
+        station:bird.station, house:bird.label,
+        window:[bird.home.x,bird.home.y,bird.home.z],
+        crossing:[bird.cross.x,bird.cross.y,bird.cross.z],
+        azimuthDeg:((Math.atan2(dvec.z,dvec.x)/DEG)%360+360)%360,
+        elevationDeg:Math.atan2(dvec.y,Math.hypot(dvec.x,dvec.z))/DEG,
+        timeToCrossing:bird.len/CLAY_SPEED,
+        shotDistance:sd, lead:CLAY_SPEED*sd/PELLET_SPEED
+      };
+    }
+    function writeArenaState(){
+      var dbl=stationIndex===4&&phase==='PRACTICE';
+      var birdsView=clays.map(function(c){
+        return {
+          house:c.bird.label,houseKey:c.bird.houseKey,
+          alive:c.alive,hit:c.hit,
+          age:c.alive?c.age:c.finalAge,
+          position:[c.pos.x,c.pos.y,c.pos.z],
+          table:clayTable(c.bird)
+        };
+      });
+      // the pending bird (always present; carries live state once its clay is launched)
+      var liveC=null;
+      for(var i=0;i<clays.length;i++){ if(clays[i].bird===birdDef) liveC=clays[i]; }
+      var birdView={
+        index:Math.min(tallyDead+tallyLost+1,ROUND_N),count:ROUND_N,
+        station:birdDef.station,serve:serveIndex,
+        house:birdDef.label,houseKey:birdDef.houseKey,
+        alive:liveC?liveC.alive:false,hit:liveC?liveC.hit:false,
+        age:liveC?(liveC.alive?liveC.age:liveC.finalAge):0,
+        position:liveC?[liveC.pos.x,liveC.pos.y,liveC.pos.z]:[birdDef.home.x,birdDef.home.y,birdDef.home.z],
+        table:clayTable(birdDef)
+      };
+      if(birdsView.length===0) birdsView.push({
+        house:birdDef.label,houseKey:birdDef.houseKey,
+        alive:false,hit:false,age:0,
+        position:[birdDef.home.x,birdDef.home.y,birdDef.home.z],
+        table:clayTable(birdDef)
+      });
+      var shotsView=visitShots.map(function(s){
+        return {origin:s.origin,dir:s.dir,hit:s.hit,
+                missDistance:s.missDistance,judgeAge:s.judgeAge,range:s.range,
+                swingRatio:s.swingRatio,tier:s.tier,
+                omegaC:s.omegaC,omegaM:s.omegaM,omegaMProjected:s.omegaMProjected,
+                judgments:s.judgments};
+      });
+      var WINDC=currentWind();
+      var windSpeed=Math.round(Math.hypot(WINDC[0],WINDC[1],WINDC[2]));
+      var windLabel=WINDC[2]<0?'2 → −z':(WINDC[2]>0?'2 → +z':'CALM');
+      var st={
+        phase:phase,
+        birdState:birdState,
+        station:stationIndex,
+        bird:birdView,
+        birds:birdsView,
+        aim:{yaw:aimYaw,pitch:aimPitch,yawDeg:aimYaw/DEG,pitchDeg:aimPitch/DEG,
+             neutralYawDeg:stationYaw/DEG},
+        mounted:mounted,
+        shell:shellsLeft>0?'LOADED':'FIRED',
+        shellsLeft:shellsLeft,
+        shot:shotsView.length?shotsView[shotsView.length-1]:null,
+        shots:shotsView,
+        pair:{isDouble:dbl,broken:pairBroken,lost:pairLost,result:pairResult},
+        tally:{dead:tallyDead,lost:tallyLost,target:TARGET},
+        wind:{vec:[WINDC[0],WINDC[1],WINDC[2]],speed:windSpeed,label:windLabel},
+        ballistics:{coneFullDeg:Math.round(CONE_HALF*2/DEG*1e6)/1e6,claySpeed:CLAY_SPEED,pelletSpeed:PELLET_SPEED},
+        grandPrix:{broken:grandPrix.broken,perfect:grandPrix.perfect.slice(),golden:grandPrix.golden,
+                   missed:grandPrix.missed,total:grandPrix.total,tier:grandPrix.tier},
+        round:{result:roundResult},
+        qualifier:qual?{
+          bird:Math.min(qualResolvedCount()+1,QUAL_N),
+          results:qual.results.slice(),
+          total:tallyDead,
+          done:birdState==='SUMMARY',
+          shootoff:qual.shootoff,
+          rival:{ledger:RIVAL_LEDGER.slice(),total:rivalTotal(),revealed:rivalRevealedCount()}
+        }:null,
+        championship:(qual&&qual.kind==='CHAMPIONSHIP')?{
+          verdict:champVerdict,
+          shootOffPairs:qual.soPair,
+          rivalPairs:qual.soRival.slice(),
+          myPairs:qual.soMine.slice()
+        }:null,
+        simTime:simTime,
+        camera:camMode
+      };
+      for(var i=0;i<birdsView.length;i++) Object.freeze(birdsView[i].table), Object.freeze(birdsView[i]);
+      for(var i=0;i<shotsView.length;i++) Object.freeze(shotsView[i]);
+      Object.freeze(birdView.table); Object.freeze(birdView);
+      Object.freeze(st.pair); Object.freeze(st.aim); Object.freeze(st.tally);
+      Object.freeze(st.wind); Object.freeze(st.wind.vec);
+      Object.freeze(st.ballistics);
+      Object.freeze(st.grandPrix.perfect); Object.freeze(st.grandPrix);
+      Object.freeze(st.round);
+      if(st.qualifier){ Object.freeze(st.qualifier.results); Object.freeze(st.qualifier.rival.ledger); Object.freeze(st.qualifier.rival); Object.freeze(st.qualifier); }
+      if(st.championship){ Object.freeze(st.championship.rivalPairs); Object.freeze(st.championship.myPairs); Object.freeze(st.championship); }
+      Object.freeze(st);
+      window.__arena_state=st;
+    }
+
+    /* ================= main loop ================= */
+    applyStation(1); // the circuit starts at station 1
+    updateScore();
+    var last=performance.now(), acc=0;
+    function frame(now){
+      requestAnimationFrame(frame);
+      var rdt=(now-last)/1000; last=now;
+      if(rdt>0.25) rdt=0.25;
+      if(phase==='PRACTICE'){
+        acc+=rdt;
+        var n=0;
+        while(acc>=STEP&&n<6){ step(STEP); acc-=STEP; n++; }
+        if(n===6) acc=0;
+      } else {
+        processInput(); // title card: keyboard stays live (Enter to start)
+      }
+      // clouds + flag on fixed simTime tracks
+      for(var i=0;i<clouds.length;i++){
+        var c=clouds[i];
+        c.grp.position.set(
+          c.cx+Math.cos(simTime*c.w+c.ph)*c.R, c.cy,
+          c.cz+Math.sin(simTime*c.w+c.ph)*c.R);
+      }
+      var g=flagGeo.attributes.position;
+      for(var i=0;i<g.count;i++){
+        var x=g.getX(i);
+        g.setZ(i,Math.sin(x*5-simTime*7)*0.09*(x/1.05));
+      }
+      g.needsUpdate=true;
+      flagGeo.computeVertexNormals();
+      flagMesh.rotation.y=0.25*Math.sin(simTime*2.1);
+      updateWindsock();
+
+      updateCamera(rdt);
+      updateGlare();
+      // championship trophy: visible through the champion celebration, slow victory turn
+      trophyGroup.visible=(qual&&qual.kind==='CHAMPIONSHIP'&&champVerdict==='CHAMPION'&&birdState==='SUMMARY');
+      if(trophyGroup.visible) trophyGroup.rotation.y+=rdt*0.8;
+      renderHUD();
+      writeArenaState();
+      renderer.render(scene,camera);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  if(window.THREE){ boot(); }
+  else{
+    var s=document.createElement('script');
+    s.type='module';
+    s.textContent="import * as T from './vendor/three/three.module.min.js';\nwindow.THREE=T;\nwindow.dispatchEvent(new Event('three-ready'));";
+    document.head.appendChild(s);
+    window.addEventListener('three-ready',function(){ boot(); },{once:true});
+  }
+})();
+</script>
+</body>
+</html>

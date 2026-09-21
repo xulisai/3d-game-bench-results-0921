@@ -1,0 +1,3258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UMBRA DOCK</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:100%; height:100%; overflow:hidden; background:#000; }
+  body { font-family:"Consolas","SF Mono","Menlo","DejaVu Sans Mono",monospace; color:#a8d4e8;
+         -webkit-user-select:none; user-select:none; cursor:default; }
+  canvas.webgl { position:fixed; inset:0; display:block; }
+  #vignette { position:fixed; inset:0; pointer-events:none; z-index:4;
+    background:radial-gradient(ellipse at center, rgba(0,0,0,0) 52%, rgba(0,0,6,0.55) 100%); }
+  #ui { position:fixed; inset:0; pointer-events:none; z-index:5; }
+  .panel { background:rgba(6,12,20,0.58); border:1px solid rgba(120,180,220,0.28); padding:7px 12px; }
+  #topbar { position:absolute; top:12px; left:12px; right:12px; display:flex;
+            justify-content:space-between; align-items:flex-start; gap:10px; }
+  #clock { font-size:15px; letter-spacing:2px; color:#eaf6ff; }
+  #clock span { color:#6f9cb4; font-size:10px; display:block; letter-spacing:3px; }
+  #nav { text-align:center; }
+  .big { font-size:24px; color:#eaf6ff; letter-spacing:1px; }
+  .big span { font-size:11px; color:#6f9cb4; letter-spacing:2px; }
+  #closing { font-size:11px; letter-spacing:2px; color:#ffcf7a; margin-top:2px; }
+  #attitude { font-size:13px; letter-spacing:1px; color:#bfe0f0; text-align:right; line-height:1.55; }
+  #attitude b { color:#6f9cb4; font-weight:normal; font-size:10px; letter-spacing:2px; margin-right:6px; }
+  #dockpanel { position:absolute; right:12px; top:130px; min-width:205px; font-size:12px; letter-spacing:1px; }
+  #dockpanel label { display:block; font-size:10px; letter-spacing:3px; color:#6f9cb4;
+                     border-bottom:1px solid rgba(140,200,235,0.25); padding-bottom:4px; margin-bottom:5px; }
+  .dp-row { display:flex; justify-content:space-between; gap:14px; line-height:1.9; color:#ffcf7a; }
+  .dp-row b { color:#6f9cb4; font-weight:normal; font-size:10px; letter-spacing:1px; }
+  .dp-row span.ok { color:#7dff9e; }
+  #gauge-wrap { position:absolute; left:12px; bottom:12px; display:flex; gap:8px; }
+  .gauge { width:118px; }
+  .gauge label { font-size:10px; letter-spacing:3px; color:#6f9cb4; }
+  .gauge .bar { height:8px; border:1px solid rgba(120,180,220,0.4); margin:3px 0 2px 0;
+                background:rgba(10,20,30,0.6); }
+  .gauge .bar i { display:block; height:100%; width:100%; }
+  .gauge b { font-size:12px; color:#dff2ff; font-weight:normal; }
+  #b-fuel { background:#ffb454; } #b-pwr { background:#59c8e8; }
+  #b-o2   { background:#8fe0a8; } #b-hull{ background:#aebdca; }
+  .gauge.low label, .gauge.low b { color:#ff6b57; }
+  .gauge.low .bar i { background:#ff5544 !important; }
+  .chg { display:flex; align-items:center; gap:5px; margin-top:2px; font-size:9px; letter-spacing:1px; color:#59c8e8; }
+  .chg i { width:6px; height:6px; border-radius:50%; background:#10202c; border:1px solid rgba(140,200,235,0.45); }
+  .chg i.on { background:#7dff9e; box-shadow:0 0 5px #7dff9e; }
+  .chg em { font-style:normal; }
+  .hits { display:block; margin-top:2px; font-size:9px; letter-spacing:1px; color:#ff9a8a; }
+  #armpanel { position:absolute; right:12px; top:252px; min-width:205px; font-size:12px; letter-spacing:1px; }
+  #armpanel label { display:block; font-size:10px; letter-spacing:3px; color:#6f9cb4;
+                    border-bottom:1px solid rgba(140,200,235,0.25); padding-bottom:4px; margin-bottom:5px; }
+  .arm-hint { margin-top:5px; padding-top:4px; border-top:1px solid rgba(140,200,235,0.18);
+              font-size:9px; letter-spacing:1px; color:#6f9cb4; }
+  #driftbox { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); text-align:center; }
+  #driftbox label { display:block; font-size:10px; letter-spacing:3px; color:#6f9cb4; margin-top:4px; }
+  #drift { background:rgba(6,12,20,0.58); border:1px solid rgba(120,180,220,0.28); }
+  #sysbox { position:absolute; right:12px; bottom:12px; text-align:right; font-size:11px;
+            letter-spacing:2px; color:#6f9cb4; line-height:1.7; }
+  #sysbox b { color:#bfe0f0; font-weight:normal; }
+  #cablebox { position:absolute; right:12px; bottom:80px; min-width:205px; text-align:right;
+              font-size:12px; letter-spacing:1px; }
+  #cablebox label { display:block; font-size:10px; letter-spacing:3px; color:#6f9cb4;
+                    border-bottom:1px solid rgba(140,200,235,0.25); padding-bottom:4px;
+                    margin-bottom:5px; text-align:left; }
+  #cablestate.ok { color:#7dff9e; }
+  #cablestate.bad { color:#ff6b57; }
+  #dockstatus.off { color:#ffcf7a; }
+  #dockstatus.on { color:#7dff9e; }
+  #oppanel { position:absolute; left:12px; top:150px; min-width:235px; font-size:11px; letter-spacing:1px; }
+  #oppanel label { display:block; font-size:10px; letter-spacing:3px; color:#6f9cb4;
+                   border-bottom:1px solid rgba(140,200,235,0.25); padding-bottom:4px; margin-bottom:5px; }
+  .op-row { display:flex; justify-content:space-between; gap:10px; line-height:1.9; color:#bfe0f0; }
+  .op-row b { color:#eaf6ff; font-weight:normal; }
+  .op-row .pend { color:#6f9cb4; }
+  .op-row .active { color:#ffcf7a; }
+  .op-row .done { color:#7dff9e; }
+  .op-row.op-total { border-top:1px solid rgba(140,200,235,0.18); margin-top:3px; padding-top:3px; }
+  #distress { position:absolute; display:none; transform:translate(-50%,-50%); text-align:center; }
+  #darrow { display:block; width:0; height:0; margin:0 auto 3px auto;
+            border-left:8px solid transparent; border-right:8px solid transparent;
+            border-bottom:14px solid #ff8a66;
+            filter:drop-shadow(0 0 4px rgba(255,110,80,0.85)); }
+  #ddist { font-size:10px; letter-spacing:1px; color:#ffcf9e; background:rgba(6,12,20,0.6);
+           border:1px solid rgba(255,150,110,0.4); padding:2px 6px; white-space:nowrap; }
+  #fixbox { position:absolute; left:50%; top:57%; transform:translate(-50%,-50%);
+            text-align:center; display:none; }
+  #fixlabel { display:block; margin-top:4px; font-size:11px; letter-spacing:2px; color:#ffcf7a;
+              background:rgba(6,12,20,0.6); border:1px solid rgba(255,207,122,0.4); padding:2px 8px;
+              white-space:nowrap; }
+  #warn { position:absolute; top:19%; left:50%; transform:translateX(-50%); font-size:15px;
+          letter-spacing:4px; color:#ff6b57; text-align:center; white-space:nowrap;
+          animation:blink 0.9s steps(2,start) infinite; }
+  @keyframes blink { 50% { opacity:0.25; } }
+  #portmark { position:absolute; width:22px; height:22px; border:1px solid rgba(150,225,255,0.85);
+              transform:translate(-50%,-50%) rotate(45deg); display:none; }
+  #portmark::after { content:""; position:absolute; inset:8px; background:rgba(150,225,255,0.85); }
+  .overlay { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center;
+             justify-content:center; background:rgba(2,5,9,0.74); z-index:10; text-align:center; }
+  .hidden { display:none !important; }
+  .overlay h1 { font-size:52px; letter-spacing:16px; color:#eaf6ff; font-weight:600;
+                text-indent:16px; }
+  .subtitle { margin-top:10px; font-size:12px; letter-spacing:6px; color:#6f9cb4; }
+  .rule { width:520px; max-width:80vw; height:1px; margin:26px 0;
+          background:linear-gradient(90deg, transparent, rgba(140,200,235,0.55), transparent); }
+  .ctl { display:flex; gap:44px; flex-wrap:wrap; justify-content:center; }
+  .ctl .col { min-width:200px; text-align:left; }
+  .ctl h2 { font-size:11px; letter-spacing:3px; color:#ffcf7a; font-weight:normal;
+            border-bottom:1px solid rgba(140,200,235,0.25); padding-bottom:6px; margin-bottom:8px; }
+  .ctl .row { display:flex; justify-content:space-between; gap:16px; font-size:12px;
+              line-height:2; color:#bfe0f0; }
+  .ctl .row b { color:#eaf6ff; font-weight:normal; letter-spacing:1px; }
+  .note { margin-top:26px; font-size:11px; letter-spacing:1px; color:#7da6bc; line-height:1.9; }
+  .prompt { margin-top:30px; font-size:16px; letter-spacing:6px; color:#ffcf7a; }
+  #endTitle.bad { color:#ff6b57; }
+  #endTitle.good { color:#9fe8b8; }
+  #endInfo { margin-top:14px; font-size:13px; letter-spacing:2px; color:#bfe0f0; line-height:2; }
+  #debrief { display:none; margin-top:8px; }
+  .db-grid { width:460px; max-width:86vw; margin:0 auto; text-align:left; }
+  .db-row { display:flex; justify-content:space-between; gap:24px; font-size:15px;
+            letter-spacing:2px; color:#bfe0f0; line-height:2; }
+  .db-row b { color:#6f9cb4; font-weight:normal; }
+  .db-row span { color:#eaf6ff; }
+  .db-row.db-total { border-top:1px solid rgba(140,200,235,0.35); }
+  .db-row.db-total span { color:#ffcf7a; }
+  #db-rank-wrap { margin-top:18px; }
+  #db-rank-wrap label { display:block; font-size:11px; letter-spacing:6px; color:#6f9cb4; }
+  #db-rank { font-size:88px; line-height:1.1; color:#ffcf7a; text-shadow:0 0 24px rgba(255,207,122,0.45); }
+</style>
+</head>
+<body>
+
+<div id="vignette"></div>
+
+<div id="ui">
+  <div id="topbar">
+    <div id="clock" class="panel"><span>MISSION CLOCK</span>T+ 00:00.0</div>
+    <div id="nav" class="panel">
+      <div class="big"><span id="speed">0.00</span> <span>m/s</span></div>
+      <div class="big"><span id="dist">278.0</span> <span>m TO PORT</span></div>
+      <div id="closing">CLOSING +0.00 m/s</div>
+    </div>
+    <div id="attitude" class="panel">
+      <div><b>PITCH</b><span id="att-p">+0.0&deg;</span></div>
+      <div><b>YAW</b><span id="att-y">+0.0&deg;</span></div>
+      <div><b>ROLL</b><span id="att-r">+0.0&deg;</span></div>
+    </div>
+  </div>
+  <div id="dockpanel" class="panel" style="display:none">
+    <label>APPROACH TELEMETRY</label>
+    <div class="dp-row"><b>ANGLE &le;1.5&deg;</b><span id="dp-angle">0.0&deg;</span></div>
+    <div class="dp-row"><b>OFFSET &le;0.30 m</b><span id="dp-offset">0.00 m</span></div>
+    <div class="dp-row"><b>CLOSING 0.02&ndash;0.30</b><span id="dp-closing">+0.00 m/s</span></div>
+  </div>
+  <div id="armpanel" class="panel" style="display:none">
+    <label>MANIPULATOR ARM</label>
+    <div class="dp-row"><b>SHOULDER</b><span id="arm-sh">+0.0&deg;</span></div>
+    <div class="dp-row"><b>ELBOW</b><span id="arm-el">+0.0&deg;</span></div>
+    <div class="dp-row"><b>GRIPPER</b><span id="arm-grip">OPEN</span></div>
+    <div class="dp-row"><b>POD K-77</b><span id="arm-pod">FREE</span></div>
+    <div class="arm-hint">I&middot;K SHOULDER &middot; J&middot;L ELBOW &middot; SPACE GRAB</div>
+  </div>
+  <div id="gauge-wrap">
+    <div class="gauge panel" id="g-fuel"><label>FUEL</label><div class="bar"><i id="b-fuel"></i></div><b id="v-fuel">80</b></div>
+    <div class="gauge panel" id="g-pwr"><label>PWR</label><div class="bar"><i id="b-pwr"></i></div><b id="v-pwr">100</b><span class="chg"><i id="chg-led"></i><em id="chg-rate">+0.00/s</em></span></div>
+    <div class="gauge panel" id="g-o2"><label>O2</label><div class="bar"><i id="b-o2"></i></div><b id="v-o2">100</b></div>
+    <div class="gauge panel" id="g-hull"><label>HULL</label><div class="bar"><i id="b-hull"></i></div><b id="v-hull">100</b><span class="hits" id="hits">HITS 0</span></div>
+  </div>
+  <div id="driftbox">
+    <canvas id="drift" width="76" height="76"></canvas>
+    <label>DRIFT / REL VEL</label>
+  </div>
+  <div id="sysbox" class="panel">
+    <div>CAM <b id="camlabel">CHASE</b> &middot; V</div>
+    <div>REPAIR DOCK <b id="dockstatus" class="off">OFFLINE</b></div>
+    <div>ESC PAUSE &middot; R RESET (END SCREEN)</div>
+  </div>
+  <div id="oppanel" class="panel" style="display:none">
+    <label>OPERATION UMBRA — FINAL</label>
+    <div class="op-row"><b>1 DOCK</b><span id="op0s" class="pend">PENDING</span><span id="op0t">&mdash;</span></div>
+    <div class="op-row"><b>2 TOW POD 3</b><span id="op1s" class="pend">PENDING</span><span id="op1t">&mdash;</span></div>
+    <div class="op-row"><b>3 REPAIR STATION</b><span id="op2s" class="pend">PENDING</span><span id="op2t">&mdash;</span></div>
+    <div class="op-row op-total"><b>TOTAL</b><span id="optotal">&mdash;</span></div>
+  </div>
+  <div id="cablebox" class="panel" style="display:none">
+    <label>TOW CABLE</label>
+    <div id="cablestate"></div>
+  </div>
+  <div id="warn"></div>
+  <div id="portmark"></div>
+  <div id="distress"><i id="darrow"></i><span id="ddist">POD 3 &middot; 0 m</span></div>
+  <div id="fixbox"><canvas id="fixarc" width="72" height="72"></canvas><span id="fixlabel">HOLD SPACE &mdash; REPAIR</span></div>
+</div>
+
+<div id="ready" class="overlay">
+  <h1>UMBRA DOCK</h1>
+  <div class="subtitle">DARK-SIDE ORBITAL RESCUE &middot; VESPER STATION APPROACH</div>
+  <div class="rule"></div>
+  <div class="ctl">
+    <div class="col">
+      <h2>TRANSLATION &mdash; 2.0 m/s&sup2;</h2>
+      <div class="row"><b>W / S</b><span>thrust forward / back</span></div>
+      <div class="row"><b>A / D</b><span>strafe left / right</span></div>
+      <div class="row"><b>R / F</b><span>thrust up / down</span></div>
+    </div>
+    <div class="col">
+      <h2>ROTATION &mdash; 2.0 rad/s&sup2;</h2>
+      <div class="row"><b>&uarr; / &darr;</b><span>pitch up / down</span></div>
+      <div class="row"><b>&larr; / &rarr;</b><span>yaw left / right</span></div>
+      <div class="row"><b>Q / E</b><span>roll left / right</span></div>
+    </div>
+    <div class="col">
+      <h2>SYSTEMS</h2>
+      <div class="row"><b>V</b><span>chase / nose camera</span></div>
+      <div class="row"><b>X</b><span>exterior lights on / off</span></div>
+      <div class="row"><b>9</b><span>close leak valves</span></div>
+      <div class="row"><b>H</b><span>manipulator arm mode</span></div>
+      <div class="row"><b>SPACE</b><span>grab / release pod &middot; EVA repair</span></div>
+      <div class="row"><b>C</b><span>fire / release tow cable</span></div>
+      <div class="row"><b>0</b><span>undock while docked</span></div>
+      <div class="row"><b>B</b><span>EVA / board shuttle</span></div>
+      <div class="row"><b>ESC</b><span>pause / resume</span></div>
+      <div class="row"><b>ENTER</b><span>start mission</span></div>
+    </div>
+  </div>
+  <p class="note">ENTER starts OPERATION UMBRA: 1 DOCK &middot; 2 TOW POD 3 &middot; 3 REPAIR STATION &mdash; in that order, on the clock.<br>
+  Newtonian flight in vacuum &mdash; no drag, no assist. Counter-thrust to stop.<br>
+  Dock inside the ring: axis angle &le; 1.5&deg;, nose offset &le; 0.30 m, closing 0.02&ndash;0.30 m/s.<br>
+  C tow cable &mdash; snag pod K-77 or escape pod POD 3 within 40 m on the crosshair; towing loads the thrust.<br>
+  POD 3 hangs dead at (240, &minus;30, 320), over 400 m out &mdash; follow the DISTRESS arrow and deliver it to the
+  REPAIR DOCK at (&minus;18, &minus;10, 8) under 0.5 m/s to recover the survivors.<br>
+  X lights &middot; solar charging face-on to the sun &middot; fuel leaks at T+45/110 s (press 9) &middot; debris on timed orbits.<br>
+  H arm mode: grab pod K-77 with SPACE and seat it in the CARGO SLOT at (14, &minus;6, 18).<br>
+  Docked: 0 undocks (0.3 m/s push-off) &middot; B walks the hull on magnetic boots (O2 0.50/s).<br>
+  On EVA, repair the three sparking conduits: stand close and hold SPACE for 2 s each.<br>
+  Stow the arm before final approach. Impacts cost hull.</p>
+  <div class="prompt">PRESS ENTER TO START</div>
+</div>
+
+<div id="pause" class="overlay hidden">
+  <h1>PAUSED</h1>
+  <div class="rule"></div>
+  <div class="prompt">PRESS ESC TO RESUME</div>
+</div>
+
+<div id="end" class="overlay hidden">
+  <h1 id="endTitle">DOCKING CONFIRMED</h1>
+  <div class="rule"></div>
+  <div id="endInfo"></div>
+  <div id="debrief" style="display:none">
+    <div class="db-grid">
+      <div class="db-row"><b>SEG 1</b><span id="db-seg1"></span></div>
+      <div class="db-row"><b>SEG 2</b><span id="db-seg2"></span></div>
+      <div class="db-row"><b>SEG 3</b><span id="db-seg3"></span></div>
+      <div class="db-row db-total"><b>TOTAL</b><span id="db-total"></span></div>
+      <div class="db-row"><b>FUEL REMAINING</b><span id="db-fuel"></span></div>
+      <div class="db-row"><b>IMPACT COUNT</b><span id="db-hits"></span></div>
+      <div class="db-row"><b>HULL REMAINING</b><span id="db-hull"></span></div>
+    </div>
+    <div id="db-rank-wrap"><label>MISSION RANK</label><div id="db-rank">B</div></div>
+  </div>
+  <div class="prompt">PRESS R TO RESET</div>
+</div>
+
+<script src="./assets/_shared/three/build/three.min.js"></script>
+<script type="module">
+if (!window.THREE) {
+  try { window.THREE = await import('./vendor/three/three.module.min.js'); } catch (e) {}
+}
+const THREE = window.THREE;
+if (!THREE) {
+  document.getElementById('ready').innerHTML =
+    '<h1>UMBRA DOCK</h1><p style="margin-top:20px;font-size:13px;letter-spacing:2px">FAILED TO LOAD THE THREE.JS RUNTIME.</p>';
+  throw new Error('THREE runtime missing');
+}
+
+/* ============================================================= *
+ *  UMBRA DOCK — deterministic constants                          *
+ * ============================================================= */
+const TAU = Math.PI * 2;
+const ANG_ACC = 2.0;      // rad/s^2 per rotation axis
+const ANG_MAX = 1.0;      // rad/s
+const FUEL_MAX = 80, PWR_MAX = 100, O2_MAX = 100, HULL_MAX = 100;
+const BURN_MAIN = 0.8;    // fuel/s  W/S
+const BURN_RCS  = 0.4;    // fuel/s  A/D/R/F
+const PWR_ROT   = 0.4;    // power/s per held rotation axis
+const O2_RATE   = 0.05;   // /s
+const IMPACT_DMG = 10;
+const H = 1 / 120;        // physics step
+const PORT_CENTER = new THREE.Vector3(0, 0, 22);
+/* docking windows — tightened this round */
+const DOCK_ANGLE_MAX = 1.5;     // deg, ship axis vs port axis
+const DOCK_OFFSET_MAX = 0.3;    // m, nose tip lateral offset
+const DOCK_CLOSING_MIN = 0.02;  // m/s
+const DOCK_CLOSING_MAX = 0.3;   // m/s
+/* tow cable — constant thruster force over shuttle mass plus any attached load */
+const THRUST_FORCE = 8000;      // N
+const SHIP_MASS = 4000;         // kg  (free flight: 8000/4000 = 2.0 m/s^2)
+const POD_MASS = 2000;          // kg  (towing K-77: 8000/6000 = 1.333 m/s^2)
+const CABLE_RANGE = 40;         // m, max snag distance from the shuttle
+const CABLE_AIM_DEG = 5;        // deg, half-angle of the aim cone around the camera center
+const RING_R = 1.5;                              // ring opening radius (m)
+const CONTACT_Z = PORT_CENTER.z + 0.5;           // contact: nose tip 0.5 m from the ring plane
+const NOSE_TIP = new THREE.Vector3(0, 0, -3.2);  // shuttle nose tip, ship-local
+const SUN_DIR = new THREE.Vector3(1.0, 0.8, 0.6).normalize();
+const SUN_POS = SUN_DIR.clone().multiplyScalar(1100);
+const CHG_RATE = 2.4;      // solar charge units/s with the panel face-on to the sun
+const LIGHTS_DRAW = 0.3;   // power/s while the exterior lights are on
+const LEAK_RATE = 1.5;     // fuel/s per open leak
+const LEAK_SCHEDULE = [45.0, 110.0];
+/* manipulator arm + cargo pod K-77 */
+const ARM_MOUNT = new THREE.Vector3(0, 0.78, -2.0);      // nose-top mount, ship-local
+const ARM_UPPER = 4.0, ARM_FORE = 3.5, ARM_GRIP = 0.55;  // segment lengths (m)
+const ARM_RATE = 30;                                     // joint speed (deg/s)
+const SHOULDER_MIN = -30, SHOULDER_MAX = 90;             // deg, 0 = aligned with the nose
+const ELBOW_MIN = 0, ELBOW_MAX = 150;                    // deg, 0 = straight
+const POD_START = new THREE.Vector3(60, 12, 200);
+const POD_VEL = new THREE.Vector3(0.15, -0.05, -0.10);
+const POD_RADIUS = 1.5;
+const GRAB_DIST = 1.0;
+const SLOT_POS = new THREE.Vector3(14, -6, 18);
+const SLOT_CAPTURE = 0.8;
+/* stranded escape pod POD 3 + repair dock (round 11 — POD 7 was recovered in round 9) */
+const POD3_START = new THREE.Vector3(240, -30, 320);
+const POD3_MASS = 3500;                                    // kg (towing: 8000/7500 = 1.067 m/s^2)
+const POD3_RADIUS = 1.5;
+const POD3_TUMBLE = new THREE.Vector3(0.10, 0.06, 0.08);   // rad/s, slow fixed tumble
+const POD3_ORIENT0 = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.25, -0.4, 0.15));
+const BEACON_PERIOD = 2.0;   // s — single flash then dark, pure function of the mission clock
+const REPAIR_DOCK_POS = new THREE.Vector3(-18, -10, 8);
+const DOCK_DIR = new THREE.Vector3().subVectors(REPAIR_DOCK_POS, PORT_CENTER).normalize(); // faces away from the docking port
+const DOCK_QUAT = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), DOCK_DIR);
+const DELIVERY_DIST = 3.0;   // m, latch radius around the repair dock center
+const DELIVERY_SPEED = 0.5;  // m/s, max relative speed at the latch
+/* undock + EVA (round 8) */
+const UNDOCK_PUSH = 0.3;     // m/s push-off along the port axis away from the station
+const EVA_SPEED = 1.5;       // m/s magnetic-boot walk speed
+const EVA_O2_RATE = 0.5;     // O2 units/s while on EVA
+const EVA_START = new THREE.Vector3(0.5, 1.75, 5.5);   // truss top near the hub end
+const EVA_START_F = new THREE.Vector3(0, 0, -1);
+const BOARD_DIST = 2.0;      // m, max distance from the nose to end the EVA
+const REPAIR_DIST = 1.2;     // m, wrench reach
+const REPAIR_TIME = 2.0;     // s of continuous holding
+const CONDUIT_COUNT = 3;
+const RAD = Math.PI / 180;
+const WING_Q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -14 * RAD, 26 * RAD)); // +x radiator wing
+
+/* deterministic pseudo-random — fixed integer seeds, identical output on every load */
+function lcg(seed) {
+  let s = seed >>> 0;
+  return function () {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
+const rad2deg = (r) => r / RAD;
+
+/* ============================================================= *
+ *  Renderer / scene / camera                                    *
+ * ============================================================= */
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+if (THREE.ACESFilmicToneMapping !== undefined) {
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
+}
+if ('outputColorSpace' in renderer && THREE.SRGBColorSpace !== undefined) {
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+} else if (THREE.sRGBEncoding !== undefined) {
+  renderer.outputEncoding = THREE.sRGBEncoding;
+}
+if ('useLegacyLights' in renderer) renderer.useLegacyLights = false;
+renderer.domElement.className = 'webgl';
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+const cam = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 4000);
+
+/* lights */
+const sun = new THREE.DirectionalLight(0xfff2dd, 3.0);
+sun.position.copy(SUN_POS);
+scene.add(sun);
+scene.add(new THREE.AmbientLight(0x101a26, 0.6));
+scene.add(new THREE.HemisphereLight(0x1a2634, 0x03050a, 0.45));
+const planetShine = new THREE.DirectionalLight(0x2a4a6a, 0.55);
+planetShine.position.set(0, -500, 120);
+scene.add(planetShine);
+
+/* ============================================================= *
+ *  Deterministic canvas textures                                *
+ * ============================================================= */
+function makeTex(w, h, fn) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  fn(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  if ('colorSpace' in t && THREE.SRGBColorSpace !== undefined) t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function radialTex(size, stops) {
+  return makeTex(size, size, (g) => {
+    const gr = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    for (const s of stops) gr.addColorStop(s[0], s[1]);
+    g.fillStyle = gr;
+    g.fillRect(0, 0, size, size);
+  });
+}
+const glowTex = radialTex(64, [[0, 'rgba(255,255,255,1)'], [0.25, 'rgba(255,255,255,0.65)'], [1, 'rgba(255,255,255,0)']]);
+const starTex = radialTex(32, [[0, 'rgba(255,255,255,1)'], [0.4, 'rgba(255,255,255,0.55)'], [1, 'rgba(255,255,255,0)']]);
+const sunTex = makeTex(256, 256, (g) => {
+  let gr = g.createRadialGradient(128, 128, 0, 128, 128, 120);
+  gr.addColorStop(0, 'rgba(255,252,240,1)');
+  gr.addColorStop(0.12, 'rgba(255,244,214,0.95)');
+  gr.addColorStop(0.35, 'rgba(255,214,150,0.30)');
+  gr.addColorStop(1, 'rgba(255,200,120,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+  gr = g.createLinearGradient(0, 128, 256, 128);
+  gr.addColorStop(0, 'rgba(255,240,210,0)'); gr.addColorStop(0.5, 'rgba(255,244,220,0.85)'); gr.addColorStop(1, 'rgba(255,240,210,0)');
+  g.fillStyle = gr; g.fillRect(0, 122, 256, 12);
+});
+function panelTex() {
+  return makeTex(256, 256, (g) => {
+    g.fillStyle = '#0c1830'; g.fillRect(0, 0, 256, 256);
+    g.strokeStyle = '#1e3a66'; g.lineWidth = 2;
+    for (let i = 0; i <= 256; i += 21) {
+      g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 256); g.stroke();
+      g.beginPath(); g.moveTo(0, i); g.lineTo(256, i); g.stroke();
+    }
+    g.strokeStyle = '#7f8ea3'; g.lineWidth = 6; g.strokeRect(3, 3, 250, 250);
+    g.strokeStyle = '#31518a'; g.lineWidth = 4;
+    g.beginPath(); g.moveTo(128, 0); g.lineTo(128, 256); g.stroke();
+    g.beginPath(); g.moveTo(0, 128); g.lineTo(256, 128); g.stroke();
+    const gr = g.createLinearGradient(0, 0, 256, 256);
+    gr.addColorStop(0, 'rgba(160,190,255,0.10)'); gr.addColorStop(0.5, 'rgba(160,190,255,0)'); gr.addColorStop(1, 'rgba(160,190,255,0.06)');
+    g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+  });
+}
+function radiatorTex() {
+  return makeTex(256, 128, (g) => {
+    g.fillStyle = '#262c33'; g.fillRect(0, 0, 256, 128);
+    g.fillStyle = '#39424d';
+    for (let x = 6; x < 256; x += 14) g.fillRect(x, 8, 5, 112);
+    g.strokeStyle = '#55606c'; g.lineWidth = 5; g.strokeRect(2, 2, 252, 124);
+    g.fillStyle = '#171b21';
+    for (let x = 0; x < 256; x += 48) g.fillRect(x, 0, 3, 128);
+  });
+}
+function habitatTextures() {
+  const r = lcg(90210);
+  const base = document.createElement('canvas'); base.width = 1024; base.height = 256;
+  const emi = document.createElement('canvas'); emi.width = 1024; emi.height = 256;
+  const g1 = base.getContext('2d'), g2 = emi.getContext('2d');
+  g1.fillStyle = '#333a44'; g1.fillRect(0, 0, 1024, 256);
+  g1.fillStyle = '#2b323c';
+  for (let x = 0; x < 1024; x += 64) g1.fillRect(x, 0, 3, 256);
+  g1.fillStyle = '#3c4550'; g1.fillRect(0, 0, 1024, 20); g1.fillRect(0, 236, 1024, 20);
+  g2.fillStyle = '#000'; g2.fillRect(0, 0, 1024, 256);
+  for (let x = 10; x < 1014; x += 26) {
+    for (const y of [54, 168]) {
+      const lit = r() < 0.55;
+      g1.fillStyle = lit ? '#f4c98a' : '#0d1016';
+      g1.fillRect(x, y, 15, 26);
+      g1.strokeStyle = '#22282f'; g1.strokeRect(x, y, 15, 26);
+      if (lit) { g2.fillStyle = '#f4c98a'; g2.fillRect(x, y, 15, 26); }
+    }
+  }
+  const t1 = new THREE.CanvasTexture(base);
+  const t2 = new THREE.CanvasTexture(emi);
+  if ('colorSpace' in t1 && THREE.SRGBColorSpace !== undefined) t1.colorSpace = THREE.SRGBColorSpace;
+  if ('colorSpace' in t2 && THREE.SRGBColorSpace !== undefined) t2.colorSpace = THREE.SRGBColorSpace;
+  return { map: t1, emi: t2 };
+}
+function cityTex() {
+  const r = lcg(31337);
+  return makeTex(1024, 512, (g) => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, 1024, 512);
+    for (let c = 0; c < 16; c++) {
+      const cx = r() * 1024, cy = 80 + r() * 360, spread = 25 + r() * 80, n = 30 + Math.floor(r() * 90);
+      for (let i = 0; i < n; i++) {
+        const a = (r() + r() + r()) / 3 - 0.5;
+        const x = cx + a * spread * 2.4, y = cy + ((r() + r()) / 2 - 0.5) * spread;
+        g.fillStyle = r() < 0.85 ? 'rgba(255,178,102,0.9)' : 'rgba(255,232,200,0.95)';
+        g.fillRect(x, y, 1.6, 1.6);
+      }
+    }
+  });
+}
+function textTex(text, w, h, fontPx, color) {
+  return makeTex(w, h, (g) => {
+    g.clearRect(0, 0, w, h);
+    g.font = '600 ' + fontPx + 'px Consolas, "SF Mono", Menlo, monospace';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = color;
+    g.shadowColor = 'rgba(190,230,255,0.65)'; g.shadowBlur = 10;
+    let total = 0; const sp = fontPx * 0.28;
+    for (const ch of text) total += g.measureText(ch).width + sp;
+    let x = w / 2 - (total - sp) / 2;
+    for (const ch of text) {
+      const cw = g.measureText(ch).width;
+      g.fillText(ch, x + cw / 2, h / 2);
+      x += cw + sp;
+    }
+  });
+}
+
+/* ============================================================= *
+ *  Environment: stars, planet, sun                              *
+ * ============================================================= */
+function starPoints(count, radius, size, seed, band) {
+  const r = lcg(seed);
+  const pos = new Float32Array(count * 3), col = new Float32Array(count * 3);
+  const bn = new THREE.Vector3(0.32, 0.88, 0.34).normalize();
+  const bu = new THREE.Vector3(1, 0, 0).cross(bn).normalize();
+  const bv = bn.clone().cross(bu).normalize();
+  for (let i = 0; i < count; i++) {
+    let d;
+    if (band) {
+      const a = r() * TAU;
+      const hgt = (r() + r() + r() - 1.5) / 1.5 * 0.28;
+      d = new THREE.Vector3().addScaledVector(bu, Math.cos(a)).addScaledVector(bv, Math.sin(a)).addScaledVector(bn, hgt).normalize();
+    } else {
+      const z = r() * 2 - 1, a = r() * TAU, rr = Math.sqrt(1 - z * z);
+      d = new THREE.Vector3(rr * Math.cos(a), rr * Math.sin(a), z);
+    }
+    const rad = radius * (0.8 + 0.4 * r());
+    pos[i * 3] = d.x * rad; pos[i * 3 + 1] = d.y * rad; pos[i * 3 + 2] = d.z * rad;
+    const t = r();
+    let c = [1, 1, 1];
+    if (t < 0.14) c = [0.62, 0.71, 1.0];
+    else if (t < 0.24) c = [1.0, 0.85, 0.63];
+    const b = 0.55 + 0.45 * r();
+    col[i * 3] = c[0] * b; col[i * 3 + 1] = c[1] * b; col[i * 3 + 2] = c[2] * b;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const mat = new THREE.PointsMaterial({
+    size, map: starTex, transparent: true, depthWrite: false,
+    blending: THREE.AdditiveBlending, vertexColors: true, sizeAttenuation: true
+  });
+  return new THREE.Points(geo, mat);
+}
+scene.add(starPoints(1500, 1750, 7.5, 1234, false));
+scene.add(starPoints(900, 1600, 5.0, 5678, false));
+scene.add(starPoints(1300, 1800, 4.5, 9999, true));
+
+/* night planet with city lights + thin glowing limb */
+const PLANET_C = new THREE.Vector3(0, -1050, -150);
+const planet = new THREE.Mesh(
+  new THREE.SphereGeometry(900, 64, 48),
+  new THREE.MeshStandardMaterial({
+    color: 0x05070d, roughness: 1, metalness: 0,
+    emissive: 0xffffff, emissiveMap: cityTex(), emissiveIntensity: 0.85
+  })
+);
+planet.position.copy(PLANET_C);
+scene.add(planet);
+const atmo = new THREE.Mesh(
+  new THREE.SphereGeometry(917, 48, 32),
+  new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: new THREE.Color(0x3a76b8) } },
+    vertexShader: `
+      varying vec3 vWN; varying vec3 vWP;
+      void main() {
+        vWN = normalize(mat3(modelMatrix) * normal);
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWP = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }`,
+    fragmentShader: `
+      uniform vec3 uColor; varying vec3 vWN; varying vec3 vWP;
+      void main() {
+        vec3 v = normalize(cameraPosition - vWP);
+        float f = pow(1.0 - abs(dot(normalize(vWN), v)), 3.0);
+        gl_FragColor = vec4(uColor * f * 1.6, f);
+      }`,
+    side: THREE.BackSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+  })
+);
+atmo.position.copy(PLANET_C);
+scene.add(atmo);
+
+/* distant hard sun glare */
+const sunSpr = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: sunTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+}));
+sunSpr.position.copy(SUN_POS);
+sunSpr.scale.setScalar(280);
+scene.add(sunSpr);
+const sunCore = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: glowTex, color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+}));
+sunCore.position.copy(SUN_POS);
+sunCore.scale.setScalar(70);
+scene.add(sunCore);
+
+/* ============================================================= *
+ *  Materials                                                    *
+ * ============================================================= */
+const M = {
+  steel: new THREE.MeshStandardMaterial({ color: 0x8d99a6, roughness: 0.5, metalness: 0.65 }),
+  dark: new THREE.MeshStandardMaterial({ color: 0x4a545f, roughness: 0.6, metalness: 0.5 }),
+  darker: new THREE.MeshStandardMaterial({ color: 0x2b323b, roughness: 0.65, metalness: 0.45 }),
+  hullShip: new THREE.MeshStandardMaterial({ color: 0x9aa7b4, roughness: 0.42, metalness: 0.7 }),
+  shipDark: new THREE.MeshStandardMaterial({ color: 0x39424d, roughness: 0.55, metalness: 0.55 }),
+  shipAcc: new THREE.MeshStandardMaterial({ color: 0x24303f, roughness: 0.5, metalness: 0.6 }),
+  glass: new THREE.MeshPhongMaterial({ color: 0x0a1420, shininess: 120, specular: 0x99ccff }),
+  panel: new THREE.MeshPhongMaterial({ map: panelTex(), specular: 0x9aabc0, shininess: 80 }),
+  radiator: new THREE.MeshStandardMaterial({ map: radiatorTex(), roughness: 0.7, metalness: 0.4 }),
+  nozzle: new THREE.MeshStandardMaterial({ color: 0x1c2126, roughness: 0.4, metalness: 0.8, side: THREE.DoubleSide }),
+  innerTunnel: new THREE.MeshStandardMaterial({ color: 0x20262d, roughness: 0.8, metalness: 0.3, side: THREE.DoubleSide }),
+  ring: new THREE.MeshStandardMaterial({ color: 0xb8c4cf, roughness: 0.35, metalness: 0.8 })
+};
+const habTex = habitatTextures();
+M.habitat = new THREE.MeshStandardMaterial({
+  map: habTex.map, emissive: 0xffffff, emissiveMap: habTex.emi,
+  emissiveIntensity: 0.95, roughness: 0.6, metalness: 0.4
+});
+
+function mesh(geo, mat, x, y, z) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x || 0, y || 0, z || 0);
+  return m;
+}
+
+/* ============================================================= *
+ *  Vesper Station                                               *
+ * ============================================================= */
+const station = new THREE.Group();
+const COLLIDERS = [];
+function addBoxCollider(cx, cy, cz, hx, hy, hz, quat) {
+  COLLIDERS.push({ type: 'box', c: new THREE.Vector3(cx, cy, cz), he: new THREE.Vector3(hx, hy, hz),
+                   q: quat ? quat.clone() : new THREE.Quaternion() });
+}
+function addCylCollider(cx, cy, cz, R, L) {
+  COLLIDERS.push({ type: 'cyl', c: new THREE.Vector3(cx, cy, cz), R, L });
+}
+function addTorusCollider(cx, cy, cz, R0, tube) {
+  COLLIDERS.push({ type: 'torus', c: new THREE.Vector3(cx, cy, cz), R0, tube });
+}
+
+/* --- truss spine: z -40 .. 6 --- */
+{
+  const railGeo = new THREE.BoxGeometry(0.22, 0.22, 46);
+  for (const sx of [-1, 1]) for (const sy of [-1, 1])
+    station.add(mesh(railGeo, M.dark, sx * 1.55, sy * 1.55, -17));
+  const bxGeo = new THREE.BoxGeometry(3.32, 0.12, 0.12);
+  const byGeo = new THREE.BoxGeometry(0.12, 3.32, 0.12);
+  const dgGeo = new THREE.BoxGeometry(4.55, 0.09, 0.09);
+  let flip = 1;
+  for (let z = -40; z <= 6.01; z += 4.6) {
+    station.add(mesh(bxGeo, M.dark, 0, 1.55, z)); station.add(mesh(bxGeo, M.dark, 0, -1.55, z));
+    station.add(mesh(byGeo, M.dark, 1.55, 0, z)); station.add(mesh(byGeo, M.dark, -1.55, 0, z));
+    for (const sy of [-1, 1]) {
+      const d = mesh(dgGeo, M.darker, 0, sy * 1.55, z);
+      d.rotation.z = flip * sy * Math.PI / 4;
+      station.add(d);
+    }
+    flip = -flip;
+  }
+  addBoxCollider(0, 0, -17, 1.7, 1.7, 23.2);
+}
+/* --- habitat module --- */
+{
+  const hab = mesh(new THREE.CylinderGeometry(4.2, 4.2, 16, 28), M.habitat, 0, 0, -24);
+  hab.rotation.x = Math.PI / 2;
+  station.add(hab);
+  for (const z of [-16.3, -31.7]) {
+    const t = mesh(new THREE.TorusGeometry(4.2, 0.28, 10, 36), M.dark, 0, 0, z);
+    station.add(t);
+  }
+  const cap = mesh(new THREE.CylinderGeometry(2.3, 2.3, 1.6, 20), M.dark, 0, 0, -32.4);
+  cap.rotation.x = Math.PI / 2;
+  station.add(cap);
+  /* name plaque on +X flank */
+  const plaque = new THREE.Mesh(
+    new THREE.PlaneGeometry(7.2, 1.15),
+    new THREE.MeshBasicMaterial({ map: textTex('VESPER STATION', 1024, 164, 108, '#dfeef8'), transparent: true, depthWrite: false })
+  );
+  plaque.rotation.y = Math.PI / 2;
+  plaque.position.set(4.28, 1.2, -24);
+  plaque.renderOrder = 2;
+  station.add(plaque);
+  addCylCollider(0, 0, -24, 4.35, 8);
+}
+/* --- docking hub, boom, and the active port at (0, 0, 22) --- */
+const latchTips = [];
+{
+  const hub = mesh(new THREE.CylinderGeometry(3.3, 3.3, 5, 24), M.steel, 0, 0, 8.5);
+  hub.rotation.x = Math.PI / 2;
+  station.add(hub);
+  const plate = mesh(new THREE.CylinderGeometry(3.45, 3.45, 0.8, 24), M.dark, 0, 0, 10.7);
+  plate.rotation.x = Math.PI / 2;
+  station.add(plate);
+  /* slender boom carrying the port out to the ring plane */
+  const railGeo = new THREE.BoxGeometry(0.09, 0.09, 8.2);
+  for (const sx of [-1, 1]) for (const sy of [-1, 1])
+    station.add(mesh(railGeo, M.dark, sx * 0.52, sy * 0.52, 15.1));
+  const bxA = new THREE.BoxGeometry(1.15, 0.06, 0.06);
+  const bxB = new THREE.BoxGeometry(0.06, 1.15, 0.06);
+  for (let z = 11.3; z <= 19.01; z += 2.15) {
+    station.add(mesh(bxA, M.darker, 0, 0.52, z)); station.add(mesh(bxA, M.darker, 0, -0.52, z));
+    station.add(mesh(bxB, M.darker, 0.52, 0, z)); station.add(mesh(bxB, M.darker, -0.52, 0, z));
+  }
+  const flange = mesh(new THREE.CylinderGeometry(1.6, 1.6, 0.5, 20), M.steel, 0, 0, 19.2);
+  flange.rotation.x = Math.PI / 2;
+  station.add(flange);
+  const housing = mesh(new THREE.CylinderGeometry(2.0, 1.2, 1.95, 24), M.steel, 0, 0, 20.425);
+  housing.rotation.x = Math.PI / 2;
+  station.add(housing);
+  const mouth = mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.6, 24, 1, true), M.innerTunnel, 0, 0, 21.7);
+  mouth.rotation.x = Math.PI / 2;
+  station.add(mouth);
+  const ring = mesh(new THREE.TorusGeometry(1.5, 0.14, 12, 40), M.ring, 0, 0, 22);
+  station.add(ring);
+  /* lit latch clamps around the rim (six, fixed phase) */
+  for (let k = 0; k < 6; k++) {
+    const a = k / 6 * TAU;
+    const grp = new THREE.Group();
+    grp.position.set(Math.cos(a) * 1.63, Math.sin(a) * 1.63, 22);
+    grp.rotation.z = a;
+    grp.add(mesh(new THREE.BoxGeometry(0.34, 0.22, 0.3), M.dark));
+    const tipMat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xffb545, emissiveIntensity: 2 });
+    const tip = mesh(new THREE.BoxGeometry(0.15, 0.12, 0.16), tipMat, -0.24, 0, 0);
+    grp.add(tip);
+    station.add(grp);
+    latchTips.push({ mesh: tip, mat: tipMat });
+  }
+  addBoxCollider(0, 0, 15.1, 0.68, 0.68, 4.2);
+  addCylCollider(0, 0, 8.5, 3.35, 2.5);      // docking hub — EVA start surface
+  addCylCollider(0, 0, 10.7, 3.5, 0.4);      // dock plate
+  addCylCollider(0, 0, 19.2, 1.65, 0.3);
+  addCylCollider(0, 0, 19.95, 1.45, 0.5);
+  addCylCollider(0, 0, 20.9, 2.0, 0.5);
+  addCylCollider(0, 0, 21.5, 1.52, 0.35);    // port mouth — extended back for seamless walking
+  addTorusCollider(0, 0, 22, 1.5, 0.14);
+}
+/* --- solar arrays --- */
+const arrayQ = [];
+{
+  const panelGeo = new THREE.BoxGeometry(12, 0.12, 4.4);
+  const frameGeo = new THREE.BoxGeometry(12, 0.2, 0.2);
+  const armGeo = new THREE.BoxGeometry(1.2, 0.32, 0.7);
+  for (const s of [-1, 1]) {
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, s * -8 * RAD));
+    const grp = new THREE.Group();
+    grp.quaternion.copy(q);
+    grp.position.set(s * 8.3, 0.4, -2);
+    grp.add(mesh(panelGeo, M.panel));
+    grp.add(mesh(frameGeo, M.dark, 0, 0, 2.2));
+    grp.add(mesh(frameGeo, M.dark, 0, 0, -2.2));
+    grp.add(mesh(armGeo, M.dark, -s * 5.6, 0, 0));
+    station.add(grp);
+    addBoxCollider(s * 8.3, 0.4, -2, 6, 0.14, 2.3, q);
+    arrayQ.push(q);
+  }
+}
+/* --- angled radiator wings --- */
+{
+  const panelGeo = new THREE.BoxGeometry(7.4, 0.08, 2.8);
+  const pipeGeo = new THREE.CylinderGeometry(0.07, 0.07, 7.2, 6);
+  const armGeo = new THREE.BoxGeometry(1.6, 0.22, 0.6);
+  for (const s of [-1, 1]) {
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -s * 14 * RAD, s * 26 * RAD));
+    const grp = new THREE.Group();
+    grp.quaternion.copy(q);
+    grp.position.set(s * 4.8, 0, -13);
+    grp.add(mesh(panelGeo, M.radiator));
+    for (const off of [-0.9, 0, 0.9]) {
+      const p = mesh(pipeGeo, M.darker, 0, 0.09, off);
+      p.rotation.z = Math.PI / 2;
+      grp.add(p);
+    }
+    grp.add(mesh(armGeo, M.dark, -s * 3.4, 0, 0));
+    station.add(grp);
+    addBoxCollider(s * 4.8, 0, -13, 3.75, 0.1, 1.45, q);
+  }
+}
+/* --- comms dish --- */
+{
+  const arm = mesh(new THREE.BoxGeometry(1.9, 0.22, 0.22), M.dark, 1.65, 2.2, -8);
+  arm.rotation.z = 0.35;
+  station.add(arm);
+  const dishGrp = new THREE.Group();
+  dishGrp.position.set(2.55, 2.85, -8);
+  dishGrp.rotation.set(-0.55, 0, 0.35);
+  const bowl = new THREE.Mesh(new THREE.SphereGeometry(1.05, 20, 12, 0, TAU, 0, Math.PI * 0.42),
+    new THREE.MeshStandardMaterial({ color: 0xc2ccd6, roughness: 0.5, metalness: 0.55, side: THREE.DoubleSide }));
+  dishGrp.add(bowl);
+  const feed = mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.15, 6), M.dark, 0, 0.5, 0);
+  dishGrp.add(feed);
+  dishGrp.add(mesh(new THREE.SphereGeometry(0.09, 8, 6), M.dark, 0, 1.05, 0));
+  station.add(dishGrp);
+  addBoxCollider(2.35, 2.65, -8, 1.25, 0.85, 0.95);
+}
+/* --- approach banner: VESPER STATION --- */
+{
+  const plate = mesh(new THREE.BoxGeometry(3.3, 1.0, 0.1), M.darker, 0, 2.42, 5.2);
+  station.add(plate);
+  for (const sx of [-1.25, 1.25]) station.add(mesh(new THREE.BoxGeometry(0.08, 0.72, 0.08), M.dark, sx, 1.98, 5.2));
+  const txt = new THREE.Mesh(
+    new THREE.PlaneGeometry(3.1, 0.72),
+    new THREE.MeshBasicMaterial({ map: textTex('VESPER STATION', 1024, 240, 118, '#eaf6ff'), transparent: true, depthWrite: false })
+  );
+  txt.position.set(0, 2.42, 5.27);
+  txt.renderOrder = 2;
+  station.add(txt);
+  const pid = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.15, 0.5),
+    new THREE.MeshBasicMaterial({ map: textTex('P-1', 256, 112, 72, '#ffcf7a'), transparent: true, depthWrite: false })
+  );
+  pid.position.set(0, -2.45, 11.18);
+  pid.renderOrder = 2;
+  station.add(pid);
+}
+/* --- rear module + antenna --- */
+{
+  const rear = mesh(new THREE.CylinderGeometry(1.2, 1.2, 2.2, 16), M.steel, 0, 0, -41.2);
+  rear.rotation.x = Math.PI / 2;
+  station.add(rear);
+  const ant = mesh(new THREE.CylinderGeometry(0.05, 0.05, 4.5, 6), M.dark, 0, 3.2, -41.2);
+  station.add(ant);
+  station.add(mesh(new THREE.SphereGeometry(0.1, 8, 6), M.dark, 0, 5.5, -41.2));
+  addCylCollider(0, 0, -41.2, 1.25, 1.1);
+}
+/* --- docking ring guide lights (12, fixed chase sequence) --- */
+const guides = [];
+{
+  const gGeo = new THREE.SphereGeometry(0.13, 10, 8);
+  for (let i = 0; i < 12; i++) {
+    const a = i / 12 * TAU + TAU / 24;
+    const mat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xffb545, emissiveIntensity: 0.3 });
+    const m = new THREE.Mesh(gGeo, mat);
+    m.position.set(Math.cos(a) * 1.5, Math.sin(a) * 1.5, 22.16);
+    station.add(m);
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTex, color: 0xffb545, transparent: true, opacity: 0.2, depthWrite: false, blending: THREE.AdditiveBlending
+    }));
+    spr.position.copy(m.position);
+    spr.scale.setScalar(0.7);
+    station.add(spr);
+    guides.push({ mat, spr });
+  }
+}
+/* --- station beacons + port flashers --- */
+const beacons = [];
+function addBeacon(x, y, z, color, pattern) {
+  const mat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: color, emissiveIntensity: 2 });
+  station.add(mesh(new THREE.SphereGeometry(0.11, 8, 6), mat, x, y, z));
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowTex, color, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending
+  }));
+  spr.position.set(x, y, z);
+  spr.scale.setScalar(1.4);
+  station.add(spr);
+  beacons.push({ mat, spr, pattern });
+}
+addBeacon(0, 4.85, -20, 0xff3333, 'red');
+addBeacon(-14.15, 0.55, -2, 0xff3333, 'red');
+addBeacon(14.15, 0.55, -2, 0xff3333, 'red');
+addBeacon(0, 2.3, -40.6, 0xff3333, 'red');
+addBeacon(0, 3.75, 8.5, 0xffffff, 'white');
+const flashers = [];
+{
+  const fGeo = new THREE.SphereGeometry(0.1, 8, 6);
+  for (let i = 0; i < 4; i++) {
+    const a = i / 4 * TAU + Math.PI / 4;
+    const mat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xbfe8ff, emissiveIntensity: 1 });
+    const m = new THREE.Mesh(fGeo, mat);
+    m.position.set(Math.cos(a) * 2.6, Math.sin(a) * 2.6, 11.18);
+    station.add(m);
+    flashers.push(mat);
+  }
+}
+scene.add(station);
+/* warm port light */
+const portLight = new THREE.PointLight(0xffd9a8, 12, 70, 1.2);
+portLight.position.set(0, 0, 23.4);
+scene.add(portLight);
+
+/* --- approach corridor removed in round 11: docking is unassisted --- */
+
+/* --- cargo slot cradle at (14, -6, 18), strutted back to the hub --- */
+const cradleQuat = new THREE.Quaternion();
+const slotLightMat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xff5544, emissiveIntensity: 2 });
+{
+  const anchor = new THREE.Vector3(2.5, -2.2, 10.5);
+  const dir = new THREE.Vector3().subVectors(SLOT_POS, anchor);
+  const strutLen = dir.length();
+  dir.multiplyScalar(1 / strutLen);
+  const inward = dir.clone().negate();
+  cradleQuat.setFromUnitVectors(new THREE.Vector3(0, 0, 1), inward);
+  const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, strutLen, 8), M.dark);
+  strut.position.copy(anchor).addScaledVector(dir, strutLen / 2);
+  strut.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  station.add(strut);
+  const cradle = new THREE.Group();
+  cradle.position.copy(SLOT_POS);
+  cradle.quaternion.copy(cradleQuat);
+  cradle.add(mesh(new THREE.BoxGeometry(2.8, 2.2, 0.2), M.dark, 0, 0, 0.1));
+  const br1 = mesh(new THREE.BoxGeometry(0.16, 1.0, 1.5), M.steel, -1.0, -0.5, -0.55);
+  br1.rotation.z = 0.5;
+  cradle.add(br1);
+  const br2 = mesh(new THREE.BoxGeometry(0.16, 1.0, 1.5), M.steel, 1.0, -0.5, -0.55);
+  br2.rotation.z = -0.5;
+  cradle.add(br2);
+  cradle.add(mesh(new THREE.BoxGeometry(2.4, 0.14, 1.2), M.steel, 0, -1.0, -0.35));
+  const slotLbl = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.55), new THREE.MeshBasicMaterial({
+    map: textTex('CARGO SLOT', 1024, 256, 120, '#ffcf7a'), transparent: true, depthWrite: false
+  }));
+  slotLbl.rotation.y = Math.PI;
+  slotLbl.position.set(0, 0.62, -0.02);
+  slotLbl.renderOrder = 2;
+  cradle.add(slotLbl);
+  for (const sx of [-1, 1]) cradle.add(mesh(new THREE.SphereGeometry(0.09, 8, 6), slotLightMat, sx * 1.32, 0.1, -0.5));
+  station.add(cradle);
+}
+
+/* --- repair dock on the station's far side — lit service cradle for POD 3 --- */
+const dockLightMat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0x7dff9e, emissiveIntensity: 2 });
+{
+  /* boom from the habitat hub out to the dock */
+  const hubAnchor = new THREE.Vector3(0, 0, 8.5);
+  const sdir = new THREE.Vector3().subVectors(REPAIR_DOCK_POS, hubAnchor);
+  const slen = sdir.length();
+  sdir.multiplyScalar(1 / slen);
+  const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, slen, 8), M.dark);
+  strut.position.copy(hubAnchor).addScaledVector(sdir, slen / 2);
+  strut.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), sdir);
+  station.add(strut);
+  const brace = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, slen * 0.62, 6), M.darker);
+  const perp = new THREE.Vector3(-sdir.y, sdir.x, 0).normalize();
+  brace.position.copy(hubAnchor).addScaledVector(sdir, slen * 0.31).addScaledVector(perp, 1.2);
+  brace.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), sdir);
+  station.add(brace);
+  const sq = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), sdir);
+  addBoxCollider(hubAnchor.x + sdir.x * slen / 2, hubAnchor.y + sdir.y * slen / 2, hubAnchor.z + sdir.z * slen / 2,
+    0.32, 0.32, slen / 2, sq);
+  /* the cradle itself, opening along DOCK_DIR (away from the docking port) */
+  const dockG = new THREE.Group();
+  dockG.position.copy(REPAIR_DOCK_POS);
+  dockG.quaternion.copy(DOCK_QUAT);
+  dockG.add(mesh(new THREE.BoxGeometry(4.4, 4.4, 0.35), M.darker, 0, 0, -1.2));
+  dockG.add(mesh(new THREE.BoxGeometry(3.6, 0.22, 2.6), M.dark, 0, -1.5, -0.1));
+  dockG.add(mesh(new THREE.BoxGeometry(3.6, 0.22, 2.6), M.dark, 0, 1.5, -0.1));
+  for (const s of [-1, 1]) {
+    dockG.add(mesh(new THREE.BoxGeometry(0.22, 0.22, 2.8), M.steel, s * 1.7, 0, 0.1));
+    dockG.add(mesh(new THREE.BoxGeometry(0.3, 0.3, 0.2), dockLightMat, s * 1.7, 0, 1.55));
+    const arm = mesh(new THREE.BoxGeometry(0.16, 0.16, 1.7), M.steel, s * 1.05, -0.85, 0.75);
+    arm.rotation.x = 0.55;
+    dockG.add(arm);
+    dockG.add(mesh(new THREE.SphereGeometry(0.09, 8, 6), dockLightMat, s * 1.05, -0.4, 1.55));
+  }
+  const dockLbl = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshBasicMaterial({
+    map: textTex('REPAIR DOCK', 1024, 256, 128, '#9fe8ff'), transparent: true, depthWrite: false
+  }));
+  dockLbl.position.set(0, 1.5, 1.21);
+  dockLbl.renderOrder = 2;
+  dockG.add(dockLbl);
+  dockG.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.5, 6), M.dark, -1.2, 1.95, 0.4));
+  const dockLampMat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xeaf6ff, emissiveIntensity: 2.2 });
+  dockG.add(mesh(new THREE.SphereGeometry(0.11, 10, 8), dockLampMat, -1.2, 2.22, 0.4));
+  const dockLamp = new THREE.PointLight(0xbfe8ff, 10, 45, 1.4);
+  dockLamp.position.set(0, 1.2, 2.2);
+  dockG.add(dockLamp);
+  station.add(dockG);
+  /* solid cradle colliders (world space, oriented by DOCK_QUAT) */
+  const dcol = (lx, ly, lz, hx, hy, hz) => {
+    const c = new THREE.Vector3(lx, ly, lz).applyQuaternion(DOCK_QUAT).add(REPAIR_DOCK_POS);
+    addBoxCollider(c.x, c.y, c.z, hx, hy, hz, DOCK_QUAT);
+  };
+  dcol(0, 0, -1.2, 2.2, 2.2, 0.18);
+  dcol(0, -1.5, -0.1, 1.8, 0.11, 1.3);
+  dcol(0, 1.5, -0.1, 1.8, 0.11, 1.3);
+  dcol(-1.7, 0, 0.1, 0.11, 0.11, 1.4);
+  dcol(1.7, 0, 0.1, 0.11, 0.11, 1.4);
+}
+
+/* ============================================================= *
+ *  Debris field — eight wreck fragments on deterministic orbits  *
+ * ============================================================= */
+const DEBRIS_PLANES = {
+  XY: [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0)],
+  XZ: [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 1)],
+  YZ: [new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)]
+};
+const DEBRIS_DEFS = [
+  { c: [0, 8, 180], r: 14, T: 16, ph: 0, plane: 'XY' },
+  { c: [6, -4, 210], r: 12, T: 12, ph: Math.PI / 2, plane: 'XZ' },
+  { c: [-5, 3, 150], r: 10, T: 10, ph: Math.PI, plane: 'XY' },
+  { c: [0, -6, 120], r: 16, T: 20, ph: 3 * Math.PI / 2, plane: 'XZ' },
+  { c: [4, 5, 240], r: 18, T: 15, ph: 0, plane: 'YZ' },
+  { c: [-8, 0, 90], r: 9, T: 8, ph: Math.PI / 2, plane: 'XY' },
+  { c: [0, 0, 260], r: 20, T: 24, ph: 0, plane: 'XY' },
+  { c: [3, -3, 60], r: 8, T: 6, ph: Math.PI, plane: 'YZ' },
+  { c: [0, 4, 195], r: 11, T: 12, ph: Math.PI / 2, plane: 'XY' },
+  { c: [-3, -2, 168], r: 13, T: 10, ph: 0, plane: 'XZ' },
+  { c: [2, 6, 140], r: 9, T: 8, ph: Math.PI, plane: 'YZ' },
+  { c: [-2, 0, 105], r: 12, T: 12, ph: Math.PI / 2, plane: 'XY' },
+  { c: [0, -5, 75], r: 10, T: 6, ph: 0, plane: 'XZ' },
+  { c: [5, 2, 225], r: 15, T: 15, ph: 3 * Math.PI / 2, plane: 'XY' }
+];
+const DEBRIS_SPIN = [
+  [0.5, 0.9, 0.2], [-0.8, 0.3, 0.7], [0.6, -0.5, 0.9], [-0.4, 0.8, -0.6],
+  [0.9, 0.2, 0.5], [-0.7, -0.9, 0.4], [0.3, 0.6, -0.8], [-0.5, 0.4, 1.0],
+  [0.6, 0.3, -0.7], [-0.4, 0.8, 0.5], [0.8, -0.6, 0.3], [-0.6, -0.4, 0.8],
+  [0.5, 0.7, -0.6], [-0.8, 0.2, 0.6]
+];
+const DEBRIS_SCALE = [1.0, 1.1, 1.0, 1.25, 1.15, 0.95, 1.35, 0.9, 1.0, 0.9, 1.1, 0.95, 1.05, 0.9];
+const SHARD_DIRS = [
+  [0.8, 0.5, 0.3], [-0.6, 0.7, -0.2], [0.2, -0.8, 0.5], [-0.4, -0.5, -0.7],
+  [0.9, -0.2, -0.4], [-0.3, 0.4, 0.85], [0.5, 0.9, -0.3], [-0.85, -0.3, 0.4]
+];
+const SHARD_SPEEDS = [4.5, 3.2, 5.5, 3.8, 6.0, 3.5, 5.0, 4.2];
+const wreckHull = new THREE.MeshStandardMaterial({ color: 0x76828e, roughness: 0.55, metalness: 0.6 });
+const wreckDark = new THREE.MeshStandardMaterial({ color: 0x3c434b, roughness: 0.6, metalness: 0.5 });
+const wreckHazard = new THREE.MeshStandardMaterial({ color: 0x8a5a28, roughness: 0.7, metalness: 0.3 });
+const wreckScorch = new THREE.MeshStandardMaterial({ color: 0x24262a, roughness: 0.8, metalness: 0.35 });
+const shardGeo = new THREE.TetrahedronGeometry(0.17);
+function wreckPlate(s) {
+  const g = new THREE.Group();
+  g.add(mesh(new THREE.BoxGeometry(2.3, 0.1, 1.6), wreckHull));
+  const flap1 = mesh(new THREE.BoxGeometry(0.8, 0.08, 1.2), wreckHull, 1.35, 0.12, -0.2);
+  flap1.rotation.z = -0.55;
+  g.add(flap1);
+  const flap2 = mesh(new THREE.BoxGeometry(0.7, 0.08, 1.0), wreckHull, -1.25, 0.05, 0.3);
+  flap2.rotation.x = 0.7;
+  g.add(flap2);
+  g.add(mesh(new THREE.BoxGeometry(0.5, 0.12, 1.62), wreckHazard, 0.4, 0.02, 0));
+  g.add(mesh(new THREE.BoxGeometry(2.3, 0.16, 0.18), wreckDark, 0, 0.08, -0.6));
+  g.add(mesh(new THREE.BoxGeometry(0.9, 0.12, 0.7), wreckScorch, -0.5, 0.09, 0.4));
+  g.scale.setScalar(s);
+  return g;
+}
+function wreckTruss(s) {
+  const g = new THREE.Group();
+  g.add(mesh(new THREE.BoxGeometry(0.14, 0.14, 2.4), wreckDark));
+  const b2 = mesh(new THREE.BoxGeometry(0.14, 0.14, 1.6), wreckDark, 0.45, 0.15, 0.9);
+  b2.rotation.x = 0.85; b2.rotation.z = 0.3;
+  g.add(b2);
+  const b3 = mesh(new THREE.BoxGeometry(0.12, 0.12, 1.2), wreckDark, -0.35, -0.2, -0.7);
+  b3.rotation.x = -0.6; b3.rotation.z = -0.4;
+  g.add(b3);
+  const br1 = mesh(new THREE.BoxGeometry(0.9, 0.07, 0.07), wreckDark, 0, 0.1, 0.5);
+  br1.rotation.z = 0.6;
+  g.add(br1);
+  const br2 = mesh(new THREE.BoxGeometry(0.8, 0.07, 0.07), wreckDark, 0.1, -0.12, -0.4);
+  br2.rotation.z = -0.5;
+  g.add(br2);
+  g.add(mesh(new THREE.BoxGeometry(0.3, 0.3, 0.12), wreckHull, 0, 0, 1.2));
+  g.scale.setScalar(s);
+  return g;
+}
+function wreckTank(s) {
+  const g = new THREE.Group();
+  const tank = mesh(new THREE.CylinderGeometry(0.55, 0.55, 1.9, 14), wreckHull);
+  tank.scale.set(1.2, 1, 0.62);
+  g.add(tank);
+  const dent = mesh(new THREE.SphereGeometry(0.5, 10, 8), wreckDark, 0.3, 0.25, 0);
+  dent.scale.set(1, 0.55, 0.5);
+  g.add(dent);
+  const cap1 = mesh(new THREE.SphereGeometry(0.55, 10, 8), wreckHull, 0, 0.95, 0);
+  cap1.scale.set(1.2, 0.5, 0.62);
+  g.add(cap1);
+  const cap2 = mesh(new THREE.SphereGeometry(0.55, 10, 8), wreckDark, 0, -0.95, 0);
+  cap2.scale.set(1.2, 0.5, 0.62);
+  g.add(cap2);
+  g.add(mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.5, 8), wreckDark, 0.35, 1.15, 0));
+  const band = mesh(new THREE.TorusGeometry(0.58, 0.05, 8, 18), wreckHazard, 0, 0.2, 0);
+  band.rotation.x = Math.PI / 2;
+  band.scale.set(1.2, 0.62, 1);
+  g.add(band);
+  g.scale.setScalar(s);
+  return g;
+}
+const DEBRIS = [];
+{
+  const builders = [wreckPlate, wreckTruss, wreckTank, wreckPlate, wreckTruss, wreckTank, wreckPlate, wreckTruss,
+    wreckPlate, wreckTruss, wreckTank, wreckPlate, wreckTruss, wreckTank];
+  for (let i = 0; i < DEBRIS_DEFS.length; i++) {
+    const d = DEBRIS_DEFS[i];
+    const uv = DEBRIS_PLANES[d.plane];
+    const group = builders[i](DEBRIS_SCALE[i]);
+    scene.add(group);
+    const beacon = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTex, color: 0xff5544, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending
+    }));
+    beacon.scale.setScalar(0.6);
+    beacon.position.set(0.8, 0.5, 0);
+    group.add(beacon);
+    const shatterMat = new THREE.MeshBasicMaterial({
+      color: 0xbfd6e4, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending
+    });
+    const shatterGroup = new THREE.Group();
+    shatterGroup.visible = false;
+    const shards = [];
+    for (let k = 0; k < 8; k++) {
+      const sh = new THREE.Mesh(shardGeo, shatterMat);
+      shatterGroup.add(sh);
+      shards.push(sh);
+    }
+    scene.add(shatterGroup);
+    DEBRIS.push({
+      i: i + 1, cx: d.c[0], cy: d.c[1], cz: d.c[2], r: d.r, T: d.T, ph: d.ph,
+      u: uv[0], v: uv[1],
+      wx: DEBRIS_SPIN[i][0], wy: DEBRIS_SPIN[i][1], wz: DEBRIS_SPIN[i][2],
+      group, beacon, shatterGroup, shards, shatterMat, shatterT0: -10, alive: true
+    });
+  }
+}
+function debrisPos(f, t, out) {
+  const ang = TAU * t / f.T + f.ph;
+  return out.set(f.cx, f.cy, f.cz)
+    .addScaledVector(f.u, f.r * Math.cos(ang))
+    .addScaledVector(f.v, f.r * Math.sin(ang));
+}
+
+/* ============================================================= *
+ *  Umbra rescue shuttle                                         *
+ * ============================================================= */
+const shipG = new THREE.Group();
+const plumeTail = [], plumeRetro = [], PUFFS = [];
+const floodCones = [], floodSpots = [], ventPlumes = [];
+const fingers = [], fingerAxes = [];
+let floodLensMat = null;
+let shoulderG = null, elbowG = null;
+let engineLight, navRed, navGreen, navStrobe, glintSpr;
+{
+  /* hull */
+  const hull = mesh(new THREE.CylinderGeometry(0.85, 0.85, 3.6, 20), M.hullShip, 0, 0, 0.1);
+  hull.rotation.x = Math.PI / 2;
+  shipG.add(hull);
+  const nose = mesh(new THREE.ConeGeometry(0.85, 1.5, 20), M.hullShip, 0, 0, -2.45);
+  nose.rotation.x = -Math.PI / 2;
+  shipG.add(nose);
+  const tail = mesh(new THREE.CylinderGeometry(0.7, 0.85, 0.5, 20), M.shipDark, 0, 0, 2.15);
+  tail.rotation.x = Math.PI / 2;
+  shipG.add(tail);
+  /* accent bands */
+  for (const z of [-1.35, 0.75]) {
+    const band = mesh(new THREE.CylinderGeometry(0.87, 0.87, 0.16, 20), M.shipAcc, 0, 0, z);
+    band.rotation.x = Math.PI / 2;
+    shipG.add(band);
+  }
+  /* cockpit canopy */
+  const canopy = mesh(new THREE.SphereGeometry(0.55, 20, 14), M.glass, 0, 0.72, -0.95);
+  canopy.scale.set(1, 0.62, 1.55);
+  shipG.add(canopy);
+  const canopyRing = mesh(new THREE.TorusGeometry(0.5, 0.06, 8, 22), M.shipDark, 0, 0.7, -0.75);
+  canopyRing.rotation.x = Math.PI / 2 - 0.25;
+  shipG.add(canopyRing);
+  /* dorsal solar panel */
+  shipG.add(mesh(new THREE.BoxGeometry(0.3, 0.35, 1.25), M.shipDark, 0, 0.98, 0.5));
+  const panel = mesh(new THREE.BoxGeometry(2.7, 0.06, 1.7), M.panel, 0, 1.18, 0.5);
+  shipG.add(panel);
+  /* belly greeble */
+  shipG.add(mesh(new THREE.BoxGeometry(1.15, 0.28, 1.9), M.shipDark, 0, -0.82, 0.35));
+  shipG.add(mesh(new THREE.BoxGeometry(0.5, 0.2, 0.7), M.darker, 0, -0.98, -0.9));
+  /* twin engine pods */
+  for (const s of [-1, 1]) {
+    const pod = mesh(new THREE.CylinderGeometry(0.5, 0.5, 2.4, 16), M.hullShip, s * 1.45, -0.12, 0.9);
+    pod.rotation.x = Math.PI / 2;
+    shipG.add(pod);
+    const cap = mesh(new THREE.ConeGeometry(0.5, 0.7, 16), M.hullShip, s * 1.45, -0.12, -0.65);
+    cap.rotation.x = -Math.PI / 2;
+    shipG.add(cap);
+    const noz = mesh(new THREE.CylinderGeometry(0.46, 0.34, 0.55, 16, 1, true), M.nozzle, s * 1.45, -0.12, 2.35);
+    noz.rotation.x = Math.PI / 2;
+    shipG.add(noz);
+    /* pylon */
+    shipG.add(mesh(new THREE.BoxGeometry(0.55, 0.18, 1.1), M.shipDark, s * 1.0, -0.1, 0.9));
+    /* nav light housing */
+    shipG.add(mesh(new THREE.BoxGeometry(0.14, 0.14, 0.14), M.shipDark, s * 1.45, -0.12, 2.68));
+  }
+  /* engine plumes (main forward burn) */
+  for (const s of [-1, 1]) {
+    const outer = new THREE.Mesh(new THREE.ConeGeometry(0.34, 2.2, 14, 1, true), new THREE.MeshBasicMaterial({
+      color: 0x6fc4ff, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+    }));
+    outer.rotation.x = Math.PI / 2;
+    outer.position.set(s * 1.45, -0.12, 3.55);
+    outer.visible = false;
+    shipG.add(outer);
+    plumeTail.push(outer);
+    const core = new THREE.Mesh(new THREE.ConeGeometry(0.16, 1.3, 10, 1, true), new THREE.MeshBasicMaterial({
+      color: 0xeaf6ff, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+    }));
+    core.rotation.x = Math.PI / 2;
+    core.position.set(s * 1.45, -0.12, 3.1);
+    core.visible = false;
+    shipG.add(core);
+    plumeTail.push(core);
+  }
+  /* retro plumes at nose (backward burn) */
+  for (const s of [-1, 1]) {
+    const r = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.8, 10, 1, true), new THREE.MeshBasicMaterial({
+      color: 0x9fd8ff, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+    }));
+    r.rotation.x = -Math.PI / 2;
+    r.position.set(s * 0.38, -0.05, -3.6);
+    r.visible = false;
+    shipG.add(r);
+    plumeRetro.push(r);
+  }
+  engineLight = new THREE.PointLight(0x7fc4ff, 0, 22, 1.4);
+  engineLight.position.set(0, 0, 3.4);
+  shipG.add(engineLight);
+  /* RCS nozzle clusters */
+  for (const p of [[0.8, 0, -1.5], [-0.8, 0, -1.5], [0.8, 0, 1.9], [-0.8, 0, 1.9],
+                   [0, 0.6, -1.4], [0, -0.6, -1.4], [0, 0.6, 1.85], [0, -0.6, 1.85]]) {
+    shipG.add(mesh(new THREE.BoxGeometry(0.2, 0.2, 0.24), M.shipDark, p[0], p[1], p[2]));
+  }
+  /* puff emitters: input key -> meshes with exhaust direction */
+  function puff(x, y, z, dx, dy, dz, key, ph) {
+    const m = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.55, 8, 1, true), new THREE.MeshBasicMaterial({
+      color: 0xbfe6ff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false
+    }));
+    m.position.set(x, y, z);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx, dy, dz).normalize());
+    m.visible = false;
+    shipG.add(m);
+    PUFFS.push({ mesh: m, key, ph });
+  }
+  puff(0.85, 0, -1.5, 1, 0, 0, 'left', 0);    puff(0.85, 0, 1.9, 1, 0, 0, 'left', 1);
+  puff(-0.85, 0, -1.5, -1, 0, 0, 'right', 2); puff(-0.85, 0, 1.9, -1, 0, 0, 'right', 3);
+  puff(0, -0.65, -1.4, 0, -1, 0, 'up', 4);    puff(0, -0.65, 1.85, 0, -1, 0, 'up', 5);
+  puff(0, 0.65, -1.4, 0, 1, 0, 'down', 6);    puff(0, 0.65, 1.85, 0, 1, 0, 'down', 7);
+  puff(0, 0.68, -1.4, 0, -1, 0, 'pitchUp', 8);  puff(0, -0.68, 1.85, 0, 1, 0, 'pitchUp', 9);
+  puff(0, -0.68, -1.4, 0, 1, 0, 'pitchDown', 10); puff(0, 0.68, 1.85, 0, -1, 0, 'pitchDown', 11);
+  puff(0.85, 0, -1.5, 1, 0, 0, 'yawLeft', 12);  puff(-0.85, 0, 1.9, -1, 0, 0, 'yawLeft', 13);
+  puff(-0.85, 0, -1.5, -1, 0, 0, 'yawRight', 14); puff(0.85, 0, 1.9, 1, 0, 0, 'yawRight', 15);
+  puff(1.45, -0.62, 1.0, 0, -1, 0, 'rollLeft', 16); puff(-1.45, 0.4, 1.0, 0, 1, 0, 'rollLeft', 17);
+  puff(1.45, 0.4, 1.0, 0, 1, 0, 'rollRight', 18);  puff(-1.45, -0.62, 1.0, 0, -1, 0, 'rollRight', 19);
+  /* nav lights */
+  function nav(x, y, z, color) {
+    const grp = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color });
+    grp.add(mesh(new THREE.SphereGeometry(0.07, 8, 6), mat));
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTex, color, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending
+    }));
+    spr.scale.setScalar(0.85);
+    grp.add(spr);
+    grp.position.set(x, y, z);
+    shipG.add(grp);
+    return grp;
+  }
+  navRed = nav(-1.45, -0.12, 2.72, 0xff4444);
+  navGreen = nav(1.45, -0.12, 2.72, 0x44ff66);
+  navStrobe = nav(0, 1.28, 0.5, 0xffffff);
+  /* forward floodlights — visible cones + real spotlights (X toggle) */
+  floodLensMat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xfff2d0, emissiveIntensity: 0.1 });
+  for (const s of [-1, 1]) {
+    const lampX = s * 0.62, lampY = 0.32, lampZ = -1.35;
+    shipG.add(mesh(new THREE.BoxGeometry(0.16, 0.16, 0.22), M.shipDark, lampX, lampY, lampZ));
+    shipG.add(mesh(new THREE.SphereGeometry(0.07, 8, 6), floodLensMat, lampX, lampY, lampZ - 0.13));
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(3.0, 12, 20, 1, true), new THREE.MeshBasicMaterial({
+      color: 0xfff2d0, transparent: true, opacity: 0.09, blending: THREE.AdditiveBlending,
+      depthWrite: false, side: THREE.DoubleSide
+    }));
+    cone.rotation.x = Math.PI / 2;
+    cone.position.set(lampX, lampY, lampZ - 6);
+    cone.visible = false;
+    shipG.add(cone);
+    floodCones.push(cone);
+    const spot = new THREE.SpotLight(0xfff2d8, 0, 110, 0.25, 0.45, 1.3);
+    spot.position.set(lampX, lampY, lampZ);
+    const tgt = new THREE.Object3D();
+    tgt.position.set(lampX, lampY, lampZ - 30);
+    shipG.add(tgt);
+    spot.target = tgt;
+    shipG.add(spot);
+    floodSpots.push(spot);
+  }
+  /* fuel-leak vent points — fixed hull locations, plume while a leak is open */
+  {
+    const ventDefs = [
+      { p: [-0.92, 0.25, 0.6], d: [-1, 0.15, 0] },
+      { p: [0.9, -0.35, 1.45], d: [1, -0.1, 0.12] }
+    ];
+    for (const vd of ventDefs) {
+      shipG.add(mesh(new THREE.BoxGeometry(0.14, 0.14, 0.14), M.shipDark, vd.p[0], vd.p[1], vd.p[2]));
+      const dir = new THREE.Vector3(vd.d[0], vd.d[1], vd.d[2]).normalize();
+      const pl = new THREE.Mesh(new THREE.ConeGeometry(0.13, 1.5, 8, 1, true), new THREE.MeshBasicMaterial({
+        color: 0xcfe8ff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending,
+        depthWrite: false, side: THREE.DoubleSide
+      }));
+      pl.position.set(vd.p[0] + dir.x * 0.75, vd.p[1] + dir.y * 0.75, vd.p[2] + dir.z * 0.75);
+      pl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      pl.visible = false;
+      shipG.add(pl);
+      ventPlumes.push(pl);
+    }
+  }
+  /* two-segment manipulator arm on the nose top */
+  shoulderG = new THREE.Group();
+  shoulderG.position.copy(ARM_MOUNT);
+  shipG.add(shoulderG);
+  shipG.add(mesh(new THREE.BoxGeometry(0.34, 0.18, 0.44), M.shipDark, ARM_MOUNT.x, ARM_MOUNT.y - 0.14, ARM_MOUNT.z));
+  const axle1 = mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.6, 12), M.nozzle);
+  axle1.rotation.z = Math.PI / 2;
+  shoulderG.add(axle1);
+  shoulderG.add(mesh(new THREE.BoxGeometry(0.5, 0.34, 0.3), M.shipDark, 0, 0, 0.18));
+  shoulderG.add(mesh(new THREE.BoxGeometry(0.24, 0.34, ARM_UPPER), M.hullShip, 0, 0, -ARM_UPPER / 2));
+  const act1 = mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.5, 8), M.nozzle, 0.17, 0.23, -1.9);
+  act1.rotation.x = Math.PI / 2;
+  shoulderG.add(act1);
+  const cab1 = mesh(new THREE.CylinderGeometry(0.032, 0.032, 3.7, 6), M.shipDark, -0.16, -0.21, -1.85);
+  cab1.rotation.x = Math.PI / 2;
+  shoulderG.add(cab1);
+  for (const zc of [-0.9, -2.4, -3.6]) shoulderG.add(mesh(new THREE.TorusGeometry(0.21, 0.028, 6, 12), M.shipDark, 0, 0, zc));
+  elbowG = new THREE.Group();
+  elbowG.position.set(0, 0, -ARM_UPPER);
+  shoulderG.add(elbowG);
+  const axle2 = mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.48, 12), M.nozzle);
+  axle2.rotation.z = Math.PI / 2;
+  elbowG.add(axle2);
+  elbowG.add(mesh(new THREE.BoxGeometry(0.4, 0.4, 0.16), M.shipDark, 0, 0, 0.06));
+  elbowG.add(mesh(new THREE.BoxGeometry(0.18, 0.26, ARM_FORE), M.hullShip, 0, 0, -ARM_FORE / 2));
+  const act2 = mesh(new THREE.CylinderGeometry(0.045, 0.045, 2.1, 8), M.nozzle, 0.13, 0.18, -1.7);
+  act2.rotation.x = Math.PI / 2;
+  elbowG.add(act2);
+  const cab2 = mesh(new THREE.CylinderGeometry(0.026, 0.026, 3.2, 6), M.shipDark, -0.12, -0.16, -1.75);
+  cab2.rotation.x = Math.PI / 2;
+  elbowG.add(cab2);
+  elbowG.add(mesh(new THREE.BoxGeometry(0.34, 0.2, 0.3), M.shipDark, 0, 0, -3.62));
+  for (let k = 0; k < 3; k++) {
+    const phi = k * TAU / 3;
+    const fg = new THREE.Group();
+    fg.position.set(Math.cos(phi) * 0.2, Math.sin(phi) * 0.2, -3.7);
+    fg.add(mesh(new THREE.SphereGeometry(0.055, 8, 6), M.nozzle));
+    fg.add(mesh(new THREE.BoxGeometry(0.055, 0.055, 0.55), M.hullShip, 0, 0, -0.3));
+    fg.add(mesh(new THREE.BoxGeometry(0.09, 0.09, 0.08), M.nozzle, 0, 0, -0.56));
+    elbowG.add(fg);
+    fingers.push(fg);
+    fingerAxes.push(new THREE.Vector3(-Math.sin(phi), Math.cos(phi), 0));
+  }
+  /* hull markings */
+  for (const s of [-1, 1]) {
+    const t = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.55, 0.42),
+      new THREE.MeshBasicMaterial({ map: textTex('UMBRA R-7', 512, 140, 74, '#dfeef8'), transparent: true, depthWrite: false })
+    );
+    t.position.set(s * 0.87, 0.1, 0.35);
+    t.rotation.y = s * Math.PI / 2;
+    t.renderOrder = 2;
+    shipG.add(t);
+  }
+  /* sun-glint sprite on the dorsal panel */
+  glintSpr = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowTex, color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending
+  }));
+  glintSpr.scale.setScalar(1.5);
+  shipG.add(glintSpr);
+}
+scene.add(shipG);
+
+/* --- cargo pod K-77 — ribbed container with fittings, stripes, stencils --- */
+const podG = new THREE.Group();
+const podMat = new THREE.MeshStandardMaterial({ color: 0x9aa4ae, roughness: 0.5, metalness: 0.55 });
+{
+  podG.add(mesh(new THREE.BoxGeometry(2.2, 1.4, 1.2), podMat));
+  for (const x of [-0.75, -0.25, 0.25, 0.75]) podG.add(mesh(new THREE.BoxGeometry(0.1, 1.52, 1.32), wreckDark, x, 0, 0));
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1])
+    podG.add(mesh(new THREE.BoxGeometry(0.24, 0.24, 0.24), wreckDark, sx * 1.16, sy * 0.78, sz * 0.68));
+  for (const x of [-0.55, 0.05, 0.65]) {
+    podG.add(mesh(new THREE.BoxGeometry(0.24, 0.06, 1.3), wreckHazard, x, 0.73, 0));
+    podG.add(mesh(new THREE.BoxGeometry(0.24, 0.06, 1.3), wreckHazard, x, -0.73, 0));
+  }
+  const podLblMat = new THREE.MeshBasicMaterial({ map: textTex('K-77', 512, 256, 150, '#2a3038'), transparent: true, depthWrite: false });
+  for (const s of [-1, 1]) {
+    const lbl = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.55), podLblMat);
+    lbl.position.set(s * 1.13, 0.1, 0);
+    lbl.rotation.y = s * Math.PI / 2;
+    lbl.renderOrder = 2;
+    podG.add(lbl);
+  }
+  const topLbl = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.6), podLblMat);
+  topLbl.rotation.x = -Math.PI / 2;
+  topLbl.position.set(-0.5, 0.735, 0);
+  topLbl.renderOrder = 2;
+  podG.add(topLbl);
+}
+scene.add(podG);
+
+/* --- tow cable — taut line rendered from the shuttle nose to the snagged pod --- */
+const cableMesh = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.04, 0.04, 1, 6, 1, true),
+  new THREE.MeshBasicMaterial({ color: 0xf0dfae, transparent: true, opacity: 0.92 })
+);
+cableMesh.visible = false;
+scene.add(cableMesh);
+
+/* --- stranded escape pod POD 3 — scarred lifeboat with a dead engine --- */
+const pod3G = new THREE.Group();
+const pod3HullMat = new THREE.MeshStandardMaterial({ color: 0xb4bfc9, roughness: 0.45, metalness: 0.6 });
+const pod3DeadMat = new THREE.MeshStandardMaterial({ color: 0x15181c, roughness: 0.5, metalness: 0.7 });
+let pod3BeaconMat = null, pod3BeaconSpr = null;
+{
+  /* rounded pressure hull — a sphere scaled into a lifeboat ellipsoid */
+  const hull = mesh(new THREE.SphereGeometry(1.05, 24, 18), pod3HullMat);
+  hull.scale.set(1.0, 0.92, 1.5);
+  pod3G.add(hull);
+  /* heat-shield band around the forward end */
+  pod3G.add(mesh(new THREE.TorusGeometry(0.86, 0.09, 10, 26), wreckHazard, 0, 0, -0.98));
+  /* small window ring on the forward hull — warm portholes behind a steel rim */
+  pod3G.add(mesh(new THREE.TorusGeometry(0.56, 0.05, 8, 22), M.steel, 0, 0, -1.02));
+  const portMat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xffd9a0, emissiveIntensity: 1.4 });
+  for (let k = 0; k < 5; k++) {
+    const a = k / 5 * TAU;
+    pod3G.add(mesh(new THREE.SphereGeometry(0.085, 8, 6), portMat, Math.cos(a) * 0.58, Math.sin(a) * 0.53, -1.0));
+  }
+  /* thruster scars — scorched patches and dead RCS quads */
+  const scar1 = mesh(new THREE.BoxGeometry(0.55, 0.1, 1.1), wreckScorch, 0.92, 0.25, 0.35);
+  scar1.rotation.z = -0.2;
+  pod3G.add(scar1);
+  const scar2 = mesh(new THREE.BoxGeometry(0.5, 0.1, 0.8), wreckScorch, -0.9, -0.2, 0.1);
+  scar2.rotation.z = 0.25;
+  pod3G.add(scar2);
+  pod3G.add(mesh(new THREE.BoxGeometry(0.7, 0.12, 0.5), wreckScorch, 0.3, -0.85, 0.6));
+  for (const p of [[0.95, 0.3, -0.6], [-0.95, 0.3, -0.6], [0.95, -0.3, -0.6], [-0.95, -0.3, -0.6]]) {
+    pod3G.add(mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.22, 8), pod3DeadMat, p[0], p[1], p[2]));
+  }
+  /* dark dead engine bell at the stern */
+  const bell = mesh(new THREE.CylinderGeometry(0.62, 0.44, 0.55, 16, 1, true), pod3DeadMat, 0, 0, 1.6);
+  bell.rotation.x = Math.PI / 2;
+  pod3G.add(bell);
+  pod3G.add(mesh(new THREE.CircleGeometry(0.46, 16), pod3DeadMat, 0, 0, 1.88));
+  /* antenna + handrail */
+  pod3G.add(mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.9, 6), M.dark, 0.4, 1.0, 0.5));
+  pod3G.add(mesh(new THREE.SphereGeometry(0.05, 8, 6), M.dark, 0.4, 1.45, 0.5));
+  const rail = mesh(new THREE.BoxGeometry(0.05, 0.05, 1.7), M.dark, -1.0, 0.45, 0.3);
+  rail.rotation.z = 0.12;
+  pod3G.add(rail);
+  /* POD 3 stencils */
+  const lbl7 = new THREE.MeshBasicMaterial({ map: textTex('POD 3', 512, 256, 150, '#dfeef8'), transparent: true, depthWrite: false });
+  for (const s of [-1, 1]) {
+    const l = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.5), lbl7);
+    l.position.set(s * 1.03, 0.18, 0.15);
+    l.rotation.y = s * Math.PI / 2;
+    l.renderOrder = 2;
+    pod3G.add(l);
+  }
+  /* distress beacon mast + strobe */
+  pod3G.add(mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.3, 6), M.dark, -0.4, 1.0, 0.55));
+  pod3BeaconMat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xff4433, emissiveIntensity: 0.15 });
+  pod3G.add(mesh(new THREE.SphereGeometry(0.1, 10, 8), pod3BeaconMat, -0.4, 1.18, 0.55));
+  pod3BeaconSpr = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowTex, color: 0xff5544, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending
+  }));
+  pod3BeaconSpr.position.set(-0.4, 1.18, 0.55);
+  pod3G.add(pod3BeaconSpr);
+}
+scene.add(pod3G);
+const POD3_SPHERES = [
+  { o: new THREE.Vector3(0, 0, -0.7), r: 1.15 },
+  { o: new THREE.Vector3(0, 0, 0.7), r: 1.15 }
+];
+/* beacon pattern — a single 0.12 s flash, dark to the end of the 2.0 s cycle */
+function beacon3Lit(t) {
+  return (t % BEACON_PERIOD) < 0.12;
+}
+
+/* --- damaged conduits on the hull — truss spine, habitat module, radiator wing root --- */
+const CONDUIT_DEFS = [
+  { pos: new THREE.Vector3(0.5, 1.69, -4.0), n: new THREE.Vector3(0, 1, 0) },
+  { pos: new THREE.Vector3(0.5, 3.0, -16.0), n: new THREE.Vector3(0, 0, 1) },
+  { pos: new THREE.Vector3(-2.5, 0.14, 0.4).applyQuaternion(WING_Q).add(new THREE.Vector3(4.8, 0, -13)),
+    n: new THREE.Vector3(0, 1, 0).applyQuaternion(WING_Q) }
+];
+const CONDUITS = [];
+{
+  const repairLbl = new THREE.MeshBasicMaterial({
+    map: textTex('REPAIR', 512, 160, 96, '#ffcf7a'), transparent: true, depthWrite: false
+  });
+  for (let i = 0; i < CONDUIT_DEFS.length; i++) {
+    const def = CONDUIT_DEFS[i];
+    const grp = new THREE.Group();
+    grp.position.copy(def.pos);
+    grp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), def.n);
+    const plateMat = new THREE.MeshStandardMaterial({ color: 0x2b323b, roughness: 0.6, metalness: 0.45, emissive: 0x000000, emissiveIntensity: 1 });
+    grp.add(mesh(new THREE.BoxGeometry(0.8, 0.55, 0.08), plateMat, 0, 0, 0.04));
+    const pipeA = mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.34, 8), M.steel, -0.2, 0.08, 0.12);
+    pipeA.rotation.z = Math.PI / 2;
+    grp.add(pipeA);
+    const pipeB = mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.34, 8), M.steel, 0.21, -0.02, 0.12);
+    pipeB.rotation.z = Math.PI / 2 - 0.3;
+    grp.add(pipeB);
+    grp.add(mesh(new THREE.BoxGeometry(0.34, 0.18, 0.05), wreckScorch, 0, 0.03, 0.1));
+    const label = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.28), repairLbl);
+    label.position.set(0, 0.46, 0.06);
+    label.renderOrder = 2;
+    grp.add(label);
+    const sparkMat = new THREE.MeshBasicMaterial({
+      color: 0xbfe0ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false
+    });
+    const sparks = [];
+    for (let k = 0; k < 3; k++) {
+      const sp = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 0.3), sparkMat);
+      sp.position.set(-0.05 + k * 0.05, 0.05, 0.14);
+      sp.rotation.set(k * 0.9, 0.4 + k * 0.7, 0.5 + k * 0.5);
+      grp.add(sp);
+      sparks.push(sp);
+    }
+    const light = new THREE.PointLight(0xbfdfff, 0, 7, 1.6);
+    light.position.set(0, 0.3, 0.5);
+    grp.add(light);
+    scene.add(grp);
+    CONDUITS.push({ pos: def.pos.clone(), n: def.n.clone(), repaired: false, progress: 0, plateMat, sparks, sparkMat, light, grp, label });
+  }
+}
+
+/* --- EVA astronaut — helmet, visor, backpack, torso, articulated limbs --- */
+const evaG = new THREE.Group();
+const suitMat = new THREE.MeshStandardMaterial({ color: 0xdde4ea, roughness: 0.5, metalness: 0.25 });
+const suitDark = new THREE.MeshStandardMaterial({ color: 0x39424d, roughness: 0.55, metalness: 0.45 });
+let legL = null, legR = null, armL = null, armR = null;
+{
+  evaG.add(mesh(new THREE.BoxGeometry(0.42, 0.55, 0.26), suitMat, 0, 1.08, 0));
+  evaG.add(mesh(new THREE.BoxGeometry(0.46, 0.1, 0.3), suitDark, 0, 0.84, 0));
+  evaG.add(mesh(new THREE.BoxGeometry(0.34, 0.44, 0.18), suitDark, 0, 1.14, -0.22));
+  evaG.add(mesh(new THREE.SphereGeometry(0.17, 16, 12), suitMat, 0, 1.5, 0));
+  const visor = mesh(new THREE.SphereGeometry(0.145, 16, 12), M.glass, 0, 1.5, 0.055);
+  visor.scale.set(1, 0.82, 0.72);
+  evaG.add(visor);
+  evaG.add(mesh(new THREE.BoxGeometry(0.5, 0.06, 0.3), suitDark, 0, 1.34, 0));
+  const makeLeg = (sx) => {
+    const g = new THREE.Group();
+    g.position.set(sx * 0.11, 0.78, 0);
+    g.add(mesh(new THREE.BoxGeometry(0.15, 0.56, 0.17), suitDark, 0, -0.28, 0));
+    g.add(mesh(new THREE.BoxGeometry(0.17, 0.12, 0.26), suitMat, 0, -0.6, 0.04));
+    evaG.add(g);
+    return g;
+  };
+  const makeArm = (sx) => {
+    const g = new THREE.Group();
+    g.position.set(sx * 0.27, 1.3, 0);
+    g.add(mesh(new THREE.BoxGeometry(0.12, 0.48, 0.14), suitMat, 0, -0.24, 0));
+    g.add(mesh(new THREE.BoxGeometry(0.11, 0.1, 0.13), suitDark, 0, -0.52, 0));
+    evaG.add(g);
+    return g;
+  };
+  legL = makeLeg(-1); legR = makeLeg(1);
+  armL = makeArm(-1); armR = makeArm(1);
+}
+evaG.visible = false;
+scene.add(evaG);
+
+/* ship collision spheres (ship-local) */
+const SHIP_SPHERES = [
+  { o: new THREE.Vector3(0, 0, -2.1), r: 1.2 },
+  { o: new THREE.Vector3(0, 0, -0.6), r: 1.6 },
+  { o: new THREE.Vector3(0, 0, 0.9), r: 2.15 }
+];
+
+/* ============================================================= *
+ *  Collision helpers                                            *
+ * ============================================================= */
+const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(),
+      _v4 = new THREE.Vector3(), _v5 = new THREE.Vector3(), _v6 = new THREE.Vector3(),
+      _p = new THREE.Vector3(), _d = new THREE.Vector3(), _sc = new THREE.Vector3(),
+      _up = new THREE.Vector3(), _acc = new THREE.Vector3(), _nt = new THREE.Vector3(),
+      _pn = new THREE.Vector3(), _dp = new THREE.Vector3(),
+      _g1 = new THREE.Vector3(), _g2 = new THREE.Vector3(), _gm = new THREE.Vector3(),
+      _gt = new THREE.Vector3(), _pd = new THREE.Vector3();
+const _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _dq = new THREE.Quaternion();
+const _qg = new THREE.Quaternion(), _dq2 = new THREE.Quaternion();
+const _eu = new THREE.Euler();
+const _eu2 = new THREE.Euler();
+const _m = new THREE.Matrix4();
+const _hit = { n: new THREE.Vector3(), p: new THREE.Vector3(), depth: 0 };
+function qInv(q, out) {
+  out.copy(q);
+  if (out.invert) out.invert(); else out.conjugate();
+  return out;
+}
+function collide(col, sc, r) {
+  if (col.type === 'cyl') {
+    _p.copy(sc).sub(col.c);
+    const rr = Math.hypot(_p.x, _p.y);
+    const inZ = Math.abs(_p.z) <= col.L, inR = rr <= col.R;
+    if (inZ && inR) {
+      const pr = col.R - rr, pz = col.L - Math.abs(_p.z);
+      if (pr <= pz) {
+        const ir = rr > 1e-6 ? 1 / rr : 0;
+        if (rr > 1e-6) _hit.n.set(_p.x * ir, _p.y * ir, 0); else _hit.n.set(1, 0, 0);
+        _hit.depth = pr + r;
+        _hit.p.set(_p.x * (rr > 1e-6 ? col.R / rr : 1), _p.y * (rr > 1e-6 ? col.R / rr : 0), _p.z);
+      } else {
+        const s = _p.z >= 0 ? 1 : -1;
+        _hit.n.set(0, 0, s);
+        _hit.depth = pz + r;
+        _hit.p.set(_p.x, _p.y, s * col.L);
+      }
+    } else {
+      const cz = clamp(_p.z, -col.L, col.L);
+      if (rr > col.R) {
+        const k = col.R / rr;
+        _d.set(_p.x - _p.x * k, _p.y - _p.y * k, _p.z - cz);
+        const dist = _d.length();
+        if (dist >= r) return null;
+        if (dist > 1e-6) _hit.n.copy(_d).multiplyScalar(1 / dist); else _hit.n.set(0, 0, 1);
+        _hit.depth = r - dist;
+        _hit.p.set(_p.x * k, _p.y * k, cz);
+      } else {
+        const s = _p.z >= 0 ? 1 : -1;
+        _d.set(0, 0, _p.z - s * col.L);
+        const dist = Math.abs(_p.z) - col.L;
+        if (dist >= r) return null;
+        _hit.n.set(0, 0, s);
+        _hit.depth = r - dist;
+        _hit.p.set(_p.x, _p.y, s * col.L);
+      }
+    }
+    _hit.p.add(col.c);
+    return _hit;
+  }
+  if (col.type === 'torus') {
+    _p.copy(sc).sub(col.c);
+    const rr = Math.hypot(_p.x, _p.y);
+    const dr = rr - col.R0, dl = _p.z;
+    const dLen = Math.hypot(dr, dl);
+    const dist = dLen - col.tube;
+    if (dist >= r) return null;
+    let nx, ny, nz;
+    if (dLen > 1e-6) {
+      const k = 1 / dLen;
+      const ir = rr > 1e-6 ? 1 / rr : 0;
+      nx = _p.x * ir * dr * k; ny = _p.y * ir * dr * k; nz = dl * k;
+    } else { nx = 1; ny = 0; nz = 0; }
+    _hit.n.set(nx, ny, nz);
+    _hit.depth = r - dist;
+    const ir2 = rr > 1e-6 ? col.R0 / rr : 1;
+    _hit.p.set(_p.x * ir2 + nx * col.tube, _p.y * ir2 + ny * col.tube, nz * col.tube).add(col.c);
+    return _hit;
+  }
+  /* box (optionally oriented) */
+  qInv(col.q, _q1);
+  _p.copy(sc).sub(col.c).applyQuaternion(_q1);
+  const px = clamp(_p.x, -col.he.x, col.he.x);
+  const py = clamp(_p.y, -col.he.y, col.he.y);
+  const pz = clamp(_p.z, -col.he.z, col.he.z);
+  if (px === _p.x && py === _p.y && pz === _p.z) {
+    const dx = col.he.x - Math.abs(_p.x), dy = col.he.y - Math.abs(_p.y), dz = col.he.z - Math.abs(_p.z);
+    if (dx <= dy && dx <= dz) {
+      const s = _p.x >= 0 ? 1 : -1;
+      _hit.n.set(s, 0, 0); _hit.depth = dx + r;
+      _hit.p.set(s * col.he.x, _p.y, _p.z);
+    } else if (dy <= dz) {
+      const s = _p.y >= 0 ? 1 : -1;
+      _hit.n.set(0, s, 0); _hit.depth = dy + r;
+      _hit.p.set(_p.x, s * col.he.y, _p.z);
+    } else {
+      const s = _p.z >= 0 ? 1 : -1;
+      _hit.n.set(0, 0, s); _hit.depth = dz + r;
+      _hit.p.set(_p.x, _p.y, s * col.he.z);
+    }
+  } else {
+    _d.set(_p.x - px, _p.y - py, _p.z - pz);
+    const dist = _d.length();
+    if (dist >= r) return null;
+    if (dist > 1e-6) _hit.n.copy(_d).multiplyScalar(1 / dist); else _hit.n.set(0, 0, 1);
+    _hit.depth = r - dist;
+    _hit.p.set(px, py, pz);
+  }
+  _hit.n.applyQuaternion(col.q);
+  _hit.p.applyQuaternion(col.q).add(col.c);
+  return _hit;
+}
+function pushPointOut(pt, rad) {
+  for (const col of COLLIDERS) {
+    const res = collide(col, pt, rad);
+    if (res) pt.addScaledVector(res.n, res.depth);
+  }
+}
+
+/* ============================================================= *
+ *  WALKER-CORE-START — nearest exterior surface over the hull.   *
+ *  Self-contained: uses only THREE, clamp and COLLIDERS so the   *
+ *  walking math can be validated outside the browser.            *
+ * ============================================================= */
+const _wq1 = new THREE.Quaternion(), _wp1 = new THREE.Vector3(), _wd1 = new THREE.Vector3(),
+      _wp2 = new THREE.Vector3(), _wd2 = new THREE.Vector3();
+function nearestOnCollider(col, pt, outQ, outN) {
+  if (col.type === 'cyl') {
+    _wp2.copy(pt).sub(col.c);
+    const rr = Math.hypot(_wp2.x, _wp2.y), az = Math.abs(_wp2.z);
+    if (rr <= col.R && az <= col.L) {
+      if (col.R - rr <= col.L - az) {
+        if (rr > 1e-9) {
+          const k = col.R / rr;
+          outQ.set(_wp2.x * k, _wp2.y * k, _wp2.z);
+          outN.set(_wp2.x / rr, _wp2.y / rr, 0);
+        } else { outQ.set(col.R, 0, _wp2.z); outN.set(1, 0, 0); }
+      } else {
+        const s = _wp2.z >= 0 ? 1 : -1;
+        outQ.set(_wp2.x, _wp2.y, s * col.L); outN.set(0, 0, s);
+      }
+    } else if (rr > col.R && az <= col.L) {
+      const k = col.R / rr;
+      outQ.set(_wp2.x * k, _wp2.y * k, _wp2.z);
+      outN.set(_wp2.x / rr, _wp2.y / rr, 0);
+    } else if (rr <= col.R) {
+      const s = _wp2.z >= 0 ? 1 : -1;
+      outQ.set(_wp2.x, _wp2.y, s * col.L); outN.set(0, 0, s);
+    } else {
+      const k = col.R / rr, s = _wp2.z >= 0 ? 1 : -1;
+      outQ.set(_wp2.x * k, _wp2.y * k, s * col.L);
+      _wd2.set(_wp2.x - _wp2.x * k, _wp2.y - _wp2.y * k, _wp2.z - s * col.L);
+      const d = _wd2.length();
+      if (d > 1e-9) outN.copy(_wd2).multiplyScalar(1 / d);
+      else outN.set(_wp2.x / rr, _wp2.y / rr, 0);
+    }
+    outQ.add(col.c);
+    return;
+  }
+  if (col.type === 'torus') {
+    _wp2.copy(pt).sub(col.c);
+    const rr = Math.hypot(_wp2.x, _wp2.y);
+    let rx = 1, ry = 0;
+    if (rr > 1e-9) { rx = _wp2.x / rr; ry = _wp2.y / rr; }
+    _wd2.set(_wp2.x - rx * col.R0, _wp2.y - ry * col.R0, _wp2.z);
+    const d = _wd2.length();
+    if (d > 1e-9) {
+      outN.copy(_wd2).multiplyScalar(1 / d);
+      outQ.set(rx * col.R0 + outN.x * col.tube, ry * col.R0 + outN.y * col.tube, outN.z * col.tube);
+    } else {
+      outN.set(rx, ry, 0);
+      outQ.set((col.R0 + col.tube) * rx, (col.R0 + col.tube) * ry, 0);
+    }
+    outQ.add(col.c);
+    return;
+  }
+  /* box (optionally oriented) */
+  _wq1.copy(col.q);
+  if (_wq1.invert) _wq1.invert(); else _wq1.conjugate();
+  _wp2.copy(pt).sub(col.c).applyQuaternion(_wq1);
+  const cx = clamp(_wp2.x, -col.he.x, col.he.x),
+        cy = clamp(_wp2.y, -col.he.y, col.he.y),
+        cz = clamp(_wp2.z, -col.he.z, col.he.z);
+  if (cx === _wp2.x && cy === _wp2.y && cz === _wp2.z) {
+    const dx = col.he.x - Math.abs(_wp2.x),
+          dy = col.he.y - Math.abs(_wp2.y),
+          dz = col.he.z - Math.abs(_wp2.z);
+    if (dx <= dy && dx <= dz) {
+      const s = _wp2.x >= 0 ? 1 : -1;
+      outN.set(s, 0, 0); outQ.set(s * col.he.x, _wp2.y, _wp2.z);
+    } else if (dy <= dz) {
+      const s = _wp2.y >= 0 ? 1 : -1;
+      outN.set(0, s, 0); outQ.set(_wp2.x, s * col.he.y, _wp2.z);
+    } else {
+      const s = _wp2.z >= 0 ? 1 : -1;
+      outN.set(0, 0, s); outQ.set(_wp2.x, _wp2.y, s * col.he.z);
+    }
+  } else {
+    _wd2.set(_wp2.x - cx, _wp2.y - cy, _wp2.z - cz);
+    const d = _wd2.length();
+    if (d > 1e-9) outN.copy(_wd2).multiplyScalar(1 / d); else outN.set(0, 0, 1);
+    outQ.set(cx, cy, cz);
+  }
+  outQ.applyQuaternion(col.q).add(col.c);
+  outN.applyQuaternion(col.q);
+}
+function pointInSolid(col, pt) {
+  _wp2.copy(pt).sub(col.c);
+  if (col.type === 'cyl') return Math.hypot(_wp2.x, _wp2.y) < col.R && Math.abs(_wp2.z) < col.L;
+  if (col.type === 'torus') return Math.hypot(Math.hypot(_wp2.x, _wp2.y) - col.R0, _wp2.z) < col.tube;
+  _wq1.copy(col.q);
+  if (_wq1.invert) _wq1.invert(); else _wq1.conjugate();
+  _wp2.applyQuaternion(_wq1);
+  return Math.abs(_wp2.x) < col.he.x && Math.abs(_wp2.y) < col.he.y && Math.abs(_wp2.z) < col.he.z;
+}
+function isBuriedPoint(q, skipCol) {
+  for (const col of COLLIDERS) {
+    if (col === skipCol) continue;
+    if (pointInSolid(col, q)) return true;
+  }
+  return false;
+}
+/* nearest unburied station surface point to pt — the magnetic-boots ground truth */
+function surfaceNearest(pt, outQ, outN) {
+  let bd = Infinity;
+  for (const col of COLLIDERS) {
+    nearestOnCollider(col, pt, _wp1, _wd1);
+    const d = _wp1.distanceTo(pt);
+    if (d >= bd || isBuriedPoint(_wp1, col)) continue;
+    bd = d; outQ.copy(_wp1); outN.copy(_wd1);
+  }
+  if (bd === Infinity) {
+    for (const col of COLLIDERS) {
+      nearestOnCollider(col, pt, _wp1, _wd1);
+      const d = _wp1.distanceTo(pt);
+      if (d >= bd) continue;
+      bd = d; outQ.copy(_wp1); outN.copy(_wd1);
+    }
+  }
+  return bd;
+}
+/* WALKER-CORE-END */
+
+/* ============================================================= *
+ *  Simulation state                                             *
+ * ============================================================= */
+const START_POS = new THREE.Vector3(0, 0, 300);
+const S = {
+  phase: 'ready', t: 0,
+  pos: START_POS.clone(), vel: new THREE.Vector3(),
+  quat: new THREE.Quaternion(), angVel: new THREE.Vector3(),
+  fuel: FUEL_MAX, power: PWR_MAX, o2: O2_MAX, hull: HULL_MAX,
+  lastImpact: -10, impactPoint: new THREE.Vector3(),
+  dockResult: 'NONE', dockViolations: [], lastRejectT: -99,
+  lightsOn: false,
+  leaks: LEAK_SCHEDULE.map((t0) => ({ opensAt: t0, open: false, closed: false })),
+  impactCount: 0, debrisHits: 0, lastImpactKind: 'station',
+  shoulder: 0, elbow: 0,
+  pod: {
+    state: 'free', displaced: false,
+    pos: POD_START.clone(), vel: POD_VEL.clone(),
+    orient: new THREE.Quaternion(), relQ: new THREE.Quaternion()
+  },
+  pod3: {
+    state: 'free',
+    pos: POD3_START.clone(), vel: new THREE.Vector3(),
+    orient: POD3_ORIENT0.clone()
+  },
+  grabbedAt: -99, securedAt: -99,
+  undockCount: 0, systemsRestored: false,
+  eva: {
+    active: false,
+    p: EVA_START.clone(), n: new THREE.Vector3(0, 1, 0), nr: new THREE.Vector3(0, 1, 0),
+    f: EVA_START_F.clone(), walkPhase: 0, amp: 0, msgUntil: -99
+  },
+  pod3SecuredAt: -99,
+  cable: { attached: false, attachedTo: null, length: 0, noTargetUntil: -99 }
+};
+/* OPERATION UMBRA — the scored three-objective rescue script (round 9) */
+const OP = {
+  active: false, running: -1,
+  tDock: null, tPod: null, tDone: null,
+  objectives: [
+    { name: 'DOCK', status: 'PENDING' },
+    { name: 'TOW POD 3', status: 'PENDING' },
+    { name: 'REPAIR STATION', status: 'PENDING' }
+  ]
+};
+function segVal(i) {
+  if (i === 0) return OP.tDock !== null ? OP.tDock : S.t;
+  if (i === 1) return OP.tPod !== null ? OP.tPod - OP.tDock : (OP.tDock !== null ? S.t - OP.tDock : 0);
+  return OP.tDone !== null ? OP.tDone - OP.tPod : (OP.tPod !== null ? S.t - OP.tPod : 0);
+}
+function segSummary() {
+  return 'SEG 1 ' + fmtT(segVal(0)) + ' \u00B7 SEG 2 ' + fmtT(segVal(1)) + ' \u00B7 SEG 3 ' + fmtT(segVal(2));
+}
+function opActiveObjective() {
+  return OP.objectives.find((o) => o.status === 'ACTIVE') || null;
+}
+function dockClampStatus() {
+  if (S.pod3.state === 'secured') return 'CLAMPED';
+  return OP.objectives[1].status === 'ACTIVE' ? 'ONLINE' : 'OFFLINE';
+}
+let prevNoseZ = START_POS.z + NOSE_TIP.z;
+const IMPACT_FLASH_T = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: glowTex, color: 0xffd9a0, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending
+}));
+IMPACT_FLASH_T.visible = false;
+scene.add(IMPACT_FLASH_T);
+
+let camMode = 'chase';
+let armMode = false;
+const keys = new Set();
+let curInp = {};
+function emptyInp() {
+  return { fwd: false, back: false, left: false, right: false, up: false, down: false,
+           pUp: false, pDown: false, yLeft: false, yRight: false, rLeft: false, rRight: false };
+}
+curInp = emptyInp();
+function snapshotInputs() {
+  const i = emptyInp();
+  if (S.phase !== 'play' || S.eva.active) return i;   // flight keys do nothing during EVA
+  i.fwd = keys.has('KeyW'); i.back = keys.has('KeyS');
+  i.left = keys.has('KeyA'); i.right = keys.has('KeyD');
+  i.up = keys.has('KeyR'); i.down = keys.has('KeyF');
+  i.pUp = keys.has('ArrowUp'); i.pDown = keys.has('ArrowDown');
+  i.yLeft = keys.has('ArrowLeft'); i.yRight = keys.has('ArrowRight');
+  i.rLeft = keys.has('KeyQ'); i.rRight = keys.has('KeyE');
+  return i;
+}
+
+/* DOM refs */
+const $ = (id) => document.getElementById(id);
+const elClock = $('clock'), elSpeed = $('speed'), elDist = $('dist'), elClosing = $('closing'),
+      elAttP = $('att-p'), elAttY = $('att-y'), elAttR = $('att-r'),
+      elWarn = $('warn'), elPort = $('portmark'), elCam = $('camlabel'),
+      elDockPanel = $('dockpanel'), elDpAngle = $('dp-angle'), elDpOffset = $('dp-offset'),
+      elDpClosing = $('dp-closing'), elChgRate = $('chg-rate'), elChgLed = $('chg-led'),
+      elHits = $('hits'),
+      elArmPanel = $('armpanel'), elArmSh = $('arm-sh'), elArmEl = $('arm-el'),
+      elArmGrip = $('arm-grip'), elArmPod = $('arm-pod'),
+      elCableBox = $('cablebox'), elCableState = $('cablestate'),
+      elDistress = $('distress'), elDArrow = $('darrow'), elDDist = $('ddist'),
+      elFixBox = $('fixbox'), elFixLabel = $('fixlabel'),
+      elOpPanel = $('oppanel'), elOpTotal = $('optotal'), elDockStatus = $('dockstatus'),
+      elOpStatus = [$('op0s'), $('op1s'), $('op2s')], elOpTime = [$('op0t'), $('op1t'), $('op2t')],
+      elDebrief = $('debrief'),
+      dbSeg1 = $('db-seg1'), dbSeg2 = $('db-seg2'), dbSeg3 = $('db-seg3'), dbTotal = $('db-total'),
+      dbFuel = $('db-fuel'), dbHits = $('db-hits'), dbHull = $('db-hull'), dbRank = $('db-rank'),
+      ovReady = $('ready'), ovPause = $('pause'), ovEnd = $('end'),
+      endTitle = $('endTitle'), endInfo = $('endInfo');
+const gauges = {
+  fuel: { bar: $('b-fuel'), val: $('v-fuel'), box: $('g-fuel') },
+  pwr: { bar: $('b-pwr'), val: $('v-pwr'), box: $('g-pwr') },
+  o2: { bar: $('b-o2'), val: $('v-o2'), box: $('g-o2') },
+  hull: { bar: $('b-hull'), val: $('v-hull'), box: $('g-hull') }
+};
+const driftCtx = $('drift').getContext('2d');
+const fixCtx = $('fixarc').getContext('2d');
+
+function showOverlay(which) {
+  ovReady.classList.toggle('hidden', which !== 'ready');
+  ovPause.classList.toggle('hidden', which !== 'pause');
+  ovEnd.classList.toggle('hidden', which !== 'end');
+  elDebrief.style.display = 'none';   // only the debrief re-shows it
+}
+function fmtT(t) {
+  const m = Math.floor(t / 60), s = t - m * 60;
+  return String(m).padStart(2, '0') + ':' + (s < 10 ? '0' : '') + s.toFixed(1);
+}
+function fmtDeg(v) { return (v >= 0 ? '+' : '-') + Math.abs(v).toFixed(1) + '\u00B0'; }
+
+function fail(title, info) {
+  S.phase = 'failed';
+  endTitle.textContent = title;
+  endTitle.className = 'bad';
+  const active = opActiveObjective();
+  endInfo.textContent = info + (OP.active ? ' \u2014 OBJECTIVE FAILED: ' +
+    (active ? active.name : 'NONE') + ' \u00B7 ' + segSummary() : '');
+  showOverlay('end');
+  keys.clear();
+}
+/* MISSION DEBRIEF — fixed hardcoded rank rules over the frozen run values */
+function computeRank() {
+  const total = OP.tDone;
+  if (total <= 300 && S.fuel >= 25 && S.debrisHits === 0) return 'S';
+  if (total <= 420 && S.fuel >= 15 && S.debrisHits <= 2) return 'A';
+  return 'B';
+}
+function showDebrief() {
+  endTitle.textContent = 'MISSION DEBRIEF';
+  endTitle.className = 'good';
+  endInfo.textContent = '';
+  elDebrief.style.display = 'block';
+  dbSeg1.textContent = fmtT(segVal(0));
+  dbSeg2.textContent = fmtT(segVal(1));
+  dbSeg3.textContent = fmtT(segVal(2));
+  dbTotal.textContent = fmtT(OP.tDone);
+  dbFuel.textContent = S.fuel.toFixed(1) + ' / ' + FUEL_MAX;
+  dbHits.textContent = String(S.debrisHits);
+  dbHull.textContent = Math.round(S.hull) + ' / ' + HULL_MAX;
+  dbRank.textContent = computeRank();
+  showOverlay('end');
+  keys.clear();
+}
+/* Solar charging — dorsal panel normal (ship up) vs the fixed sun direction */
+function solarChargeRate() {
+  _pn.set(0, 1, 0).applyQuaternion(S.quat);
+  const c = Math.max(0, _pn.dot(SUN_DIR));
+  return CHG_RATE * c * c;
+}
+/* tow physics — the thrusters always push with THRUST_FORCE; the attached load raises the mass */
+function towMass() {
+  if (!S.cable.attached) return 0;
+  return S.cable.attachedTo === 'K-77' ? POD_MASS : POD3_MASS;
+}
+function effLinAcc() { return THRUST_FORCE / (SHIP_MASS + towMass()); }
+/* manipulator arm kinematics — planar YZ arm, rotations about ship-local X */
+function computeGripQuat(out) {
+  _eu2.set((S.shoulder + S.elbow) * RAD, 0, 0, 'XYZ');
+  out.setFromEuler(_eu2).premultiply(S.quat);
+  return out;
+}
+function armTipWorld(out) {
+  const a1 = S.shoulder * RAD;
+  const a2 = (S.shoulder + S.elbow) * RAD;
+  _g1.set(0, Math.sin(a1), -Math.cos(a1)).applyQuaternion(S.quat);
+  _g2.set(0, Math.sin(a2), -Math.cos(a2)).applyQuaternion(S.quat);
+  _gm.copy(ARM_MOUNT).applyQuaternion(S.quat).add(S.pos);
+  return out.copy(_gm).addScaledVector(_g1, ARM_UPPER).addScaledVector(_g2, ARM_FORE + ARM_GRIP);
+}
+function updatePod(h) {
+  const pod = S.pod;
+  if (pod.state === 'secured') {
+    pod.pos.copy(SLOT_POS);
+    pod.vel.set(0, 0, 0);
+    pod.orient.copy(cradleQuat);
+    return;
+  }
+  if (pod.state === 'grabbed') {
+    armTipWorld(pod.pos);
+    pod.vel.copy(S.vel);
+    computeGripQuat(_qg);
+    pod.orient.copy(_qg).multiply(pod.relQ);
+    return;
+  }
+  if (!pod.displaced) {
+    pod.pos.copy(POD_START).addScaledVector(POD_VEL, S.t);
+    pod.vel.copy(POD_VEL);
+  } else {
+    pod.pos.addScaledVector(pod.vel, h);
+  }
+  _eu2.set(0.22 * h, 0.35 * h, 0.14 * h, 'XYZ');
+  pod.orient.multiply(_dq2.setFromEuler(_eu2)).normalize();
+  /* gentle no-damage push-out: the pod never passes through the shuttle */
+  _pd.copy(pod.pos).sub(S.pos);
+  const rr = _pd.length();
+  const minD = POD_RADIUS + 2.0;
+  if (rr < minD && rr > 1e-6) {
+    _pd.multiplyScalar(1 / rr);
+    S.pos.addScaledVector(_pd, minD - rr);
+    const vn = S.vel.dot(_pd);
+    if (vn < 0) S.vel.addScaledVector(_pd, -1.35 * vn);
+  }
+}
+function toggleGrab() {
+  const pod = S.pod;
+  if (pod.state === 'secured') return;
+  if (pod.state === 'grabbed') {
+    armTipWorld(pod.pos);
+    pod.vel.copy(S.vel);
+    pod.state = 'free';
+    pod.displaced = true;
+    if (pod.pos.distanceTo(SLOT_POS) <= SLOT_CAPTURE) {
+      pod.state = 'secured';
+      pod.pos.copy(SLOT_POS);
+      pod.orient.copy(cradleQuat);
+      pod.vel.set(0, 0, 0);
+      S.securedAt = S.t;
+      releaseCable();
+    }
+    return;
+  }
+  armTipWorld(_gt);
+  if (_gt.distanceTo(pod.pos) <= GRAB_DIST) {
+    pod.state = 'grabbed';
+    pod.displaced = true;
+    computeGripQuat(_qg);
+    qInv(_qg, _q2);
+    pod.relQ.copy(_q2).multiply(pod.orient);
+    S.grabbedAt = S.t;
+  }
+}
+/* tow cable — fires along the current camera center ray; C again releases.
+   Snags K-77 or POD 3, whichever sits closest to the aim line. */
+function releaseCable() {
+  S.cable.attached = false;
+  S.cable.attachedTo = null;
+  S.cable.length = 0;
+}
+function tryCable() {
+  if (S.cable.attached) { releaseCable(); return; }
+  const cands = [];
+  if (S.pod.state !== 'secured') cands.push({ pod: S.pod, tag: 'K-77' });
+  if (S.pod3.state !== 'secured') cands.push({ pod: S.pod3, tag: 'POD 3' });
+  _v1.set(0, 0, -1).applyQuaternion(cam.quaternion);
+  let best = null, bestAng = CABLE_AIM_DEG, bestDist = 0;
+  for (const cd of cands) {
+    const shipDist = _v3.copy(cd.pod.pos).sub(S.pos).length();
+    if (shipDist > CABLE_RANGE) continue;
+    _v2.copy(cd.pod.pos).sub(cam.position);
+    const camDist = _v2.length();
+    if (camDist <= 1e-6) continue;
+    _v2.multiplyScalar(1 / camDist);
+    const ang = Math.acos(clamp(_v1.dot(_v2), -1, 1)) / RAD;
+    if (ang > CABLE_AIM_DEG) continue;
+    if (best === null || ang < bestAng || (ang === bestAng && shipDist < bestDist)) {
+      best = cd; bestAng = ang; bestDist = shipDist;
+    }
+  }
+  if (!best) { S.cable.noTargetUntil = S.t + 1.2; return; }
+  S.cable.attached = true;
+  S.cable.attachedTo = best.tag;
+  _nt.copy(NOSE_TIP).applyQuaternion(S.quat).add(S.pos);
+  S.cable.length = _nt.distanceTo(best.pod.pos);
+  if (best.tag === 'K-77') best.pod.displaced = true;   // towing takes K-77 off its scripted drift path
+}
+/* rigid up to the attach length: the load is pulled along, never left behind */
+function applyCableConstraint() {
+  if (!S.cable.attached) return;
+  const pod = S.cable.attachedTo === 'K-77' ? S.pod : S.pod3;
+  if (pod.state !== 'free') return;
+  _nt.copy(NOSE_TIP).applyQuaternion(S.quat).add(S.pos);
+  _pd.copy(pod.pos).sub(_nt);
+  const d = _pd.length();
+  if (d > S.cable.length && d > 1e-6) {
+    _pd.multiplyScalar(1 / d);
+    pod.pos.copy(_nt).addScaledVector(_pd, S.cable.length);
+    const rel = _v1.copy(pod.vel).sub(S.vel).dot(_pd);
+    if (rel > 0) pod.vel.addScaledVector(_pd, -rel);
+  }
+}
+/* stranded escape pod POD 3 — holds position with a slow fixed tumble until disturbed */
+function updatePod3(h) {
+  const p = S.pod3;
+  if (p.state === 'secured') {
+    p.pos.copy(REPAIR_DOCK_POS).addScaledVector(DOCK_DIR, 1.0);
+    p.vel.set(0, 0, 0);
+    p.orient.copy(DOCK_QUAT);
+    return;
+  }
+  p.pos.addScaledVector(p.vel, h);
+  _eu2.set(POD3_TUMBLE.x * h, POD3_TUMBLE.y * h, POD3_TUMBLE.z * h, 'XYZ');
+  p.orient.multiply(_dq2.setFromEuler(_eu2)).normalize();
+  /* never passes through the station hull — gentle rebound, no damage */
+  for (const sp of POD3_SPHERES) {
+    _sc.copy(sp.o).applyQuaternion(p.orient).add(p.pos);
+    for (const col of COLLIDERS) {
+      const res = collide(col, _sc, sp.r);
+      if (!res) continue;
+      p.pos.addScaledVector(res.n, res.depth);
+      const vn = p.vel.dot(res.n);
+      if (vn < 0) p.vel.addScaledVector(res.n, -1.45 * vn);
+      _sc.copy(sp.o).applyQuaternion(p.orient).add(p.pos);
+    }
+  }
+  /* nor through the shuttle */
+  _pd.copy(p.pos).sub(S.pos);
+  const rr = _pd.length();
+  if (rr < POD3_RADIUS + 2.0 && rr > 1e-6) {
+    _pd.multiplyScalar(1 / rr);
+    S.pos.addScaledVector(_pd, POD3_RADIUS + 2.0 - rr);
+    const vn = S.vel.dot(_pd);
+    if (vn < 0) S.vel.addScaledVector(_pd, -1.35 * vn);
+  }
+  /* delivery — latches automatically every step while in the zone, slow enough;
+     the REPAIR DOCK clamps only latch while objective 2 is ACTIVE */
+  if (OP.objectives[1].status === 'ACTIVE' &&
+      p.pos.distanceTo(REPAIR_DOCK_POS) <= DELIVERY_DIST && p.vel.length() < DELIVERY_SPEED) {
+    securePod3();
+  }
+}
+function securePod3() {
+  const p = S.pod3;
+  if (OP.objectives[1].status !== 'ACTIVE') return;   // clamps offline before objective 2
+  p.state = 'secured';
+  p.pos.copy(REPAIR_DOCK_POS).addScaledVector(DOCK_DIR, 1.0);
+  p.orient.copy(DOCK_QUAT);
+  p.vel.set(0, 0, 0);
+  if (S.cable.attachedTo === 'POD 3') releaseCable();
+  cableMesh.visible = false;
+  pod3G.position.copy(p.pos);
+  pod3G.quaternion.copy(p.orient);
+  S.pod3SecuredAt = S.t;
+  /* objective 2 complete — objective 3 activates, SEG 3 starts */
+  OP.objectives[1].status = 'DONE';
+  OP.tPod = S.t;
+  OP.objectives[2].status = 'ACTIVE';
+  OP.running = 2;
+}
+/* ============================================================= *
+ *  Undock + EVA                                                  *
+ * ============================================================= */
+function undock() {
+  S.phase = 'play';
+  S.dockResult = 'NONE';
+  S.pos.set(0, 0, PORT_CENTER.z - NOSE_TIP.z);
+  S.vel.set(0, 0, UNDOCK_PUSH);       // fixed push-off away from the station along the port axis
+  S.angVel.set(0, 0, 0);
+  for (const lt of latchTips) {
+    lt.mesh.position.x = -0.24;
+    lt.mat.emissive.setHex(0xffb545);
+  }
+  prevNoseZ = S.pos.z + NOSE_TIP.z;
+  S.undockCount++;
+  showOverlay(null);
+  keys.clear();
+}
+function startEVA() {
+  const e = S.eva;
+  e.active = true;
+  e.p.copy(EVA_START);
+  e.n.set(0, 1, 0); e.nr.set(0, 1, 0);
+  e.f.copy(EVA_START_F);
+  e.walkPhase = 0; e.amp = 0; e.msgUntil = -99;
+  S.phase = 'play';                    // mission clock keeps running; shuttle stays latched
+  showOverlay(null);
+  keys.clear();
+}
+function tryBoard() {
+  _nt.copy(NOSE_TIP).applyQuaternion(S.quat).add(S.pos);
+  if (S.eva.p.distanceTo(_nt) <= BOARD_DIST) {
+    S.eva.active = false;
+    S.phase = 'docked';
+    keys.clear();
+    placeCameraInstant();
+    updateEffects();
+  } else {
+    S.eva.msgUntil = S.t + 1.2;
+  }
+}
+/* magnetic-boot walking: WASD in the surface tangent plane; each step the boots
+   re-project onto the nearest unburied hull surface (buried points are skipped, so
+   plate seams and module edges are crossed automatically). When a step is refused
+   by a ledge, the boots swing onto the blocking face. Walking off the hull into
+   space is refused — the grip holds. */
+const EVA_RIDE = 0.05;    // m, ride height above the nearest hull surface
+const EVA_GLUE = 0.30;    // m, max re-attach distance before the grip refuses
+function updateEVA(h) {
+  const e = S.eva;
+  _v1.copy(e.f);
+  _v3.copy(e.f).cross(e.n);            // right of the facing direction
+  _v4.set(0, 0, 0);
+  if (keys.has('KeyW')) _v4.add(_v1);
+  if (keys.has('KeyS')) _v4.sub(_v1);
+  if (keys.has('KeyD')) _v4.add(_v3);
+  if (keys.has('KeyA')) _v4.sub(_v3);
+  const moving = _v4.lengthSq() > 1e-9;
+  if (moving) {
+    _v4.normalize();
+    _gt.copy(e.p);                     // pre-step position for the ledge check
+    _v5.copy(e.p).addScaledVector(_v4, EVA_SPEED * h);
+    const d = surfaceNearest(_v5, _v6, _nt);
+    if (d <= EVA_GLUE) {
+      e.p.copy(_v6).addScaledVector(_nt, EVA_RIDE);   // ride the nearest hull surface
+      e.n.copy(_nt);
+    }
+    /* else: magnetic grip holds — the step off the hull is refused */
+    /* ledge check — a foreign face ahead refused the step: swing the boots onto it.
+       Each collider is probed at the boots and again ahead along the step, so faces
+       that only face the walk direction (rim edges) are found too. */
+    _v5.copy(e.p).sub(_gt);
+    const stepLen = EVA_SPEED * h;
+    if (_v5.lengthSq() < 0.09 * stepLen * stepLen) {
+      let bd = EVA_GLUE, found = false;
+      for (const col of COLLIDERS) {
+        for (const ahead of [0, 0.15]) {
+          _v5.copy(e.p);
+          if (ahead) _v5.addScaledVector(_v4, ahead);
+          nearestOnCollider(col, _v5, _wp1, _wd1);
+          const dc = _wp1.distanceTo(e.p);
+          if (dc >= bd || isBuriedPoint(_wp1, col)) continue;
+          if (_wd1.dot(e.n) > 0.85) continue;            // same-facing surface, not a ledge
+          _v5.copy(_wp1).sub(e.p);
+          if (_v5.dot(_v4) <= 0) continue;               // contact behind the step: not a ledge
+          bd = dc; _v6.copy(_wp1); _nt.copy(_wd1); found = true;
+          break;
+        }
+      }
+      if (found) { e.p.copy(_v6); e.n.copy(_nt); }
+    }
+    e.f.lerp(_v4, Math.min(1, 6 * h));
+  }
+  e.f.addScaledVector(e.n, -e.f.dot(e.n));
+  if (e.f.lengthSq() < 1e-9) {
+    e.f.set(e.n.y, -e.n.x, 0);
+    if (e.f.lengthSq() < 1e-9) e.f.set(-e.n.z, 0, e.n.x);
+  }
+  e.f.normalize();
+  e.nr.lerp(e.n, 1 - Math.exp(-10 * h)).normalize();
+  if (moving) { e.walkPhase += 13.0 * h; e.amp = Math.min(1, e.amp + 4 * h); }
+  else e.amp = Math.max(0, e.amp - 6 * h);
+  /* hull repair — hold Space within 1.2 m of a damaged conduit for 2.0 s;
+     the conduits are damaged and repairable only while objective 3 is ACTIVE */
+  let near = null, nd = REPAIR_DIST;
+  if (OP.objectives[2].status === 'ACTIVE') {
+    for (const c of CONDUITS) {
+      if (c.repaired) continue;
+      const d = c.pos.distanceTo(e.p);
+      if (d <= nd) { nd = d; near = c; }
+    }
+  }
+  if (near && keys.has('Space')) {
+    near.progress += h / REPAIR_TIME;
+    if (near.progress >= 1) {
+      near.progress = 1;
+      near.repaired = true;
+      if (CONDUITS.every((c) => c.repaired)) {
+        S.systemsRestored = true;
+        /* objective 3 complete — freeze on the graded MISSION DEBRIEF */
+        OP.objectives[2].status = 'DONE';
+        OP.tDone = S.t;
+        OP.running = -1;
+        S.phase = 'complete';
+        showDebrief();
+      }
+    }
+  } else {
+    for (const c of CONDUITS) if (!c.repaired) c.progress = 0;
+  }
+}
+/* Dock-check telemetry — the exact quantities used by the contact evaluation,
+   the deviation panel, and the state export. */
+function dockTelemetry() {
+  _nt.copy(NOSE_TIP).applyQuaternion(S.quat).add(S.pos);
+  _v5.set(0, 0, -1).applyQuaternion(S.quat);
+  return {
+    dist: S.pos.distanceTo(PORT_CENTER),
+    angleDeg: rad2deg(Math.acos(clamp(-_v5.z, -1, 1))),
+    offset: Math.hypot(_nt.x, _nt.y),
+    closing: -S.vel.z
+  };
+}
+function dockOk(tel) {
+  return tel.angleDeg <= DOCK_ANGLE_MAX && tel.offset <= DOCK_OFFSET_MAX &&
+         tel.closing >= DOCK_CLOSING_MIN && tel.closing <= DOCK_CLOSING_MAX;
+}
+function confirmDock() {
+  S.phase = 'docked';
+  S.dockResult = 'CONFIRMED';
+  S.dockViolations = [];
+  /* latches seize the shuttle: hard-dock pose on the ring plane, zero residual drift */
+  S.pos.set(0, 0, PORT_CENTER.z - NOSE_TIP.z);
+  S.quat.identity();
+  S.vel.set(0, 0, 0);
+  S.angVel.set(0, 0, 0);
+  for (const lt of latchTips) {
+    lt.mesh.position.x = -0.37;
+    lt.mat.emissive.setHex(0x7dff9e);
+    lt.mat.emissiveIntensity = 3;
+  }
+  /* objective 1 complete on the first confirmed dock of the operation */
+  if (OP.objectives[0].status === 'ACTIVE') {
+    OP.objectives[0].status = 'DONE';
+    OP.tDock = S.t;
+    OP.objectives[1].status = 'ACTIVE';
+    OP.running = 1;
+  }
+  endTitle.textContent = 'DOCKING CONFIRMED';
+  endTitle.className = 'good';
+  endInfo.textContent = 'Latches engaged at Vesper Station P-1 \u2014 hard dock at T+ ' + fmtT(S.t) +
+    ' \u00B7 HULL ' + Math.round(S.hull) + ' \u00B7 O2 ' + S.o2.toFixed(1) +
+    ' \u00B7 FUEL ' + S.fuel.toFixed(1) + ' \u00B7 PWR ' + S.power.toFixed(1);
+  showOverlay('end');
+  keys.clear();
+}
+function rejectContact(violations) {
+  S.dockResult = 'REJECTED';
+  S.dockViolations = violations.slice();
+  S.lastRejectT = S.t;
+  /* bounce away with greatly reduced velocity */
+  const closing = Math.max(-S.vel.z, 0);
+  S.vel.z = Math.max(closing * 0.2, 0.45);
+  S.vel.x *= 0.4;
+  S.vel.y *= 0.4;
+  S.angVel.multiplyScalar(0.5);
+  _nt.copy(NOSE_TIP).applyQuaternion(S.quat).add(S.pos);
+  S.pos.z += (CONTACT_Z + 0.06) - _nt.z;
+  S.hull -= IMPACT_DMG;
+  S.lastImpact = S.t;
+  S.impactCount++;
+  S.lastImpactKind = 'dock';
+  S.impactPoint.copy(_nt);
+  if (S.hull <= 0) {
+    S.hull = 0;
+    fail('HULL BREACH', 'Structural integrity lost after repeated impacts at T+ ' + fmtT(S.t) + '.');
+  }
+}
+function startMission() {
+  S.phase = 'play';
+  S.t = 0;
+  OP.active = true;
+  OP.running = 0;
+  OP.tDock = null; OP.tPod = null; OP.tDone = null;
+  OP.objectives[0].status = 'ACTIVE';
+  OP.objectives[1].status = 'PENDING';
+  OP.objectives[2].status = 'PENDING';
+  showOverlay(null);
+  keys.clear();
+}
+function resetAll() {
+  S.phase = 'ready'; S.t = 0;
+  S.pos.copy(START_POS); S.vel.set(0, 0, 0);
+  S.quat.identity(); S.angVel.set(0, 0, 0);
+  S.fuel = FUEL_MAX; S.power = PWR_MAX; S.o2 = O2_MAX; S.hull = HULL_MAX;
+  S.lastImpact = -10;
+  S.dockResult = 'NONE'; S.dockViolations = []; S.lastRejectT = -99;
+  S.lightsOn = false;
+  S.leaks = LEAK_SCHEDULE.map((t0) => ({ opensAt: t0, open: false, closed: false }));
+  S.impactCount = 0;
+  S.debrisHits = 0;
+  S.lastImpactKind = 'station';
+  for (const f of DEBRIS) {
+    f.alive = true;
+    f.group.visible = true;
+    f.shatterT0 = -10;
+    f.shatterGroup.visible = false;
+  }
+  armMode = false;
+  S.shoulder = 0;
+  S.elbow = 0;
+  S.pod.state = 'free';
+  S.pod.displaced = false;
+  S.pod.pos.copy(POD_START);
+  S.pod.vel.copy(POD_VEL);
+  S.pod.orient.identity();
+  S.pod.relQ.identity();
+  S.grabbedAt = -99;
+  S.securedAt = -99;
+  S.pod3.state = 'free';
+  S.pod3.pos.copy(POD3_START);
+  S.pod3.vel.set(0, 0, 0);
+  S.pod3.orient.copy(POD3_ORIENT0);
+  S.cable.attached = false;
+  S.cable.attachedTo = null;
+  S.cable.length = 0;
+  S.cable.noTargetUntil = -99;
+  S.eva.active = false;
+  S.eva.p.copy(EVA_START);
+  S.eva.n.set(0, 1, 0); S.eva.nr.set(0, 1, 0);
+  S.eva.f.copy(EVA_START_F);
+  S.eva.walkPhase = 0; S.eva.amp = 0; S.eva.msgUntil = -99;
+  S.undockCount = 0;
+  S.systemsRestored = false;
+  S.pod3SecuredAt = -99;
+  OP.active = false;
+  OP.running = -1;
+  OP.tDock = null; OP.tPod = null; OP.tDone = null;
+  OP.objectives[0].status = 'PENDING';
+  OP.objectives[1].status = 'PENDING';
+  OP.objectives[2].status = 'PENDING';
+  for (const c of CONDUITS) { c.repaired = false; c.progress = 0; }
+  prevNoseZ = START_POS.z + NOSE_TIP.z;
+  for (const lt of latchTips) {
+    lt.mesh.position.x = -0.24;
+    lt.mat.emissive.setHex(0xffb545);
+  }
+  camMode = 'chase';
+  keys.clear();
+  curInp = emptyInp();
+  placeCameraInstant();
+  updateEffects();
+  updateHUD();
+  publishState();
+  showOverlay('ready');
+}
+function pauseGame() { S.phase = 'paused'; keys.clear(); showOverlay('pause'); }
+function resumeGame() { S.phase = 'play'; showOverlay(null); }
+
+function registerImpact(point) {
+  S.impactPoint.copy(point);
+  if (S.t - S.lastImpact >= 1.0) {
+    S.lastImpact = S.t;
+    S.impactCount++;
+    S.lastImpactKind = 'station';
+    S.hull -= IMPACT_DMG;
+    if (S.hull <= 0) {
+      S.hull = 0;
+      fail('HULL BREACH', 'Structural integrity lost after repeated impacts at T+ ' + fmtT(S.t) + '.');
+    }
+  }
+}
+
+/* ============================================================= *
+ *  Physics step (fixed h)                                       *
+ * ============================================================= */
+function stepPhys(h) {
+  const inp = snapshotInputs();
+  curInp = inp;
+  /* solar charging — dorsal panel vs the fixed sun, capped at full */
+  S.power = Math.min(PWR_MAX, S.power + solarChargeRate() * h);
+  /* fuel-line leaks open exactly on schedule and vent until the valve closes them */
+  let openLeaks = 0;
+  for (const lk of S.leaks) {
+    if (!lk.open && !lk.closed && S.t >= lk.opensAt) lk.open = true;
+    if (lk.open) openLeaks++;
+  }
+  /* translation — 8000 N over (ship mass + any attached load); fuel burn is unchanged by towing */
+  const effA = effLinAcc();
+  let burn = 0;
+  _acc.set(0, 0, 0);
+  if (inp.fwd) { _acc.z -= effA; burn += BURN_MAIN; }
+  if (inp.back) { _acc.z += effA; burn += BURN_MAIN; }
+  if (inp.left) { _acc.x -= effA; burn += BURN_RCS; }
+  if (inp.right) { _acc.x += effA; burn += BURN_RCS; }
+  if (inp.up) { _acc.y += effA; burn += BURN_RCS; }
+  if (inp.down) { _acc.y -= effA; burn += BURN_RCS; }
+  if (burn > 0 || openLeaks > 0) {
+    S.fuel -= (burn + LEAK_RATE * openLeaks) * h;
+    if (S.fuel <= 0) {
+      S.fuel = 0;
+      fail('FUEL EXHAUSTED', 'Translation propellant depleted at T+ ' + fmtT(S.t) + '. Umbra adrift.');
+      return;
+    }
+  }
+  if (burn > 0) {
+    _acc.applyQuaternion(S.quat);
+    S.vel.addScaledVector(_acc, h);
+  }
+  /* rotation (offline at zero power) */
+  if (S.power > 0) {
+    let draw = 0;
+    const ax = (inp.pUp ? 1 : 0) - (inp.pDown ? 1 : 0);
+    const ay = (inp.yLeft ? 1 : 0) - (inp.yRight ? 1 : 0);
+    const az = (inp.rLeft ? 1 : 0) - (inp.rRight ? 1 : 0);
+    if (ax !== 0) { S.angVel.x = clamp(S.angVel.x + ax * ANG_ACC * h, -ANG_MAX, ANG_MAX); draw += PWR_ROT; }
+    if (ay !== 0) { S.angVel.y = clamp(S.angVel.y + ay * ANG_ACC * h, -ANG_MAX, ANG_MAX); draw += PWR_ROT; }
+    if (az !== 0) { S.angVel.z = clamp(S.angVel.z + az * ANG_ACC * h, -ANG_MAX, ANG_MAX); draw += PWR_ROT; }
+    if (draw > 0) {
+      S.power -= draw * h;
+      if (S.power < 0) S.power = 0;
+    }
+  }
+  /* exterior lights draw from the power bus; forced off at zero power */
+  if (S.lightsOn) {
+    if (S.power > 0) {
+      S.power -= LIGHTS_DRAW * h;
+      if (S.power <= 0) { S.power = 0; S.lightsOn = false; }
+    } else {
+      S.lightsOn = false;
+    }
+  }
+  /* integrate */
+  S.pos.addScaledVector(S.vel, h);
+  _eu.set(S.angVel.x * h, S.angVel.y * h, S.angVel.z * h, 'XYZ');
+  _dq.setFromEuler(_eu);
+  S.quat.multiply(_dq).normalize();
+  /* collisions against station */
+  for (const sp of SHIP_SPHERES) {
+    _sc.copy(sp.o).applyQuaternion(S.quat).add(S.pos);
+    for (const col of COLLIDERS) {
+      const res = collide(col, _sc, sp.r);
+      if (!res) continue;
+      S.pos.addScaledVector(res.n, res.depth);
+      const vn = S.vel.dot(res.n);
+      if (vn < 0) S.vel.addScaledVector(res.n, -1.35 * vn);
+      registerImpact(res.p);
+      if (S.phase !== 'play') return;
+      _sc.copy(sp.o).applyQuaternion(S.quat).add(S.pos);
+    }
+  }
+  /* port contact: shuttle nose reaching 0.5 m from the ring plane, inside the opening */
+  _nt.copy(NOSE_TIP).applyQuaternion(S.quat).add(S.pos);
+  const tipLat = Math.hypot(_nt.x, _nt.y);
+  if (prevNoseZ > CONTACT_Z && _nt.z <= CONTACT_Z && tipLat < RING_R) {
+    const tel = dockTelemetry();
+    const violations = [];
+    if (tel.closing > DOCK_CLOSING_MAX) violations.push('TOO FAST');
+    else if (tel.closing < DOCK_CLOSING_MIN) violations.push('TOO SLOW');
+    if (tel.angleDeg > DOCK_ANGLE_MAX) violations.push('ANGLE');
+    if (tel.offset > DOCK_OFFSET_MAX) violations.push('OFFSET');
+    if (violations.length === 0) { confirmDock(); return; }
+    rejectContact(violations);
+    if (S.phase !== 'play') return;
+    prevNoseZ = CONTACT_Z + 0.06;
+  } else {
+    prevNoseZ = _nt.z;
+  }
+  /* debris field — fragment center within 2.0 m of the shuttle or POD 3 means impact;
+     the 1.0 s immunity window is shared. POD 3 takes the hit without hull loss. */
+  for (const f of DEBRIS) {
+    if (!f.alive) continue;
+    debrisPos(f, S.t, _dp);
+    const hitShip = _dp.distanceToSquared(S.pos) < 4.0;
+    const hitPod3 = !hitShip && S.pod3.state === 'free' && _dp.distanceToSquared(S.pod3.pos) < 4.0;
+    if ((hitShip || hitPod3) && S.t - S.lastImpact >= 1.0) {
+      f.alive = false;
+      f.group.visible = false;
+      f.shatterT0 = S.t;
+      f.shatterGroup.position.copy(_dp);
+      S.impactCount++;
+      S.debrisHits++;
+      S.lastImpactKind = hitShip ? 'debris' : 'debris3';
+      S.lastImpact = S.t;
+      S.impactPoint.copy(_dp);
+      if (hitShip) {
+        S.hull -= 15;
+        if (S.hull <= 0) {
+          S.hull = 0;
+          fail('HULL BREACH', 'Structural integrity lost after repeated impacts at T+ ' + fmtT(S.t) + '.');
+        }
+        if (S.phase !== 'play') return;
+      } else {
+        _pd.copy(S.pod3.pos).sub(_dp);
+        if (_pd.lengthSq() > 1e-6) {
+          _pd.multiplyScalar(1 / _pd.length());
+          S.pod3.vel.addScaledVector(_pd, SHARD_SPEEDS[f.i - 1] * 0.25);
+        }
+      }
+    }
+  }
+  /* manipulator arm joints — 30 deg/s with hard stops */
+  if (armMode) {
+    const jstep = ARM_RATE * h;
+    if (keys.has('KeyI')) S.shoulder += jstep;
+    if (keys.has('KeyK')) S.shoulder -= jstep;
+    if (keys.has('KeyJ')) S.elbow += jstep;
+    if (keys.has('KeyL')) S.elbow -= jstep;
+    S.shoulder = clamp(S.shoulder, SHOULDER_MIN, SHOULDER_MAX);
+    S.elbow = clamp(S.elbow, ELBOW_MIN, ELBOW_MAX);
+  }
+  /* cargo pod K-77, then escape pod POD 3 */
+  updatePod(h);
+  updatePod3(h);
+  /* tow cable — enforce the attach-time length after the loads integrate */
+  applyCableConstraint();
+  /* EVA — magnetic boots, repair work */
+  updateEVA(h);
+  /* life support — EVA suit drain is ten times the cockpit rate */
+  S.o2 -= (S.eva.active ? EVA_O2_RATE : O2_RATE) * h;
+  if (S.o2 <= 0) {
+    S.o2 = 0;
+    fail('CREW LOST', 'Life support oxygen depleted at T+ ' + fmtT(S.t) + '.');
+    return;
+  }
+  S.t += h;
+}
+
+/* ============================================================= *
+ *  Effects (all keyed to mission time — no randomness)          *
+ * ============================================================= */
+function updateEffects() {
+  const t = S.t;
+  const inp = snapshotInputs();
+  curInp = inp;
+  /* engine plumes */
+  const pulse = 0.8 + 0.25 * Math.sin(t * 34) + 0.08 * Math.sin(t * 9.7);
+  const tailOn = !!inp.fwd;
+  for (let i = 0; i < plumeTail.length; i++) {
+    const pm = plumeTail[i];
+    pm.visible = tailOn;
+    const k = (i % 2 === 0) ? 1 : 0.62;
+    pm.scale.set(0.9 + 0.1 * Math.sin(t * 29 + i), pulse * k, 0.9 + 0.1 * Math.sin(t * 29 + i));
+  }
+  const retroOn = !!inp.back;
+  for (let i = 0; i < plumeRetro.length; i++) {
+    const pm = plumeRetro[i];
+    pm.visible = retroOn;
+    pm.scale.set(1, 0.8 + 0.3 * Math.sin(t * 41 + i * 2.1), 1);
+  }
+  engineLight.intensity = (tailOn || retroOn) ? 5 + 2 * Math.sin(t * 40) : 0;
+  /* RCS puffs */
+  for (const p of PUFFS) {
+    const on = inp[p.key] && Math.sin(t * 43 + p.ph * 1.7) > -0.2;
+    p.mesh.visible = !!on;
+    if (on) p.mesh.scale.set(1, 0.8 + 0.35 * Math.sin(t * 61 + p.ph * 3.1), 1);
+  }
+  /* nav lights — part of the togglable exterior lights */
+  navRed.visible = S.lightsOn && (t % 1.2) < 0.6;
+  navGreen.visible = S.lightsOn && ((t + 0.6) % 1.2) < 0.6;
+  const s2 = t % 2.0;
+  navStrobe.visible = S.lightsOn && (s2 < 0.07 || (s2 >= 0.18 && s2 < 0.25));
+  /* floodlights */
+  for (const fc of floodCones) fc.visible = S.lightsOn;
+  for (const fs of floodSpots) fs.intensity = S.lightsOn ? 300 : 0;
+  floodLensMat.emissiveIntensity = S.lightsOn ? 2.5 : 0.1;
+  /* fuel-leak vent plumes */
+  for (let i = 0; i < ventPlumes.length; i++) {
+    const on = S.leaks[i] && S.leaks[i].open;
+    ventPlumes[i].visible = !!on;
+    if (on) ventPlumes[i].scale.set(1, 0.85 + 0.3 * Math.sin(t * 57 + i * 2.3), 1);
+  }
+  /* debris field — orbits, tumble, beacons, shatter bursts */
+  for (const f of DEBRIS) {
+    if (f.alive) {
+      debrisPos(f, t, _dp);
+      f.group.position.copy(_dp);
+      f.group.rotation.set(f.wx * t, f.wy * t, f.wz * t);
+      f.beacon.material.opacity = ((t * 0.5 + f.i * 0.125) % 1) < 0.1 ? 0.85 : 0.08;
+    }
+    if (f.shatterT0 >= 0) {
+      const k = t - f.shatterT0;
+      if (k < 0.9) {
+        f.shatterGroup.visible = true;
+        for (let i = 0; i < f.shards.length; i++) {
+          const sh = f.shards[i], sp = SHARD_SPEEDS[i], sd = SHARD_DIRS[i];
+          sh.position.set(sd[0] * sp * k, sd[1] * sp * k, sd[2] * sp * k);
+          sh.rotation.set(k * 4 + i, k * 3.3, k * 2.7);
+        }
+        f.shatterMat.opacity = Math.max(0, 0.95 * (1 - k / 0.9));
+      } else if (f.shatterGroup.visible) {
+        f.shatterGroup.visible = false;
+      }
+    }
+  }
+  /* manipulator arm pose + gripper fingers */
+  shoulderG.rotation.x = S.shoulder * RAD;
+  elbowG.rotation.x = S.elbow * RAD;
+  const fingerTilt = S.pod.state === 'grabbed' ? 0.34 : 0.12;
+  for (let i = 0; i < fingers.length; i++) fingers[i].quaternion.setFromAxisAngle(fingerAxes[i], fingerTilt);
+  /* cargo pod K-77 + slot cradle lights */
+  podG.position.copy(S.pod.pos);
+  podG.quaternion.copy(S.pod.orient);
+  slotLightMat.emissive.setHex(S.pod.state === 'secured' ? 0x7dff9e : 0xff5544);
+  /* escape pod POD 3 — pose + distress beacon double-flash */
+  pod3G.position.copy(S.pod3.pos);
+  pod3G.quaternion.copy(S.pod3.orient);
+  const b7 = S.pod3.state !== 'secured' && beacon3Lit(t);
+  pod3BeaconMat.emissiveIntensity = b7 ? 4 : 0.15;
+  pod3BeaconSpr.material.opacity = b7 ? 0.95 : 0;
+  pod3BeaconSpr.scale.setScalar(6);
+  /* EVA astronaut — glued to the hull, stepping gait while moving */
+  if (S.eva.active) {
+    evaG.visible = true;
+    evaG.position.copy(S.eva.p).addScaledVector(S.eva.nr, -EVA_RIDE);
+    _v1.copy(S.eva.nr).cross(_v2.copy(S.eva.f));
+    _m.makeBasis(_v1, _v3.copy(S.eva.nr), _v2);
+    evaG.quaternion.setFromRotationMatrix(_m);
+    const sw = Math.sin(S.eva.walkPhase) * 0.6 * S.eva.amp;
+    legL.rotation.x = sw; legR.rotation.x = -sw;
+    armL.rotation.x = -sw * 0.7; armR.rotation.x = sw * 0.7;
+  } else if (evaG.visible) {
+    evaG.visible = false;
+  }
+  /* conduits — intact until objective 3, sparking while damaged, steady green once repaired */
+  const conduitsDamaged = OP.objectives[2].status === 'ACTIVE';
+  for (let i = 0; i < CONDUITS.length; i++) {
+    const c = CONDUITS[i];
+    if (c.repaired) {
+      c.plateMat.emissive.setHex(0x7dff9e);
+      c.plateMat.emissiveIntensity = 1.2;
+      for (const sp of c.sparks) sp.visible = false;
+      c.label.visible = false;
+      c.light.color.setHex(0x7dff9e);
+      c.light.intensity = 1.5;
+    } else if (conduitsDamaged) {
+      c.plateMat.emissive.setHex(0x000000);
+      c.label.visible = true;
+      const ph = t * 9 + i * 2.4;
+      for (let k = 0; k < c.sparks.length; k++) {
+        const on = Math.sin(ph * 3.1 + k * 1.7) > 0.55;
+        c.sparks[k].visible = on;
+        if (on) c.sparks[k].rotation.y = 0.4 + k * 0.7 + 0.8 * Math.sin(t * 17 + k);
+      }
+      c.light.color.setHex(0xbfdfff);
+      c.light.intensity = Math.max(0, Math.sin(ph * 4.3)) * 3;
+    } else {
+      c.plateMat.emissive.setHex(0x000000);
+      c.label.visible = false;
+      for (const sp of c.sparks) sp.visible = false;
+      c.light.intensity = 0;
+    }
+  }
+  /* repair dock clamp lights — amber while offline, green once online */
+  dockLightMat.emissive.setHex(dockClampStatus() === 'OFFLINE' ? 0x8a5a28 : 0x7dff9e);
+  /* restored station — running lights brighten across the modules */
+  M.habitat.emissiveIntensity = S.systemsRestored ? 1.7 : 0.95;
+  portLight.intensity = S.systemsRestored ? 22 : 12;
+  /* tow cable — one taut segment, nose tip to the snagged load */
+  if (S.cable.attached) {
+    const ctp = S.cable.attachedTo === 'K-77' ? S.pod.pos : S.pod3.pos;
+    _nt.copy(NOSE_TIP).applyQuaternion(S.quat).add(S.pos);
+    _pd.copy(ctp).sub(_nt);
+    const cl = _pd.length();
+    if (cl > 1e-4) {
+      cableMesh.visible = true;
+      cableMesh.position.copy(_nt).addScaledVector(_pd, 0.5);
+      cableMesh.quaternion.setFromUnitVectors(_v1.set(0, 1, 0), _pd.multiplyScalar(1 / cl));
+      cableMesh.scale.set(1, cl, 1);
+    }
+  } else if (cableMesh.visible) {
+    cableMesh.visible = false;
+  }
+  /* docking ring guide lights — fixed chase sequence, period 2.4 s */
+  for (let i = 0; i < guides.length; i++) {
+    const b = Math.pow(0.5 + 0.5 * Math.cos((i / 12 - t / 2.4) * TAU), 12);
+    guides[i].mat.emissiveIntensity = 0.25 + 3.2 * b;
+    guides[i].spr.material.opacity = 0.12 + 0.85 * b;
+    guides[i].spr.scale.setScalar(0.55 + 1.7 * b);
+  }
+  /* hub flashers — fixed staggered sequence */
+  for (let i = 0; i < flashers.length; i++) {
+    const on = ((t * 0.75 + i * 0.25) % 1) < 0.22;
+    flashers[i].emissiveIntensity = on ? 3.5 : 0.25;
+  }
+  /* beacons — fixed repeating schedule */
+  for (const b of beacons) {
+    let on;
+    if (b.pattern === 'red') {
+      const c = t % 3;
+      on = c < 0.12 || (c >= 0.3 && c < 0.42);
+    } else {
+      on = (t % 2.2) < 0.09;
+    }
+    b.spr.visible = on;
+    b.mat.emissiveIntensity = on ? 3.2 : 0.15;
+  }
+  /* latch clamps — lit amber pulse until the latches close for good */
+  if (S.phase !== 'docked') {
+    for (let k = 0; k < latchTips.length; k++) {
+      latchTips[k].mat.emissiveIntensity = 1.6 + 0.9 * Math.sin(t * 2.2 + k * 1.047);
+    }
+  }
+  /* approach corridor removed in round 11 — docking flies unassisted */
+  /* impact flash */
+  const dI = t - S.lastImpact;
+  if (dI >= 0 && dI < 0.28) {
+    const k = dI / 0.28;
+    IMPACT_FLASH_T.visible = true;
+    IMPACT_FLASH_T.position.copy(S.impactPoint);
+    IMPACT_FLASH_T.scale.setScalar(1.5 + 9 * k);
+    IMPACT_FLASH_T.material.opacity = 0.9 * (1 - k);
+  } else {
+    IMPACT_FLASH_T.visible = false;
+  }
+  /* dorsal solar panel sun glint */
+  _v1.set(0, 1, 0).applyQuaternion(S.quat);
+  _v2.copy(cam.position).sub(S.pos).normalize();
+  _v3.copy(SUN_DIR).add(_v2).normalize();
+  const g = Math.max(0, _v1.dot(_v3));
+  const glint = Math.pow(g, 24);
+  glintSpr.material.opacity = glint;
+  glintSpr.visible = glint > 0.05;
+  glintSpr.position.set(0, 1.26, 0.5).applyQuaternion(S.quat).add(S.pos);
+}
+
+/* ============================================================= *
+ *  Cameras                                                      *
+ * ============================================================= */
+function placeCameraInstant() {
+  _v1.set(0, 2.4, 9.0).applyQuaternion(S.quat).add(S.pos);
+  cam.position.copy(_v1);
+  _v3.set(0, 0.9, -10).applyQuaternion(S.quat).add(S.pos);
+  _up.set(0, 1, 0).applyQuaternion(S.quat);
+  _m.lookAt(cam.position, _v3, _up);
+  cam.quaternion.setFromRotationMatrix(_m);
+}
+function updateCamera(dt) {
+  if (S.eva.active) {
+    /* smooth over-shoulder view glued to the hull walker */
+    _v1.copy(S.eva.f);
+    _v2.copy(S.eva.nr);
+    _v3.copy(_v1).cross(_v2);            // right = fwd × up
+    _v4.copy(S.eva.p).addScaledVector(_v2, 1.9).addScaledVector(_v1, -3.0).addScaledVector(_v3, 0.9);
+    cam.position.lerp(_v4, 1 - Math.exp(-6 * dt));
+    pushPointOut(cam.position, 0.45);    // never clip into the station
+    _v5.copy(S.eva.p).addScaledVector(_v2, 1.35).addScaledVector(_v1, 2.5);
+    _m.lookAt(cam.position, _v5, _v2);
+    _q2.setFromRotationMatrix(_m);
+    cam.quaternion.slerp(_q2, 1 - Math.exp(-8 * dt));
+    return;
+  }
+  if (camMode === 'chase') {
+    _v1.set(0, 2.4, 9.0).applyQuaternion(S.quat).add(S.pos);
+    cam.position.lerp(_v1, 1 - Math.exp(-5.5 * dt));
+    _v2.copy(cam.position).sub(S.pos);
+    let d = _v2.length();
+    if (d < 6.5) { _v2.multiplyScalar(6.5 / Math.max(d, 1e-6)); cam.position.copy(S.pos).add(_v2); }
+    else if (d > 45) { _v2.multiplyScalar(45 / d); cam.position.copy(S.pos).add(_v2); }
+    pushPointOut(cam.position, 0.7);
+    _v3.set(0, 0.9, -10).applyQuaternion(S.quat).add(S.pos);
+    _up.set(0, 1, 0).applyQuaternion(S.quat);
+    if (cam.position.distanceToSquared(_v3) < 0.25) _v3.addScaledVector(_up, 0.6);
+    _m.lookAt(cam.position, _v3, _up);
+    _q2.setFromRotationMatrix(_m);
+    cam.quaternion.slerp(_q2, 1 - Math.exp(-7 * dt));
+  } else {
+    _v1.set(0, 0.95, -2.45).applyQuaternion(S.quat).add(S.pos);
+    cam.position.lerp(_v1, 1 - Math.exp(-40 * dt));
+    pushPointOut(cam.position, 0.25);
+    cam.quaternion.slerp(S.quat, 1 - Math.exp(-30 * dt));
+  }
+}
+
+/* ============================================================= *
+ *  HUD                                                          *
+ * ============================================================= */
+function attitudeDegs() {
+  _eu.setFromQuaternion(S.quat, 'YXZ');
+  return { p: rad2deg(_eu.x), y: rad2deg(_eu.y), r: rad2deg(_eu.z) };
+}
+function drawDrift() {
+  const g = driftCtx;
+  g.clearRect(0, 0, 76, 76);
+  g.save();
+  g.translate(38, 38);
+  g.strokeStyle = 'rgba(140,200,235,0.45)';
+  g.lineWidth = 1;
+  g.beginPath(); g.arc(0, 0, 30, 0, TAU); g.stroke();
+  for (const a of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+    g.beginPath();
+    g.moveTo(Math.cos(a) * 26, Math.sin(a) * 26);
+    g.lineTo(Math.cos(a) * 30, Math.sin(a) * 30);
+    g.stroke();
+  }
+  qInv(S.quat, _q1);
+  _v4.copy(S.vel).applyQuaternion(_q1);
+  const vx = _v4.x, vy = _v4.y;
+  const lat = Math.hypot(vx, vy);
+  if (lat > 0.03) {
+    g.rotate(Math.atan2(vx, vy));
+    const len = Math.min(24, 5 + lat * 6);
+    g.strokeStyle = '#ffcf7a';
+    g.lineWidth = 2.5;
+    g.beginPath(); g.moveTo(0, 5); g.lineTo(0, -len); g.stroke();
+    g.beginPath();
+    g.moveTo(-4.5, -len + 7); g.lineTo(0, -len); g.lineTo(4.5, -len + 7);
+    g.stroke();
+  } else {
+    g.fillStyle = '#ffcf7a';
+    g.beginPath(); g.arc(0, 0, 2.5, 0, TAU); g.fill();
+  }
+  g.restore();
+}
+function drawFixArc(frac) {
+  const g = fixCtx;
+  g.clearRect(0, 0, 72, 72);
+  g.save();
+  g.translate(36, 36);
+  g.strokeStyle = 'rgba(140,200,235,0.35)';
+  g.lineWidth = 5;
+  g.beginPath(); g.arc(0, 0, 26, 0, TAU); g.stroke();
+  if (frac > 0.001) {
+    g.strokeStyle = frac >= 1 ? '#7dff9e' : '#ffcf7a';
+    g.beginPath(); g.arc(0, 0, 26, -Math.PI / 2, -Math.PI / 2 + frac * TAU); g.stroke();
+  }
+  g.restore();
+}
+function setGauge(name, v, max) {
+  const gg = gauges[name];
+  const pct = clamp(v / max * 100, 0, 100);
+  gg.bar.style.width = pct.toFixed(1) + '%';
+  gg.val.textContent = String(Math.round(v));
+  gg.box.classList.toggle('low', pct < 20);
+}
+function updateHUD() {
+  elClock.childNodes[1].nodeValue = 'T+ ' + fmtT(S.t);
+  elSpeed.textContent = S.vel.length().toFixed(2);
+  const d = S.pos.distanceTo(PORT_CENTER);
+  elDist.textContent = d >= 100 ? d.toFixed(1) : d.toFixed(2);
+  _v2.copy(PORT_CENTER).sub(S.pos).normalize();
+  const closing = _v2.dot(S.vel);
+  elClosing.textContent = (closing >= 0 ? 'CLOSING +' : 'OPENING -') + Math.abs(closing).toFixed(2) + ' m/s';
+  const att = attitudeDegs();
+  elAttP.textContent = fmtDeg(att.p);
+  elAttY.textContent = fmtDeg(att.y);
+  elAttR.textContent = fmtDeg(att.r);
+  setGauge('fuel', S.fuel, FUEL_MAX);
+  setGauge('pwr', S.power, PWR_MAX);
+  setGauge('o2', S.o2, O2_MAX);
+  setGauge('hull', S.hull, HULL_MAX);
+  const chg = solarChargeRate();
+  elChgRate.textContent = '+' + chg.toFixed(2) + '/s';
+  elChgLed.classList.toggle('on', chg > 0.05);
+  elHits.textContent = 'HITS ' + S.impactCount;
+  elArmPanel.style.display = (armMode && (S.phase === 'play' || S.phase === 'paused')) ? 'block' : 'none';
+  if (armMode) {
+    elArmSh.textContent = fmtDeg(S.shoulder);
+    elArmEl.textContent = fmtDeg(S.elbow);
+    elArmGrip.textContent = S.pod.state === 'grabbed' ? 'CLOSED' : 'OPEN';
+    elArmPod.textContent = S.pod.state.toUpperCase();
+    elArmPod.classList.toggle('ok', S.pod.state === 'secured');
+  }
+  drawDrift();
+  /* warnings */
+  const msgs = [];
+  if (S.systemsRestored) msgs.push('SYSTEMS RESTORED');
+  if (S.phase === 'docked') msgs.push('DOCKED \u2014 0 UNDOCK \u00B7 B EVA');
+  if (S.eva.active) {
+    msgs.push('EVA \u2014 MAG-BOOTS \u00B7 O2 DRAIN 0.50/s');
+    _nt.copy(NOSE_TIP).applyQuaternion(S.quat).add(S.pos);
+    if (S.t < S.eva.msgUntil) msgs.push('SHUTTLE TOO FAR \u2014 WALK CLOSER');
+    else if (S.eva.p.distanceTo(_nt) <= 2.5) msgs.push('PRESS B TO BOARD SHUTTLE');
+  }
+  if (S.pod.state === 'secured' && S.t - S.securedAt < 4.0) {
+    msgs.push('CARGO SECURED \u2014 POD K-77 IN SLOT');
+  } else if (S.pod3.state === 'secured' && S.t - S.pod3SecuredAt < 4.0) {
+    msgs.push('POD 3 SECURED \u2014 SURVIVORS RECOVERED');
+  } else if (S.phase === 'play' && S.pod.state === 'grabbed') {
+    msgs.push('POD GRABBED \u2014 SPACE TO RELEASE');
+  }
+  if (S.phase === 'play' && S.leaks.some((lk) => lk.open)) {
+    msgs.push('FUEL LEAK \u2014 PRESS 9 TO CLOSE VALVE');
+  }
+  if (S.phase === 'play' && S.dockResult === 'REJECTED' && S.t - S.lastRejectT < 3.0) {
+    msgs.push('CONTACT REJECTED \u2014 ' + S.dockViolations.join(' \u00B7 ') + ' \u2014 HULL -10');
+  } else if (S.phase === 'play' && S.t - S.lastImpact < 1.4) {
+    msgs.push(S.lastImpactKind === 'debris' ? 'IMPACT \u2014 HULL -15'
+            : S.lastImpactKind === 'debris3' ? 'IMPACT \u2014 POD 3 STRUCK'
+            : 'IMPACT \u2014 HULL -10');
+  }
+  if (S.power <= 0.001) msgs.push('ROTATION OFFLINE');
+  if (S.fuel < 20) msgs.push('LOW FUEL');
+  if (S.power < 20) msgs.push('LOW POWER');
+  if (S.o2 < 20) msgs.push('LOW OXYGEN');
+  if (S.hull <= 30) msgs.push('HULL CRITICAL');
+  elWarn.textContent = msgs.join('   \u00B7   ');
+  elWarn.style.display = msgs.length ? 'block' : 'none';
+  elCam.textContent = camMode === 'chase' ? 'CHASE' : 'NOSE';
+  /* tow cable status */
+  if (S.cable.attached) {
+    elCableBox.style.display = 'block';
+    elCableState.textContent = 'CABLE ATTACHED \u00B7 ' + S.cable.length.toFixed(1) + ' m';
+    elCableState.className = 'ok';
+  } else if (S.phase === 'play' && S.t < S.cable.noTargetUntil) {
+    elCableBox.style.display = 'block';
+    elCableState.textContent = 'NO TARGET';
+    elCableState.className = 'bad';
+  } else {
+    elCableBox.style.display = 'none';
+  }
+  /* wrench arc — nearest damaged conduit within reach (damaged only in objective 3) */
+  let fixNear = null;
+  if (S.eva.active && OP.objectives[2].status === 'ACTIVE') {
+    for (const c of CONDUITS) {
+      if (c.repaired) continue;
+      if (c.pos.distanceTo(S.eva.p) <= REPAIR_DIST) { fixNear = c; break; }
+    }
+  }
+  if (fixNear) {
+    elFixBox.style.display = 'block';
+    drawFixArc(fixNear.progress);
+    elFixLabel.textContent = fixNear.progress > 0.001
+      ? 'REPAIRING \u00B7 ' + Math.round(fixNear.progress * 100) + '%'
+      : 'HOLD SPACE \u2014 REPAIR';
+  } else {
+    elFixBox.style.display = 'none';
+  }
+  /* OPERATION UMBRA objectives tracker + repair dock clamp status */
+  elOpPanel.style.display = OP.active ? 'block' : 'none';
+  if (OP.active) {
+    for (let i = 0; i < 3; i++) {
+      const o = OP.objectives[i];
+      elOpStatus[i].textContent = o.status;
+      elOpStatus[i].className = o.status === 'DONE' ? 'done' : (o.status === 'ACTIVE' ? 'active' : 'pend');
+      elOpTime[i].textContent = o.status === 'PENDING' ? '\u2014' : fmtT(segVal(i));
+    }
+    elOpTotal.textContent = OP.tDone !== null ? fmtT(OP.tDone) : fmtT(S.t);
+  }
+  const clamps = dockClampStatus();
+  elDockStatus.textContent = clamps;
+  elDockStatus.className = clamps === 'OFFLINE' ? 'off' : 'on';
+  /* deviation panel — the exact dock-check quantities */
+  {
+    const tel = dockTelemetry();
+    const near = S.pos.distanceTo(PORT_CENTER) <= 60 && (S.phase === 'play' || S.phase === 'paused');
+    elDockPanel.style.display = near ? 'block' : 'none';
+    if (near) {
+      elDpAngle.textContent = tel.angleDeg.toFixed(1) + '\u00B0';
+      elDpOffset.textContent = tel.offset.toFixed(2) + ' m';
+      elDpClosing.textContent = (tel.closing >= 0 ? '+' : '') + tel.closing.toFixed(2) + ' m/s';
+      elDpAngle.classList.toggle('ok', tel.angleDeg <= DOCK_ANGLE_MAX);
+      elDpOffset.classList.toggle('ok', tel.offset <= DOCK_OFFSET_MAX);
+      elDpClosing.classList.toggle('ok', tel.closing >= DOCK_CLOSING_MIN && tel.closing <= DOCK_CLOSING_MAX);
+    }
+  }
+  /* docking port marker */
+  if (S.phase === 'play' || S.phase === 'paused') {
+    _v5.copy(PORT_CENTER).project(cam);
+    _v6.copy(PORT_CENTER).sub(cam.position);
+    _v4.set(0, 0, -1).applyQuaternion(cam.quaternion);
+    if (_v6.dot(_v4) > 0 && Math.abs(_v5.x) < 1 && Math.abs(_v5.y) < 1) {
+      elPort.style.display = 'block';
+      elPort.style.left = ((_v5.x + 1) / 2 * window.innerWidth) + 'px';
+      elPort.style.top = ((1 - _v5.y) / 2 * window.innerHeight) + 'px';
+    } else {
+      elPort.style.display = 'none';
+    }
+  } else {
+    elPort.style.display = 'none';
+  }
+  /* DISTRESS bearing indicator — edge arrow toward POD 3 while it is unsecured */
+  if ((S.phase === 'play' || S.phase === 'paused') && S.pod3.state !== 'secured') {
+    _v6.copy(S.pod3.pos).sub(cam.position);
+    _v4.set(0, 0, -1).applyQuaternion(cam.quaternion);
+    const front7 = _v6.dot(_v4) > 0;
+    _v5.copy(S.pod3.pos).project(cam);
+    let nx7 = _v5.x, ny7 = _v5.y;
+    if (!front7) { nx7 = -nx7; ny7 = -ny7; }
+    const m7 = Math.max(Math.abs(nx7), Math.abs(ny7));
+    if (front7 && m7 <= 1) {
+      elDistress.style.left = ((nx7 + 1) / 2 * window.innerWidth) + 'px';
+      elDistress.style.top = ((1 - ny7) / 2 * window.innerHeight) + 'px';
+    } else {
+      const k7 = 1 / Math.max(m7, 1e-6);
+      nx7 = clamp(nx7 * k7, -0.9, 0.9);
+      ny7 = clamp(ny7 * k7, -0.86, 0.86);
+      elDistress.style.left = ((nx7 + 1) / 2 * window.innerWidth) + 'px';
+      elDistress.style.top = ((1 - ny7) / 2 * window.innerHeight) + 'px';
+    }
+    const dx7 = parseFloat(elDistress.style.left) - window.innerWidth / 2;
+    const dy7 = parseFloat(elDistress.style.top) - window.innerHeight / 2;
+    elDArrow.style.transform = 'rotate(' + Math.atan2(dx7, -dy7).toFixed(4) + 'rad)';
+    elDDist.textContent = 'POD 3 \u00B7 ' + S.pos.distanceTo(S.pod3.pos).toFixed(0) + ' m';
+    elDistress.style.display = 'block';
+  } else {
+    elDistress.style.display = 'none';
+  }
+}
+
+/* ============================================================= *
+ *  Read-only state export                                       *
+ * ============================================================= */
+function publishState() {
+  const att = attitudeDegs();
+  const tel = dockTelemetry();
+  const fr = (v) => Math.round(v * 1000) / 1000;
+  window.__arena_state = Object.freeze({
+    phase: S.phase,
+    missionTime: fr(S.t),
+    position: Object.freeze({ x: fr(S.pos.x), y: fr(S.pos.y), z: fr(S.pos.z) }),
+    velocity: Object.freeze({ x: fr(S.vel.x), y: fr(S.vel.y), z: fr(S.vel.z) }),
+    speed: fr(S.vel.length()),
+    attitude: Object.freeze({ pitchDeg: fr(att.p), yawDeg: fr(att.y), rollDeg: fr(att.r) }),
+    angularVelocity: Object.freeze({ x: fr(S.angVel.x), y: fr(S.angVel.y), z: fr(S.angVel.z) }),
+    fuel: fr(S.fuel),
+    power: fr(S.power),
+    oxygen: fr(S.o2),
+    hull: fr(S.hull),
+    thrusters: Object.freeze({
+      forward: !!curInp.fwd, backward: !!curInp.back, left: !!curInp.left, right: !!curInp.right,
+      up: !!curInp.up, down: !!curInp.down,
+      pitchUp: !!curInp.pUp, pitchDown: !!curInp.pDown,
+      yawLeft: !!curInp.yLeft, yawRight: !!curInp.yRight,
+      rollLeft: !!curInp.rLeft, rollRight: !!curInp.rRight
+    }),
+    distanceToPort: fr(tel.dist),
+    axisAngleDeg: fr(tel.angleDeg),
+    lateralOffset: fr(tel.offset),
+    closingSpeed: fr(tel.closing),
+    docked: S.phase === 'docked',
+    lastDockResult: S.dockResult,
+    lastDockViolations: Object.freeze(S.dockViolations.slice()),
+    solarRate: fr(solarChargeRate()),
+    lightsOn: !!S.lightsOn,
+    leaks: Object.freeze(S.leaks.map((lk) => Object.freeze({ opensAt: lk.opensAt, open: !!lk.open, closed: !!lk.closed }))),
+    impactCount: S.impactCount,
+    debris: Object.freeze(DEBRIS.filter((f) => f.alive).map((f) => {
+      debrisPos(f, S.t, _dp);
+      return Object.freeze({ index: f.i, position: Object.freeze({ x: fr(_dp.x), y: fr(_dp.y), z: fr(_dp.z) }) });
+    })),
+    armMode: !!armMode,
+    shoulderDeg: fr(S.shoulder),
+    elbowDeg: fr(S.elbow),
+    gripper: S.pod.state === 'grabbed' ? 'CLOSED' : 'OPEN',
+    podState: S.pod.state.toUpperCase(),
+    podPosition: Object.freeze({ x: fr(S.pod.pos.x), y: fr(S.pod.pos.y), z: fr(S.pod.pos.z) }),
+    towCable: Object.freeze({
+      attached: !!S.cable.attached,
+      attachedTo: S.cable.attached ? S.cable.attachedTo : null,
+      length: fr(S.cable.length)
+    }),
+    effectiveTranslationAccel: fr(effLinAcc()),
+    pod3: Object.freeze({
+      state: S.pod3.state.toUpperCase(),
+      secured: S.pod3.state === 'secured',
+      position: Object.freeze({ x: fr(S.pod3.pos.x), y: fr(S.pod3.pos.y), z: fr(S.pod3.pos.z) }),
+      beaconPhase: fr(S.t % BEACON_PERIOD),
+      beaconLit: !!beacon3Lit(S.t),
+      dockDistance: fr(S.pod3.pos.distanceTo(REPAIR_DOCK_POS)),
+      dockRelSpeed: fr(S.pod3.vel.length())
+    }),
+    eva: Object.freeze({
+      active: !!S.eva.active,
+      position: Object.freeze({ x: fr(S.eva.p.x), y: fr(S.eva.p.y), z: fr(S.eva.p.z) })
+    }),
+    undockCount: S.undockCount,
+    systemsRestored: !!S.systemsRestored,
+    conduits: Object.freeze(CONDUITS.map((c) => Object.freeze({
+      position: Object.freeze({ x: fr(c.pos.x), y: fr(c.pos.y), z: fr(c.pos.z) }),
+      repaired: !!c.repaired
+    }))),
+    operation: Object.freeze({
+      active: !!OP.active,
+      objectives: Object.freeze(OP.objectives.map((o) => Object.freeze({ name: o.name, status: o.status }))),
+      segments: Object.freeze([segVal(0), segVal(1), segVal(2)].map(fr)),
+      runningSegment: OP.running
+    }),
+    debrief: OP.tDone !== null ? Object.freeze({
+      seg1: fr(segVal(0)), seg2: fr(segVal(1)), seg3: fr(segVal(2)),
+      total: fr(OP.tDone),
+      fuelRemaining: fr(S.fuel),
+      impactCount: S.debrisHits,
+      hullRemaining: fr(S.hull),
+      rank: computeRank()
+    }) : null
+  });
+}
+
+/* ============================================================= *
+ *  Input                                                        *
+ * ============================================================= */
+const NAVKEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'];
+window.addEventListener('keydown', (e) => {
+  if (NAVKEYS.indexOf(e.code) >= 0) e.preventDefault();
+  if (e.repeat) return;
+  if (e.code === 'Enter') { if (S.phase === 'ready') startMission(); return; }
+  if (e.code === 'Escape') {
+    if (S.phase === 'play') pauseGame();
+    else if (S.phase === 'paused') resumeGame();
+    return;
+  }
+  if (e.code === 'KeyV') { if (S.phase === 'play' && !S.eva.active) camMode = camMode === 'chase' ? 'nose' : 'chase'; return; }
+  if (e.code === 'KeyX') {
+    if (S.phase === 'play' && !S.eva.active && S.power > 0) S.lightsOn = !S.lightsOn;
+    return;
+  }
+  if (e.code === 'Digit9' || e.code === 'Numpad9') {
+    if (S.phase === 'play' && !S.eva.active && S.leaks.some((lk) => lk.open)) {
+      for (const lk of S.leaks) if (lk.open) { lk.open = false; lk.closed = true; }
+    }
+    return;
+  }
+  if (e.code === 'Digit0' || e.code === 'Numpad0') {
+    if (S.phase === 'docked' && !S.eva.active) undock();
+    return;
+  }
+  if (e.code === 'KeyB') {
+    if (S.phase === 'docked' && !S.eva.active) startEVA();
+    else if (S.phase === 'play' && S.eva.active) tryBoard();
+    return;
+  }
+  if (e.code === 'KeyH') { if (S.phase === 'play' && !S.eva.active) armMode = !armMode; return; }
+  if (e.code === 'Space') {
+    if (S.phase === 'play' && !S.eva.active) { toggleGrab(); return; }
+  }
+  if (e.code === 'KeyC') { if (S.phase === 'play' && !S.eva.active) tryCable(); return; }
+  if (e.code === 'KeyR') {
+    if (S.phase === 'failed' || S.phase === 'docked' || S.phase === 'complete') resetAll();
+    return;
+  }
+  if (S.phase === 'play') keys.add(e.code);
+});
+window.addEventListener('keyup', (e) => { keys.delete(e.code); });
+window.addEventListener('blur', () => keys.clear());
+
+window.addEventListener('resize', () => {
+  cam.aspect = window.innerWidth / window.innerHeight;
+  cam.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* ============================================================= *
+ *  Main loop                                                    *
+ * ============================================================= */
+placeCameraInstant();
+updateEffects();
+updateHUD();
+publishState();
+
+let last = performance.now();
+let acc = 0;
+function tick(now) {
+  requestAnimationFrame(tick);
+  let dt = (now - last) / 1000;
+  last = now;
+  if (!(dt > 0)) dt = 0;
+  if (dt > 0.1) dt = 0.1;
+  curInp = snapshotInputs();
+  if (S.phase === 'play') {
+    acc += dt;
+    let n = 0;
+    while (acc >= H && n < 10 && S.phase === 'play') { stepPhys(H); acc -= H; n++; }
+    if (n >= 10) acc = 0;
+  } else {
+    acc = 0;
+  }
+  shipG.position.copy(S.pos);
+  shipG.quaternion.copy(S.quat);
+  if (S.phase === 'play') updateEffects();
+  if (S.phase === 'play') updateCamera(dt);
+  renderer.render(scene, cam);
+  updateHUD();
+  publishState();
+}
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

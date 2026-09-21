@@ -1,0 +1,4545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Broadside - Age of Sail Naval Combat</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0c1824;
+      font-family: 'Georgia', 'Times New Roman', serif;
+      color: #f4ecd8;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+    /* HUD Overlays */
+    #hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px;
+    }
+    .hud-panel {
+      background: rgba(18, 25, 33, 0.78);
+      border: 1px solid #c5a059;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+      border-radius: 4px;
+      padding: 12px 18px;
+      color: #e8d8b8;
+      text-shadow: 1px 1px 2px #000;
+      pointer-events: auto;
+    }
+    .hud-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      width: 100%;
+    }
+    .ship-status-card {
+      min-width: 260px;
+    }
+    .ship-name {
+      font-size: 15px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      color: #ffde94;
+      border-bottom: 1px solid rgba(197, 160, 89, 0.4);
+      padding-bottom: 4px;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .crew-badge {
+      font-size: 11px;
+      color: #70d6ff;
+      font-weight: normal;
+    }
+    .flooding-badge {
+      background: #d90429;
+      color: #fff;
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      letter-spacing: 0.8px;
+      display: none;
+      animation: pulse 0.8s infinite alternate;
+    }
+    .fire-badge {
+      background: linear-gradient(90deg, #ff5400, #ff0054);
+      color: #fff;
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      letter-spacing: 0.8px;
+      display: none;
+      animation: pulse 0.5s infinite alternate;
+      box-shadow: 0 0 8px #ff5400;
+    }
+    .order-badge {
+      background: #172d3f;
+      color: #70d6ff;
+      border: 1px solid #4895ef;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-size: 9px;
+      font-weight: bold;
+      letter-spacing: 0.8px;
+    }
+    .fleet-column {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 250px;
+    }
+    .stats-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 11px;
+      text-align: left;
+    }
+    .stats-table th, .stats-table td {
+      padding: 4px 6px;
+      border-bottom: 1px solid rgba(197, 160, 89, 0.25);
+    }
+    .stats-table th {
+      color: #ffd166;
+      text-transform: uppercase;
+      font-size: 10px;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 10px 0;
+      font-size: 11px;
+      text-align: left;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 8px 12px;
+      border-radius: 4px;
+      border: 1px solid rgba(197, 160, 89, 0.3);
+    }
+    .bar-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 2px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .bar-container {
+      width: 100%;
+      height: 10px;
+      background: #111a24;
+      border: 1px solid #735e39;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 5px;
+      position: relative;
+    }
+    .bar-fill {
+      height: 100%;
+      transition: width 0.15s ease-out;
+    }
+    .hull-fill {
+      background: linear-gradient(90deg, #9e2a2b, #2b9348);
+    }
+    .enemy-hull-fill {
+      background: linear-gradient(90deg, #9e2a2b, #d90429);
+    }
+    .crew-fill {
+      background: linear-gradient(90deg, #d00000, #4cc9f0);
+    }
+    /* Located Damage Silhouette */
+    .silhouette-box {
+      background: rgba(10, 15, 20, 0.7);
+      border: 1px solid #5a492e;
+      border-radius: 3px;
+      padding: 6px;
+      margin: 6px 0;
+      font-size: 10px;
+    }
+    .sil-masts {
+      display: flex;
+      justify-content: space-around;
+      margin-bottom: 4px;
+    }
+    .sil-mast-tag {
+      padding: 1px 5px;
+      border-radius: 2px;
+      background: #2b9348;
+      color: #fff;
+      font-weight: bold;
+      font-size: 9px;
+    }
+    .sil-guns-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 2px 0;
+    }
+    .gun-pips {
+      display: flex;
+      gap: 3px;
+    }
+    .gun-pip {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ffd166;
+      border: 1px solid #856116;
+    }
+    .gun-pip.knocked-out {
+      background: #3a3a3a;
+      border-color: #222;
+      opacity: 0.5;
+    }
+    .broadside-bars {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .side-reload {
+      flex: 1;
+    }
+    .reload-bar {
+      height: 7px;
+      background: #141f2b;
+      border: 1px solid #554426;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .reload-fill {
+      height: 100%;
+      background: #e3a857;
+      width: 100%;
+    }
+    /* Ammo Selector */
+    .ammo-selector {
+      display: flex;
+      gap: 4px;
+      margin-top: 5px;
+    }
+    .ammo-btn {
+      flex: 1;
+      font-size: 9px;
+      text-align: center;
+      padding: 3px 2px;
+      background: #1a2530;
+      border: 1px solid #4a627a;
+      border-radius: 2px;
+      color: #a0b6cd;
+      font-weight: bold;
+    }
+    .ammo-btn.active {
+      background: #c5a059;
+      color: #111;
+      border-color: #ffe699;
+    }
+    /* Repair Menu Modal */
+    .repair-menu {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(ellipse at center, #222e3c 0%, #101720 100%);
+      border: 2px solid #c5a059;
+      box-shadow: 0 0 35px rgba(0, 0, 0, 0.9), inset 0 0 15px rgba(197, 160, 89, 0.2);
+      border-radius: 6px;
+      padding: 24px 32px;
+      color: #f7ecd5;
+      min-width: 440px;
+      pointer-events: auto;
+      z-index: 50;
+    }
+    .repair-title {
+      font-size: 20px;
+      color: #f5d061;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      text-align: center;
+    }
+    .repair-sub {
+      font-size: 11px;
+      font-style: italic;
+      color: #ff8888;
+      text-align: center;
+      margin-bottom: 18px;
+    }
+    .repair-item {
+      background: rgba(0,0,0,0.4);
+      border: 1px solid #5a4b35;
+      border-radius: 4px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+    }
+    .repair-item.active-repair {
+      border-color: #ffd166;
+      background: rgba(197, 160, 89, 0.15);
+    }
+    .repair-item-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: bold;
+      margin-bottom: 6px;
+    }
+    .repair-key {
+      color: #ffd166;
+      background: #2a3b4c;
+      padding: 1px 6px;
+      border-radius: 3px;
+      margin-right: 6px;
+      font-family: monospace;
+    }
+    .repair-bar-container {
+      width: 100%;
+      height: 8px;
+      background: #141e28;
+      border: 1px solid #4a3e28;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .repair-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #c5a059, #48cae4);
+      transition: width 0.1s linear;
+    }
+    .repair-close-prompt {
+      font-size: 12px;
+      text-align: center;
+      color: #ffd166;
+      margin-top: 14px;
+      font-weight: bold;
+    }
+
+    /* Boarding Prompt & Panel */
+    .boarding-prompt {
+      position: absolute;
+      bottom: 75px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(180, 20, 20, 0.88);
+      border: 2px solid #ffd166;
+      box-shadow: 0 0 20px rgba(255, 209, 102, 0.7);
+      border-radius: 4px;
+      padding: 10px 24px;
+      color: #fff;
+      font-size: 15px;
+      font-weight: bold;
+      letter-spacing: 1.5px;
+      animation: pulse 0.8s infinite alternate;
+      pointer-events: auto;
+      z-index: 60;
+    }
+    .boarding-panel {
+      position: absolute;
+      top: 45%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(ellipse at center, #2e1818 0%, #120909 100%);
+      border: 2px solid #ffd166;
+      box-shadow: 0 0 35px rgba(0, 0, 0, 0.95);
+      border-radius: 6px;
+      padding: 20px 30px;
+      color: #f7ecd5;
+      min-width: 380px;
+      text-align: center;
+      z-index: 70;
+    }
+    .boarding-title {
+      font-size: 18px;
+      color: #ffd166;
+      letter-spacing: 2px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    .boarding-sub {
+      font-size: 11px;
+      font-style: italic;
+      color: #e0a96d;
+      margin-bottom: 12px;
+    }
+    .boarding-odds {
+      font-size: 12px;
+      font-weight: bold;
+      color: #ffe699;
+      margin-top: 8px;
+    }
+
+    /* Minimal Battle Log */
+    .battle-log {
+      position: absolute;
+      bottom: 60px;
+      left: 20px;
+      width: 310px;
+      background: rgba(10, 16, 22, 0.82);
+      border: 1px solid rgba(197, 160, 89, 0.4);
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-size: 11px;
+      line-height: 1.45;
+      pointer-events: none;
+      color: #cfbc97;
+      z-index: 20;
+    }
+    .log-entry {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .log-time {
+      color: #f5d061;
+      font-family: monospace;
+      margin-right: 5px;
+    }
+
+    /* Squadron layout */
+    .squadron-column {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 250px;
+    }
+    .ship-status-card.compact-card {
+      padding: 8px 14px;
+    }
+
+    /* Compass & Sailing HUD */
+    .hud-center-top {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .compass-box {
+      width: 82px;
+      height: 82px;
+      position: relative;
+      background: radial-gradient(circle, #253342 0%, #101924 85%);
+      border: 2px solid #c5a059;
+      border-radius: 50%;
+      box-shadow: inset 0 0 8px #000, 0 3px 12px rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .compass-rose {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+    }
+    .compass-wind-arrow {
+      position: absolute;
+      width: 4px;
+      height: 36px;
+      background: #5bc0be;
+      box-shadow: 0 0 6px #5bc0be;
+      transform-origin: 50% 100%;
+      top: 5px;
+      left: 39px;
+      clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+    }
+    .compass-ship-needle {
+      position: absolute;
+      width: 5px;
+      height: 32px;
+      background: #f4d06f;
+      transform-origin: 50% 100%;
+      top: 9px;
+      left: 38.5px;
+      clip-path: polygon(50% 0%, 15% 100%, 85% 100%);
+    }
+    .compass-center-pin {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      background: #c5a059;
+      border-radius: 50%;
+      z-index: 5;
+    }
+    .sailing-readout {
+      text-align: center;
+      font-size: 11px;
+      line-height: 1.35;
+      background: rgba(18, 25, 33, 0.85);
+      border: 1px solid #7a633b;
+      padding: 4px 12px;
+      border-radius: 4px;
+    }
+    .readout-val {
+      font-weight: bold;
+      color: #ffde94;
+    }
+    .nogo-alert {
+      color: #ff5964;
+      font-weight: bold;
+      letter-spacing: 1px;
+      display: none;
+      animation: pulse 1s infinite alternate;
+    }
+    @keyframes pulse {
+      from { opacity: 0.4; }
+      to { opacity: 1; }
+    }
+    /* Controls banner */
+    .hud-bottom {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+    }
+    .controls-bar {
+      font-size: 12px;
+      color: #cfbc97;
+      display: flex;
+      gap: 20px;
+      background: rgba(14, 20, 27, 0.85);
+      border: 1px solid rgba(197, 160, 89, 0.5);
+      padding: 6px 20px;
+      border-radius: 20px;
+    }
+    .key-badge {
+      display: inline-block;
+      background: #2a3b4c;
+      color: #ffeaae;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+      font-weight: bold;
+      border: 1px solid #5a738e;
+      margin-right: 4px;
+    }
+
+    /* Modals for Ready and Game Over */
+    .modal-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(8, 12, 16, 0.75);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+    .modal-content {
+      background: radial-gradient(ellipse at center, #1f2b37 0%, #0d131a 100%);
+      border: 2px solid #c5a059;
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(197, 160, 89, 0.2);
+      border-radius: 6px;
+      padding: 36px 48px;
+      text-align: center;
+      max-width: 580px;
+      color: #f7ecd5;
+    }
+    .modal-title {
+      font-size: 38px;
+      letter-spacing: 4px;
+      color: #f5d061;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      text-shadow: 2px 2px 6px #000;
+    }
+    .modal-subtitle {
+      font-size: 15px;
+      font-style: italic;
+      color: #ad9a7a;
+      margin-bottom: 24px;
+    }
+    .modal-instructions {
+      text-align: left;
+      font-size: 13px;
+      line-height: 1.8;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 16px 24px;
+      border-left: 3px solid #c5a059;
+      margin-bottom: 24px;
+    }
+    .modal-prompt {
+      font-size: 18px;
+      font-weight: bold;
+      color: #ffe699;
+      animation: blink 1.2s infinite ease-in-out;
+      letter-spacing: 1.5px;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    .hidden {
+      display: none !important;
+    }
+  </style>
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- In-game HUD -->
+  <div id="hud">
+    <div class="hud-top">
+      <!-- Player Fleet Column (Flagship + Consort Sloop) -->
+      <div class="fleet-column">
+        <!-- Player Flagship Card -->
+        <div class="hud-panel ship-status-card compact-card">
+          <div class="ship-name">
+            <span>HMS RESOLUTE (FLAGSHIP)</span>
+            <span id="player-flooding" class="flooding-badge">FLOOD</span>
+            <span id="player-grounded" class="flooding-badge" style="background:#e76f51;">GROUND</span>
+            <span id="player-fire" class="fire-badge">FIRE!</span>
+            <span class="crew-badge">CREW: <span id="player-crew-val">40</span>/40</span>
+          </div>
+          <div class="bar-label">
+            <span>HULL INTEGRITY</span>
+            <span id="player-hull-text">100 / 100</span>
+          </div>
+          <div class="bar-container">
+            <div id="player-hull-fill" class="bar-fill hull-fill" style="width: 100%;"></div>
+          </div>
+
+          <!-- Silhouette -->
+          <div class="silhouette-box" style="margin: 3px 0; padding: 4px;">
+            <div class="sil-masts">
+              <span id="p-mast-miz" class="sil-mast-tag">MIZ OK</span>
+              <span id="p-mast-main" class="sil-mast-tag">MAIN OK</span>
+              <span id="p-mast-fore" class="sil-mast-tag">FORE OK</span>
+            </div>
+            <div class="sil-guns-row">
+              <span>PORT</span>
+              <div id="p-guns-port" class="gun-pips">
+                <span class="gun-pip"></span><span class="gun-pip"></span><span class="gun-pip"></span>
+                <span class="gun-pip"></span><span class="gun-pip"></span><span class="gun-pip"></span>
+              </div>
+            </div>
+            <div class="sil-guns-row">
+              <span>STBD</span>
+              <div id="p-guns-stbd" class="gun-pips">
+                <span class="gun-pip"></span><span class="gun-pip"></span><span class="gun-pip"></span>
+                <span class="gun-pip"></span><span class="gun-pip"></span><span class="gun-pip"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="broadside-bars">
+            <div class="side-reload">
+              <div class="bar-label"><span>P <span id="player-port-ammo" style="color:#ffd166;">(RND)</span></span><span id="player-port-text">READY</span></div>
+              <div class="reload-bar"><div id="player-port-fill" class="reload-fill"></div></div>
+            </div>
+            <div class="side-reload">
+              <div class="bar-label"><span>S <span id="player-stbd-ammo" style="color:#ffd166;">(RND)</span></span><span id="player-stbd-text">READY</span></div>
+              <div class="reload-bar"><div id="player-stbd-fill" class="reload-fill"></div></div>
+            </div>
+          </div>
+
+          <div class="ammo-selector" style="margin-top: 4px;">
+            <div id="ammo-btn-1" class="ammo-btn active">[1] ROUND</div>
+            <div id="ammo-btn-2" class="ammo-btn">[2] CHAIN</div>
+            <div id="ammo-btn-3" class="ammo-btn">[3] DOUBLE</div>
+          </div>
+        </div>
+
+        <!-- Consort Sloop Card -->
+        <div class="hud-panel ship-status-card compact-card">
+          <div class="ship-name" style="color: #90e0ef;">
+            <span>HMS MERLIN (CONSORT)</span>
+            <span id="consort-order" class="order-badge">[T] ORDER: FOLLOW</span>
+            <span id="consort-flooding" class="flooding-badge">FLOOD</span>
+            <span id="consort-grounded" class="flooding-badge" style="background:#e76f51;">GROUND</span>
+            <span id="consort-fire" class="fire-badge">FIRE!</span>
+          </div>
+          <div class="bar-label">
+            <span>HULL</span>
+            <span id="consort-hull-text">60 / 60</span>
+            <span class="crew-badge" style="margin-left:8px;">CREW: <span id="consort-crew-val">20</span>/20</span>
+          </div>
+          <div class="bar-container"><div id="consort-hull-fill" class="bar-fill hull-fill" style="width: 100%;"></div></div>
+          <div class="broadside-bars">
+            <div class="side-reload">
+              <div class="bar-label"><span>P <span id="consort-port-ammo" style="color:#ffd166;">(RND)</span></span><span id="consort-port-text">READY</span></div>
+              <div class="reload-bar"><div id="consort-port-fill" class="reload-fill"></div></div>
+            </div>
+            <div class="side-reload">
+              <div class="bar-label"><span>S <span id="consort-stbd-ammo" style="color:#ffd166;">(RND)</span></span><span id="consort-stbd-text">READY</span></div>
+              <div class="reload-bar"><div id="consort-stbd-fill" class="reload-fill"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center Compass & Wind -->
+      <div class="hud-center-top">
+        <div class="compass-box">
+          <div id="compass-wind" class="compass-wind-arrow"></div>
+          <div id="compass-ship" class="compass-ship-needle"></div>
+          <div class="compass-center-pin"></div>
+        </div>
+        <div class="sailing-readout">
+          <div>SPEED: <span id="speed-val" class="readout-val">0.0</span> KTS</div>
+          <div>SAILS: <span id="sail-val" class="readout-val">FULL</span></div>
+          <div>HEADING: <span id="heading-val" class="readout-val">000°</span></div>
+          <div id="nogo-warn" class="nogo-alert">IN IRONS (NO-GO)</div>
+        </div>
+      </div>
+
+      <!-- Enemy Squadron (Frigate + Sloop) -->
+      <div class="squadron-column">
+        <!-- Enemy Frigate Card -->
+        <div class="hud-panel ship-status-card compact-card">
+          <div class="ship-name" style="color: #ff9999;">
+            <span>LE VENGEUR (FRIGATE)</span>
+            <span id="enemy-flooding" class="flooding-badge">FLOOD</span>
+            <span id="enemy-grounded" class="flooding-badge" style="background:#e76f51;">GROUND</span>
+            <span id="enemy-fire" class="fire-badge">FIRE!</span>
+            <span class="crew-badge">CREW: <span id="enemy-crew-val">40</span>/40</span>
+          </div>
+          <div class="bar-label"><span>HULL</span><span id="enemy-hull-text">100 / 100</span></div>
+          <div class="bar-container"><div id="enemy-hull-fill" class="bar-fill enemy-hull-fill" style="width: 100%;"></div></div>
+          <!-- Frigate Silhouette -->
+          <div class="silhouette-box" style="margin: 3px 0; padding: 4px;">
+            <div class="sil-masts">
+              <span id="e-mast-miz" class="sil-mast-tag">MIZ OK</span>
+              <span id="e-mast-main" class="sil-mast-tag">MAIN OK</span>
+              <span id="e-mast-fore" class="sil-mast-tag">FORE OK</span>
+            </div>
+            <div class="sil-guns-row">
+              <span>PORT</span>
+              <div id="e-guns-port" class="gun-pips">
+                <span class="gun-pip"></span><span class="gun-pip"></span><span class="gun-pip"></span>
+                <span class="gun-pip"></span><span class="gun-pip"></span><span class="gun-pip"></span>
+              </div>
+            </div>
+            <div class="sil-guns-row">
+              <span>STBD</span>
+              <div id="e-guns-stbd" class="gun-pips">
+                <span class="gun-pip"></span><span class="gun-pip"></span><span class="gun-pip"></span>
+                <span class="gun-pip"></span><span class="gun-pip"></span><span class="gun-pip"></span>
+              </div>
+            </div>
+          </div>
+          <div class="broadside-bars">
+            <div class="side-reload">
+              <div class="bar-label"><span>P <span id="enemy-port-ammo" style="color:#ffd166;">(RND)</span></span><span id="enemy-port-text">READY</span></div>
+              <div class="reload-bar"><div id="enemy-port-fill" class="reload-fill"></div></div>
+            </div>
+            <div class="side-reload">
+              <div class="bar-label"><span>S <span id="enemy-stbd-ammo" style="color:#ffd166;">(RND)</span></span><span id="enemy-stbd-text">READY</span></div>
+              <div class="reload-bar"><div id="enemy-stbd-fill" class="reload-fill"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Enemy Sloop Card -->
+        <div class="hud-panel ship-status-card compact-card">
+          <div class="ship-name" style="color: #ffbb77;">
+            <span>LE FAUCON (SLOOP)</span>
+            <span id="sloop-flooding" class="flooding-badge">FLOOD</span>
+            <span id="sloop-grounded" class="flooding-badge" style="background:#e76f51;">GROUND</span>
+            <span id="sloop-fire" class="fire-badge">FIRE!</span>
+            <span class="crew-badge">CREW: <span id="sloop-crew-val">20</span>/20</span>
+          </div>
+          <div class="bar-label"><span>HULL</span><span id="sloop-hull-text">60 / 60</span></div>
+          <div class="bar-container"><div id="sloop-hull-fill" class="bar-fill enemy-hull-fill" style="width: 100%;"></div></div>
+          <!-- Sloop Silhouette -->
+          <div class="silhouette-box" style="margin: 3px 0; padding: 4px;">
+            <div class="sil-masts">
+              <span id="sloop-mast" class="sil-mast-tag">MAIN MAST OK</span>
+            </div>
+            <div class="sil-guns-row">
+              <span>PORT</span>
+              <div id="sloop-guns-port" class="gun-pips">
+                <span class="gun-pip"></span><span class="gun-pip"></span><span class="gun-pip"></span>
+              </div>
+            </div>
+            <div class="sil-guns-row">
+              <span>STBD</span>
+              <div id="sloop-guns-stbd" class="gun-pips">
+                <span class="gun-pip"></span><span class="gun-pip"></span><span class="gun-pip"></span>
+              </div>
+            </div>
+          </div>
+          <div class="broadside-bars">
+            <div class="side-reload">
+              <div class="bar-label"><span>P <span id="sloop-port-ammo" style="color:#ffd166;">(RND)</span></span><span id="sloop-port-text">READY</span></div>
+              <div class="reload-bar"><div id="sloop-port-fill" class="reload-fill"></div></div>
+            </div>
+            <div class="side-reload">
+              <div class="bar-label"><span>S <span id="sloop-stbd-ammo" style="color:#ffd166;">(RND)</span></span><span id="sloop-stbd-text">READY</span></div>
+              <div class="reload-bar"><div id="sloop-stbd-fill" class="reload-fill"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Minimal Battle Log (Latest 4 events) -->
+    <div id="battle-log" class="battle-log">
+      <div class="log-entry"><span class="log-time">[00:00]</span>Battle fleet deployed</div>
+    </div>
+
+    <!-- Boarding Action Banner -->
+    <div id="boarding-prompt" class="boarding-prompt hidden">PRESS [B] TO THROW GRAPPLING HOOKS & BOARD!</div>
+
+    <!-- Boarding Fight Resolution Panel -->
+    <div id="boarding-panel" class="boarding-panel hidden">
+      <div class="boarding-title">DECK FIGHT IN PROGRESS</div>
+      <div class="boarding-sub">Grappled alongside — hand-to-hand combat!</div>
+      <div class="bar-container" style="height: 12px; margin-bottom: 8px;">
+        <div id="boarding-fill" class="bar-fill" style="width: 0%; background: linear-gradient(90deg, #ffd166, #d90429);"></div>
+      </div>
+      <div id="boarding-odds" class="boarding-odds">CREW: YOU 40 vs ENEMY 20</div>
+    </div>
+
+    <div class="hud-bottom">
+      <div class="controls-bar">
+        <span><span class="key-badge">W</span>/<span class="key-badge">S</span> Sails</span>
+        <span><span class="key-badge">A</span>/<span class="key-badge">D</span> Steer</span>
+        <span><span class="key-badge">Q</span>/<span class="key-badge">E</span> Broadside</span>
+        <span><span class="key-badge">1</span>/<span class="key-badge">2</span>/<span class="key-badge">3</span> Shot Type</span>
+        <span><span class="key-badge">B</span> Board</span>
+        <span><span class="key-badge">T</span> Consort Order</span>
+        <span><span class="key-badge">F</span> Damage Control</span>
+        <span><span class="key-badge">V</span> Tactical Map</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Damage Control / Repair Panel -->
+  <div id="repair-panel" class="repair-menu hidden">
+    <div class="repair-title">DAMAGE CONTROL & REPAIRS</div>
+    <div class="repair-sub">All crew diverted from guns and sails — broadsides disabled!</div>
+    <div class="repair-options">
+      <div id="repair-opt-leaks" class="repair-item">
+        <div class="repair-item-header">
+          <span><span class="repair-key">1</span> Plug Waterline Leaks (6s)</span>
+          <span id="repair-status-leaks" class="repair-status" style="color:#ffd166;">STANDBY</span>
+        </div>
+        <div class="repair-bar-container"><div id="repair-progress-leaks" class="repair-bar"></div></div>
+      </div>
+      <div id="repair-opt-masts" class="repair-item">
+        <div class="repair-item-header">
+          <span><span class="repair-key">2</span> Jury-Rig Downed Mast (10s)</span>
+          <span id="repair-status-masts" class="repair-status" style="color:#ffd166;">STANDBY</span>
+        </div>
+        <div class="repair-bar-container"><div id="repair-progress-masts" class="repair-bar"></div></div>
+      </div>
+      <div id="repair-opt-refloat" class="repair-item">
+        <div class="repair-item-header">
+          <span><span class="repair-key">3</span> Refloat Grounded Ship (8s / 4s offshore wind)</span>
+          <span id="repair-status-refloat" class="repair-status" style="color:#ffd166;">STANDBY</span>
+        </div>
+        <div class="repair-bar-container"><div id="repair-progress-refloat" class="repair-bar"></div></div>
+      </div>
+      <div id="repair-opt-fire" class="repair-item">
+        <div class="repair-item-header">
+          <span><span class="repair-key">4</span> Extinguish Deck Fire (6s Bucket Line)</span>
+          <span id="repair-status-fire" class="repair-status" style="color:#ffd166;">STANDBY</span>
+        </div>
+        <div class="repair-bar-container"><div id="repair-progress-fire" class="repair-bar"></div></div>
+      </div>
+    </div>
+    <div class="repair-close-prompt">Press [F] or [Esc] to Close Menu & Resume Battle Stations</div>
+  </div>
+
+  <!-- Ready Modal -->
+  <div id="ready-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-title">BROADSIDE</div>
+      <div class="modal-subtitle">Golden Age of Sail Fleet Combat</div>
+      <div class="modal-instructions">
+        • <strong>W / S</strong> : Raise / Shorten sail (Full, Half, Bare poles)<br>
+        • <strong>A / D</strong> : Rudder turn (tighter at moderate speed, wide at high speed)<br>
+        • <strong>1 / 2 / 3</strong> : Next Ammo (1: Round, 2: Chain vs Masts, 3: Double Shot close finisher)<br>
+        • <strong>Q / E</strong> : Fire Port (10s base) / Starboard (8s base) broadside (crew scaled)<br>
+        • <strong>T</strong> : Command Consort Sloop (Follow / Engage / Harass)<br>
+        • <strong>B</strong> : Board alongside when aligned, close, and slow (<1.5 rel speed)<br>
+        • <strong>F</strong> : Damage Control (1: Leaks 6s, 2: Mast 10s, 3: Refloat 8s/4s, 4: Fire 6s)<br>
+        • <strong>Fires & Powder</strong> : Hits within 5s of firing ignite fires; extinguish in 24s before magazine explodes!<br>
+        • <strong>V</strong> : Toggle elevated chase camera / overhead tactical view
+      </div>
+      <div class="modal-prompt">PRESS ENTER TO START</div>
+    </div>
+  </div>
+
+  <!-- Battle Over Modal -->
+  <div id="gameover-modal" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 650px;">
+      <div id="gameover-title" class="modal-title">VICTORY</div>
+      <div id="gameover-desc" class="modal-subtitle">The enemy squadron has been defeated!</div>
+      <div id="stats-panel"></div>
+      <div class="modal-prompt">PRESS R TO RESTART</div>
+    </div>
+  </div>
+
+  <script>
+    /*
+     * BROADSIDE - AGE OF SAIL NAVAL SIMULATION
+     * Strictly zero Math.random() usage: 100% deterministic pseudo-random & trig functions.
+     */
+
+    // --- Deterministic Pseudo-Random Generator (LCG) ---
+    let lcgSeed = 123456789;
+    function deterministicRandom() {
+      lcgSeed = (lcgSeed * 1664525 + 1013904223) % 4294967296;
+      return lcgSeed / 4294967296;
+    }
+    function resetDeterministicSeed(seed = 123456789) {
+      lcgSeed = seed;
+    }
+
+    // --- Game Constants & Setup ---
+    const CANNON_COUNT = 6;
+    const CREW_FULL = 40;
+    const CANNON_SPEED = 140.0;
+    const GRAVITY = -45.0;
+    const MAX_BALL_LIFE = 2.4;
+    const BROADSIDE_RANGE = 280.0;
+
+    // Shot Types (Grape shot removed; Double shot added as close finisher)
+    const SHOT_ROUND = 1;
+    const SHOT_CHAIN = 2;
+    const SHOT_DOUBLE = 3;
+    const SHOT_NAMES = { 1: 'ROUND', 2: 'CHAIN', 3: 'DOUBLE' };
+
+    // Dynamic Scheduled Wind System:
+    // Rotates 30° clockwise every 45 seconds with 5-second smooth transition
+    const INITIAL_WIND_DIRECTION = 0.45; // angle in radians
+    let currentWindDirection = INITIAL_WIND_DIRECTION;
+    const WIND_DIRECTION = INITIAL_WIND_DIRECTION;
+
+    function getScheduledWindDirection(simTime) {
+      const cycleLen = 45.0;
+      const transLen = 5.0;
+      const veerStep = Math.PI / 6.0; // 30 degrees
+
+      const cycle = Math.floor(simTime / cycleLen);
+      const timeInCycle = simTime % cycleLen;
+
+      if (timeInCycle < (cycleLen - transLen)) {
+        return (INITIAL_WIND_DIRECTION + cycle * veerStep) % (Math.PI * 2);
+      } else {
+        const t = (timeInCycle - (cycleLen - transLen)) / transLen;
+        const smoothT = t * t * (3.0 - 2.0 * t);
+        return (INITIAL_WIND_DIRECTION + (cycle + smoothT) * veerStep) % (Math.PI * 2);
+      }
+    }
+
+    const WIND_SPEED_BASE = 24.0; // knots equivalent
+
+    // --- Game Phases ---
+    const PHASE_READY = 'Ready';
+    const PHASE_BATTLE = 'Battle';
+    const PHASE_OVER = 'Battle Over';
+
+    let gamePhase = PHASE_READY;
+    let winner = null; // 'Victory' or 'Defeat'
+    let repairMenuOpen = false;
+
+    // --- Arena State Exposure ---
+    window.__arena_state = {
+      phase: PHASE_READY,
+      wind_direction: INITIAL_WIND_DIRECTION,
+      player_heading: 0,
+      player_speed_knots: 0,
+      sail_setting: 2,
+      player_hull: 100,
+      enemy_hull: 100,
+      reload_port: 0,
+      reload_starboard: 0,
+      player_flooding: false,
+      enemy_flooding: false,
+      player_crew: 40,
+      enemy_crew: 60,
+      player_rig_damage: [0, 0, 0],
+      enemy_rig_damage: [0, 0, 0],
+      player_downed_masts: [false, false, false],
+      enemy_downed_masts: [false, false, false],
+      player_knocked_out_guns: { port: 0, starboard: 0 },
+      enemy_knocked_out_guns: { port: 0, starboard: 0 },
+      selected_shot_type: 'ROUND',
+      loaded_ammo_port: 'ROUND',
+      loaded_ammo_starboard: 'ROUND',
+      player_repairing: null
+    };
+
+    // --- Three.js Scene Setup ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0xdfab76, 0.0014); // Warm golden hour fog
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.5, 4000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    // --- Lighting & Painterly Golden Hour Sky ---
+    const ambientLight = new THREE.AmbientLight(0x5a697c, 0.9);
+    scene.add(ambientLight);
+
+    const hemiLight = new THREE.HemisphereLight(0xffdfba, 0x1d3557, 0.7);
+    scene.add(hemiLight);
+
+    // Golden hour low sun
+    const sunLight = new THREE.DirectionalLight(0xffb86c, 2.2);
+    sunLight.position.set(400, 220, -500);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.camera.near = 50;
+    sunLight.shadow.camera.far = 1400;
+    sunLight.shadow.camera.left = -450;
+    sunLight.shadow.camera.right = 450;
+    sunLight.shadow.camera.top = 450;
+    sunLight.shadow.camera.bottom = -450;
+    sunLight.shadow.bias = -0.0005;
+    scene.add(sunLight);
+
+    // Sky Dome
+    function createGoldenSky() {
+      const vertexShader = `
+        varying vec3 vWorldPosition;
+        void main() {
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPosition.xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `;
+      const fragmentShader = `
+        varying vec3 vWorldPosition;
+        void main() {
+          vec3 dir = normalize(vWorldPosition);
+          float y = clamp(dir.y, 0.0, 1.0);
+          
+          // Horizon warm glow to zenith deep evening blue
+          vec3 horizon = vec3(0.96, 0.65, 0.38);
+          vec3 midSky = vec3(0.72, 0.48, 0.45);
+          vec3 zenith = vec3(0.18, 0.28, 0.48);
+          
+          vec3 sky = mix(horizon, midSky, pow(y, 0.45));
+          sky = mix(sky, zenith, pow(y, 1.8));
+
+          // Sun disc & glow
+          vec3 sunDir = normalize(vec3(400.0, 220.0, -500.0));
+          float sunDot = max(0.0, dot(dir, sunDir));
+          float sunDisc = smoothstep(0.998, 0.9995, sunDot);
+          float sunGlow = pow(sunDot, 12.0) * 0.8 + pow(sunDot, 4.0) * 0.35;
+          sky += vec3(1.0, 0.85, 0.5) * sunDisc * 3.0 + vec3(1.0, 0.5, 0.2) * sunGlow;
+
+          gl_FragColor = vec4(sky, 1.0);
+        }
+      `;
+      const skyGeo = new THREE.SphereGeometry(2800, 32, 16);
+      const skyMat = new THREE.ShaderMaterial({
+        vertexShader,
+        fragmentShader,
+        side: THREE.BackSide,
+        depthWrite: false
+      });
+      const skyMesh = new THREE.Mesh(skyGeo, skyMat);
+      scene.add(skyMesh);
+    }
+    createGoldenSky();
+
+    // Streaming Wind Air Streaks System
+    const windStreaksGroup = new THREE.Group();
+    scene.add(windStreaksGroup);
+    const WIND_STREAK_COUNT = 50;
+    const windStreaks = [];
+
+    function createWindStreaks() {
+      const streakMat = new THREE.LineBasicMaterial({
+        color: 0xfaebd7,
+        transparent: true,
+        opacity: 0.32,
+        linewidth: 1.5
+      });
+
+      const windVecX = Math.sin(WIND_DIRECTION);
+      const windVecZ = Math.cos(WIND_DIRECTION);
+
+      resetDeterministicSeed(772134);
+      for (let i = 0; i < WIND_STREAK_COUNT; i++) {
+        const length = 18.0 + deterministicRandom() * 22.0;
+        const lineGeo = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(0, 0, 0),
+          new THREE.Vector3(windVecX * length, (deterministicRandom() - 0.5) * 1.5, windVecZ * length)
+        ]);
+        const streakMesh = new THREE.Line(lineGeo, streakMat);
+
+        const streak = {
+          mesh: streakMesh,
+          relX: (deterministicRandom() - 0.5) * 450,
+          relY: 4.0 + deterministicRandom() * 28.0,
+          relZ: (deterministicRandom() - 0.5) * 450,
+          speed: 45.0 + deterministicRandom() * 25.0
+        };
+        windStreaksGroup.add(streakMesh);
+        windStreaks.push(streak);
+      }
+    }
+    createWindStreaks();
+
+    function updateWindStreaks(dt, playerPos) {
+      const windVecX = Math.sin(currentWindDirection);
+      const windVecZ = Math.cos(currentWindDirection);
+      const range = 240.0;
+
+      windStreaks.forEach((st) => {
+        st.relX += windVecX * st.speed * dt;
+        st.relZ += windVecZ * st.speed * dt;
+
+        // Wrap around player position
+        if (st.relX > range) st.relX -= range * 2;
+        if (st.relX < -range) st.relX += range * 2;
+        if (st.relZ > range) st.relZ -= range * 2;
+        if (st.relZ < -range) st.relZ += range * 2;
+
+        st.mesh.position.set(playerPos.x + st.relX, st.relY, playerPos.z + st.relZ);
+        st.mesh.rotation.y = currentWindDirection - INITIAL_WIND_DIRECTION;
+      });
+    }
+
+    // Drifting 3D clouds
+    const cloudsGroup = new THREE.Group();
+    scene.add(cloudsGroup);
+    function createClouds() {
+      const cloudGeo = new THREE.DodecahedronGeometry(25, 1);
+      const cloudMat = new THREE.MeshLambertMaterial({
+        color: 0xf2c89f,
+        transparent: true,
+        opacity: 0.65,
+        flatShading: true
+      });
+
+      // Deterministic cloud clusters
+      resetDeterministicSeed(45678);
+      for (let c = 0; c < 14; c++) {
+        const cluster = new THREE.Group();
+        const cx = (deterministicRandom() - 0.5) * 2200;
+        const cz = (deterministicRandom() - 0.5) * 2200;
+        const cy = 240 + deterministicRandom() * 90;
+        cluster.position.set(cx, cy, cz);
+
+        const puffs = 5 + Math.floor(deterministicRandom() * 5);
+        for (let p = 0; p < puffs; p++) {
+          const puff = new THREE.Mesh(cloudGeo, cloudMat);
+          const px = (deterministicRandom() - 0.5) * 80;
+          const py = (deterministicRandom() - 0.5) * 25;
+          const pz = (deterministicRandom() - 0.5) * 70;
+          const scale = 1.0 + deterministicRandom() * 1.8;
+          puff.position.set(px, py, pz);
+          puff.scale.set(scale * 1.5, scale * 0.7, scale * 1.2);
+          cluster.add(puff);
+        }
+        cloudsGroup.add(cluster);
+      }
+    }
+    createClouds();
+
+    // Circling Seabirds (deterministic motion)
+    const birdsGroup = new THREE.Group();
+    scene.add(birdsGroup);
+    const birdWings = [];
+    function createBirds() {
+      const birdMat = new THREE.MeshBasicMaterial({ color: 0x221a14, side: THREE.DoubleSide });
+      for (let i = 0; i < 8; i++) {
+        const bird = new THREE.Group();
+        const wingL = new THREE.Mesh(new THREE.BufferGeometry(), birdMat);
+        const wingR = new THREE.Mesh(new THREE.BufferGeometry(), birdMat);
+
+        // Simple angular triangular wings
+        const posL = new Float32Array([
+          0, 0, 0,
+          -2.2, 0.4, 0.4,
+          0, 0, 1.2
+        ]);
+        const posR = new Float32Array([
+          0, 0, 0,
+          2.2, 0.4, 0.4,
+          0, 0, 1.2
+        ]);
+        wingL.geometry.setAttribute('position', new THREE.BufferAttribute(posL, 3));
+        wingR.geometry.setAttribute('position', new THREE.BufferAttribute(posR, 3));
+
+        bird.add(wingL);
+        bird.add(wingR);
+        bird.position.set((i - 4) * 50, 45 + (i % 3) * 12, (i * 37) % 180 - 90);
+        birdsGroup.add(bird);
+        birdWings.push({ bird, wingL, wingR, offset: i * 1.15, radius: 120 + i * 25, speed: 0.35 + (i % 4) * 0.08 });
+      }
+    }
+    createBirds();
+
+    // --- Ocean Simulation & Shader ---
+    const waterVertexShader = `
+      uniform float uTime;
+      varying vec3 vWorldPosition;
+      varying vec3 vNormal;
+      varying vec2 vUv;
+      
+      // Multi-wave trochoidal approximation
+      float waveHeight(vec2 pos, float time) {
+        float h = 0.0;
+        // Wave 1 - Dominant swell
+        vec2 d1 = vec2(cos(0.45), sin(0.45));
+        float p1 = dot(pos, d1) * 0.035 - time * 1.35;
+        h += sin(p1) * 2.2;
+        
+        // Wave 2 - Cross sea swell
+        vec2 d2 = vec2(cos(0.9), sin(0.9));
+        float p2 = dot(pos, d2) * 0.055 - time * 1.8;
+        h += sin(p2) * 1.1;
+
+        // Wave 3 - Fine choppy wave
+        vec2 d3 = vec2(cos(-0.3), sin(-0.3));
+        float p3 = dot(pos, d3) * 0.12 - time * 2.7;
+        h += sin(p3) * 0.45;
+
+        return h;
+      }
+
+      vec3 waveNormal(vec2 pos, float time) {
+        float eps = 0.5;
+        float hC = waveHeight(pos, time);
+        float hX = waveHeight(pos + vec2(eps, 0.0), time);
+        float hZ = waveHeight(pos + vec2(0.0, eps), time);
+        vec3 n = normalize(vec3(hC - hX, eps, hC - hZ));
+        return n;
+      }
+
+      void main() {
+        vUv = uv;
+        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        worldPos.y = waveHeight(worldPos.xz, uTime);
+        vWorldPosition = worldPos.xyz;
+        vNormal = waveNormal(worldPos.xz, uTime);
+        gl_Position = projectionMatrix * viewMatrix * worldPos;
+      }
+    `;
+
+    const waterFragmentShader = `
+      uniform float uTime;
+      uniform vec3 uSunDir;
+      uniform vec3 uSunColor;
+      varying vec3 vWorldPosition;
+      varying vec3 vNormal;
+      varying vec2 vUv;
+
+      void main() {
+        vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+        vec3 normal = normalize(vNormal);
+
+        // Deep ocean painterly colors
+        vec3 deepWater = vec3(0.04, 0.14, 0.22);
+        vec3 surfaceWater = vec3(0.12, 0.32, 0.38);
+        vec3 crestWater = vec3(0.35, 0.58, 0.60);
+
+        // Fresnel reflection
+        float fresnel = pow(1.0 - max(0.0, dot(viewDir, normal)), 4.0);
+        fresnel = clamp(fresnel, 0.08, 0.85);
+
+        // Diffuse lighting
+        float diff = max(0.0, dot(normal, uSunDir));
+
+        // Specular glint from low golden hour sun
+        vec3 halfDir = normalize(uSunDir + viewDir);
+        float spec = pow(max(0.0, dot(normal, halfDir)), 140.0) * 3.5;
+        float broadGlint = pow(max(0.0, dot(normal, halfDir)), 22.0) * 0.9;
+
+        vec3 waterColor = mix(deepWater, surfaceWater, clamp(vWorldPosition.y * 0.25 + 0.45, 0.0, 1.0));
+        waterColor = mix(waterColor, crestWater, smoothstep(1.8, 3.2, vWorldPosition.y));
+
+        vec3 skyReflection = mix(vec3(0.92, 0.60, 0.35), vec3(0.3, 0.45, 0.65), clamp(viewDir.y * 1.5, 0.0, 1.0));
+        vec3 finalColor = mix(waterColor + diff * vec3(0.15, 0.12, 0.08), skyReflection, fresnel);
+        finalColor += (spec + broadGlint) * uSunColor;
+
+        // Subtle foam shimmer
+        float foam = smoothstep(2.3, 3.4, vWorldPosition.y) * 0.28;
+        finalColor += vec3(foam);
+
+        gl_FragColor = vec4(finalColor, 0.94);
+      }
+    `;
+
+    const oceanUniforms = {
+      uTime: { value: 0 },
+      uSunDir: { value: new THREE.Vector3(400, 220, -500).normalize() },
+      uSunColor: { value: new THREE.Vector3(1.0, 0.85, 0.6) }
+    };
+
+    const waterGeo = new THREE.PlaneGeometry(3600, 3600, 190, 190);
+    waterGeo.rotateX(-Math.PI / 2);
+    const waterMat = new THREE.ShaderMaterial({
+      vertexShader: waterVertexShader,
+      fragmentShader: waterFragmentShader,
+      uniforms: oceanUniforms,
+      transparent: true
+    });
+    const waterMesh = new THREE.Mesh(waterGeo, waterMat);
+    scene.add(waterMesh);
+
+    // CPU Wave Evaluator for ship buoyancy & physics
+    function getWaveHeight(x, z, time) {
+      let h = 0;
+      const d1x = Math.cos(0.45), d1z = Math.sin(0.45);
+      const p1 = (x * d1x + z * d1z) * 0.035 - time * 1.35;
+      h += Math.sin(p1) * 2.2;
+
+      const d2x = Math.cos(0.9), d2z = Math.sin(0.9);
+      const p2 = (x * d2x + z * d2z) * 0.055 - time * 1.8;
+      h += Math.sin(p2) * 1.1;
+
+      const d3x = Math.cos(-0.3), d3z = Math.sin(-0.3);
+      const p3 = (x * d3x + z * d3z) * 0.12 - time * 2.7;
+      h += Math.sin(p3) * 0.45;
+      return h;
+    }
+
+    // --- Exactly 3 Rocky Islets at Fixed Positions ---
+    const isletPositions = [
+      { x: -180, z: -120, radius: 42, height: 28 },
+      { x: 190, z: 100, radius: 46, height: 32 },
+      { x: 20, z: -260, radius: 40, height: 26 }
+    ];
+    const islets = [];
+
+    function buildIslets() {
+      resetDeterministicSeed(889911);
+      isletPositions.forEach((data, idx) => {
+        const isletGroup = new THREE.Group();
+        isletGroup.position.set(data.x, 0, data.z);
+
+        // Rocky base
+        const rockGeo = new THREE.CylinderGeometry(data.radius * 0.55, data.radius * 1.05, data.height, 16, 6);
+        // Deform vertices deterministically for rugged cliffs
+        const pos = rockGeo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          const vx = pos.getX(i);
+          const vy = pos.getY(i);
+          const vz = pos.getZ(i);
+          const angle = Math.atan2(vz, vx);
+          const dist = Math.sqrt(vx * vx + vz * vz);
+          const noise = Math.sin(angle * 5 + vy * 0.3) * 3.5 + Math.cos(angle * 3) * 2.5;
+          pos.setX(i, (dist + noise) * Math.cos(angle));
+          pos.setZ(i, (dist + noise) * Math.sin(angle));
+        }
+        rockGeo.computeVertexNormals();
+
+        const rockMat = new THREE.MeshStandardMaterial({
+          color: 0x4a433d,
+          roughness: 0.9,
+          metalness: 0.1,
+          flatShading: true
+        });
+        const rockMesh = new THREE.Mesh(rockGeo, rockMat);
+        rockMesh.position.y = data.height * 0.42;
+        rockMesh.castShadow = true;
+        rockMesh.receiveShadow = true;
+        isletGroup.add(rockMesh);
+
+        // Lush grass plateau on top
+        const grassGeo = new THREE.CylinderGeometry(data.radius * 0.52, data.radius * 0.54, 4, 16);
+        const grassMat = new THREE.MeshStandardMaterial({
+          color: 0x3d6628,
+          roughness: 0.85,
+          metalness: 0.05,
+          flatShading: true
+        });
+        const grassMesh = new THREE.Mesh(grassGeo, grassMat);
+        grassMesh.position.y = data.height * 0.9;
+        grassMesh.castShadow = true;
+        isletGroup.add(grassMesh);
+
+        // Foam ring at waterline
+        const foamGeo = new THREE.RingGeometry(data.radius * 0.95, data.radius * 1.35, 32);
+        foamGeo.rotateX(-Math.PI / 2);
+        const foamMat = new THREE.MeshBasicMaterial({
+          color: 0xebf4f6,
+          transparent: true,
+          opacity: 0.65,
+          side: THREE.DoubleSide
+        });
+        const foamMesh = new THREE.Mesh(foamGeo, foamMat);
+        foamMesh.position.y = 0.25;
+        isletGroup.add(foamMesh);
+
+        scene.add(isletGroup);
+        islets.push({ ...data, mesh: isletGroup });
+      });
+    }
+    buildIslets();
+
+    // --- 3D Ship Model Builder ---
+    /*
+     * Real square-rigged frigate:
+     * - Shaped hull ~30 units long with tumblehome, carved sheerline
+     * - Raised stern quarterdeck / cabin with glass windows
+     * - Bowsprit extending forward with jib stays
+     * - 3 masts (Foremast, Mainmast, Mizzenmast) with yards, tops, and billowing/luffing sails
+     * - Visible standing rigging shrouds & stays
+     * - National ensign on stern flagstaff streaming downwind
+     * - 6 gunports with cannon muzzles along each side (port & starboard)
+     */
+    function createShipModel(hullColorHex, trimColorHex, flagColorHex) {
+      const shipRoot = new THREE.Group();
+
+      // Materials
+      const hullMat = new THREE.MeshStandardMaterial({
+        color: hullColorHex,
+        roughness: 0.75,
+        metalness: 0.15,
+        flatShading: true
+      });
+      const trimMat = new THREE.MeshStandardMaterial({
+        color: trimColorHex,
+        roughness: 0.6,
+        metalness: 0.2,
+        flatShading: true
+      });
+      const deckMat = new THREE.MeshStandardMaterial({
+        color: 0x9c7a4b,
+        roughness: 0.85,
+        metalness: 0.05
+      });
+      const woodMat = new THREE.MeshStandardMaterial({
+        color: 0x543d2b,
+        roughness: 0.7
+      });
+      const metalMat = new THREE.MeshStandardMaterial({
+        color: 0x1f2421,
+        roughness: 0.4,
+        metalness: 0.8
+      });
+      const sailMat = new THREE.MeshStandardMaterial({
+        color: 0xede4c8,
+        roughness: 0.9,
+        side: THREE.DoubleSide
+      });
+      const windowMat = new THREE.MeshStandardMaterial({
+        color: 0x88ccdd,
+        roughness: 0.2,
+        metalness: 0.8
+      });
+      const ropeMat = new THREE.LineBasicMaterial({
+        color: 0x473c2c,
+        linewidth: 1
+      });
+
+      // --- Main Hull ---
+      // Hull geometry built out of segmented profile for authentic naval shape
+      const hullLength = 32.0;
+      const hullWidth = 8.5;
+      const hullDepth = 6.0;
+
+      const hullGeo = new THREE.BoxGeometry(hullWidth, hullDepth, hullLength, 6, 4, 12);
+      const hPos = hullGeo.attributes.position;
+      for (let i = 0; i < hPos.count; i++) {
+        let x = hPos.getX(i);
+        let y = hPos.getY(i);
+        let z = hPos.getZ(i);
+
+        // Normalize z along ship: bow (+16), stern (-16)
+        let nz = z / (hullLength * 0.5); // -1 to 1
+
+        // Bow taper and stern narrowing
+        if (nz > 0.0) {
+          // Bow narrows sharply
+          let taper = 1.0 - Math.pow(nz, 2.2) * 0.82;
+          x *= taper;
+          // Stem curve upwards
+          if (nz > 0.7) y += (nz - 0.7) * 4.0;
+        } else {
+          // Stern quarters & transom
+          let sternTaper = 1.0 - Math.pow(-nz, 2.8) * 0.35;
+          x *= sternTaper;
+          // Raised poop deck / stern sheer
+          y += Math.pow(-nz, 2.2) * 3.5;
+        }
+
+        // Tumblehome: hull flares out at waterline then gently pulls in at rails
+        let ny = (y + hullDepth * 0.5) / hullDepth;
+        if (ny > 0.6) {
+          x *= (1.0 - (ny - 0.6) * 0.18);
+        } else {
+          x *= (0.7 + ny * 0.5);
+        }
+
+        hPos.setXYZ(i, x, y, z);
+      }
+      hullGeo.computeVertexNormals();
+
+      const hullMesh = new THREE.Mesh(hullGeo, hullMat);
+      hullMesh.position.y = 2.8;
+      hullMesh.castShadow = true;
+      hullMesh.receiveShadow = true;
+      shipRoot.add(hullMesh);
+
+      // Yellow/Gold decorative gunwale stripe
+      const stripeGeo = new THREE.BoxGeometry(hullWidth * 0.98, 1.2, hullLength * 0.96);
+      const stripeMesh = new THREE.Mesh(stripeGeo, trimMat);
+      stripeMesh.position.y = 3.6;
+      shipRoot.add(stripeMesh);
+
+      // Raised Stern Cabin / Poop Deck
+      const cabinGeo = new THREE.BoxGeometry(7.2, 4.2, 8.0);
+      const cabinMesh = new THREE.Mesh(cabinGeo, hullMat);
+      cabinMesh.position.set(0, 5.8, -11.0);
+      cabinMesh.castShadow = true;
+      shipRoot.add(cabinMesh);
+
+      // Cabin Windows (Stern transom gallery)
+      for (let w = -2; w <= 2; w++) {
+        const win = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.6), windowMat);
+        win.position.set(w * 1.3, 5.8, -15.05);
+        win.rotateY(Math.PI);
+        shipRoot.add(win);
+      }
+
+      // Main Deck
+      const deckGeo = new THREE.BoxGeometry(hullWidth * 0.92, 0.4, hullLength * 0.94);
+      const deckMesh = new THREE.Mesh(deckGeo, deckMat);
+      deckMesh.position.y = 4.8;
+      shipRoot.add(deckMesh);
+
+      // Bowsprit
+      const bowspritGeo = new THREE.CylinderGeometry(0.35, 0.6, 14.0, 8);
+      bowspritGeo.rotateX(Math.PI / 2.35);
+      const bowspritMesh = new THREE.Mesh(bowspritGeo, woodMat);
+      bowspritMesh.position.set(0, 6.4, 21.0);
+      bowspritMesh.castShadow = true;
+      shipRoot.add(bowspritMesh);
+
+      // Cutwater / Stem figurehead support
+      const cutwater = new THREE.Mesh(new THREE.BoxGeometry(0.6, 4.5, 4.0), woodMat);
+      cutwater.position.set(0, 4.0, 17.0);
+      cutwater.rotation.x = 0.5;
+      shipRoot.add(cutwater);
+
+      // 6 Gunports with Cannon Muzzles on Port and Starboard
+      const portCannons = [];
+      const stbdCannons = [];
+      const cannonSpacing = 3.6;
+      const cannonZStart = -7.0;
+
+      const muzzleGeo = new THREE.CylinderGeometry(0.24, 0.35, 2.8, 8);
+      muzzleGeo.rotateZ(Math.PI / 2);
+
+      for (let c = 0; c < CANNON_COUNT; c++) {
+        const cz = cannonZStart + c * cannonSpacing;
+        const cy = 3.8;
+
+        // Port Cannon (fires towards -X local)
+        const portMuzzle = new THREE.Mesh(muzzleGeo, metalMat);
+        portMuzzle.position.set(-4.2, cy, cz);
+        portMuzzle.rotation.y = 0;
+        shipRoot.add(portMuzzle);
+        portCannons.push(portMuzzle);
+
+        // Port gunport lid frame
+        const portLid = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.2, 1.2), trimMat);
+        portLid.position.set(-4.4, cy, cz);
+        shipRoot.add(portLid);
+
+        // Starboard Cannon (fires towards +X local)
+        const stbdMuzzle = new THREE.Mesh(muzzleGeo, metalMat);
+        stbdMuzzle.position.set(4.2, cy, cz);
+        stbdMuzzle.rotation.y = Math.PI;
+        shipRoot.add(stbdMuzzle);
+        stbdCannons.push(stbdMuzzle);
+
+        // Starboard gunport lid frame
+        const stbdLid = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.2, 1.2), trimMat);
+        stbdLid.position.set(4.4, cy, cz);
+        shipRoot.add(stbdLid);
+      }
+
+      // --- Three Masts: Foremast, Mainmast, Mizzenmast ---
+      const mastSpecs = [
+        { name: 'Mizzen', z: -8.0, height: 26, radius: 0.45 },
+        { name: 'Main', z: 1.0, height: 32, radius: 0.55 },
+        { name: 'Fore', z: 9.5, height: 28, radius: 0.48 }
+      ];
+
+      const sailsList = [];
+      const mastGroups = [];
+      const riggingLines = [];
+
+      mastSpecs.forEach((mSpec) => {
+        const mastGroup = new THREE.Group();
+        mastGroup.position.set(0, 4.8, mSpec.z);
+
+        // Mast pole
+        const poleGeo = new THREE.CylinderGeometry(mSpec.radius * 0.5, mSpec.radius, mSpec.height, 8);
+        poleGeo.translate(0, mSpec.height * 0.5, 0);
+        const poleMesh = new THREE.Mesh(poleGeo, woodMat);
+        poleMesh.castShadow = true;
+        mastGroup.add(poleMesh);
+
+        // Crow's nest / Fighting top platform
+        const topGeo = new THREE.CylinderGeometry(2.0, 1.5, 0.8, 10);
+        topGeo.translate(0, mSpec.height * 0.55, 0);
+        const topMesh = new THREE.Mesh(topGeo, woodMat);
+        mastGroup.add(topMesh);
+
+        // Yards and Curved Sails (Lower course & Upper topsail)
+        const tiers = [
+          { yRel: mSpec.height * 0.42, yardW: 13.5, sailH: 7.0 },
+          { yRel: mSpec.height * 0.78, yardW: 10.5, sailH: 6.2 }
+        ];
+
+        const mastSails = [];
+        tiers.forEach((t) => {
+          // Horizontal yard
+          const yardGeo = new THREE.CylinderGeometry(0.2, 0.28, t.yardW, 8);
+          yardGeo.rotateZ(Math.PI / 2);
+          const yardMesh = new THREE.Mesh(yardGeo, woodMat);
+          yardMesh.position.y = t.yRel;
+          yardMesh.castShadow = true;
+          mastGroup.add(yardMesh);
+
+          // Billowing curved sail (parametric plane bent along Z)
+          const sailSegmentsX = 10;
+          const sailSegmentsY = 8;
+          const sailGeo = new THREE.PlaneGeometry(t.yardW * 0.94, t.sailH, sailSegmentsX, sailSegmentsY);
+          sailGeo.translate(0, -t.sailH * 0.5, 0);
+
+          const sPos = sailGeo.attributes.position;
+          // Store base positions for animated billow / luff deformation
+          const basePositions = new Float32Array(sPos.count * 3);
+          for (let p = 0; p < sPos.count; p++) {
+            basePositions[p * 3] = sPos.getX(p);
+            basePositions[p * 3 + 1] = sPos.getY(p);
+            basePositions[p * 3 + 2] = sPos.getZ(p);
+          }
+
+          const sailMesh = new THREE.Mesh(sailGeo, sailMat);
+          sailMesh.position.set(0, t.yRel, 0.3);
+          sailMesh.castShadow = true;
+          mastGroup.add(sailMesh);
+
+          const sObj = {
+            mesh: sailMesh,
+            geo: sailGeo,
+            base: basePositions,
+            mastZ: mSpec.z,
+            tier: t
+          };
+          sailsList.push(sObj);
+          mastSails.push(sObj);
+        });
+
+        shipRoot.add(mastGroup);
+        mastGroups.push({
+          name: mSpec.name,
+          group: mastGroup,
+          z: mSpec.z,
+          sails: mastSails,
+          pole: poleMesh
+        });
+
+        // Standing Rigging: Shrouds from mast top to hull chainplates
+        const shroudPointsL = [
+          new THREE.Vector3(-4.0, 5.0, mSpec.z + 1.2),
+          new THREE.Vector3(-mSpec.radius, mSpec.height * 0.55 + 4.8, mSpec.z),
+          new THREE.Vector3(-4.0, 5.0, mSpec.z - 1.2)
+        ];
+        const shroudPointsR = [
+          new THREE.Vector3(4.0, 5.0, mSpec.z + 1.2),
+          new THREE.Vector3(mSpec.radius, mSpec.height * 0.55 + 4.8, mSpec.z),
+          new THREE.Vector3(4.0, 5.0, mSpec.z - 1.2)
+        ];
+        const sGeoL = new THREE.BufferGeometry().setFromPoints(shroudPointsL);
+        const sGeoR = new THREE.BufferGeometry().setFromPoints(shroudPointsR);
+        shipRoot.add(new THREE.Line(sGeoL, ropeMat));
+        shipRoot.add(new THREE.Line(sGeoR, ropeMat));
+
+        // Forestays
+        const stayPoints = [
+          new THREE.Vector3(0, mSpec.height * 0.8 + 4.8, mSpec.z),
+          new THREE.Vector3(0, 5.2, mSpec.z + 7.5)
+        ];
+        const stayGeo = new THREE.BufferGeometry().setFromPoints(stayPoints);
+        shipRoot.add(new THREE.Line(stayGeo, ropeMat));
+      });
+
+      // --- Crew Figures on Deck ---
+      const crewFigures = [];
+      const sailorBodyMat = new THREE.MeshStandardMaterial({
+        color: hullColorHex === 0x283d54 ? 0x1d3557 : 0x6b1e22,
+        roughness: 0.8
+      });
+      const sailorHeadMat = new THREE.MeshStandardMaterial({
+        color: 0xf5caa0,
+        roughness: 0.6
+      });
+      const sailorHatMat = new THREE.MeshStandardMaterial({
+        color: 0x222222,
+        roughness: 0.9
+      });
+      const sBodyGeo = new THREE.CylinderGeometry(0.24, 0.32, 1.2, 5);
+      const sHeadGeo = new THREE.SphereGeometry(0.25, 5, 5);
+      const sHatGeo = new THREE.CylinderGeometry(0.38, 0.38, 0.18, 5);
+
+      const sailorCoords = [
+        { x: -3.0, z: -6.0 }, { x: -3.0, z: -2.0 }, { x: -3.0, z: 2.0 }, { x: -3.0, z: 6.0 },
+        { x: 3.0, z: -6.0 }, { x: 3.0, z: -2.0 }, { x: 3.0, z: 2.0 }, { x: 3.0, z: 6.0 },
+        { x: 1.0, z: -11.0 }, { x: -1.0, z: -11.5 },
+        { x: 0.0, z: -1.0 }, { x: 0.0, z: 8.0 }
+      ];
+
+      sailorCoords.forEach((coord) => {
+        const fig = new THREE.Group();
+        const b = new THREE.Mesh(sBodyGeo, sailorBodyMat);
+        b.position.y = 0.6;
+        b.castShadow = true;
+        const h = new THREE.Mesh(sHeadGeo, sailorHeadMat);
+        h.position.y = 1.35;
+        const hat = new THREE.Mesh(sHatGeo, sailorHatMat);
+        hat.position.y = 1.6;
+        fig.add(b);
+        fig.add(h);
+        fig.add(hat);
+        fig.position.set(coord.x, 5.0, coord.z);
+        shipRoot.add(fig);
+        crewFigures.push({ mesh: fig, basePos: coord });
+      });
+
+      // --- Masthead Pennants (streamers pointing downwind) ---
+      const pennantsList = [];
+      mastSpecs.forEach((mSpec) => {
+        const pennantGeo = new THREE.PlaneGeometry(3.6, 0.7, 6, 1);
+        pennantGeo.translate(1.8, 0, 0);
+        const pennantMat = new THREE.MeshStandardMaterial({
+          color: flagColorHex,
+          roughness: 0.8,
+          side: THREE.DoubleSide
+        });
+        const pennantMesh = new THREE.Mesh(pennantGeo, pennantMat);
+        pennantMesh.position.set(0, mSpec.height + 5.2, mSpec.z);
+        shipRoot.add(pennantMesh);
+        pennantsList.push({ mesh: pennantMesh, geo: pennantGeo });
+      });
+
+      // --- National Ensign at the Stern ---
+      const flagStaff = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 7.5, 6), woodMat);
+      flagStaff.position.set(0, 8.5, -15.5);
+      flagStaff.rotation.x = -0.22;
+      shipRoot.add(flagStaff);
+
+      const flagW = 5.2;
+      const flagH = 3.2;
+      const flagGeo = new THREE.PlaneGeometry(flagW, flagH, 8, 4);
+      flagGeo.translate(flagW * 0.5, -flagH * 0.45, 0);
+
+      const flagMat = new THREE.MeshStandardMaterial({
+        color: flagColorHex,
+        roughness: 0.8,
+        side: THREE.DoubleSide
+      });
+      const flagMesh = new THREE.Mesh(flagGeo, flagMat);
+      flagMesh.position.set(0, 11.2, -15.8);
+      shipRoot.add(flagMesh);
+
+      // Subtle broadside aiming arc indicators (visible when ready)
+      const arcMatOutline = new THREE.MeshBasicMaterial({
+        color: 0xffd166,
+        transparent: true,
+        opacity: 0.38,
+        side: THREE.DoubleSide
+      });
+      const arcMatFill = new THREE.MeshBasicMaterial({
+        color: 0xffd166,
+        transparent: true,
+        opacity: 0.06,
+        side: THREE.DoubleSide
+      });
+
+      const arcGroupPort = new THREE.Group();
+      const ringFillPort = new THREE.Mesh(new THREE.RingGeometry(15, BROADSIDE_RANGE * 0.72, 24, 1, Math.PI * 0.65, Math.PI * 0.7), arcMatFill);
+      ringFillPort.rotateX(-Math.PI / 2);
+      arcGroupPort.add(ringFillPort);
+      const ringLinePort = new THREE.Mesh(new THREE.RingGeometry(BROADSIDE_RANGE * 0.705, BROADSIDE_RANGE * 0.72, 32, 1, Math.PI * 0.65, Math.PI * 0.7), arcMatOutline);
+      ringLinePort.rotateX(-Math.PI / 2);
+      arcGroupPort.add(ringLinePort);
+      arcGroupPort.position.y = 0.4;
+      shipRoot.add(arcGroupPort);
+
+      const arcGroupStbd = new THREE.Group();
+      const ringFillStbd = new THREE.Mesh(new THREE.RingGeometry(15, BROADSIDE_RANGE * 0.72, 24, 1, -Math.PI * 0.35, Math.PI * 0.7), arcMatFill);
+      ringFillStbd.rotateX(-Math.PI / 2);
+      arcGroupStbd.add(ringFillStbd);
+      const ringLineStbd = new THREE.Mesh(new THREE.RingGeometry(BROADSIDE_RANGE * 0.705, BROADSIDE_RANGE * 0.72, 32, 1, -Math.PI * 0.35, Math.PI * 0.7), arcMatOutline);
+      ringLineStbd.rotateX(-Math.PI / 2);
+      arcGroupStbd.add(ringLineStbd);
+      arcGroupStbd.position.y = 0.4;
+      shipRoot.add(arcGroupStbd);
+
+      return {
+        root: shipRoot,
+        hullMesh,
+        portCannons,
+        stbdCannons,
+        sailsList,
+        pennantsList,
+        flagMesh,
+        flagGeo,
+        arcMeshPort: arcGroupPort,
+        arcMeshStbd: arcGroupStbd,
+        mastGroups,
+        crewFigures
+      };
+    }
+
+    // --- 3D Sloop Model Builder (Nimble, Single Raked Mast, Fore-and-Aft Rig) ---
+    function createSloopModel(hullColorHex, trimColorHex, flagColorHex) {
+      const shipRoot = new THREE.Group();
+
+      const hullMat = new THREE.MeshStandardMaterial({
+        color: hullColorHex,
+        roughness: 0.75,
+        metalness: 0.15,
+        flatShading: true
+      });
+      const trimMat = new THREE.MeshStandardMaterial({
+        color: trimColorHex,
+        roughness: 0.6,
+        metalness: 0.2,
+        flatShading: true
+      });
+      const deckMat = new THREE.MeshStandardMaterial({
+        color: 0x9c7a4b,
+        roughness: 0.85,
+        metalness: 0.05
+      });
+      const woodMat = new THREE.MeshStandardMaterial({
+        color: 0x543d2b,
+        roughness: 0.7
+      });
+      const metalMat = new THREE.MeshStandardMaterial({
+        color: 0x1f2421,
+        roughness: 0.4,
+        metalness: 0.8
+      });
+      const sailMat = new THREE.MeshStandardMaterial({
+        color: 0xede4c8,
+        roughness: 0.9,
+        side: THREE.DoubleSide
+      });
+
+      // Hull: sleek, low freeboard, rakish bow (~20 length, 6.0 width, 3.8 depth)
+      const hullLength = 20.0;
+      const hullWidth = 6.0;
+      const hullDepth = 3.8;
+
+      const hullGeo = new THREE.BoxGeometry(hullWidth, hullDepth, hullLength, 6, 4, 10);
+      const hPos = hullGeo.attributes.position;
+      for (let i = 0; i < hPos.count; i++) {
+        let x = hPos.getX(i);
+        let y = hPos.getY(i);
+        let z = hPos.getZ(i);
+
+        let nz = z / (hullLength * 0.5);
+        if (nz > 0.0) {
+          let taper = 1.0 - Math.pow(nz, 2.0) * 0.85;
+          x *= taper;
+          if (nz > 0.6) y += (nz - 0.6) * 3.0;
+        } else {
+          let sternTaper = 1.0 - Math.pow(-nz, 2.5) * 0.4;
+          x *= sternTaper;
+          y += Math.pow(-nz, 2.0) * 1.5;
+        }
+        let ny = (y + hullDepth * 0.5) / hullDepth;
+        if (ny > 0.6) {
+          x *= (1.0 - (ny - 0.6) * 0.15);
+        } else {
+          x *= (0.75 + ny * 0.45);
+        }
+        hPos.setXYZ(i, x, y, z);
+      }
+      hullGeo.computeVertexNormals();
+
+      const hullMesh = new THREE.Mesh(hullGeo, hullMat);
+      hullMesh.position.y = 1.8;
+      hullMesh.castShadow = true;
+      hullMesh.receiveShadow = true;
+      shipRoot.add(hullMesh);
+
+      const stripeGeo = new THREE.BoxGeometry(hullWidth * 0.98, 0.8, hullLength * 0.96);
+      const stripeMesh = new THREE.Mesh(stripeGeo, trimMat);
+      stripeMesh.position.y = 2.4;
+      shipRoot.add(stripeMesh);
+
+      const deckGeo = new THREE.BoxGeometry(hullWidth * 0.92, 0.3, hullLength * 0.94);
+      const deckMesh = new THREE.Mesh(deckGeo, deckMat);
+      deckMesh.position.y = 3.0;
+      shipRoot.add(deckMesh);
+
+      // Short Bowsprit
+      const bowspritGeo = new THREE.CylinderGeometry(0.25, 0.38, 9.0, 6);
+      bowspritGeo.rotateX(Math.PI / 2.3);
+      const bowspritMesh = new THREE.Mesh(bowspritGeo, woodMat);
+      bowspritMesh.position.set(0, 3.8, 13.5);
+      shipRoot.add(bowspritMesh);
+
+      // 3 Gunports along each side (port & starboard)
+      const portCannons = [];
+      const stbdCannons = [];
+      const cannonZ = [-4.0, 0.0, 4.0];
+      const muzzleGeo = new THREE.CylinderGeometry(0.2, 0.28, 2.2, 6);
+      muzzleGeo.rotateZ(Math.PI / 2);
+
+      cannonZ.forEach((cz) => {
+        const cy = 2.6;
+        const portMuzzle = new THREE.Mesh(muzzleGeo, metalMat);
+        portMuzzle.position.set(-3.0, cy, cz);
+        shipRoot.add(portMuzzle);
+        portCannons.push(portMuzzle);
+
+        const stbdMuzzle = new THREE.Mesh(muzzleGeo, metalMat);
+        stbdMuzzle.position.set(3.0, cy, cz);
+        stbdMuzzle.rotation.y = Math.PI;
+        shipRoot.add(stbdMuzzle);
+        stbdCannons.push(stbdMuzzle);
+      });
+
+      // Single Raked Mast with large fore-and-aft gaff/boom sail
+      const mastGroup = new THREE.Group();
+      mastGroup.position.set(0, 3.0, -1.0);
+      mastGroup.rotation.x = -0.14; // raked backwards
+
+      const mastHeight = 25.0;
+      const mastPoleGeo = new THREE.CylinderGeometry(0.3, 0.5, mastHeight, 8);
+      mastPoleGeo.translate(0, mastHeight * 0.5, 0);
+      const mastPole = new THREE.Mesh(mastPoleGeo, woodMat);
+      mastPole.castShadow = true;
+      mastGroup.add(mastPole);
+
+      // Boom spar
+      const boomGeo = new THREE.CylinderGeometry(0.18, 0.22, 10.5, 6);
+      boomGeo.rotateX(Math.PI / 2);
+      boomGeo.translate(0, 2.0, -5.2);
+      const boomMesh = new THREE.Mesh(boomGeo, woodMat);
+      mastGroup.add(boomMesh);
+
+      // Gaff spar
+      const gaffGeo = new THREE.CylinderGeometry(0.15, 0.18, 8.5, 6);
+      gaffGeo.rotateX(Math.PI / 2.4);
+      gaffGeo.translate(0, mastHeight * 0.72, -4.0);
+      const gaffMesh = new THREE.Mesh(gaffGeo, woodMat);
+      mastGroup.add(gaffMesh);
+
+      // Fore-and-aft mainsail (spanker)
+      const sailGeo = new THREE.PlaneGeometry(9.0, 14.0, 10, 8);
+      sailGeo.rotateY(Math.PI / 2);
+      sailGeo.translate(0, 9.0, -4.5);
+
+      const sPos = sailGeo.attributes.position;
+      const basePositions = new Float32Array(sPos.count * 3);
+      for (let p = 0; p < sPos.count; p++) {
+        basePositions[p * 3] = sPos.getX(p);
+        basePositions[p * 3 + 1] = sPos.getY(p);
+        basePositions[p * 3 + 2] = sPos.getZ(p);
+      }
+      const sailMesh = new THREE.Mesh(sailGeo, sailMat);
+      sailMesh.castShadow = true;
+      mastGroup.add(sailMesh);
+
+      // Jib headsail (triangle from bowsprit to mast)
+      const jibGeo = new THREE.BufferGeometry();
+      const jibVertices = new Float32Array([
+        0, 18.0, -1.0,
+        0, 3.2, 12.0,
+        0, 3.5, 1.5
+      ]);
+      jibGeo.setAttribute('position', new THREE.BufferAttribute(jibVertices, 3));
+      jibGeo.computeVertexNormals();
+      const jibMesh = new THREE.Mesh(jibGeo, sailMat);
+      shipRoot.add(jibMesh);
+
+      shipRoot.add(mastGroup);
+
+      const mastGroups = [{
+        name: 'Main',
+        group: mastGroup,
+        z: -1.0,
+        sails: [{ mesh: sailMesh, geo: sailGeo, base: basePositions }],
+        pole: mastPole
+      }];
+
+      const sailsList = [{
+        mesh: sailMesh,
+        geo: sailGeo,
+        base: basePositions,
+        mastZ: -1.0,
+        isGaff: true
+      }];
+
+      // Masthead pennant
+      const pennantsList = [];
+      const pennantGeo = new THREE.PlaneGeometry(3.0, 0.6, 6, 1);
+      pennantGeo.translate(1.5, 0, 0);
+      const pennantMat = new THREE.MeshStandardMaterial({ color: flagColorHex, roughness: 0.8, side: THREE.DoubleSide });
+      const pennantMesh = new THREE.Mesh(pennantGeo, pennantMat);
+      pennantMesh.position.set(0, mastHeight + 3.0, -1.0);
+      shipRoot.add(pennantMesh);
+      pennantsList.push({ mesh: pennantMesh, geo: pennantGeo });
+
+      // National Ensign at stern
+      const flagStaff = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 6.0, 6), woodMat);
+      flagStaff.position.set(0, 5.0, -9.5);
+      flagStaff.rotation.x = -0.25;
+      shipRoot.add(flagStaff);
+
+      const flagGeo = new THREE.PlaneGeometry(3.8, 2.4, 6, 3);
+      flagGeo.translate(1.9, -1.2, 0);
+      const flagMat = new THREE.MeshStandardMaterial({ color: flagColorHex, roughness: 0.8, side: THREE.DoubleSide });
+      const flagMesh = new THREE.Mesh(flagGeo, flagMat);
+      flagMesh.position.set(0, 7.0, -9.8);
+      shipRoot.add(flagMesh);
+
+      // Aiming arcs
+      const arcMatOutline = new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
+      const arcMatFill = new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.05, side: THREE.DoubleSide });
+
+      const arcGroupPort = new THREE.Group();
+      const ringFillPort = new THREE.Mesh(new THREE.RingGeometry(12, BROADSIDE_RANGE * 0.65, 20, 1, Math.PI * 0.65, Math.PI * 0.7), arcMatFill);
+      ringFillPort.rotateX(-Math.PI / 2);
+      arcGroupPort.add(ringFillPort);
+      const ringLinePort = new THREE.Mesh(new THREE.RingGeometry(BROADSIDE_RANGE * 0.64, BROADSIDE_RANGE * 0.65, 24, 1, Math.PI * 0.65, Math.PI * 0.7), arcMatOutline);
+      ringLinePort.rotateX(-Math.PI / 2);
+      arcGroupPort.add(ringLinePort);
+      arcGroupPort.position.y = 0.35;
+      shipRoot.add(arcGroupPort);
+
+      const arcGroupStbd = new THREE.Group();
+      const ringFillStbd = new THREE.Mesh(new THREE.RingGeometry(12, BROADSIDE_RANGE * 0.65, 20, 1, -Math.PI * 0.35, Math.PI * 0.7), arcMatFill);
+      ringFillStbd.rotateX(-Math.PI / 2);
+      arcGroupStbd.add(ringFillStbd);
+      const ringLineStbd = new THREE.Mesh(new THREE.RingGeometry(BROADSIDE_RANGE * 0.64, BROADSIDE_RANGE * 0.65, 24, 1, -Math.PI * 0.35, Math.PI * 0.7), arcMatOutline);
+      ringLineStbd.rotateX(-Math.PI / 2);
+      arcGroupStbd.add(ringLineStbd);
+      arcGroupStbd.position.y = 0.35;
+      shipRoot.add(arcGroupStbd);
+
+      // Crew figures (6 on deck for 20 crew)
+      const crewFigures = [];
+      const sailorBodyMat = new THREE.MeshStandardMaterial({ color: 0x541e24, roughness: 0.8 });
+      const sailorHeadMat = new THREE.MeshStandardMaterial({ color: 0xf5caa0, roughness: 0.6 });
+      const sBodyGeo = new THREE.CylinderGeometry(0.2, 0.28, 1.0, 5);
+      const sHeadGeo = new THREE.SphereGeometry(0.22, 5, 5);
+
+      const sailorCoords = [
+        { x: -2.0, z: -3.0 }, { x: -2.0, z: 2.0 },
+        { x: 2.0, z: -3.0 }, { x: 2.0, z: 2.0 },
+        { x: 0.0, z: -7.0 },
+        { x: 0.0, z: 0.0 }
+      ];
+      sailorCoords.forEach((coord) => {
+        const fig = new THREE.Group();
+        const b = new THREE.Mesh(sBodyGeo, sailorBodyMat);
+        b.position.y = 0.5;
+        const h = new THREE.Mesh(sHeadGeo, sailorHeadMat);
+        h.position.y = 1.15;
+        fig.add(b); fig.add(h);
+        fig.position.set(coord.x, 3.2, coord.z);
+        shipRoot.add(fig);
+        crewFigures.push({ mesh: fig, basePos: coord });
+      });
+
+      return {
+        root: shipRoot,
+        hullMesh,
+        portCannons,
+        stbdCannons,
+        sailsList,
+        pennantsList,
+        flagMesh,
+        flagGeo,
+        arcMeshPort: arcGroupPort,
+        arcMeshStbd: arcGroupStbd,
+        mastGroups,
+        crewFigures
+      };
+    }
+
+    // --- Create Player and Enemy Ships ---
+    // Player: British Royal Navy / Golden Oak & Navy Blue
+    const playerShipModel = createShipModel(0x283d54, 0xdfa038, 0xd90429);
+    scene.add(playerShipModel.root);
+
+    // Enemy Frigate: French Marine Royale / Crimson Red & Charcoal
+    const enemyShipModel = createShipModel(0x6b1e22, 0xd4af37, 0x1d3557);
+    scene.add(enemyShipModel.root);
+
+    // Enemy Sloop: French Naval Sloop / Dark Terracotta & Gold
+    const enemySloopModel = createSloopModel(0x7b3e2b, 0xdfa038, 0x1d3557);
+    scene.add(enemySloopModel.root);
+
+    // Consort Sloop: British Royal Navy / Golden Oak & Navy Blue
+    const consortShipModel = createSloopModel(0x283d54, 0xdfa038, 0xd90429);
+    scene.add(consortShipModel.root);
+
+    // --- Wake Systems (Real 3D trailing foam meshes) ---
+    function createWakeSystem() {
+      const WAKE_POINTS = 32;
+      const history = [];
+      const geo = new THREE.BufferGeometry();
+      const positions = new Float32Array(WAKE_POINTS * 2 * 3);
+      const uvs = new Float32Array(WAKE_POINTS * 2 * 2);
+
+      // Setup UVs once
+      for (let i = 0; i < WAKE_POINTS; i++) {
+        const u = i / (WAKE_POINTS - 1);
+        uvs[i * 4 + 0] = 0.0;
+        uvs[i * 4 + 1] = u;
+        uvs[i * 4 + 2] = 1.0;
+        uvs[i * 4 + 3] = u;
+      }
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+
+      // Index triangles
+      const indices = [];
+      for (let i = 0; i < WAKE_POINTS - 1; i++) {
+        const p1 = i * 2;
+        const p2 = i * 2 + 1;
+        const p3 = (i + 1) * 2;
+        const p4 = (i + 1) * 2 + 1;
+        indices.push(p1, p2, p3);
+        indices.push(p2, p4, p3);
+      }
+      geo.setIndex(indices);
+
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.45,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      scene.add(mesh);
+
+      return {
+        mesh,
+        geo,
+        history,
+        positions,
+        timer: 0,
+        update: function(shipPos, shipHeading, speedKnots, dt) {
+          this.timer += dt;
+          if (this.timer > 0.08) {
+            this.timer = 0;
+            const sternOffset = -14.0;
+            const sx = shipPos.x + Math.sin(shipHeading) * sternOffset;
+            const sz = shipPos.z + Math.cos(shipHeading) * sternOffset;
+            this.history.unshift({
+              x: sx,
+              z: sz,
+              heading: shipHeading,
+              speed: speedKnots
+            });
+            if (this.history.length > WAKE_POINTS) {
+              this.history.pop();
+            }
+          }
+
+          const count = this.history.length;
+          const posAttr = this.geo.attributes.position;
+          for (let i = 0; i < WAKE_POINTS; i++) {
+            if (i < count) {
+              const pt = this.history[i];
+              const spread = (i * 0.9 + 3.0) * (0.4 + pt.speed * 0.06);
+              const perpX = Math.cos(pt.heading);
+              const perpZ = -Math.sin(pt.heading);
+
+              posAttr.setXYZ(i * 2 + 0, pt.x - perpX * spread, 0.4, pt.z - perpZ * spread);
+              posAttr.setXYZ(i * 2 + 1, pt.x + perpX * spread, 0.4, pt.z + perpZ * spread);
+            } else {
+              const last = this.history[count - 1] || { x: shipPos.x, z: shipPos.z };
+              posAttr.setXYZ(i * 2 + 0, last.x, 0.4, last.z);
+              posAttr.setXYZ(i * 2 + 1, last.x, 0.4, last.z);
+            }
+          }
+          posAttr.needsUpdate = true;
+        }
+      };
+    }
+
+    const playerWake = createWakeSystem();
+    const consortWake = createWakeSystem();
+    const enemyWake = createWakeSystem();
+    const enemySloopWake = createWakeSystem();
+
+    function spawnFireParticles(pos) {
+      for (let i = 0; i < 3; i++) {
+        const pMat = new THREE.MeshBasicMaterial({
+          color: (i % 2 === 0) ? 0xff5400 : 0xffd000,
+          transparent: true,
+          opacity: 0.85
+        });
+        const p = new THREE.Mesh(particleGeo, pMat);
+        p.position.set(pos.x + (deterministicRandom() - 0.5) * 4.0, pos.y + 4.5, pos.z + (deterministicRandom() - 0.5) * 10.0);
+        scene.add(p);
+        particles.push({
+          mesh: p,
+          vel: new THREE.Vector3((deterministicRandom() - 0.5) * 3.0, 7.0 + deterministicRandom() * 5.0, (deterministicRandom() - 0.5) * 3.0),
+          scale: 0.7,
+          scaleSpeed: 0.9,
+          life: 0.5,
+          maxLife: 0.5
+        });
+      }
+    }
+
+    function spawnMagazineExplosion(pos) {
+      for (let i = 0; i < 28; i++) {
+        const isDebris = (i % 2 === 0);
+        const pMat = new THREE.MeshBasicMaterial({
+          color: isDebris ? 0x3d2817 : 0xff7700,
+          transparent: true,
+          opacity: 0.95
+        });
+        const geo = isDebris ? new THREE.BoxGeometry(0.6, 0.6, 2.5) : particleGeo;
+        const p = new THREE.Mesh(geo, pMat);
+        p.position.copy(pos);
+        const angle = (i / 28) * Math.PI * 2;
+        const speed = 25.0 + (i % 5) * 6.0;
+        scene.add(p);
+        particles.push({
+          mesh: p,
+          vel: new THREE.Vector3(Math.cos(angle) * speed, 18.0 + (i % 4) * 8.0, Math.sin(angle) * speed),
+          scale: 1.5,
+          scaleSpeed: -0.6,
+          life: 1.6,
+          maxLife: 1.6,
+          gravity: -45.0
+        });
+      }
+    }
+
+    // --- Weather Gauge Lingering Gunsmoke ---
+    const lingeringSmoke = [];
+    const smokeCloudGeo = new THREE.DodecahedronGeometry(3.6, 1);
+    const smokeCloudMat = new THREE.MeshLambertMaterial({
+      color: 0xdecbb2,
+      transparent: true,
+      opacity: 0.42,
+      flatShading: true,
+      depthWrite: false
+    });
+
+    function spawnLingeringGunsmoke(pos) {
+      const mesh = new THREE.Mesh(smokeCloudGeo, smokeCloudMat.clone());
+      mesh.position.copy(pos);
+      scene.add(mesh);
+      lingeringSmoke.push({
+        mesh,
+        pos: pos.clone(),
+        scale: 1.0,
+        life: 10.0,
+        maxLife: 10.0
+      });
+    }
+
+    function updateLingeringGunsmoke(dt) {
+      const windVecX = Math.sin(WIND_DIRECTION);
+      const windVecZ = Math.cos(WIND_DIRECTION);
+      const driftSpeed = 16.0;
+
+      for (let i = lingeringSmoke.length - 1; i >= 0; i--) {
+        const s = lingeringSmoke[i];
+        s.life -= dt;
+        if (s.life <= 0) {
+          scene.remove(s.mesh);
+          lingeringSmoke.splice(i, 1);
+          continue;
+        }
+        s.pos.x += windVecX * driftSpeed * dt;
+        s.pos.z += windVecZ * driftSpeed * dt;
+        s.mesh.position.copy(s.pos);
+        s.scale += 1.35 * dt;
+        const curScale = Math.min(18.0, s.scale);
+        s.mesh.scale.set(curScale, curScale * 0.7, curScale);
+        s.mesh.material.opacity = (s.life / s.maxLife) * 0.38;
+      }
+    }
+
+    function distToSegment(pt, a, b) {
+      const abX = b.x - a.x;
+      const abZ = b.z - a.z;
+      const lenSq = abX * abX + abZ * abZ;
+      if (lenSq === 0) return Math.hypot(pt.x - a.x, pt.z - a.z);
+      const t = Math.max(0, Math.min(1, ((pt.x - a.x) * abX + (pt.z - a.z) * abZ) / lenSq));
+      const projX = a.x + t * abX;
+      const projZ = a.z + t * abZ;
+      return Math.hypot(pt.x - projX, pt.z - projZ);
+    }
+
+    function isObscuredBySmoke(p1, p2) {
+      for (let s of lingeringSmoke) {
+        const radius = Math.min(18.0, s.scale) * 3.5;
+        if (distToSegment(s.pos, p1, p2) < radius) return true;
+      }
+      return false;
+    }
+
+    // --- Minimal Battle Log ---
+    const battleLogEntries = [];
+    function addBattleLog(msg) {
+      const totalSec = Math.floor(totalSimulationTime);
+      const mins = String(Math.floor(totalSec / 60)).padStart(2, '0');
+      const secs = String(totalSec % 60).padStart(2, '0');
+      const timeStr = `[${mins}:${secs}]`;
+
+      battleLogEntries.unshift({ time: timeStr, text: msg });
+      if (battleLogEntries.length > 4) battleLogEntries.pop();
+
+      const logEl = document.getElementById('battle-log');
+      if (logEl) {
+        logEl.innerHTML = battleLogEntries
+          .map(e => `<div class="log-entry"><span class="log-time">${e.time}</span>${e.text}</div>`)
+          .join('');
+      }
+    }
+
+    // --- Cannonball Projectiles & FX ---
+    const cannonballs = [];
+    const cannonballGeo = new THREE.SphereGeometry(0.48, 8, 8);
+    const cannonballMat = new THREE.MeshStandardMaterial({
+      color: 0x1a1a1a,
+      roughness: 0.3,
+      metalness: 0.95
+    });
+
+    const particles = [];
+    const particleGeo = new THREE.DodecahedronGeometry(0.8, 0);
+
+    function spawnMuzzleSmoke(pos, dir) {
+      resetDeterministicSeed(Math.floor(pos.x * 100 + pos.z * 10));
+      for (let i = 0; i < 5; i++) {
+        const pMat = new THREE.MeshBasicMaterial({
+          color: (i % 2 === 0) ? 0xffbf69 : 0xdddddd,
+          transparent: true,
+          opacity: 0.8
+        });
+        const p = new THREE.Mesh(particleGeo, pMat);
+        p.position.copy(pos);
+        const spread = (deterministicRandom() - 0.5) * 1.5;
+        scene.add(p);
+        particles.push({
+          mesh: p,
+          vel: new THREE.Vector3(dir.x * 12 + spread, 4 + deterministicRandom() * 4, dir.z * 12 + spread),
+          scale: 0.8,
+          scaleSpeed: 2.2,
+          life: 0.6,
+          maxLife: 0.6
+        });
+      }
+    }
+
+    function spawnWaterSplash(pos) {
+      for (let i = 0; i < 8; i++) {
+        const pMat = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.75
+        });
+        const p = new THREE.Mesh(particleGeo, pMat);
+        p.position.set(pos.x, 0.2, pos.z);
+        const angle = (i / 8) * Math.PI * 2;
+        scene.add(p);
+        particles.push({
+          mesh: p,
+          vel: new THREE.Vector3(Math.cos(angle) * 7.0, 14.0 + (i % 3) * 3, Math.sin(angle) * 7.0),
+          scale: 0.6,
+          scaleSpeed: 1.2,
+          life: 0.8,
+          maxLife: 0.8,
+          gravity: -36.0
+        });
+      }
+    }
+
+    function spawnWoodSplinterImpact(pos) {
+      for (let i = 0; i < 10; i++) {
+        const pMat = new THREE.MeshBasicMaterial({
+          color: (i % 2 === 0) ? 0x8b5a2b : 0x332211,
+          transparent: true,
+          opacity: 0.95
+        });
+        const p = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 1.2), pMat);
+        p.position.copy(pos);
+        const angle = (i / 10) * Math.PI * 2;
+        scene.add(p);
+        particles.push({
+          mesh: p,
+          vel: new THREE.Vector3(Math.cos(angle) * 12.0, 12.0 + (i % 4) * 4, Math.sin(angle) * 12.0),
+          scale: 1.0,
+          scaleSpeed: -0.8,
+          life: 0.9,
+          maxLife: 0.9,
+          gravity: -40.0
+        });
+      }
+    }
+
+    // --- Sailing Aerodynamics ---
+    function calculateWindEfficiency(heading, sailsSetting, noGoDeg = 40) {
+      if (sailsSetting === 0) return 0.05; // Bare poles drift slightly
+
+      const windFrom = (WIND_DIRECTION + Math.PI) % (Math.PI * 2);
+      let angleDiff = Math.abs(heading - windFrom) % (Math.PI * 2);
+      if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
+      const deg = angleDiff * (180 / Math.PI);
+
+      if (deg < noGoDeg) {
+        const penalty = Math.max(0, (deg - 10) / (noGoDeg - 10));
+        return penalty * 0.12;
+      }
+
+      let polarEff = 0.5;
+      if (deg >= noGoDeg && deg < 85) {
+        polarEff = 0.35 + ((deg - noGoDeg) / (85 - noGoDeg)) * 0.45;
+      } else if (deg >= 85 && deg < 135) {
+        polarEff = 0.80 + ((deg - 85) / 50) * 0.30;
+      } else {
+        polarEff = 1.10 - ((deg - 135) / 45) * 0.25;
+      }
+
+      const sailScale = sailsSetting === 2 ? 1.0 : 0.62;
+      return polarEff * sailScale;
+    }
+
+    function isHeadToWind(heading, noGoDeg = 40) {
+      const windFrom = (WIND_DIRECTION + Math.PI) % (Math.PI * 2);
+      let diff = Math.abs(heading - windFrom) % (Math.PI * 2);
+      if (diff > Math.PI) diff = Math.PI * 2 - diff;
+      return diff < (noGoDeg * Math.PI / 180);
+    }
+
+    // --- Ship State Management ---
+    function createInitialShipState(name, shipType, x, z, heading) {
+      const isSloop = shipType === 'sloop';
+      return {
+        name,
+        shipType,
+        x, z, heading,
+        speedKnots: 0.0,
+        sailSetting: 2,
+        hull: isSloop ? 60.0 : 100.0,
+        maxHull: isSloop ? 60.0 : 100.0,
+        crew: isSloop ? 20 : 40,
+        maxCrew: isSloop ? 20 : 40,
+        noGoAngle: isSloop ? 30 : 40,
+        baseReloadStarboard: isSloop ? 6.0 : 8.0,
+        baseReloadPort: isSloop ? 7.5 : 10.0,
+        flooding: false,
+        floodWater: 0.0,
+        grounded: false,
+        groundedIslet: null,
+        onFire: false,
+        fireTime: 0.0,
+        lastFiredTime: -100.0,
+        exploded: false,
+        struck: false,
+        escaped: false,
+        retreating: false,
+        masts: isSloop ? [
+          { name: 'Main', status: 'intact', rigDamage: 0.0 }
+        ] : [
+          { name: 'Mizzen', status: 'intact', rigDamage: 0.0 },
+          { name: 'Main', status: 'intact', rigDamage: 0.0 },
+          { name: 'Fore', status: 'intact', rigDamage: 0.0 }
+        ],
+        gunsPort: isSloop ? [true, true, true] : [true, true, true, true, true, true],
+        gunsStarboard: isSloop ? [true, true, true] : [true, true, true, true, true, true],
+        selectedShotType: SHOT_ROUND,
+        loadedTypePort: SHOT_ROUND,
+        loadedTypeStarboard: SHOT_ROUND,
+        reloadPort: 0.0,
+        reloadStarboard: 0.0,
+        repairing: null,
+        repairTimer: 0.0,
+        roll: 0.0,
+        pitch: 0.0,
+        rudder: 0.0,
+        sinkingProgress: 0.0,
+        stateTimer: 0,
+        tackDirection: 1,
+        captured: false,
+        consortOrder: 'Follow',
+        allegiance: 'enemy',
+        statKey: 'frigate'
+      };
+    }
+
+    const initialPlayerState = createInitialShipState('HMS Resolute', 'frigate', -70.0, 80.0, 0.5);
+    initialPlayerState.allegiance = 'player';
+    initialPlayerState.statKey = 'player';
+
+    const initialConsortState = createInitialShipState('HMS Merlin', 'sloop', -105.0, 100.0, 0.5);
+    initialConsortState.allegiance = 'player';
+    initialConsortState.statKey = 'consort';
+    initialConsortState.consortOrder = 'Follow';
+
+    const initialEnemyFrigateState = createInitialShipState('Le Vengeur', 'frigate', 90.0, -90.0, 3.6);
+    initialEnemyFrigateState.statKey = 'frigate';
+
+    const initialEnemySloopState = createInitialShipState('Le Faucon', 'sloop', 160.0, -20.0, 3.2);
+    initialEnemySloopState.statKey = 'sloop';
+
+    const player = JSON.parse(JSON.stringify(initialPlayerState));
+    const consort = JSON.parse(JSON.stringify(initialConsortState));
+    const enemyFrigate = JSON.parse(JSON.stringify(initialEnemyFrigateState));
+    const enemySloop = JSON.parse(JSON.stringify(initialEnemySloopState));
+    const enemy = enemyFrigate;
+    const enemySquadron = [enemyFrigate, enemySloop];
+
+    // Live Battle Statistics Tracking
+    const battleStats = {
+      broadsidesFired: { player: 0, consort: 0, frigate: 0, sloop: 0 },
+      hitsByType: { ROUND: 0, CHAIN: 0, DOUBLE: 0 },
+      mastsDowned: 0,
+      firesStarted: 0,
+      firesExtinguished: 0,
+      boardingsWon: { player: 0, enemy: 0 }
+    };
+
+    function setShotType(ship, type) {
+      if (ship.selectedShotType === type) return;
+      ship.selectedShotType = type;
+      if (ship.reloadPort > 0) {
+        ship.reloadPort = ship.baseReloadPort * (ship.maxCrew / Math.max(1, ship.crew));
+        ship.loadedTypePort = type;
+      }
+      if (ship.reloadStarboard > 0) {
+        ship.reloadStarboard = ship.baseReloadStarboard * (ship.maxCrew / Math.max(1, ship.crew));
+        ship.loadedTypeStarboard = type;
+      }
+    }
+
+    // --- Camera Control State ---
+    let isTacticalView = false;
+    let cameraChasePos = new THREE.Vector3();
+    let cameraChaseLookAt = new THREE.Vector3();
+
+    // --- Boarding System State ---
+    let boardingState = null;
+    let boardingPromptTarget = null;
+
+    function startBoarding(shipA, shipB, isPlayerInitiated) {
+      const shipAModel = playerShipModel;
+      const shipBModel = shipB === enemyFrigate ? enemyShipModel : (shipB === consort ? consortShipModel : enemySloopModel);
+
+      boardingState = {
+        shipA,
+        shipB,
+        shipAModel,
+        shipBModel,
+        timer: 0.0,
+        lockCrewA: shipA.crew,
+        lockCrewB: shipB.crew,
+        initiator: isPlayerInitiated ? 'player' : 'enemy'
+      };
+
+      document.getElementById('boarding-prompt').classList.add('hidden');
+      document.getElementById('boarding-panel').classList.remove('hidden');
+      addBattleLog(`Grappling hooks locked: ${shipA.name} vs ${shipB.name}!`);
+    }
+
+    function updateBoarding(dt) {
+      if (gamePhase !== PHASE_BATTLE) {
+        document.getElementById('boarding-prompt').classList.add('hidden');
+        document.getElementById('boarding-panel').classList.add('hidden');
+        return;
+      }
+
+      if (boardingState) {
+        boardingState.timer += dt;
+        const progressPct = Math.min(100, (boardingState.timer / 10.0) * 100);
+        document.getElementById('boarding-fill').style.width = `${progressPct}%`;
+        document.getElementById('boarding-odds').textContent =
+          `CREW: ${boardingState.shipA.name} ${boardingState.shipA.crew} vs ${boardingState.shipB.name} ${boardingState.shipB.crew}`;
+
+        boardingState.shipA.speedKnots *= 0.82;
+        boardingState.shipB.speedKnots *= 0.82;
+
+        if (boardingState.shipAModel.crewFigures && boardingState.shipBModel.crewFigures) {
+          const clashTime = totalSimulationTime * 14.0;
+          boardingState.shipAModel.crewFigures.forEach((f, idx) => {
+            f.mesh.position.x = f.basePos.x + Math.sin(clashTime + idx) * 0.45;
+          });
+          boardingState.shipBModel.crewFigures.forEach((f, idx) => {
+            f.mesh.position.x = f.basePos.x + Math.cos(clashTime + idx) * 0.45;
+          });
+        }
+
+        if (boardingState.timer >= 10.0) {
+          const crewA = boardingState.lockCrewA;
+          const crewB = boardingState.lockCrewB;
+          const aWins = crewA > crewB || (crewA === crewB && boardingState.initiator === 'enemy');
+
+          if (aWins) {
+            const capturedShip = boardingState.shipB;
+            capturedShip.captured = true;
+            capturedShip.hull = 0.0;
+            capturedShip.speedKnots = 0.0;
+            boardingState.shipBModel.flagMesh.visible = false;
+            if (boardingState.shipBModel.pennantsList) {
+              boardingState.shipBModel.pennantsList.forEach(p => p.mesh.visible = false);
+            }
+
+            const casualtyRate = (crewB / (crewA + crewB)) * 0.45;
+            boardingState.shipA.crew = Math.max(1, Math.round(boardingState.shipA.crew * (1.0 - casualtyRate)));
+
+            battleStats.boardingsWon.player++;
+            addBattleLog(`${capturedShip.name} boarded and captured!`);
+
+            if (enemySquadron.every(e => e.hull <= 0 || e.captured || e.struck || e.exploded)) {
+              gamePhase = PHASE_OVER;
+              winner = 'Victory';
+              showGameOver('Victory');
+            }
+          } else {
+            battleStats.boardingsWon.enemy++;
+            addBattleLog('HMS Resolute overwhelmed in hand-to-hand combat!');
+            gamePhase = PHASE_OVER;
+            winner = 'Defeat';
+            showGameOver('Defeat');
+          }
+
+          boardingState = null;
+          document.getElementById('boarding-panel').classList.add('hidden');
+        }
+      } else {
+        boardingPromptTarget = null;
+        for (let eShip of enemySquadron) {
+          if (eShip.hull <= 0 || eShip.captured || eShip.struck || eShip.exploded) continue;
+
+          let dHeading = Math.abs(player.heading - eShip.heading) % (Math.PI * 2);
+          if (dHeading > Math.PI) dHeading = Math.PI * 2 - dHeading;
+          const headingValid = dHeading < (20 * Math.PI / 180);
+
+          const dist = Math.hypot(player.x - eShip.x, player.z - eShip.z);
+          const halfWA = player.shipType === 'sloop' ? 3.0 : 4.25;
+          const halfWB = eShip.shipType === 'sloop' ? 3.0 : 4.25;
+          const hullGap = Math.max(0, dist - (halfWA + halfWB));
+          const gapValid = hullGap <= 6.0;
+
+          const speedValid = player.speedKnots < (WIND_SPEED_BASE * 0.30) && eShip.speedKnots < (WIND_SPEED_BASE * 0.30);
+
+          const vxA = Math.sin(player.heading) * player.speedKnots * 1.45;
+          const vzA = Math.cos(player.heading) * player.speedKnots * 1.45;
+          const vxB = Math.sin(eShip.heading) * eShip.speedKnots * 1.45;
+          const vzB = Math.cos(eShip.heading) * eShip.speedKnots * 1.45;
+          const relSpeed = Math.hypot(vxA - vxB, vzA - vzB);
+          const relSpeedValid = relSpeed < 1.5;
+
+          if (headingValid && gapValid && speedValid && relSpeedValid) {
+            boardingPromptTarget = eShip;
+            break;
+          }
+        }
+
+        const promptEl = document.getElementById('boarding-prompt');
+        if (boardingPromptTarget) {
+          promptEl.classList.remove('hidden');
+          promptEl.textContent = `PRESS [B] TO BOARD ${boardingPromptTarget.name.toUpperCase()}!`;
+
+          if (boardingPromptTarget.crew > player.crew + 6) {
+            startBoarding(player, boardingPromptTarget, false);
+          }
+        } else {
+          promptEl.classList.add('hidden');
+        }
+      }
+    }
+
+    // --- Input Handling ---
+    const keys = {
+      w: false,
+      s: false,
+      a: false,
+      d: false,
+      q: false,
+      e: false
+    };
+
+    window.addEventListener('keydown', (e) => {
+      const key = e.key.toLowerCase();
+      if (key === 'enter') {
+        if (gamePhase === PHASE_READY) {
+          gamePhase = PHASE_BATTLE;
+          document.getElementById('ready-modal').classList.add('hidden');
+          addBattleLog('Battle commenced!');
+        }
+      } else if (key === 'r') {
+        if (gamePhase === PHASE_OVER) {
+          resetGame();
+        }
+      } else if (key === 'v') {
+        isTacticalView = !isTacticalView;
+      } else if (key === 't' && gamePhase === PHASE_BATTLE) {
+        // Cycle Consort standing order: Follow -> Engage -> Harass
+        const orderList = ['Follow', 'Engage', 'Harass'];
+        const curIdx = orderList.indexOf(consort.consortOrder);
+        consort.consortOrder = orderList[(curIdx + 1) % orderList.length];
+        addBattleLog(`HMS Merlin order: ${consort.consortOrder.toUpperCase()}`);
+      } else if (key === 'b' && gamePhase === PHASE_BATTLE && !boardingState && boardingPromptTarget) {
+        startBoarding(player, boardingPromptTarget, true);
+      } else if (key === 'f' && gamePhase === PHASE_BATTLE && !boardingState) {
+        repairMenuOpen = !repairMenuOpen;
+        document.getElementById('repair-panel').classList.toggle('hidden', !repairMenuOpen);
+      } else if (key === 'escape' && repairMenuOpen) {
+        repairMenuOpen = false;
+        document.getElementById('repair-panel').classList.add('hidden');
+      } else if (key === '1' || key === '2' || key === '3' || key === '4') {
+        const num = parseInt(key, 10);
+        if (repairMenuOpen) {
+          if (num === 1) {
+            player.repairing = 'leaks';
+            player.repairTimer = 0.0;
+            addBattleLog('HMS Resolute: leak plugging commenced');
+          } else if (num === 2) {
+            player.repairing = 'masts';
+            player.repairTimer = 0.0;
+            addBattleLog('HMS Resolute: mast jury-rigging commenced');
+          } else if (num === 3 && player.grounded) {
+            player.repairing = 'refloat';
+            player.repairTimer = 0.0;
+            addBattleLog('HMS Resolute: refloating operation commenced');
+          } else if (num === 4 && player.onFire) {
+            player.repairing = 'fire';
+            player.repairTimer = 0.0;
+            addBattleLog('HMS Resolute: bucket line fighting deck fire!');
+          }
+        } else if (num >= 1 && num <= 3) {
+          setShotType(player, num);
+          addBattleLog(`Next shot selected: ${SHOT_NAMES[num]}`);
+        }
+      } else if (gamePhase === PHASE_BATTLE && !boardingState) {
+        if (key === 'w' && !player.repairing && !player.grounded) {
+          player.sailSetting = Math.min(2, player.sailSetting + 1);
+        } else if (key === 's' && !player.repairing && !player.grounded) {
+          player.sailSetting = Math.max(0, player.sailSetting - 1);
+        } else if (key === 'a' && !player.grounded) {
+          keys.a = true;
+        } else if (key === 'd' && !player.grounded) {
+          keys.d = true;
+        } else if (key === 'q' && !player.repairing && !player.grounded) {
+          fireBroadside(player, playerShipModel, 'port', true);
+        } else if (key === 'e' && !player.repairing && !player.grounded) {
+          fireBroadside(player, playerShipModel, 'starboard', true);
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const key = e.key.toLowerCase();
+      if (key === 'a') keys.a = false;
+      if (key === 'd') keys.d = false;
+    });
+
+    // --- Broadside Cannon Firing ---
+    function fireBroadside(ship, shipModel, side, isPlayer) {
+      if (ship.hull <= 0 || ship.captured || ship.struck || ship.exploded || ship.repairing || ship.grounded || ship.onFire || boardingState) return;
+      if (side === 'port' && ship.reloadPort > 0) return;
+      if (side === 'starboard' && ship.reloadStarboard > 0) return;
+
+      const shotType = side === 'port' ? ship.loadedTypePort : ship.loadedTypeStarboard;
+
+      const baseReload = side === 'port' ? ship.baseReloadPort : ship.baseReloadStarboard;
+      const reloadTime = baseReload * (ship.maxCrew / Math.max(1, ship.crew));
+
+      if (side === 'port') {
+        ship.reloadPort = reloadTime;
+        ship.loadedTypePort = ship.selectedShotType;
+      }
+      if (side === 'starboard') {
+        ship.reloadStarboard = reloadTime;
+        ship.loadedTypeStarboard = ship.selectedShotType;
+      }
+
+      ship.lastFiredTime = totalSimulationTime;
+      if (battleStats.broadsidesFired[ship.statKey] !== undefined) {
+        battleStats.broadsidesFired[ship.statKey]++;
+      }
+
+      const cannons = side === 'port' ? shipModel.portCannons : shipModel.stbdCannons;
+      const gunsStatus = side === 'port' ? ship.gunsPort : ship.gunsStarboard;
+      const sideSign = side === 'port' ? -1 : 1;
+
+      if (isPlayer) {
+        addBattleLog(`${ship.name}: ${side} broadside (${SHOT_NAMES[shotType]})`);
+      }
+
+      cannons.forEach((cannon, idx) => {
+        if (!gunsStatus[idx]) return;
+
+        setTimeout(() => {
+          if (ship.hull <= 0 || ship.captured || ship.grounded) return;
+
+          const muzzleWorld = new THREE.Vector3();
+          cannon.getWorldPosition(muzzleWorld);
+
+          const perpAngle = ship.heading + (sideSign * Math.PI / 2);
+          const elev = shotType === SHOT_CHAIN ? 0.16 : (shotType === SHOT_DOUBLE ? 0.08 : 0.12);
+          const dirX = Math.sin(perpAngle) * Math.cos(elev);
+          const dirY = Math.sin(elev);
+          const dirZ = Math.cos(perpAngle) * Math.cos(elev);
+
+          const baseSpeed = shotType === SHOT_CHAIN ? 96.0 : (shotType === SHOT_DOUBLE ? 105.0 : CANNON_SPEED);
+
+          spawnMuzzleSmoke(muzzleWorld, new THREE.Vector3(dirX, 0, dirZ));
+          // Weather gauge: lingering smoke clouds drift downwind
+          if (idx === 1 || idx === 4) {
+            spawnLingeringGunsmoke(muzzleWorld);
+          }
+
+          if (shotType === SHOT_DOUBLE) {
+            // Double shot: two heavy balls per gun, devastating close finisher, higher arc drop
+            for (let b = 0; b < 2; b++) {
+              const gunSpreadAngle = (idx - 2.0) * 0.02 + (b - 0.5) * 0.018;
+              const spX = dirX * Math.cos(gunSpreadAngle) - dirZ * Math.sin(gunSpreadAngle);
+              const spZ = dirX * Math.sin(gunSpreadAngle) + dirZ * Math.cos(gunSpreadAngle);
+              const vel = new THREE.Vector3(
+                spX * baseSpeed,
+                dirY * baseSpeed + (b * 1.5),
+                spZ * baseSpeed
+              );
+              const ballMesh = new THREE.Mesh(cannonballGeo, cannonballMat);
+              ballMesh.position.copy(muzzleWorld);
+              ballMesh.castShadow = true;
+              scene.add(ballMesh);
+
+              cannonballs.push({
+                mesh: ballMesh,
+                pos: muzzleWorld.clone(),
+                vel: vel,
+                owner: isPlayer ? 'player' : 'enemy',
+                shotType: SHOT_DOUBLE,
+                isSloopGun: ship.shipType === 'sloop',
+                gravity: -65.0, // greater arc drop
+                life: 0,
+                maxLife: 1.4 // falls short beyond close range
+              });
+            }
+          } else if (shotType === SHOT_CHAIN) {
+            const gunSpreadAngle = (idx - 2.0) * 0.022;
+            const spreadDirX = dirX * Math.cos(gunSpreadAngle) - dirZ * Math.sin(gunSpreadAngle);
+            const spreadDirZ = dirX * Math.sin(gunSpreadAngle) + dirZ * Math.cos(gunSpreadAngle);
+            const vel = new THREE.Vector3(
+              spreadDirX * baseSpeed,
+              dirY * baseSpeed + (idx % 2) * 1.5,
+              spreadDirZ * baseSpeed
+            );
+
+            const chainGroup = new THREE.Group();
+            const b1 = new THREE.Mesh(new THREE.SphereGeometry(0.32, 6, 6), cannonballMat);
+            const b2 = new THREE.Mesh(new THREE.SphereGeometry(0.32, 6, 6), cannonballMat);
+            b1.position.x = -0.55;
+            b2.position.x = 0.55;
+            const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.1, 4), cannonballMat);
+            bar.rotateZ(Math.PI / 2);
+            chainGroup.add(b1); chainGroup.add(b2); chainGroup.add(bar);
+            chainGroup.position.copy(muzzleWorld);
+            scene.add(chainGroup);
+
+            cannonballs.push({
+              mesh: chainGroup,
+              pos: muzzleWorld.clone(),
+              vel: vel,
+              owner: isPlayer ? 'player' : 'enemy',
+              shotType: SHOT_CHAIN,
+              isSloopGun: ship.shipType === 'sloop',
+              life: 0,
+              maxLife: 1.7
+            });
+          } else {
+            const gunSpreadAngle = (idx - 2.0) * 0.022;
+            const spreadDirX = dirX * Math.cos(gunSpreadAngle) - dirZ * Math.sin(gunSpreadAngle);
+            const spreadDirZ = dirX * Math.sin(gunSpreadAngle) + dirZ * Math.cos(gunSpreadAngle);
+            const vel = new THREE.Vector3(
+              spreadDirX * baseSpeed,
+              dirY * baseSpeed + (idx % 2) * 1.5,
+              spreadDirZ * baseSpeed
+            );
+            const ballMesh = new THREE.Mesh(cannonballGeo, cannonballMat);
+            ballMesh.position.copy(muzzleWorld);
+            ballMesh.castShadow = true;
+            scene.add(ballMesh);
+
+            cannonballs.push({
+              mesh: ballMesh,
+              pos: muzzleWorld.clone(),
+              vel: vel,
+              owner: isPlayer ? 'player' : 'enemy',
+              shotType: SHOT_ROUND,
+              isSloopGun: ship.shipType === 'sloop',
+              life: 0,
+              maxLife: MAX_BALL_LIFE
+            });
+          }
+        }, idx * 65);
+      });
+    }
+
+    // --- Sail Billow / Flap Animation ---
+    function updateSailsAnimation(shipModel, shipHeading, sailSetting, time) {
+      const inIrons = isHeadToWind(shipHeading, shipModel.noGoAngle || 40);
+      const windFrom = (currentWindDirection + Math.PI) % (Math.PI * 2);
+      let angleDiff = (shipHeading - windFrom);
+      // Determine which side of sail is drawing
+      const drawSide = Math.sign(Math.sin(angleDiff)) || 1.0;
+
+      shipModel.sailsList.forEach((sail) => {
+        const posAttr = sail.geo.attributes.position;
+        const base = sail.base;
+        const count = posAttr.count;
+
+        if (sail.isGaff) {
+          // Fore-and-aft sail on Sloop: billows laterally (X-axis in local plane)
+          for (let p = 0; p < count; p++) {
+            let bx = base[p * 3];
+            let by = base[p * 3 + 1];
+            let bz = base[p * 3 + 2];
+            if (sailSetting === 0) {
+              posAttr.setXYZ(p, bx * 0.15, by * 0.25, bz);
+            } else if (inIrons) {
+              const flutter = Math.sin(time * 14.0 + bz * 0.8) * 0.4;
+              posAttr.setXYZ(p, bx + flutter, by, bz);
+            } else {
+              const belly = Math.sin((by / 14.0) * Math.PI) * Math.sin((-bz / 9.0) * Math.PI);
+              posAttr.setXYZ(p, bx + belly * 1.5 * drawSide, by, bz);
+            }
+          }
+          posAttr.needsUpdate = true;
+          return;
+        }
+
+        // If bare poles (setting 0), furl sails tightly against yard
+        if (sailSetting === 0) {
+          for (let p = 0; p < count; p++) {
+            posAttr.setXYZ(p, base[p * 3], base[p * 3 + 1] * 0.2, base[p * 3 + 2] * 0.2);
+          }
+        } else {
+          // Half sails: top sail furled, lower drawing; Full: both drawing
+          const isTopTier = sail.tier.yRel > 16;
+          const furlTier = (sailSetting === 1 && isTopTier);
+
+          for (let p = 0; p < count; p++) {
+            let bx = base[p * 3];
+            let by = base[p * 3 + 1];
+            let bz = base[p * 3 + 2];
+
+            if (furlTier) {
+              posAttr.setXYZ(p, bx, by * 0.2, bz * 0.2);
+              continue;
+            }
+
+            if (inIrons) {
+              // Luffing: violent, chaotic fluttering with little billow
+              const flutter = Math.sin(time * 12.0 + bx * 0.8) * 0.45 + Math.cos(time * 18.0 + by * 1.2) * 0.25;
+              posAttr.setXYZ(p, bx, by, bz + flutter);
+            } else {
+              // Drawing: smooth aerodynamic belly curved downwind
+              const belly = Math.sin((by / -sail.tier.sailH) * Math.PI) * Math.cos((bx / (sail.tier.yardW * 0.5)) * (Math.PI * 0.45));
+              const billowDepth = 1.4 * drawSide;
+              const gentleRipple = Math.sin(time * 3.5 + bx * 0.3) * 0.12;
+              posAttr.setXYZ(p, bx, by, bz + belly * billowDepth + gentleRipple);
+            }
+          }
+        }
+        posAttr.needsUpdate = true;
+      });
+
+      // Update stern ensign flag streaming strictly DOWNWIND
+      // Wind travels towards currentWindDirection in world space
+      const shipWorldAngle = shipHeading;
+      const flagRelAngle = currentWindDirection - shipWorldAngle + Math.PI / 2;
+      shipModel.flagMesh.rotation.y = flagRelAngle;
+
+      // Animate flag flutter ripple
+      const flagPos = shipModel.flagGeo.attributes.position;
+      for (let p = 0; p < flagPos.count; p++) {
+        const u = p / flagPos.count;
+        const wave = Math.sin(time * 10.0 + u * 6.0) * (u * 0.85);
+        flagPos.setZ(p, wave);
+      }
+      flagPos.needsUpdate = true;
+
+      // Update masthead pennants streaming downwind
+      if (shipModel.pennantsList) {
+        shipModel.pennantsList.forEach((pennant) => {
+          pennant.mesh.rotation.y = flagRelAngle;
+          const pPos = pennant.geo.attributes.position;
+          for (let p = 0; p < pPos.count; p++) {
+            const u = p / pPos.count;
+            const wave = Math.sin(time * 12.0 + u * 7.0) * (u * 0.5);
+            pPos.setZ(p, wave);
+          }
+          pPos.needsUpdate = true;
+        });
+      }
+
+      // Arc indicators opacity based on reload readiness
+      if (shipModel.arcMeshPort && shipModel.arcMeshStbd) {
+        shipModel.arcMeshPort.visible = (player.reloadPort <= 0 && gamePhase === PHASE_BATTLE && player.hull > 0 && !player.onFire);
+        shipModel.arcMeshStbd.visible = (player.reloadStarboard <= 0 && gamePhase === PHASE_BATTLE && player.hull > 0 && !player.onFire);
+      }
+    }
+
+    function getRigEfficiency(ship) {
+      let intactCount = 0;
+      ship.masts.forEach((m) => {
+        if (m.status === 'intact') intactCount += 1.0;
+        else if (m.status === 'jury-rigged') intactCount += (2.0 / 3.0); // Restores two-thirds effectiveness!
+      });
+      return intactCount / ship.masts.length;
+    }
+
+    // --- Ship Physics & Movement Engine ---
+    function updateShipPhysics(ship, shipModel, isPlayer, dt, simTime) {
+      if (ship.hull <= 0) {
+        ship.sinkingProgress = Math.min(1.0, ship.sinkingProgress + dt * 0.12);
+        ship.speedKnots *= 0.94;
+        const sinkY = -ship.sinkingProgress * 18.0;
+        const sinkPitch = isPlayer ? ship.sinkingProgress * 0.45 : -ship.sinkingProgress * 0.55;
+        const sinkRoll = Math.sin(ship.sinkingProgress * 2.0) * 0.35;
+
+        shipModel.root.position.set(ship.x, sinkY, ship.z);
+        shipModel.root.rotation.set(sinkPitch, ship.heading, sinkRoll);
+        return;
+      }
+
+      // Striking Colors Check: <25% hull and <50% crew
+      if (!ship.struck && !ship.captured && !ship.exploded && ship.hull > 0 && ship !== player) {
+        if (ship.hull < (ship.maxHull * 0.25) && ship.crew < (ship.maxCrew * 0.50)) {
+          ship.struck = true;
+          ship.hull = 0.0;
+          ship.speedKnots = 0.0;
+          shipModel.flagMesh.visible = false;
+          if (shipModel.pennantsList) shipModel.pennantsList.forEach(p => p.mesh.visible = false);
+          addBattleLog(`${ship.name} struck her colors and surrendered!`);
+          checkVictoryCondition();
+          return;
+        }
+      }
+
+      // Deck Fire Processing: continuous losses, unextinguished grows, explodes at 24s
+      if (ship.onFire && ship.hull > 0 && !ship.exploded) {
+        ship.fireTime += dt;
+        spawnFireParticles(shipModel.root.position);
+        if (Math.floor(simTime * 2) % 2 === 0) {
+          spawnLingeringGunsmoke(shipModel.root.position);
+        }
+
+        const fireDmg = ship.fireTime > 12.0 ? 2.5 : 1.5;
+        ship.hull = Math.max(0, ship.hull - fireDmg * dt);
+
+        const crewLossSec = ship.fireTime > 12.0 ? 1.5 : 3.0;
+        if (Math.floor(ship.fireTime) % crewLossSec < dt) {
+          ship.crew = Math.max(1, ship.crew - 1);
+        }
+
+        if (ship.fireTime >= 24.0) {
+          ship.exploded = true;
+          ship.hull = 0.0;
+          ship.speedKnots = 0.0;
+          spawnMagazineExplosion(shipModel.root.position);
+          addBattleLog(`${ship.name}'s powder magazine exploded! Instant destruction!`);
+          checkVictoryCondition();
+          return;
+        }
+      }
+
+      // Fighting Deck Fire (6s bucket line)
+      if (ship.repairing === 'fire' && ship.onFire) {
+        ship.repairTimer += dt;
+        if (ship.repairTimer >= 6.0) {
+          ship.onFire = false;
+          ship.fireTime = 0.0;
+          ship.repairing = null;
+          ship.repairTimer = 0.0;
+          battleStats.firesExtinguished++;
+          addBattleLog(`${ship.name}: deck fire extinguished by bucket line!`);
+        }
+      }
+
+      // Flooding Drainage: 1 hull point per second
+      if (ship.flooding && ship.hull > 0) {
+        ship.hull = Math.max(0, ship.hull - 1.0 * dt);
+        ship.floodWater = Math.min(1.0, ship.floodWater + dt * 0.06);
+        if (ship.hull <= 0) {
+          checkVictoryCondition();
+        }
+      } else if (!ship.flooding && ship.floodWater > 0) {
+        ship.floodWater = Math.max(0, ship.floodWater - dt * 0.08);
+      }
+
+      // Islet Grounding in Shallows (radius * 1.35)
+      islets.forEach((isl) => {
+        const distToIsl = Math.hypot(ship.x - isl.x, ship.z - isl.z);
+        if (distToIsl <= (isl.radius * 1.35) && ship.hull > 0 && !ship.captured && !ship.struck) {
+          if (!ship.grounded) {
+            ship.grounded = true;
+            ship.groundedIslet = isl;
+            ship.speedKnots = 0.0;
+            ship.hull = Math.max(0, ship.hull - 10.0);
+            addBattleLog(`${ship.name} ran aground in shallows (-10 HP)!`);
+            if (ship.hull <= 0) checkVictoryCondition();
+          }
+        }
+      });
+
+      // Refloat Repair (8s base / 4s with offshore wind)
+      if (ship.repairing === 'refloat' && ship.grounded && ship.groundedIslet) {
+        const isl = ship.groundedIslet;
+        const offX = ship.x - isl.x;
+        const offZ = ship.z - isl.z;
+        const offLen = Math.hypot(offX, offZ) || 1.0;
+        const wX = Math.sin(currentWindDirection);
+        const wZ = Math.cos(currentWindDirection);
+        const isOffshore = ((offX / offLen) * wX + (offZ / offLen) * wZ) > 0.0;
+        const rate = isOffshore ? 2.0 : 1.0;
+        ship.repairTimer += dt * rate;
+        if (ship.repairTimer >= 8.0) {
+          ship.grounded = false;
+          ship.groundedIslet = null;
+          ship.repairing = null;
+          ship.repairTimer = 0.0;
+          const clearDist = (isl.radius * 1.35) + 6.0;
+          ship.x = isl.x + (offX / offLen) * clearDist;
+          ship.z = isl.z + (offZ / offLen) * clearDist;
+          ship.speedKnots = 4.0;
+          addBattleLog(`${ship.name} refloated and underway!`);
+        }
+      }
+
+      // Repair Progress Execution
+      if (ship.repairing === 'leaks') {
+        ship.repairTimer += dt;
+        if (ship.repairTimer >= 6.0) {
+          ship.flooding = false;
+          ship.repairing = null;
+          ship.repairTimer = 0.0;
+          addBattleLog(`${ship.name}: leaks plugged!`);
+        }
+      } else if (ship.repairing === 'masts') {
+        ship.repairTimer += dt;
+        if (ship.repairTimer >= 10.0) {
+          const downedMast = ship.masts.find(m => m.status === 'downed');
+          if (downedMast) {
+            downedMast.status = 'jury-rigged';
+            downedMast.rigDamage = 0.0;
+            addBattleLog(`${ship.name}: ${downedMast.name.toLowerCase()}mast jury-rigged (2/3 power)!`);
+          }
+          ship.repairing = null;
+          ship.repairTimer = 0.0;
+        }
+      }
+
+      const rigEfficiency = getRigEfficiency(ship);
+
+      // Helm Steering
+      if (isPlayer && !ship.grounded) {
+        const targetRudder = (keys.a ? 1 : 0) - (keys.d ? 1 : 0);
+        ship.rudder += (targetRudder - ship.rudder) * Math.min(1.0, dt * 2.8);
+      }
+
+      const steerageFactor = Math.min(1.0, Math.max(0.04, ship.speedKnots / 6.0));
+      const baseTurnRate = 0.42 / (1.0 + Math.max(0, ship.speedKnots - 6.0) * 0.08);
+      const turnRigFactor = 0.35 + 0.65 * rigEfficiency;
+      const turnDelta = ship.rudder * baseTurnRate * steerageFactor * turnRigFactor * dt;
+
+      if (!ship.grounded) {
+        ship.heading += turnDelta;
+        ship.heading = (ship.heading + Math.PI * 2) % (Math.PI * 2);
+      }
+
+      // Wind Aerodynamics & Speed Curve with Dynamic Scheduled Wind
+      const inIrons = isHeadToWind(ship.heading, ship.noGoAngle || 40);
+      const windEfficiency = calculateWindEfficiency(ship.heading, ship.sailSetting, ship.noGoAngle || 40);
+      let targetSpeedKnots = windEfficiency * (ship.shipType === 'sloop' ? 26.0 : WIND_SPEED_BASE) * rigEfficiency;
+
+      if (ship.grounded) {
+        targetSpeedKnots = 0.0;
+        ship.speedKnots = 0.0;
+      } else if (rigEfficiency === 0) {
+        targetSpeedKnots = 0.8;
+        ship.heading += (currentWindDirection - ship.heading) * 0.08 * dt;
+      }
+
+      if (inIrons && ship.speedKnots < 1.2 && isPlayer && !ship.grounded) {
+        const fallOffDir = ship.rudder !== 0 ? Math.sign(ship.rudder) : 1.0;
+        ship.heading += fallOffDir * 0.12 * dt;
+      }
+
+      if (!ship.grounded) {
+        if (inIrons && rigEfficiency > 0) {
+          ship.speedKnots += (-0.5 - ship.speedKnots) * Math.min(1.0, dt * 0.85);
+          if (ship.speedKnots < 0) ship.speedKnots = 0;
+        } else {
+          const accelRate = ship.shipType === 'sloop' ? 0.55 : 0.35;
+          ship.speedKnots += (targetSpeedKnots - ship.speedKnots) * Math.min(1.0, dt * accelRate);
+        }
+      }
+
+      const forwardSpeed = ship.speedKnots * 1.45;
+      const moveX = Math.sin(ship.heading) * forwardSpeed * dt;
+      const moveZ = Math.cos(ship.heading) * forwardSpeed * dt;
+
+      let nextX = ship.x + moveX;
+      let nextZ = ship.z + moveZ;
+
+      // Island Collisions
+      islets.forEach((isl) => {
+        const dx = nextX - isl.x;
+        const dz = nextZ - isl.z;
+        const dist = Math.hypot(dx, dz);
+        const minDist = isl.radius + 12.0;
+        if (dist < minDist && dist > 0.001) {
+          const push = (minDist - dist);
+          nextX += (dx / dist) * push;
+          nextZ += (dz / dist) * push;
+          ship.speedKnots *= 0.85;
+        }
+      });
+
+      // Ship-to-ship collision across all 4 ships
+      const allShips = [player, consort, enemyFrigate, enemySloop];
+      allShips.forEach((otherShip) => {
+        if (otherShip !== ship && otherShip.hull > 0 && !otherShip.captured && !otherShip.struck) {
+          const sdx = nextX - otherShip.x;
+          const sdz = nextZ - otherShip.z;
+          const sDist = Math.hypot(sdx, sdz);
+
+          let dHead = Math.abs(ship.heading - otherShip.heading) % (Math.PI * 2);
+          if (dHead > Math.PI) dHead = Math.PI * 2 - dHead;
+          const isParallel = dHead < (25 * Math.PI / 180) || dHead > (155 * Math.PI / 180);
+
+          const minShipDist = isParallel ? ((ship.shipType === 'sloop' ? 3.0 : 4.25) + (otherShip.shipType === 'sloop' ? 3.0 : 4.25) + 0.5) : 18.0;
+          if (sDist < minShipDist && sDist > 0.001) {
+            const push = (minShipDist - sDist) * 0.5;
+            nextX += (sdx / sDist) * push;
+            nextZ += (sdz / sDist) * push;
+            ship.speedKnots *= 0.9;
+          }
+        }
+      });
+
+      if (!ship.grounded) {
+        ship.x = nextX;
+        ship.z = nextZ;
+      }
+
+      // Reload timers pause entirely while on fire!
+      if (!ship.onFire) {
+        if (ship.reloadPort > 0) ship.reloadPort = Math.max(0, ship.reloadPort - dt);
+        if (ship.reloadStarboard > 0) ship.reloadStarboard = Math.max(0, ship.reloadStarboard - dt);
+      }
+
+      // Wave Buoyancy & Dynamic Roll/Pitch
+      const bowX = ship.x + Math.sin(ship.heading) * 14.0;
+      const bowZ = ship.z + Math.cos(ship.heading) * 14.0;
+      const sternX = ship.x - Math.sin(ship.heading) * 14.0;
+      const sternZ = ship.z - Math.cos(ship.heading) * 14.0;
+
+      const portX = ship.x - Math.cos(ship.heading) * 4.0;
+      const portZ = ship.z + Math.sin(ship.heading) * 4.0;
+      const stbdX = ship.x + Math.cos(ship.heading) * 4.0;
+      const stbdZ = ship.z - Math.sin(ship.heading) * 4.0;
+
+      const hCenter = getWaveHeight(ship.x, ship.z, simTime);
+      const hBow = getWaveHeight(bowX, bowZ, simTime);
+      const hStern = getWaveHeight(sternX, sternZ, simTime);
+      const hPort = getWaveHeight(portX, portZ, simTime);
+      const hStbd = getWaveHeight(stbdX, stbdZ, simTime);
+
+      const targetPitch = Math.atan2(hBow - hStern, 28.0) * 0.75;
+      const waveRoll = Math.atan2(hPort - hStbd, 8.0) * 0.6;
+
+      const windFrom = (currentWindDirection + Math.PI) % (Math.PI * 2);
+      const relWindAngle = ship.heading - windFrom;
+      const windHeel = -Math.sin(relWindAngle) * (ship.speedKnots / WIND_SPEED_BASE) * 0.16;
+      const rudderHeel = -ship.rudder * 0.05;
+
+      const targetRoll = waveRoll + windHeel + rudderHeel;
+
+      ship.pitch += (targetPitch - ship.pitch) * Math.min(1.0, dt * 5.0);
+      ship.roll += (targetRoll - ship.roll) * Math.min(1.0, dt * 5.0);
+
+      if (ship.captured || ship.struck) {
+        ship.speedKnots *= 0.94;
+        shipModel.root.position.set(ship.x, hCenter * 0.45, ship.z);
+        shipModel.root.rotation.set(0, ship.heading, 0);
+        shipModel.flagMesh.visible = false;
+        if (shipModel.pennantsList) {
+          shipModel.pennantsList.forEach(p => p.mesh.visible = false);
+        }
+        return;
+      }
+
+      const floodSinkY = ship.floodWater * 3.2;
+      shipModel.root.position.set(ship.x, (hCenter * 0.45) - floodSinkY, ship.z);
+
+      shipModel.root.rotation.set(0, 0, 0);
+      shipModel.root.rotateY(ship.heading);
+      shipModel.root.rotateX(ship.pitch);
+      shipModel.root.rotateZ(ship.roll);
+
+      if (shipModel.mastGroups) {
+        for (let m = 0; m < shipModel.mastGroups.length; m++) {
+          const mg = shipModel.mastGroups[m];
+          const mastData = ship.masts[m];
+          if (mastData) {
+            if (mastData.status === 'downed') {
+              mg.group.rotation.z = 0.88;
+              mg.group.rotation.x = -0.28;
+            } else if (mastData.status === 'jury-rigged') {
+              mg.group.rotation.z = 0.22;
+              mg.group.rotation.x = 0;
+            } else {
+              mg.group.rotation.z = 0;
+              mg.group.rotation.x = 0;
+            }
+          }
+        }
+      }
+
+      if (shipModel.portCannons) {
+        for (let c = 0; c < shipModel.portCannons.length; c++) {
+          shipModel.portCannons[c].rotation.x = ship.gunsPort[c] ? 0 : -0.7;
+        }
+      }
+      if (shipModel.stbdCannons) {
+        for (let c = 0; c < shipModel.stbdCannons.length; c++) {
+          shipModel.stbdCannons[c].rotation.x = ship.gunsStarboard[c] ? 0 : -0.7;
+        }
+      }
+
+      if (shipModel.crewFigures) {
+        // If fighting fire, visibly form bucket line across deck!
+        if (ship.repairing === 'fire' && ship.onFire) {
+          const lineProgress = Math.sin(simTime * 8.0);
+          shipModel.crewFigures.forEach((fig, idx) => {
+            fig.mesh.visible = true;
+            fig.mesh.position.set(
+              (idx % 2 === 0 ? -1.0 : 1.0) * 0.8,
+              3.2,
+              -6.0 + (idx * 2.2) + (lineProgress * 0.2)
+            );
+          });
+        } else {
+          const visibleSailors = Math.ceil((ship.crew / ship.maxCrew) * shipModel.crewFigures.length);
+          shipModel.crewFigures.forEach((fig, idx) => {
+            fig.mesh.visible = idx < visibleSailors;
+            fig.mesh.position.set(fig.basePos.x, 3.2, fig.basePos.z);
+          });
+        }
+      }
+
+      updateSailsAnimation(shipModel, ship.heading, ship.sailSetting, simTime);
+    }
+
+    // --- Consort Sloop AI (HMS Merlin) ---
+    function updateConsortAI(dt, simTime) {
+      if (consort.hull <= 0 || consort.struck || consort.exploded || gamePhase !== PHASE_BATTLE || boardingState) return;
+
+      if (consort.allegiance === 'enemy') {
+        updateSingleEnemyAI(consort, consortShipModel, dt, simTime, true);
+        return;
+      }
+
+      consort.stateTimer += dt;
+
+      if (consort.onFire) {
+        consort.repairing = 'fire';
+        return;
+      } else if (consort.flooding && consort.hull < (consort.maxHull * 0.85)) {
+        consort.repairing = 'leaks';
+        return;
+      } else {
+        if (consort.repairing === 'fire' || consort.repairing === 'leaks') {
+          consort.repairing = null;
+        }
+      }
+
+      let closestEnemy = null;
+      let closestDist = Infinity;
+      enemySquadron.forEach((e) => {
+        if (e.hull > 0 && !e.captured && !e.struck && !e.exploded) {
+          const d = Math.hypot(e.x - consort.x, e.z - consort.z);
+          if (d < closestDist) { closestDist = d; closestEnemy = e; }
+        }
+      });
+
+      if (closestEnemy && closestDist <= BROADSIDE_RANGE && !consort.repairing) {
+        const dx = closestEnemy.x - consort.x;
+        const dz = closestEnemy.z - consort.z;
+        const angleToTarget = (Math.atan2(dx, dz) + Math.PI * 2) % (Math.PI * 2);
+        let relAngle = angleToTarget - consort.heading;
+        while (relAngle > Math.PI) relAngle -= Math.PI * 2;
+        while (relAngle < -Math.PI) relAngle += Math.PI * 2;
+
+        const portArc = Math.abs(relAngle - (-Math.PI / 2));
+        const stbdArc = Math.abs(relAngle - (Math.PI / 2));
+
+        if (!isObscuredBySmoke(new THREE.Vector3(consort.x, 3, consort.z), new THREE.Vector3(closestEnemy.x, 3, closestEnemy.z))) {
+          if (portArc < 0.28 && consort.reloadPort <= 0) {
+            fireBroadside(consort, consortShipModel, 'port', false);
+          } else if (stbdArc < 0.28 && consort.reloadStarboard <= 0) {
+            fireBroadside(consort, consortShipModel, 'starboard', false);
+          }
+        }
+      }
+
+      let desiredHeading = consort.heading;
+
+      if (consort.consortOrder === 'Follow') {
+        const stationAngle = player.heading - 2.4;
+        const targetX = player.x + Math.sin(stationAngle) * 32.0;
+        const targetZ = player.z + Math.cos(stationAngle) * 32.0;
+        const distToStation = Math.hypot(targetX - consort.x, targetZ - consort.z);
+
+        desiredHeading = Math.atan2(targetX - consort.x, targetZ - consort.z);
+        consort.sailSetting = distToStation > 45 ? 2 : (distToStation < 16 ? 0 : player.sailSetting);
+      } else if (consort.consortOrder === 'Engage') {
+        if (closestEnemy) {
+          const dx = closestEnemy.x - consort.x;
+          const dz = closestEnemy.z - consort.z;
+          const angleToTarget = (Math.atan2(dx, dz) + Math.PI * 2) % (Math.PI * 2);
+          desiredHeading = angleToTarget - Math.PI / 2;
+        }
+        consort.sailSetting = 2;
+      } else if (consort.consortOrder === 'Harass') {
+        if (enemyFrigate.hull > 0 && !enemyFrigate.captured && !enemyFrigate.struck) {
+          const upwindTargetX = enemyFrigate.x - Math.sin(currentWindDirection) * 75.0;
+          const upwindTargetZ = enemyFrigate.z - Math.cos(currentWindDirection) * 75.0;
+          desiredHeading = Math.atan2(upwindTargetX - consort.x, upwindTargetZ - consort.z);
+        } else if (closestEnemy) {
+          desiredHeading = Math.atan2(closestEnemy.x - consort.x, closestEnemy.z - consort.z) - Math.PI / 2;
+        }
+        consort.sailSetting = 2;
+      }
+
+      let headingErr = desiredHeading - consort.heading;
+      while (headingErr > Math.PI) headingErr -= Math.PI * 2;
+      while (headingErr < -Math.PI) headingErr += Math.PI * 2;
+
+      let steerBias = Math.max(-1.0, Math.min(1.0, headingErr * 1.5));
+
+      islets.forEach((isl) => {
+        const ix = isl.x - consort.x;
+        const iz = isl.z - consort.z;
+        const iDist = Math.hypot(ix, iz);
+        if (iDist < (isl.radius * 1.35 + 40.0)) {
+          const islAngle = Math.atan2(ix, iz);
+          let relIsl = islAngle - consort.heading;
+          while (relIsl > Math.PI) relIsl -= Math.PI * 2;
+          while (relIsl < -Math.PI) relIsl += Math.PI * 2;
+          steerBias += (relIsl > 0 ? -1.0 : 1.0) * 1.8;
+        }
+      });
+
+      if (isHeadToWind(consort.heading + consort.rudder * dt, 30)) {
+        const windFrom = (currentWindDirection + Math.PI) % (Math.PI * 2);
+        let diffWind = consort.heading - windFrom;
+        while (diffWind > Math.PI) diffWind -= Math.PI * 2;
+        while (diffWind < -Math.PI) diffWind += Math.PI * 2;
+        steerBias += (diffWind > 0 ? 1.0 : -1.0) * 1.8;
+      }
+
+      const desiredRudder = Math.max(-1.0, Math.min(1.0, steerBias));
+      consort.rudder += (desiredRudder - consort.rudder) * Math.min(1.0, dt * 2.2);
+    }
+
+    // --- Deterministic Enemy AI Squadron Coordination ---
+    function updateSingleEnemyAI(eShip, eModel, dt, simTime, isSloop) {
+      if (eShip.hull <= 0 || eShip.captured || gamePhase !== PHASE_BATTLE || boardingState) return;
+
+      eShip.stateTimer += dt;
+
+      const dx = player.x - eShip.x;
+      const dz = player.z - eShip.z;
+      const distToPlayer = Math.hypot(dx, dz);
+      const angleToPlayer = (Math.atan2(dx, dz) + Math.PI * 2) % (Math.PI * 2);
+
+      let relAngle = angleToPlayer - eShip.heading;
+      while (relAngle > Math.PI) relAngle -= Math.PI * 2;
+      while (relAngle < -Math.PI) relAngle += Math.PI * 2;
+
+      // 1. Tool Selection (Double shot close finisher, Chain shot vs runner, Round shot standard)
+      if (distToPlayer < 95) {
+        setShotType(eShip, SHOT_DOUBLE);
+      } else if (player.speedKnots > eShip.speedKnots || getRigEfficiency(player) > 0.8) {
+        setShotType(eShip, SHOT_CHAIN);
+      } else {
+        setShotType(eShip, SHOT_ROUND);
+      }
+
+      // 2. Damage Control / Repairs (Fire has top priority!)
+      if (eShip.onFire) {
+        eShip.repairing = 'fire';
+        return;
+      } else if (eShip.flooding && eShip.hull < (eShip.maxHull * 0.85)) {
+        eShip.repairing = 'leaks';
+      } else if (eShip.masts.some(m => m.status === 'downed') && !eShip.flooding) {
+        eShip.repairing = 'masts';
+      } else {
+        if (eShip.repairing === 'fire' || eShip.repairing === 'leaks' || eShip.repairing === 'masts') {
+          eShip.repairing = null;
+        }
+      }
+
+      // Check Fighting Retreat for Enemy Frigate (if badly damaged, runs downwind to sea boundary)
+      if (!isSloop && (eShip.hull < 45 || eShip.crew < 20) && !eShip.struck && !eShip.captured) {
+        eShip.retreating = true;
+        eShip.sailSetting = 2;
+
+        // Sea boundary check (radius > 520)
+        if (Math.hypot(eShip.x, eShip.z) > 520.0) {
+          eShip.escaped = true;
+          addBattleLog('Le Vengeur reached the sea boundary and escaped!');
+          gamePhase = PHASE_OVER;
+          winner = 'Partial Victory';
+          showGameOver('Partial Victory');
+          return;
+        }
+
+        // Run directly downwind; every 12 seconds yaw ~45 deg to fire broadside, then return downwind
+        let retreatHeading = currentWindDirection;
+        const yawTimer = simTime % 12.0;
+        if (yawTimer > 9.0) {
+          retreatHeading = (currentWindDirection + 0.85) % (Math.PI * 2);
+        }
+
+        let headingErr = retreatHeading - eShip.heading;
+        while (headingErr > Math.PI) headingErr -= Math.PI * 2;
+        while (headingErr < -Math.PI) headingErr += Math.PI * 2;
+        eShip.rudder += (Math.max(-1.0, Math.min(1.0, headingErr * 1.5)) - eShip.rudder) * Math.min(1.0, dt * 2.2);
+
+        // Fire broadside during yaw if loaded
+        if (yawTimer > 9.5 && distToPlayer <= BROADSIDE_RANGE) {
+          if (eShip.reloadPort <= 0) fireBroadside(eShip, eModel, 'port', false);
+          else if (eShip.reloadStarboard <= 0) fireBroadside(eShip, eModel, 'starboard', false);
+        }
+        return;
+      }
+
+      // 3. Broadside Firing with Weather Gauge Smoke Check & Exposed Powder Exploitation
+      if (!eShip.repairing && !eShip.onFire) {
+        const portArcDiff = Math.abs(relAngle - (-Math.PI / 2));
+        const stbdArcDiff = Math.abs(relAngle - (Math.PI / 2));
+
+        const obscured = isObscuredBySmoke(new THREE.Vector3(eShip.x, 3, eShip.z), new THREE.Vector3(player.x, 3, player.z));
+
+        if (!obscured && distToPlayer <= BROADSIDE_RANGE && player.hull > 0) {
+          if (portArcDiff < 0.28 && eShip.reloadPort <= 0) {
+            fireBroadside(eShip, eModel, 'port', false);
+          } else if (stbdArcDiff < 0.28 && eShip.reloadStarboard <= 0) {
+            fireBroadside(eShip, eModel, 'starboard', false);
+          }
+        }
+      }
+
+      // 4. Obstacle / Islet Shallows Avoidance (respects lee shore with veering wind)
+      let steerBias = 0.0;
+      let obstacleNearby = false;
+
+      islets.forEach((isl) => {
+        const ix = isl.x - eShip.x;
+        const iz = isl.z - eShip.z;
+        const iDist = Math.hypot(ix, iz);
+
+        const wX = Math.sin(currentWindDirection);
+        const wZ = Math.cos(currentWindDirection);
+        const toIslX = ix / (iDist || 1.0);
+        const toIslZ = iz / (iDist || 1.0);
+        const isLeeShore = (toIslX * wX + toIslZ * wZ) > 0.25;
+        const safeDist = (isl.radius * 1.35) + (isLeeShore ? 65.0 : 38.0);
+
+        if (iDist < safeDist) {
+          obstacleNearby = true;
+          const islAngle = Math.atan2(ix, iz);
+          let relIsl = islAngle - eShip.heading;
+          while (relIsl > Math.PI) relIsl -= Math.PI * 2;
+          while (relIsl < -Math.PI) relIsl += Math.PI * 2;
+          steerBias += (relIsl > 0 ? -1.0 : 1.0) * (isLeeShore ? 2.2 : 1.6);
+        }
+      });
+
+      // Avoid collision with other squadron member
+      const otherSquadron = isSloop ? enemyFrigate : enemySloop;
+      if (otherSquadron.hull > 0 && !otherSquadron.captured) {
+        const osDist = Math.hypot(eShip.x - otherSquadron.x, eShip.z - otherSquadron.z);
+        if (osDist < 45.0) {
+          const osAngle = Math.atan2(otherSquadron.x - eShip.x, otherSquadron.z - eShip.z);
+          let relOS = osAngle - eShip.heading;
+          while (relOS > Math.PI) relOS -= Math.PI * 2;
+          while (relOS < -Math.PI) relOS += Math.PI * 2;
+          steerBias += (relOS > 0 ? -0.8 : 0.8);
+        }
+      }
+
+      // 5. No-Go Zone Avoidance
+      const noGoThreshold = eShip.noGoAngle || 40;
+      const nextHeadingProjected = eShip.heading + eShip.rudder * dt;
+      if (isHeadToWind(nextHeadingProjected, noGoThreshold)) {
+        const windFrom = (currentWindDirection + Math.PI) % (Math.PI * 2);
+        let diffWind = eShip.heading - windFrom;
+        while (diffWind > Math.PI) diffWind -= Math.PI * 2;
+        while (diffWind < -Math.PI) diffWind += Math.PI * 2;
+        steerBias += (diffWind > 0 ? 1.0 : -1.0) * 1.8;
+      }
+
+      // 6. Tactical Role Coordination
+      if (!obstacleNearby) {
+        // Exploit exposed powder window: aggressively pursue enemy if they fired within 5s
+        const powderExposed = (simTime - player.lastFiredTime) <= 5.0;
+
+        if (player.repairing || powderExposed) {
+          let targetHeading = angleToPlayer - (relAngle > 0 ? Math.PI / 2 : -Math.PI / 2);
+          let headingErr = targetHeading - eShip.heading;
+          while (headingErr > Math.PI) headingErr -= Math.PI * 2;
+          while (headingErr < -Math.PI) headingErr += Math.PI * 2;
+          steerBias += Math.max(-1.0, Math.min(1.0, headingErr * 1.8));
+        } else if (isSloop) {
+          const playerUpwindX = player.x - Math.sin(currentWindDirection) * 75.0;
+          const playerUpwindZ = player.z - Math.cos(currentWindDirection) * 75.0;
+          const angleToUpwindPos = (Math.atan2(playerUpwindX - eShip.x, playerUpwindZ - eShip.z) + Math.PI * 2) % (Math.PI * 2);
+
+          let targetHeading = distToPlayer > 85 ? angleToUpwindPos : (angleToPlayer - Math.PI / 2);
+          let headingErr = targetHeading - eShip.heading;
+          while (headingErr > Math.PI) headingErr -= Math.PI * 2;
+          while (headingErr < -Math.PI) headingErr += Math.PI * 2;
+          steerBias += Math.max(-1.0, Math.min(1.0, headingErr * 1.5));
+        } else {
+          let desiredBroadsideRel = Math.PI / 2;
+          if (eShip.reloadPort <= 0 && eShip.reloadStarboard > 0) {
+            desiredBroadsideRel = -Math.PI / 2;
+          } else if (eShip.reloadStarboard <= 0 && eShip.reloadPort > 0) {
+            desiredBroadsideRel = Math.PI / 2;
+          } else {
+            desiredBroadsideRel = relAngle > 0 ? Math.PI / 2 : -Math.PI / 2;
+          }
+
+          let targetHeading = angleToPlayer - desiredBroadsideRel;
+          let headingErr = targetHeading - eShip.heading;
+          while (headingErr > Math.PI) headingErr -= Math.PI * 2;
+          while (headingErr < -Math.PI) headingErr += Math.PI * 2;
+
+          if (distToPlayer < 75) {
+            steerBias += headingErr > 0 ? 1.0 : -1.0;
+          } else {
+            steerBias += Math.max(-1.0, Math.min(1.0, headingErr * 1.4));
+          }
+        }
+      }
+
+      const desiredRudder = Math.max(-1.0, Math.min(1.0, steerBias));
+      eShip.rudder += (desiredRudder - eShip.rudder) * Math.min(1.0, dt * 2.2);
+      eShip.sailSetting = 2;
+    }
+
+    function updateEnemyAI(dt, simTime) {
+      updateSingleEnemyAI(enemyFrigate, enemyShipModel, dt, simTime, false);
+      updateSingleEnemyAI(enemySloop, enemySloopModel, dt, simTime, true);
+    }
+
+    // --- Cannonball Projectile Physics & Collision System ---
+    function checkVictoryCondition() {
+      if (gamePhase !== PHASE_BATTLE) return;
+      if (player.hull <= 0 || player.exploded) {
+        gamePhase = PHASE_OVER;
+        winner = 'Defeat';
+        showGameOver('Defeat');
+      } else if (enemyFrigate.escaped) {
+        gamePhase = PHASE_OVER;
+        winner = 'Partial Victory';
+        showGameOver('Partial Victory');
+      } else if (enemySquadron.every(e => e.hull <= 0 || e.captured || e.struck || e.exploded)) {
+        gamePhase = PHASE_OVER;
+        winner = 'Victory';
+        showGameOver('Victory');
+      }
+    }
+
+    function updateProjectiles(dt) {
+      for (let i = cannonballs.length - 1; i >= 0; i--) {
+        const ball = cannonballs[i];
+        ball.life += dt;
+
+        if (ball.shotType === SHOT_CHAIN) {
+          ball.mesh.rotation.x += 16.0 * dt;
+          ball.mesh.rotation.z += 12.0 * dt;
+        }
+
+        ball.vel.y += GRAVITY * dt;
+        ball.pos.addScaledVector(ball.vel, dt);
+        ball.mesh.position.copy(ball.pos);
+
+        if (ball.pos.y <= 0.0) {
+          spawnWaterSplash(ball.pos);
+          scene.remove(ball.mesh);
+          cannonballs.splice(i, 1);
+          continue;
+        }
+
+        if (ball.life > ball.maxLife) {
+          scene.remove(ball.mesh);
+          cannonballs.splice(i, 1);
+          continue;
+        }
+
+        // Target Collision Detection across all 4 ships
+        let targetList = [];
+        if (ball.owner === 'player') {
+          targetList = [
+            { ship: enemyFrigate, model: enemyShipModel },
+            { ship: enemySloop, model: enemySloopModel }
+          ];
+          if (consort.allegiance === 'enemy') targetList.push({ ship: consort, model: consortShipModel });
+        } else {
+          targetList = [{ ship: player, model: playerShipModel }];
+          if (consort.allegiance === 'player') targetList.push({ ship: consort, model: consortShipModel });
+        }
+
+        let hitRegistered = false;
+        for (let t of targetList) {
+          const targetShip = t.ship;
+          const targetModel = t.model;
+          if (targetShip.hull <= 0 || targetShip.captured || targetShip.struck || targetShip.exploded) continue;
+
+          const localBall = ball.pos.clone();
+          targetModel.root.worldToLocal(localBall);
+
+          const isSloop = targetShip.shipType === 'sloop';
+          const halfLen = isSloop ? 11.0 : 16.5;
+          const halfWid = isSloop ? 3.4 : 4.8;
+          const deckY = isSloop ? 3.0 : 4.8;
+
+          // Round Shot, Chain Shot, and Double Shot Collision
+          const hitHull = (
+            Math.abs(localBall.x) < halfWid &&
+            localBall.y >= -1.0 && localBall.y <= (deckY + 2.5) &&
+            Math.abs(localBall.z) < halfLen
+          );
+
+          const hitMast = (
+            Math.abs(localBall.x) < 2.5 &&
+            localBall.y > (deckY + 1.8) && localBall.y <= 34.0 &&
+            Math.abs(localBall.z) < (isSloop ? 5.0 : 13.0)
+          );
+
+          if (hitHull || hitMast) {
+            if (ball.shotType === SHOT_DOUBLE && localBall.y > (deckY + 1.5)) {
+              return;
+            }
+
+            const baseDmg = ball.isSloopGun ? 3.5 : (ball.shotType === SHOT_DOUBLE ? 7.5 : 5.0);
+
+            // Exposed Powder Deck Fire Check: broadside within 5s of firing ignites fire!
+            if ((totalSimulationTime - targetShip.lastFiredTime) <= 5.0 && !targetShip.onFire && !targetShip.exploded) {
+              targetShip.onFire = true;
+              targetShip.fireTime = 0.0;
+              battleStats.firesStarted++;
+              addBattleLog(`${targetShip.name} caught fire on deck (exposed powder)!`);
+            }
+
+            battleStats.hitsByType[SHOT_NAMES[ball.shotType]]++;
+
+            // 1. Waterline Hit -> Flooding
+            if (localBall.y <= (deckY * 0.58)) {
+              if (!targetShip.flooding) {
+                targetShip.flooding = true;
+                addBattleLog(`${targetShip.name}: waterline pierced! Flooding!`);
+              }
+              if (targetShip.repairing === 'leaks') {
+                targetShip.repairTimer = 0.0;
+                addBattleLog(`${targetShip.name}: leak repair interrupted!`);
+              }
+              const dmg = ball.shotType === SHOT_CHAIN ? (baseDmg / 3.0) : baseDmg;
+              targetShip.hull = Math.max(0, targetShip.hull - dmg);
+            }
+            // 2. Masts and Rigging Hit (Chain shot deals 3x rig damage; Double shot cannot damage masts)
+            else if (localBall.y > (deckY + 1.5)) {
+              if (ball.shotType !== SHOT_DOUBLE) {
+                const mastIdx = isSloop ? 0 : (localBall.z < -3.5 ? 0 : (localBall.z <= 5.5 ? 1 : 2));
+                const rigDmg = ball.shotType === SHOT_CHAIN ? (baseDmg * 3.0) : baseDmg;
+                const mast = targetShip.masts[mastIdx];
+                if (mast) {
+                  mast.rigDamage += rigDmg;
+                  if (mast.rigDamage >= 15.0 && mast.status === 'intact') {
+                    mast.status = 'downed';
+                    battleStats.mastsDowned++;
+                    targetShip.crew = Math.max(1, targetShip.crew - 2);
+                    addBattleLog(`${targetShip.name}: ${mast.name.toLowerCase()}mast brought down!`);
+                  }
+                }
+                if (targetShip.repairing === 'masts') {
+                  targetShip.repairTimer = 0.0;
+                  addBattleLog(`${targetShip.name}: mast repair interrupted!`);
+                }
+                const hullDmg = ball.shotType === SHOT_CHAIN ? baseDmg : baseDmg;
+                targetShip.hull = Math.max(0, targetShip.hull - hullDmg);
+              }
+            }
+            // 3. Gunport Row Hit -> Gun Knockouts
+            else if (Math.abs(localBall.x) > (halfWid * 0.6)) {
+              const gunCount = targetShip.gunsPort.length;
+              const zStart = isSloop ? -4.0 : -7.0;
+              const zSpace = isSloop ? 4.0 : 3.6;
+              const gunIdx = Math.max(0, Math.min(gunCount - 1, Math.round((localBall.z - zStart) / zSpace)));
+              const sideGuns = localBall.x < 0 ? targetShip.gunsPort : targetShip.gunsStarboard;
+              if (sideGuns[gunIdx]) {
+                sideGuns[gunIdx] = false;
+                addBattleLog(`${targetShip.name}: gun knocked out!`);
+              }
+              const dmg = ball.shotType === SHOT_CHAIN ? (baseDmg / 3.0) : baseDmg;
+              targetShip.hull = Math.max(0, targetShip.hull - dmg);
+            }
+            // 4. Upper Hull / Deck Area -> Crew losses from cannon fire
+            else {
+              if (localBall.y > deckY && localBall.y <= (deckY + 2.5)) {
+                targetShip.crew = Math.max(1, targetShip.crew - 1);
+              }
+              const dmg = ball.shotType === SHOT_CHAIN ? (baseDmg / 3.0) : baseDmg;
+              targetShip.hull = Math.max(0, targetShip.hull - dmg);
+            }
+
+            spawnWoodSplinterImpact(ball.pos);
+            scene.remove(ball.mesh);
+            cannonballs.splice(i, 1);
+            hitRegistered = true;
+
+            if (targetShip.hull <= 0) {
+              addBattleLog(`${targetShip.name} sunk!`);
+              checkVictoryCondition();
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    // --- Particle System Update ---
+    function updateParticles(dt) {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.life -= dt;
+        if (p.life <= 0) {
+          scene.remove(p.mesh);
+          particles.splice(i, 1);
+          continue;
+        }
+
+        if (p.gravity) p.vel.y += p.gravity * dt;
+        p.mesh.position.addScaledVector(p.vel, dt);
+        p.scale += (p.scaleSpeed || 0) * dt;
+        const s = Math.max(0.01, p.scale);
+        p.mesh.scale.set(s, s, s);
+        p.mesh.material.opacity = (p.life / p.maxLife) * 0.85;
+      }
+    }
+
+    // --- Camera Chase System ---
+    function updateCamera(dt) {
+      if (isTacticalView) {
+        // High overhead tactical map view showing all ships and islets
+        const midX = (player.x + enemyFrigate.x + enemySloop.x) / 3.0;
+        const midZ = (player.z + enemyFrigate.z + enemySloop.z) / 3.0;
+        const targetPos = new THREE.Vector3(midX, 440, midZ);
+        const lookTarget = new THREE.Vector3(midX, 0, midZ);
+
+        camera.position.lerp(targetPos, Math.min(1.0, dt * 3.5));
+        cameraChaseLookAt.lerp(lookTarget, Math.min(1.0, dt * 4.0));
+        camera.lookAt(cameraChaseLookAt);
+      } else {
+        const chaseDist = 68.0;
+        const chaseHeight = 35.0;
+        const quarterOffset = 12.0;
+
+        const perpX = Math.cos(player.heading);
+        const perpZ = -Math.sin(player.heading);
+
+        const behindX = player.x - Math.sin(player.heading) * chaseDist + perpX * quarterOffset;
+        const behindZ = player.z - Math.cos(player.heading) * chaseDist + perpZ * quarterOffset;
+        const desiredPos = new THREE.Vector3(behindX, Math.max(16.0, chaseHeight), behindZ);
+
+        const lookAheadX = player.x + Math.sin(player.heading) * 24.0;
+        const lookAheadZ = player.z + Math.cos(player.heading) * 24.0;
+        const desiredLook = new THREE.Vector3(lookAheadX, 6.5, lookAheadZ);
+
+        cameraChasePos.lerp(desiredPos, Math.min(1.0, dt * 3.8));
+        cameraChaseLookAt.lerp(desiredLook, Math.min(1.0, dt * 4.5));
+
+        camera.position.copy(cameraChasePos);
+        camera.lookAt(cameraChaseLookAt);
+      }
+    }
+
+    // --- HUD Updating ---
+    function updateHUD() {
+      // 1. Player Hull & Crew
+      const pHullFill = document.getElementById('player-hull-fill');
+      const pHullText = document.getElementById('player-hull-text');
+      pHullFill.style.width = `${Math.max(0, player.hull)}%`;
+      pHullText.textContent = `${Math.round(player.hull)} / 100`;
+
+      const pCrewFill = document.getElementById('player-crew-fill');
+      const pCrewText = document.getElementById('player-crew-text');
+      const pCrewVal = document.getElementById('player-crew-val');
+      if (pCrewVal) pCrewVal.textContent = player.crew;
+      if (pCrewFill) pCrewFill.style.width = `${(player.crew / CREW_FULL) * 100}%`;
+      if (pCrewText) pCrewText.textContent = `${player.crew} / ${CREW_FULL}`;
+
+      // 2. Enemy Frigate (Le Vengeur)
+      const eHullFill = document.getElementById('enemy-hull-fill');
+      const eHullText = document.getElementById('enemy-hull-text');
+      eHullFill.style.width = `${Math.max(0, enemyFrigate.hull)}%`;
+      eHullText.textContent = enemyFrigate.captured ? 'CAPTURED' : `${Math.round(enemyFrigate.hull)} / 100`;
+
+      const eCrewFill = document.getElementById('enemy-crew-fill');
+      const eCrewText = document.getElementById('enemy-crew-text');
+      const eCrewVal = document.getElementById('enemy-crew-val');
+      if (eCrewVal) eCrewVal.textContent = enemyFrigate.crew;
+      if (eCrewFill) eCrewFill.style.width = `${(enemyFrigate.crew / CREW_FULL) * 100}%`;
+      if (eCrewText) eCrewText.textContent = `${enemyFrigate.crew} / ${CREW_FULL}`;
+
+      // 3. Enemy Sloop (Le Faucon)
+      const sHullFill = document.getElementById('sloop-hull-fill');
+      const sHullText = document.getElementById('sloop-hull-text');
+      if (sHullFill) sHullFill.style.width = `${(Math.max(0, enemySloop.hull) / 60.0) * 100}%`;
+      if (sHullText) sHullText.textContent = enemySloop.captured ? 'CAPTURED' : (enemySloop.struck ? 'STRUCK' : `${Math.round(enemySloop.hull)} / 60`);
+
+      const sCrewFill = document.getElementById('sloop-crew-fill');
+      const sCrewText = document.getElementById('sloop-crew-text');
+      const sCrewVal = document.getElementById('sloop-crew-val');
+      if (sCrewVal) sCrewVal.textContent = enemySloop.crew;
+      if (sCrewFill) sCrewFill.style.width = `${(enemySloop.crew / 20.0) * 100}%`;
+      if (sCrewText) sCrewText.textContent = `${enemySloop.crew} / 20`;
+
+      // 4. Consort Sloop (HMS Merlin)
+      const cOrderBadge = document.getElementById('consort-order');
+      if (cOrderBadge) cOrderBadge.textContent = `[T] ORDER: ${consort.consortOrder.toUpperCase()}`;
+      const cHullFill = document.getElementById('consort-hull-fill');
+      const cHullText = document.getElementById('consort-hull-text');
+      if (cHullFill) cHullFill.style.width = `${(Math.max(0, consort.hull) / 60.0) * 100}%`;
+      if (cHullText) cHullText.textContent = consort.captured ? 'CAPTURED' : (consort.struck ? 'STRUCK' : `${Math.round(consort.hull)} / 60`);
+      const cCrewVal = document.getElementById('consort-crew-val');
+      if (cCrewVal) cCrewVal.textContent = consort.crew;
+
+      // Consort Reloads
+      const cPortFill = document.getElementById('consort-port-fill');
+      const cPortText = document.getElementById('consort-port-text');
+      const cMaxPort = consort.baseReloadPort * (consort.maxCrew / Math.max(1, consort.crew));
+      if (cPortFill) cPortFill.style.width = `${Math.min(100, Math.max(0, (1.0 - consort.reloadPort / cMaxPort) * 100))}%`;
+      if (cPortText) cPortText.textContent = consort.reloadPort <= 0 ? 'READY' : `${consort.reloadPort.toFixed(1)}s`;
+
+      const cStbdFill = document.getElementById('consort-stbd-fill');
+      const cStbdText = document.getElementById('consort-stbd-text');
+      const cMaxStbd = consort.baseReloadStarboard * (consort.maxCrew / Math.max(1, consort.crew));
+      if (cStbdFill) cStbdFill.style.width = `${Math.min(100, Math.max(0, (1.0 - consort.reloadStarboard / cMaxStbd) * 100))}%`;
+      if (cStbdText) cStbdText.textContent = consort.reloadStarboard <= 0 ? 'READY' : `${consort.reloadStarboard.toFixed(1)}s`;
+
+      // Flooding & Grounded Badges
+      document.getElementById('player-flooding').style.display = player.flooding ? 'inline-block' : 'none';
+      document.getElementById('consort-flooding').style.display = consort.flooding ? 'inline-block' : 'none';
+      document.getElementById('enemy-flooding').style.display = enemyFrigate.flooding ? 'inline-block' : 'none';
+      document.getElementById('sloop-flooding').style.display = enemySloop.flooding ? 'inline-block' : 'none';
+
+      document.getElementById('player-grounded').style.display = player.grounded ? 'inline-block' : 'none';
+      document.getElementById('consort-grounded').style.display = consort.grounded ? 'inline-block' : 'none';
+      document.getElementById('enemy-grounded').style.display = enemyFrigate.grounded ? 'inline-block' : 'none';
+      document.getElementById('sloop-grounded').style.display = enemySloop.grounded ? 'inline-block' : 'none';
+
+      // Fire Badges
+      document.getElementById('player-fire').style.display = player.onFire ? 'inline-block' : 'none';
+      document.getElementById('consort-fire').style.display = consort.onFire ? 'inline-block' : 'none';
+      document.getElementById('enemy-fire').style.display = enemyFrigate.onFire ? 'inline-block' : 'none';
+      document.getElementById('sloop-fire').style.display = enemySloop.onFire ? 'inline-block' : 'none';
+
+      // Silhouettes - Player Masts
+      const pMastTags = ['p-mast-miz', 'p-mast-main', 'p-mast-fore'];
+      player.masts.forEach((m, idx) => {
+        const el = document.getElementById(pMastTags[idx]);
+        if (m.status === 'downed') {
+          el.textContent = m.name.slice(0, 3).toUpperCase() + ' DOWN';
+          el.style.background = '#d90429';
+        } else if (m.status === 'jury-rigged') {
+          el.textContent = m.name.slice(0, 3).toUpperCase() + ' JURY';
+          el.style.background = '#c5a059';
+        } else {
+          el.textContent = m.name.slice(0, 3).toUpperCase() + ' OK';
+          el.style.background = '#2b9348';
+        }
+      });
+
+      // Silhouettes - Enemy Frigate Masts
+      const eMastTags = ['e-mast-miz', 'e-mast-main', 'e-mast-fore'];
+      enemyFrigate.masts.forEach((m, idx) => {
+        const el = document.getElementById(eMastTags[idx]);
+        if (m.status === 'downed') {
+          el.textContent = m.name.slice(0, 3).toUpperCase() + ' DOWN';
+          el.style.background = '#d90429';
+        } else if (m.status === 'jury-rigged') {
+          el.textContent = m.name.slice(0, 3).toUpperCase() + ' JURY';
+          el.style.background = '#c5a059';
+        } else {
+          el.textContent = m.name.slice(0, 3).toUpperCase() + ' OK';
+          el.style.background = '#2b9348';
+        }
+      });
+
+      // Silhouettes - Enemy Sloop Mast
+      const sMastEl = document.getElementById('sloop-mast');
+      const sMast = enemySloop.masts[0];
+      if (sMast.status === 'downed') {
+        sMastEl.textContent = 'MAIN DOWN';
+        sMastEl.style.background = '#d90429';
+      } else if (sMast.status === 'jury-rigged') {
+        sMastEl.textContent = 'MAIN JURY';
+        sMastEl.style.background = '#c5a059';
+      } else {
+        sMastEl.textContent = 'MAIN OK';
+        sMastEl.style.background = '#2b9348';
+      }
+
+      // Gun Pips - Player
+      const pPipsPort = document.getElementById('p-guns-port').children;
+      const pPipsStbd = document.getElementById('p-guns-stbd').children;
+      for (let c = 0; c < 6; c++) {
+        if (pPipsPort[c]) pPipsPort[c].classList.toggle('knocked-out', !player.gunsPort[c]);
+        if (pPipsStbd[c]) pPipsStbd[c].classList.toggle('knocked-out', !player.gunsStarboard[c]);
+      }
+
+      // Gun Pips - Enemy Frigate
+      const ePipsPort = document.getElementById('e-guns-port').children;
+      const ePipsStbd = document.getElementById('e-guns-stbd').children;
+      for (let c = 0; c < 6; c++) {
+        if (ePipsPort[c]) ePipsPort[c].classList.toggle('knocked-out', !enemyFrigate.gunsPort[c]);
+        if (ePipsStbd[c]) ePipsStbd[c].classList.toggle('knocked-out', !enemyFrigate.gunsStarboard[c]);
+      }
+
+      // Gun Pips - Enemy Sloop
+      const sPipsPort = document.getElementById('sloop-guns-port').children;
+      const sPipsStbd = document.getElementById('sloop-guns-stbd').children;
+      for (let c = 0; c < 3; c++) {
+        if (sPipsPort[c]) sPipsPort[c].classList.toggle('knocked-out', !enemySloop.gunsPort[c]);
+        if (sPipsStbd[c]) sPipsStbd[c].classList.toggle('knocked-out', !enemySloop.gunsStarboard[c]);
+      }
+
+      // Reload Times (scaled by crew from new bases: port 10s base, starboard 8s base)
+      const pReloadPortMax = player.baseReloadPort * (player.maxCrew / Math.max(1, player.crew));
+      const pReloadStbdMax = player.baseReloadStarboard * (player.maxCrew / Math.max(1, player.crew));
+
+      const efReloadPortMax = enemyFrigate.baseReloadPort * (enemyFrigate.maxCrew / Math.max(1, enemyFrigate.crew));
+      const efReloadStbdMax = enemyFrigate.baseReloadStarboard * (enemyFrigate.maxCrew / Math.max(1, enemyFrigate.crew));
+
+      const esReloadPortMax = enemySloop.baseReloadPort * (enemySloop.maxCrew / Math.max(1, enemySloop.crew));
+      const esReloadStbdMax = enemySloop.baseReloadStarboard * (enemySloop.maxCrew / Math.max(1, enemySloop.crew));
+
+      // Player Reloads
+      const pPortFill = document.getElementById('player-port-fill');
+      const pPortText = document.getElementById('player-port-text');
+      const portPct = Math.min(100, Math.max(0, (1.0 - player.reloadPort / pReloadPortMax) * 100));
+      pPortFill.style.width = `${portPct}%`;
+      pPortText.textContent = player.reloadPort <= 0 ? 'READY' : `${player.reloadPort.toFixed(1)}s`;
+      document.getElementById('player-port-ammo').textContent = `(${SHOT_NAMES[player.loadedTypePort]})`;
+
+      const pStbdFill = document.getElementById('player-stbd-fill');
+      const pStbdText = document.getElementById('player-stbd-text');
+      const stbdPct = Math.min(100, Math.max(0, (1.0 - player.reloadStarboard / pReloadStbdMax) * 100));
+      pStbdFill.style.width = `${stbdPct}%`;
+      pStbdText.textContent = player.reloadStarboard <= 0 ? 'READY' : `${player.reloadStarboard.toFixed(1)}s`;
+      document.getElementById('player-stbd-ammo').textContent = `(${SHOT_NAMES[player.loadedTypeStarboard]})`;
+
+      // Frigate Reloads
+      const efPortFill = document.getElementById('enemy-port-fill');
+      const efPortText = document.getElementById('enemy-port-text');
+      efPortFill.style.width = `${Math.min(100, Math.max(0, (1.0 - enemyFrigate.reloadPort / efReloadPortMax) * 100))}%`;
+      efPortText.textContent = enemyFrigate.reloadPort <= 0 ? 'READY' : `${enemyFrigate.reloadPort.toFixed(1)}s`;
+      document.getElementById('enemy-port-ammo').textContent = `(${SHOT_NAMES[enemyFrigate.loadedTypePort].slice(0, 3)})`;
+
+      const efStbdFill = document.getElementById('enemy-stbd-fill');
+      const efStbdText = document.getElementById('enemy-stbd-text');
+      efStbdFill.style.width = `${Math.min(100, Math.max(0, (1.0 - enemyFrigate.reloadStarboard / efReloadStbdMax) * 100))}%`;
+      efStbdText.textContent = enemyFrigate.reloadStarboard <= 0 ? 'READY' : `${enemyFrigate.reloadStarboard.toFixed(1)}s`;
+      document.getElementById('enemy-stbd-ammo').textContent = `(${SHOT_NAMES[enemyFrigate.loadedTypeStarboard].slice(0, 3)})`;
+
+      // Sloop Reloads
+      const esPortFill = document.getElementById('sloop-port-fill');
+      const esPortText = document.getElementById('sloop-port-text');
+      esPortFill.style.width = `${Math.min(100, Math.max(0, (1.0 - enemySloop.reloadPort / esReloadPortMax) * 100))}%`;
+      esPortText.textContent = enemySloop.reloadPort <= 0 ? 'READY' : `${enemySloop.reloadPort.toFixed(1)}s`;
+      document.getElementById('sloop-port-ammo').textContent = `(${SHOT_NAMES[enemySloop.loadedTypePort].slice(0, 3)})`;
+
+      const esStbdFill = document.getElementById('sloop-stbd-fill');
+      const esStbdText = document.getElementById('sloop-stbd-text');
+      esStbdFill.style.width = `${Math.min(100, Math.max(0, (1.0 - enemySloop.reloadStarboard / esReloadStbdMax) * 100))}%`;
+      esStbdText.textContent = enemySloop.reloadStarboard <= 0 ? 'READY' : `${enemySloop.reloadStarboard.toFixed(1)}s`;
+      document.getElementById('sloop-stbd-ammo').textContent = `(${SHOT_NAMES[enemySloop.loadedTypeStarboard].slice(0, 3)})`;
+
+      // Ammo Selection UI Buttons
+      for (let s = 1; s <= 3; s++) {
+        const btn = document.getElementById(`ammo-btn-${s}`);
+        if (btn) btn.classList.toggle('active', player.selectedShotType === s);
+      }
+
+      // Damage Control / Repair Panel Status
+      const leakProg = document.getElementById('repair-progress-leaks');
+      const leakStat = document.getElementById('repair-status-leaks');
+      const mastProg = document.getElementById('repair-progress-masts');
+      const mastStat = document.getElementById('repair-status-masts');
+      const refloatProg = document.getElementById('repair-progress-refloat');
+      const refloatStat = document.getElementById('repair-status-refloat');
+
+      if (player.repairing === 'leaks') {
+        leakProg.style.width = `${(player.repairTimer / 6.0) * 100}%`;
+        leakStat.textContent = `${(6.0 - player.repairTimer).toFixed(1)}s PLUGGING`;
+        leakStat.style.color = '#4cc9f0';
+        document.getElementById('repair-opt-leaks').classList.add('active-repair');
+      } else {
+        leakProg.style.width = '0%';
+        leakStat.textContent = player.flooding ? 'LEAKS ACTIVE [1]' : 'HULL SOUND';
+        leakStat.style.color = player.flooding ? '#ff6b6b' : '#2b9348';
+        document.getElementById('repair-opt-leaks').classList.remove('active-repair');
+      }
+
+      const hasDownedMast = player.masts.some(m => m.status === 'downed');
+      if (player.repairing === 'masts') {
+        mastProg.style.width = `${(player.repairTimer / 10.0) * 100}%`;
+        mastStat.textContent = `${(10.0 - player.repairTimer).toFixed(1)}s RIGGING`;
+        mastStat.style.color = '#4cc9f0';
+        document.getElementById('repair-opt-masts').classList.add('active-repair');
+      } else {
+        mastProg.style.width = '0%';
+        mastStat.textContent = hasDownedMast ? 'DOWNED MAST [2]' : 'RIGGING OK';
+        mastStat.style.color = hasDownedMast ? '#ff6b6b' : '#2b9348';
+        document.getElementById('repair-opt-masts').classList.remove('active-repair');
+      }
+
+      if (player.repairing === 'refloat') {
+        refloatProg.style.width = `${(player.repairTimer / 8.0) * 100}%`;
+        refloatStat.textContent = `${Math.max(0, 8.0 - player.repairTimer).toFixed(1)}s REFLOATING`;
+        refloatStat.style.color = '#4cc9f0';
+        document.getElementById('repair-opt-refloat').classList.add('active-repair');
+      } else {
+        refloatProg.style.width = '0%';
+        refloatStat.textContent = player.grounded ? 'GROUNDED [3]' : 'AFLOAT';
+        refloatStat.style.color = player.grounded ? '#ff6b6b' : '#2b9348';
+        document.getElementById('repair-opt-refloat').classList.remove('active-repair');
+      }
+
+      const fireProg = document.getElementById('repair-progress-fire');
+      const fireStat = document.getElementById('repair-status-fire');
+      if (player.repairing === 'fire') {
+        if (fireProg) fireProg.style.width = `${(player.repairTimer / 6.0) * 100}%`;
+        if (fireStat) {
+          fireStat.textContent = `${Math.max(0, 6.0 - player.repairTimer).toFixed(1)}s BUCKET LINE`;
+          fireStat.style.color = '#4cc9f0';
+        }
+        document.getElementById('repair-opt-fire').classList.add('active-repair');
+      } else {
+        if (fireProg) fireProg.style.width = '0%';
+        if (fireStat) {
+          fireStat.textContent = player.onFire ? 'FIRE ACTIVE [4]' : 'NO FIRE';
+          fireStat.style.color = player.onFire ? '#ff5400' : '#2b9348';
+        }
+        document.getElementById('repair-opt-fire').classList.remove('active-repair');
+      }
+
+      // Weather Gauge smoke degradation: dim aim arc indicators when inside/obscured by smoke
+      const pPos = new THREE.Vector3(player.x, 3, player.z);
+      const nearestEnemy = Math.hypot(player.x - enemyFrigate.x, player.z - enemyFrigate.z) < Math.hypot(player.x - enemySloop.x, player.z - enemySloop.z) ? enemyFrigate : enemySloop;
+      const targetPos = new THREE.Vector3(nearestEnemy.x, 3, nearestEnemy.z);
+      const smokeObscured = isObscuredBySmoke(pPos, targetPos);
+
+      if (playerShipModel.arcMeshPort && playerShipModel.arcMeshStbd) {
+        const baseOpacity = smokeObscured ? 0.05 : 0.38;
+        playerShipModel.arcMeshPort.children.forEach((c, idx) => {
+          c.material.opacity = idx === 0 ? (smokeObscured ? 0.01 : 0.06) : baseOpacity;
+        });
+        playerShipModel.arcMeshStbd.children.forEach((c, idx) => {
+          c.material.opacity = idx === 0 ? (smokeObscured ? 0.01 : 0.06) : baseOpacity;
+        });
+      }
+
+      // Compass & Sailing readout
+      const headingDeg = Math.round((player.heading * 180 / Math.PI) % 360);
+      document.getElementById('heading-val').textContent = `${(headingDeg + 360) % 360}°`;
+      document.getElementById('speed-val').textContent = player.speedKnots.toFixed(1);
+
+      const sailNames = ['BARE', 'HALF', 'FULL'];
+      document.getElementById('sail-val').textContent = sailNames[player.sailSetting];
+
+      const shipNeedle = document.getElementById('compass-ship');
+      shipNeedle.style.transform = `rotate(${headingDeg}deg)`;
+
+      // Dynamic scheduled wind direction
+      const windDeg = Math.round(currentWindDirection * 180 / Math.PI);
+      const windNeedle = document.getElementById('compass-wind');
+      windNeedle.style.transform = `rotate(${windDeg}deg)`;
+
+      const nogoWarn = document.getElementById('nogo-warn');
+      if (isHeadToWind(player.heading, player.noGoAngle || 40) && player.sailSetting > 0) {
+        nogoWarn.style.display = 'block';
+      } else {
+        nogoWarn.style.display = 'none';
+      }
+
+      // Mirror to window.__arena_state read-only object
+      window.__arena_state.phase = gamePhase;
+      window.__arena_state.wind_direction = currentWindDirection;
+      window.__arena_state.player_heading = player.heading;
+      window.__arena_state.player_speed_knots = player.speedKnots;
+      window.__arena_state.sail_setting = player.sailSetting;
+      window.__arena_state.player_hull = player.hull;
+      window.__arena_state.enemy_hull = enemyFrigate.hull;
+      window.__arena_state.reload_port = player.reloadPort;
+      window.__arena_state.reload_starboard = player.reloadStarboard;
+
+      window.__arena_state.player_flooding = player.flooding;
+      window.__arena_state.player_grounded = player.grounded;
+      window.__arena_state.player_on_fire = player.onFire;
+      window.__arena_state.consort_on_fire = consort.onFire;
+      window.__arena_state.enemy_flooding = enemyFrigate.flooding || enemySloop.flooding;
+      window.__arena_state.enemy_grounded = enemyFrigate.grounded || enemySloop.grounded;
+      window.__arena_state.enemy_on_fire = enemyFrigate.onFire || enemySloop.onFire;
+      window.__arena_state.consort_order = consort.consortOrder;
+
+      window.__arena_state.player_crew = player.crew;
+      window.__arena_state.enemy_crew = enemyFrigate.crew + enemySloop.crew;
+      window.__arena_state.player_rig_damage = player.masts.map(m => m.rigDamage);
+      window.__arena_state.enemy_rig_damage = enemyFrigate.masts.map(m => m.rigDamage);
+      window.__arena_state.player_downed_masts = player.masts.map(m => m.status === 'downed');
+      window.__arena_state.enemy_downed_masts = enemyFrigate.masts.map(m => m.status === 'downed');
+      window.__arena_state.player_knocked_out_guns = {
+        port: player.gunsPort.filter(g => !g).length,
+        starboard: player.gunsStarboard.filter(g => !g).length
+      };
+      window.__arena_state.enemy_knocked_out_guns = {
+        port: enemyFrigate.gunsPort.filter(g => !g).length + enemySloop.gunsPort.filter(g => !g).length,
+        starboard: enemyFrigate.gunsStarboard.filter(g => !g).length + enemySloop.gunsStarboard.filter(g => !g).length
+      };
+      window.__arena_state.selected_shot_type = SHOT_NAMES[player.selectedShotType];
+      window.__arena_state.loaded_ammo_port = SHOT_NAMES[player.loadedTypePort];
+      window.__arena_state.loaded_ammo_starboard = SHOT_NAMES[player.loadedTypeStarboard];
+      window.__arena_state.player_repairing = player.repairing;
+      window.__arena_state.battle_stats = battleStats;
+
+      window.__arena_state.consort = {
+        hull: consort.hull,
+        crew: consort.crew,
+        order: consort.consortOrder,
+        flooding: consort.flooding,
+        on_fire: consort.onFire,
+        captured: consort.captured,
+        struck: consort.struck
+      };
+      window.__arena_state.enemy_frigate = {
+        hull: enemyFrigate.hull,
+        crew: enemyFrigate.crew,
+        flooding: enemyFrigate.flooding,
+        grounded: enemyFrigate.grounded,
+        on_fire: enemyFrigate.onFire,
+        downed_masts: enemyFrigate.masts.map(m => m.status === 'downed'),
+        knocked_out_guns: {
+          port: enemyFrigate.gunsPort.filter(g => !g).length,
+          starboard: enemyFrigate.gunsStarboard.filter(g => !g).length
+        },
+        captured: enemyFrigate.captured,
+        struck: enemyFrigate.struck,
+        escaped: enemyFrigate.escaped
+      };
+      window.__arena_state.enemy_sloop = {
+        hull: enemySloop.hull,
+        crew: enemySloop.crew,
+        flooding: enemySloop.flooding,
+        grounded: enemySloop.grounded,
+        on_fire: enemySloop.onFire,
+        downed_masts: enemySloop.masts.map(m => m.status === 'downed'),
+        knocked_out_guns: {
+          port: enemySloop.gunsPort.filter(g => !g).length,
+          starboard: enemySloop.gunsStarboard.filter(g => !g).length
+        },
+        captured: enemySloop.captured,
+        struck: enemySloop.struck
+      };
+      window.__arena_state.boarding_active = (boardingState !== null);
+      window.__arena_state.boarding_target = boardingState ? boardingState.shipB.name : null;
+    }
+
+    function showGameOver(result) {
+      const modal = document.getElementById('gameover-modal');
+      const title = document.getElementById('gameover-title');
+      const desc = document.getElementById('gameover-desc');
+
+      modal.classList.remove('hidden');
+      if (result === 'Victory') {
+        title.textContent = 'VICTORY';
+        title.style.color = '#f5d061';
+        desc.textContent = 'The enemy squadron has been defeated!';
+      } else if (result === 'Partial Victory') {
+        title.textContent = 'PARTIAL VICTORY';
+        title.style.color = '#70d6ff';
+        desc.textContent = 'The enemy flagship escaped to open waters, but the battle is won!';
+      } else {
+        title.textContent = 'DEFEAT';
+        title.style.color = '#ff6b6b';
+        desc.textContent = 'HMS Resolute has foundered. The seas belong to the enemy.';
+      }
+
+      // Live Battle Statistics Table & Summary
+      const shipOutcome = (s) => {
+        if (s.escaped) return '<span style="color:#ffd166;">ESCAPED</span>';
+        if (s.captured) return '<span style="color:#70d6ff;">CAPTURED</span>';
+        if (s.struck) return '<span style="color:#c5a059;">STRUCK</span>';
+        if (s.exploded) return '<span style="color:#ff0054;">EXPLODED</span>';
+        if (s.hull <= 0) return '<span style="color:#ff6b6b;">SUNK</span>';
+        return '<span style="color:#2b9348;">SURVIVED</span>';
+      };
+
+      const statsHtml = `
+        <div class="stats-grid">
+          <div><strong>Fires Started:</strong> ${battleStats.firesStarted}</div>
+          <div><strong>Fires Extinguished:</strong> ${battleStats.firesExtinguished}</div>
+          <div><strong>Masts Downed:</strong> ${battleStats.mastsDowned}</div>
+          <div><strong>Boardings Won:</strong> Player ${battleStats.boardingsWon.player} - Enemy ${battleStats.boardingsWon.enemy}</div>
+        </div>
+        <table class="stats-table">
+          <thead>
+            <tr>
+              <th>Vessel</th><th>Class</th><th>Broadsides</th><th>Crew</th><th>Outcome</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>HMS Resolute</td><td>Frigate</td><td>${battleStats.broadsidesFired.player}</td><td>${player.crew}/40</td><td>${shipOutcome(player)}</td></tr>
+            <tr><td>HMS Merlin</td><td>Sloop</td><td>${battleStats.broadsidesFired.consort}</td><td>${consort.crew}/20</td><td>${shipOutcome(consort)}</td></tr>
+            <tr><td>Le Vengeur</td><td>Frigate</td><td>${battleStats.broadsidesFired.frigate}</td><td>${enemyFrigate.crew}/40</td><td>${shipOutcome(enemyFrigate)}</td></tr>
+            <tr><td>Le Faucon</td><td>Sloop</td><td>${battleStats.broadsidesFired.sloop}</td><td>${enemySloop.crew}/20</td><td>${shipOutcome(enemySloop)}</td></tr>
+          </tbody>
+        </table>
+      `;
+      const panel = document.getElementById('stats-panel');
+      if (panel) panel.innerHTML = statsHtml;
+    }
+
+    function resetGame() {
+      // Restore initial states identically with initial wind
+      totalSimulationTime = 0.0;
+      currentWindDirection = INITIAL_WIND_DIRECTION;
+
+      Object.assign(player, JSON.parse(JSON.stringify(initialPlayerState)));
+      Object.assign(consort, JSON.parse(JSON.stringify(initialConsortState)));
+      Object.assign(enemyFrigate, JSON.parse(JSON.stringify(initialEnemyFrigateState)));
+      Object.assign(enemySloop, JSON.parse(JSON.stringify(initialEnemySloopState)));
+
+      battleStats.broadsidesFired = { player: 0, consort: 0, frigate: 0, sloop: 0 };
+      battleStats.hitsByType = { ROUND: 0, CHAIN: 0, DOUBLE: 0 };
+      battleStats.mastsDowned = 0;
+      battleStats.firesStarted = 0;
+      battleStats.firesExtinguished = 0;
+      battleStats.boardingsWon = { player: 0, enemy: 0 };
+
+      repairMenuOpen = false;
+      document.getElementById('repair-panel').classList.add('hidden');
+      boardingState = null;
+      boardingPromptTarget = null;
+      document.getElementById('boarding-prompt').classList.add('hidden');
+      document.getElementById('boarding-panel').classList.add('hidden');
+
+      for (let b of cannonballs) scene.remove(b.mesh);
+      cannonballs.length = 0;
+      for (let p of particles) scene.remove(p.mesh);
+      particles.length = 0;
+      for (let s of lingeringSmoke) scene.remove(s.mesh);
+      lingeringSmoke.length = 0;
+
+      playerWake.history.length = 0;
+      consortWake.history.length = 0;
+      enemyWake.history.length = 0;
+      enemySloopWake.history.length = 0;
+
+      [
+        { model: playerShipModel, ship: player },
+        { model: consortShipModel, ship: consort },
+        { model: enemyShipModel, ship: enemyFrigate },
+        { model: enemySloopModel, ship: enemySloop }
+      ].forEach(({ model, ship }) => {
+        if (model.mastGroups) {
+          model.mastGroups.forEach(mg => { mg.group.rotation.set(0, 0, 0); });
+        }
+        if (model.portCannons) {
+          model.portCannons.forEach(c => { c.rotation.x = 0; });
+          model.stbdCannons.forEach(c => { c.rotation.x = 0; });
+        }
+        if (model.crewFigures) {
+          model.crewFigures.forEach(f => { f.mesh.visible = true; f.mesh.position.set(f.basePos.x, 3.2, f.basePos.z); });
+        }
+        model.flagMesh.visible = true;
+        if (model.pennantsList) {
+          model.pennantsList.forEach(p => p.mesh.visible = true);
+        }
+      });
+
+      battleLogEntries.length = 0;
+      addBattleLog('Battle fleet deployed');
+
+      gamePhase = PHASE_READY;
+      winner = null;
+
+      document.getElementById('gameover-modal').classList.add('hidden');
+      document.getElementById('ready-modal').classList.remove('hidden');
+
+      const chaseDist = 68.0;
+      const quarterOffset = 12.0;
+      const perpX = Math.cos(player.heading);
+      const perpZ = -Math.sin(player.heading);
+
+      cameraChasePos.set(
+        player.x - Math.sin(player.heading) * chaseDist + perpX * quarterOffset,
+        35.0,
+        player.z - Math.cos(player.heading) * chaseDist + perpZ * quarterOffset
+      );
+      cameraChaseLookAt.set(
+        player.x + Math.sin(player.heading) * 24.0,
+        6.5,
+        player.z + Math.cos(player.heading) * 24.0
+      );
+      camera.position.copy(cameraChasePos);
+      camera.lookAt(cameraChaseLookAt);
+
+      updateHUD();
+    }
+
+    // --- Seabird flight update (deterministic) ---
+    function updateBirds(simTime) {
+      birdWings.forEach((bw) => {
+        const t = simTime * bw.speed + bw.offset;
+        const bx = Math.sin(t) * bw.radius;
+        const bz = Math.cos(t) * bw.radius * 0.85;
+        const by = 48 + Math.sin(t * 1.8) * 8.0;
+
+        bw.bird.position.set(bx, by, bz);
+        bw.bird.rotation.y = Math.atan2(Math.cos(t) * bw.radius, -Math.sin(t) * bw.radius * 0.85);
+
+        const flap = Math.sin(simTime * 8.0 + bw.offset * 2.0) * 0.55;
+        bw.wingL.rotation.z = flap;
+        bw.wingR.rotation.z = -flap;
+      });
+    }
+
+    // --- Main Animation Loop ---
+    let lastTimestamp = 0;
+    let totalSimulationTime = 0;
+
+    resetGame();
+
+    function animate(timestamp) {
+      requestAnimationFrame(animate);
+
+      if (!lastTimestamp) lastTimestamp = timestamp;
+      let dt = (timestamp - lastTimestamp) / 1000.0;
+      lastTimestamp = timestamp;
+      if (dt > 0.08) dt = 0.08;
+
+      if (gamePhase === PHASE_BATTLE || gamePhase === PHASE_OVER) {
+        totalSimulationTime += dt;
+      }
+
+      // Update dynamic scheduled wind direction (veers 30 deg every 45s)
+      currentWindDirection = getScheduledWindDirection(totalSimulationTime);
+
+      // Update Ocean Shader time
+      oceanUniforms.uTime.value = totalSimulationTime;
+
+      // Update birds
+      updateBirds(totalSimulationTime);
+
+      // Update streaming wind air streaks
+      updateWindStreaks(dt, playerShipModel.root.position);
+
+      // Update lingering gunsmoke drifting downwind
+      updateLingeringGunsmoke(dt);
+
+      // Update boarding actions
+      updateBoarding(dt);
+
+      // Ship Physics and AI (frozen if Ready)
+      if (gamePhase === PHASE_BATTLE || gamePhase === PHASE_OVER) {
+        updateShipPhysics(player, playerShipModel, true, dt, totalSimulationTime);
+        updateShipPhysics(consort, consortShipModel, false, dt, totalSimulationTime);
+        updateShipPhysics(enemyFrigate, enemyShipModel, false, dt, totalSimulationTime);
+        updateShipPhysics(enemySloop, enemySloopModel, false, dt, totalSimulationTime);
+
+        updateConsortAI(dt, totalSimulationTime);
+        updateEnemyAI(dt, totalSimulationTime);
+        updateProjectiles(dt);
+        updateParticles(dt);
+
+        // Update Wakes
+        playerWake.update(playerShipModel.root.position, player.heading, player.speedKnots, dt);
+        consortWake.update(consortShipModel.root.position, consort.heading, consort.speedKnots, dt);
+        enemyWake.update(enemyShipModel.root.position, enemyFrigate.heading, enemyFrigate.speedKnots, dt);
+        enemySloopWake.update(enemySloopModel.root.position, enemySloop.heading, enemySloop.speedKnots, dt);
+      } else {
+        // Ready state: ships bob gently with waves without advancing
+        updateShipPhysics(player, playerShipModel, true, 0, totalSimulationTime);
+        updateShipPhysics(consort, consortShipModel, false, 0, totalSimulationTime);
+        updateShipPhysics(enemyFrigate, enemyShipModel, false, 0, totalSimulationTime);
+        updateShipPhysics(enemySloop, enemySloopModel, false, 0, totalSimulationTime);
+      }
+
+      // Camera
+      updateCamera(dt);
+
+      // HUD
+      updateHUD();
+
+      // Render
+      renderer.render(scene, camera);
+    }
+
+    requestAnimationFrame(animate);
+
+    // --- Responsive Window Resize ---
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+  </script>
+</body>
+</html>

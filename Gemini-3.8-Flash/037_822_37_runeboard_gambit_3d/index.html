@@ -1,0 +1,4914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Runeboard Gambit</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #090b10;
+      font-family: 'Cinzel', 'Trajan Pro', 'Georgia', serif;
+      color: #e0e6ed;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* UI Layer */
+    #ui-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    /* Turn Order Ribbon */
+    #order-ribbon-container {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      padding-top: 68px;
+      pointer-events: auto;
+    }
+    #order-ribbon {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(10, 14, 24, 0.75);
+      border: 1px solid rgba(140, 170, 220, 0.3);
+      border-radius: 28px;
+      padding: 6px 14px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), inset 0 0 12px rgba(100, 160, 255, 0.1);
+      backdrop-filter: blur(8px);
+      min-height: 48px;
+    }
+    .ribbon-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 18px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      border: 1.5px solid transparent;
+      transition: all 0.25s ease;
+      background: rgba(20, 26, 40, 0.8);
+      color: #cbd5e1;
+    }
+    .ribbon-chip.azure {
+      border-color: rgba(56, 189, 248, 0.4);
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.15);
+    }
+    .ribbon-chip.crimson {
+      border-color: rgba(244, 63, 94, 0.4);
+      box-shadow: 0 0 8px rgba(244, 63, 94, 0.15);
+    }
+    .ribbon-chip.acting {
+      transform: scale(1.18);
+      background: rgba(30, 41, 59, 0.95);
+      box-shadow: 0 0 16px rgba(255, 255, 255, 0.4), 0 0 8px currentColor;
+      z-index: 2;
+    }
+    .ribbon-chip.azure.acting {
+      border-color: #38bdf8;
+      color: #e0f2fe;
+    }
+    .ribbon-chip.crimson.acting {
+      border-color: #f43f5e;
+      color: #ffe4e6;
+    }
+    .ribbon-chip.finished {
+      opacity: 0.38;
+      filter: grayscale(60%);
+      transform: scale(0.92);
+    }
+    .chip-icon {
+      font-size: 13px;
+    }
+
+    /* Top Banner */
+    #turn-banner-wrap {
+      position: absolute;
+      top: 124px;
+      left: 0;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      pointer-events: none;
+    }
+    #turn-banner {
+      font-size: 18px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      font-weight: 800;
+      padding: 6px 28px;
+      border-radius: 4px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      transition: all 0.3s ease;
+    }
+    #turn-banner.player {
+      color: #38bdf8;
+      border-color: rgba(56, 189, 248, 0.4);
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.25);
+    }
+    #turn-banner.enemy {
+      color: #f43f5e;
+      border-color: rgba(244, 63, 94, 0.4);
+      box-shadow: 0 0 20px rgba(244, 63, 94, 0.25);
+    }
+
+    /* Combat Log */
+    #combat-log {
+      position: absolute;
+      top: 168px;
+      left: 20px;
+      width: 320px;
+      max-height: 125px;
+      pointer-events: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow: hidden;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 11.5px;
+    }
+    .log-line {
+      background: rgba(12, 17, 29, 0.85);
+      border-left: 3px solid #64748b;
+      padding: 4px 8px;
+      border-radius: 0 4px 4px 0;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      backdrop-filter: blur(4px);
+      animation: fadeIn 0.2s ease-out;
+      line-height: 1.35;
+    }
+    .log-line.azure { border-left-color: #38bdf8; }
+    .log-line.crimson { border-left-color: #f43f5e; }
+    
+    .log-line.death { border-left-color: #eab308; }
+    .log-line.ember { border-left-color: #f97316; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateX(-8px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    /* Bottom HUD Container */
+    #bottom-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding: 20px;
+      pointer-events: none;
+    }
+
+    /* Panels */
+    .hud-card {
+      pointer-events: auto;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 8px;
+      padding: 12px 16px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      min-width: 220px;
+      max-width: 280px;
+    }
+    .hud-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #94a3b8;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .hud-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .hud-stat-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12.5px;
+      margin: 3px 0;
+      color: #cbd5e1;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .hud-stat-val {
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+    .hp-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: rgba(51, 65, 85, 0.6);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 4px;
+      margin-bottom: 8px;
+    }
+    .hp-bar-fill {
+      height: 100%;
+      background: #38bdf8;
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+    .hp-bar-fill.crimson {
+      background: #f43f5e;
+    }
+    .terrain-tag {
+      margin-top: 5px;
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: bold;
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #f1f5f9;
+    }
+
+    /* Rune Titan Boss Bar */
+    #boss-bar-wrap {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 480px;
+      max-width: 90vw;
+      background: rgba(10, 14, 24, 0.85);
+      border: 1.5px solid rgba(244, 63, 94, 0.4);
+      border-radius: 8px;
+      padding: 8px 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 16px rgba(244, 63, 94, 0.25);
+      backdrop-filter: blur(8px);
+      pointer-events: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      z-index: 10;
+    }
+    .boss-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .boss-title {
+      color: #f43f5e;
+      text-shadow: 0 0 8px rgba(244, 63, 94, 0.6);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .boss-action-tag {
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      color: #fbbf24;
+      background: rgba(251, 191, 36, 0.15);
+      border: 1px solid rgba(251, 191, 36, 0.4);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .boss-segments {
+      display: flex;
+      gap: 6px;
+      width: 100%;
+      height: 10px;
+    }
+    .boss-segment-bg {
+      flex: 1;
+      height: 100%;
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      border-radius: 3px;
+      overflow: hidden;
+      position: relative;
+    }
+    .boss-segment-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #e11d48, #f43f5e);
+      box-shadow: 0 0 8px #f43f5e;
+      transition: width 0.3s ease;
+    }
+    .boss-segment-fill.stage2 {
+      background: linear-gradient(90deg, #ea580c, #f97316);
+      box-shadow: 0 0 8px #f97316;
+    }
+    .boss-segment-fill.stage3 {
+      background: linear-gradient(90deg, #b91c1c, #ef4444);
+      box-shadow: 0 0 12px #ef4444;
+    }
+    .boss-hp-label {
+      font-size: 10px;
+      color: #cbd5e1;
+      text-align: right;
+      font-family: monospace;
+      font-weight: bold;
+    }
+
+    /* Signature Skill Button */
+    .skill-btn {
+      width: 100%;
+      margin-top: 6px;
+      padding: 7px 12px;
+      font-size: 11.5px;
+      letter-spacing: 1.5px;
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      border: 1px solid #38bdf8;
+      color: #f0f9ff;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 700;
+      text-transform: uppercase;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+    .skill-btn:hover:not(:disabled) {
+      background: linear-gradient(135deg, #0ea5e9, #0284c7);
+      border-color: #7dd3fc;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+    }
+    .skill-btn.active {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      border-color: #fbbf24;
+      box-shadow: 0 0 14px rgba(245, 158, 11, 0.6);
+      color: #fffbeb;
+    }
+    .skill-btn:disabled {
+      opacity: 0.45;
+      background: #1e293b;
+      border-color: #475569;
+      color: #94a3b8;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    .skill-desc {
+      font-size: 10px;
+      color: #94a3b8;
+      margin-top: 4px;
+      line-height: 1.35;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    /* Controls Panel */
+    #action-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      pointer-events: auto;
+    }
+    .btn {
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #f8fafc;
+      font-family: inherit;
+      font-size: 13px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 10px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      transition: all 0.2s ease;
+      font-weight: 700;
+    }
+    .btn:hover:not(:disabled) {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      border-color: #60a5fa;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 18px rgba(37, 99, 235, 0.4);
+    }
+    .btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      border-color: rgba(148, 163, 184, 0.2);
+    }
+
+    /* Screen Overlays: Ready, Victory, Game Over */
+    .modal-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(4, 7, 13, 0.82);
+      backdrop-filter: blur(10px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      pointer-events: auto;
+      z-index: 100;
+    }
+    .modal-title {
+      font-size: 42px;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      font-weight: 900;
+      margin-bottom: 12px;
+      text-align: center;
+      text-shadow: 0 0 25px rgba(255, 255, 255, 0.3);
+    }
+    .modal-subtitle {
+      font-size: 15px;
+      letter-spacing: 2px;
+      color: #94a3b8;
+      margin-bottom: 24px;
+      text-align: center;
+      max-width: 560px;
+      line-height: 1.6;
+    }
+    .modal-prompt {
+      font-size: 16px;
+      letter-spacing: 3px;
+      color: #38bdf8;
+      animation: pulseText 2s infinite ease-in-out;
+      text-transform: uppercase;
+      font-weight: bold;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 10px 24px;
+      border-radius: 4px;
+      background: rgba(15, 23, 42, 0.6);
+      cursor: pointer;
+    }
+    @keyframes pulseText {
+      0%, 100% { opacity: 0.7; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.04); }
+    }
+    .modal-controls {
+      margin-top: 24px;
+      font-size: 12px;
+      color: #64748b;
+      display: flex;
+      gap: 18px;
+    }
+
+    /* Floating combat numbers */
+    .combat-number {
+      position: absolute;
+      font-weight: 900;
+      font-size: 20px;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8), 0 0 8px currentColor;
+      transition: transform 0.85s cubic-bezier(0.1, 0.8, 0.3, 1), opacity 0.85s ease-out;
+      z-index: 50;
+    }
+    .combat-number.damage {
+      color: #f43f5e;
+    }
+    .combat-number.blessed-damage {
+      color: #fbbf24;
+      font-size: 26px;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.9), 0 0 14px #f59e0b;
+    }
+    /* heal removed */ .combat-number-heal-removed {
+      color: #10b981;
+    }
+    /* blessed-heal removed */ .combat-number-blessed-heal-removed {
+      color: #34d399;
+      font-size: 26px;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.9), 0 0 14px #10b981;
+    }
+    .combat-number.scorch {
+      color: #ea580c;
+      font-size: 22px;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.9), 0 0 12px #c2410c;
+    }
+
+    /* Tile coords corner tooltip */
+    #tile-inspector {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 13px;
+    }
+  </style>
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div id="ui-layer">
+    <!-- Top Rune Titan Boss Bar -->
+    <div id="boss-bar-wrap">
+      <div class="boss-header">
+        <span class="boss-title">⚡ RUNE TITAN — SANCTUM MASTER</span>
+        <span class="boss-action-tag" id="boss-next-action">Next: Hammerfall</span>
+      </div>
+      <div class="boss-segments">
+        <div class="boss-segment-bg"><div class="boss-segment-fill" id="boss-seg-1"></div></div>
+        <div class="boss-segment-bg"><div class="boss-segment-fill" id="boss-seg-2"></div></div>
+        <div class="boss-segment-bg"><div class="boss-segment-fill" id="boss-seg-3"></div></div>
+      </div>
+      <div class="boss-hp-label" id="boss-hp-text">Stage I — 60 / 60 HP</div>
+    </div>
+
+    <!-- Top Turn Order Ribbon -->
+    <div id="order-ribbon-container">
+      <div id="order-ribbon">
+        <!-- Dynamically populated chips -->
+      </div>
+    </div>
+
+    <!-- Turn Banner -->
+    <div id="turn-banner-wrap" style="flex-direction: column; align-items: center;">
+      <div id="protocol-badge" style="display: none; font-size: 11px; letter-spacing: 3px; font-weight: 800; color: #f43f5e; background: rgba(244,63,94,0.15); border: 1px solid rgba(244,63,94,0.4); padding: 2px 12px; border-radius: 12px; margin-bottom: 4px; text-shadow: 0 0 8px #f43f5e;">PROTOCOL: HUNTER</div>
+      <div id="turn-banner" class="player">Player Turn</div>
+    </div>
+
+    <!-- Scrolling Combat Log -->
+    <div id="combat-log"></div>
+
+    <!-- Bottom HUD Bar -->
+    <div id="bottom-bar">
+      <!-- Hovered Tile Card -->
+      <div class="hud-card" id="tile-card">
+        <div class="hud-title">Sanctum Grid</div>
+        <div class="hud-name" id="tile-inspector">Tile: None</div>
+        <div class="hud-stat-row">
+          <span>Terrain</span>
+          <span class="hud-stat-val" id="tile-terrain-val">Plain Stone</span>
+        </div>
+        <div class="hud-stat-row">
+          <span>Sanctum Feature</span>
+          <span class="hud-stat-val" id="tile-feature-val">Standard Floor</span>
+        </div>
+      </div>
+
+      <!-- Action / Controls -->
+      <div id="action-panel">
+        <button class="btn" id="btn-threat" style="background: linear-gradient(135deg, #451a03, #1e1b4b); border-color: rgba(244,63,94,0.4); padding: 7px 18px; font-size: 11px; margin-bottom: 4px;">Threat Preview (T)</button>
+        <button class="btn" id="btn-end-turn">End Turn (E)</button>
+        <div style="font-size: 11px; color: #64748b; letter-spacing: 1px;">Drag to Orbit • Wheel to Zoom • [R] Reset</div>
+      </div>
+
+      <!-- Selected Unit Card -->
+      <div class="hud-card" id="unit-card" style="visibility: hidden;">
+        <div class="hud-title">
+          <span>Unit Inspector</span>
+          <span id="unit-side-tag">Azure</span>
+        </div>
+        <div class="hud-name" id="unit-name">Sword Golem</div>
+        <div class="hp-bar-bg">
+          <div class="hp-bar-fill" id="unit-hp-fill" style="width: 100%;"></div>
+        </div>
+        <div class="hud-stat-row">
+          <span>Health (HP)</span>
+          <span class="hud-stat-val" id="unit-hp-val">12 / 12</span>
+        </div>
+        <div class="hud-stat-row">
+          <span>Movement</span>
+          <span class="hud-stat-val" id="unit-move-val">3 Tiles</span>
+        </div>
+        <div class="hud-stat-row">
+          <span id="unit-power-label">Melee Power</span>
+          <span class="hud-stat-val" id="unit-power-val">5 Dmg (Rng 1)</span>
+        </div>
+        <div class="terrain-tag" id="unit-terrain-tag" style="display: none;"></div>
+
+        <!-- Signature Skill Section -->
+        <div id="unit-skill-section" style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.12); padding-top: 7px;">
+          <div style="font-size: 10px; text-transform: uppercase; color: #94a3b8; letter-spacing: 1px; margin-bottom: 3px; display: flex; justify-content: space-between;">
+            <span>Signature Skill</span>
+            <span id="unit-skill-status" style="color: #38bdf8; font-weight: bold;">Ready</span>
+          </div>
+          <button class="skill-btn" id="btn-unit-skill">Signature Skill</button>
+          <div class="skill-desc" id="unit-skill-desc">Skill description</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ready Modal -->
+  <div class="modal-overlay" id="ready-modal">
+    <div class="modal-title" style="color: #38bdf8;">Runeboard Gambit</div>
+    <div class="modal-subtitle">
+      The Shattered Sanctum awakens with ancient elemental wards.
+      Blessing tiles grant +2 Power, glowing Ember tiles burn upon turn-end, and High Ledges extend Arc fire.
+      Command your Azure golems in deterministic tactics!
+    </div>
+    <div class="modal-prompt" id="btn-start-game">Press Enter to Start</div>
+    <div class="modal-controls">
+      <span>[Left Click] Select & Move / Attack</span>
+      <span>[E] End Turn</span>
+      <span>[T] Threat Preview</span>
+      <span>[R] Reset Battle</span>
+      <span>[Mouse Drag] Orbit</span>
+      <span>[Wheel] Zoom</span>
+    </div>
+  </div>
+
+  <!-- Victory Modal -->
+  <div class="modal-overlay" id="victory-modal" style="display: none;">
+    <div class="modal-title" style="color: #38bdf8;">THE TITAN FALLS</div>
+    <div class="modal-subtitle">
+      The towering Rune Titan and its crimson escort have been shattered into inert stone fragments. The ancient sanctum belongs to Azure.
+    </div>
+    <div class="modal-prompt" onclick="resetGame()">Press R to Play Again</div>
+  </div>
+
+  <!-- Defeat Modal -->
+  <div class="modal-overlay" id="defeat-modal" style="display: none;">
+    <div class="modal-title" style="color: #f43f5e;">GAME OVER</div>
+    <div class="modal-subtitle">
+      Your Azure constructs have fallen. The Crimson legion claims dominion over the Shattered Sanctum.
+    </div>
+    <div class="modal-prompt" onclick="resetGame()">Press R to Restart</div>
+  </div>
+
+  <div id="floaters-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden;"></div>
+
+  <script>
+  (function() {
+    'use strict';
+
+    /* =========================================================================
+       1. CONSTANTS, GRID & TERRAIN DEFINITIONS
+       ========================================================================= */
+    const GRID_SIZE = 7;
+    const TILE_SIZE = 2.4;
+    const HALF_BOARD = (GRID_SIZE * TILE_SIZE) / 2; // 8.4
+    const BOARD_ELEVATION = 0.2;
+    const LEDGE_HEIGHT = 1.0; // High ledges raised platform
+
+    function coordToIdx(colChar, rowNum) {
+      const col = colChar.charCodeAt(0) - 'A'.charCodeAt(0);
+      const row = rowNum - 1;
+      return row * GRID_SIZE + col;
+    }
+
+    function idxToCoord(idx) {
+      const col = idx % GRID_SIZE;
+      const row = Math.floor(idx / GRID_SIZE);
+      const colChar = String.fromCharCode('A'.charCodeAt(0) + col);
+      return { col, row, colChar, rowNum: row + 1, str: colChar + (row + 1) };
+    }
+
+    // Nine Special Tiles:
+    // Blessing tiles: B4, F4, D5 (+2 damage / heal)
+    // Ember tiles: C3, E3, D6 (3 damage at end of turn)
+    // High ledges: A5, G5, D1 (Arc range 2-4)
+    const SPECIAL_TILES = [
+      { index: coordToIdx('B', 4), kind: 'blessing' }, // 22
+      { index: coordToIdx('F', 4), kind: 'blessing' }, // 26
+      { index: coordToIdx('D', 5), kind: 'blessing' }, // 31
+      { index: coordToIdx('C', 3), kind: 'ember' },    // 16
+      { index: coordToIdx('E', 3), kind: 'ember' },    // 18
+      { index: coordToIdx('D', 6), kind: 'ember' },    // 38
+      { index: coordToIdx('A', 5), kind: 'ledge' },    // 28
+      { index: coordToIdx('G', 5), kind: 'ledge' },    // 34
+      { index: coordToIdx('D', 1), kind: 'ledge' }     // 3
+    ];
+
+    const TILE_KIND_MAP = new Map();
+    SPECIAL_TILES.forEach(st => TILE_KIND_MAP.set(st.index, st.kind));
+
+    function getTileKind(idx) {
+      return TILE_KIND_MAP.get(idx) || 'plain';
+    }
+
+    function getTileElevation(idx) {
+      return (getTileKind(idx) === 'ledge') ? (BOARD_ELEVATION + LEDGE_HEIGHT) : BOARD_ELEVATION;
+    }
+
+    function idxToWorld(idx) {
+      const { col, row } = idxToCoord(idx);
+      const x = (col + 0.5) * TILE_SIZE - HALF_BOARD;
+      const z = (row + 0.5) * TILE_SIZE - HALF_BOARD;
+      const y = getTileElevation(idx);
+      return new THREE.Vector3(x, y, z);
+    }
+
+    function manhattanDist(idx1, idx2) {
+      const c1 = idxToCoord(idx1);
+      const c2 = idxToCoord(idx2);
+      return Math.abs(c1.col - c2.col) + Math.abs(c1.row - c2.row);
+    }
+
+    const UNIT_TYPES = {
+      SWORD: {
+        name: 'Sword Golem',
+        maxHp: 12,
+        move: 3,
+        power: 5,
+        rangeMin: 1,
+        rangeMax: 1,
+        isHealer: false,
+        glyph: '⚔',
+        skillName: 'Rune Charge',
+        skillDesc: 'Dash 2-3 tiles in straight line, hit adjacent enemy for 7 dmg (+2 if blessed).'
+      },
+      WARD: {
+        name: 'Ward Golem',
+        maxHp: 18,
+        move: 2,
+        power: 3,
+        rangeMin: 1,
+        rangeMax: 1,
+        isHealer: false,
+        glyph: '🛡',
+        skillName: 'Bulwark Oath',
+        skillDesc: 'Adjacent allies take 2 less damage (min 1) from every hit until next activation.'
+      },
+      ARC: {
+        name: 'Arc Golem',
+        maxHp: 8,
+        move: 2,
+        power: 5,
+        rangeMin: 2,
+        rangeMax: 3, // Range 2-4 on ledge
+        isHealer: false,
+        glyph: '🏹',
+        skillName: 'Piercing Bolt',
+        skillDesc: 'Heavier bolt: 5 dmg (+2 if blessed) to target & 3 dmg to 1st enemy beyond along line.'
+      },
+      RUNECALLER: {
+        name: 'Runecaller Golem',
+        maxHp: 9,
+        move: 2,
+        power: 0,
+        rangeMin: 0,
+        rangeMax: 0,
+        isHealer: false,
+        glyph: '🔮',
+        skillName: 'Focus / Summon',
+        skillDesc: 'Focus (+2 Charge) or Summon Sprite (3 Charge) on adjacent plain tile.'
+      },
+      SPRITE: {
+        name: 'Stone Sprite',
+        maxHp: 4,
+        move: 3,
+        power: 2,
+        rangeMin: 1,
+        rangeMax: 1,
+        isHealer: false,
+        glyph: '🗿',
+        skillName: 'None',
+        skillDesc: 'Fast melee construct with pebble blade (2 damage at range 1).'
+      }
+    };
+
+    // Initial deployment (same 10 units): Azure Ward on D6 (an ember tile!)
+    const INITIAL_DEPLOYMENT = [
+      // Azure (C6 deployment preserved)
+      { id: 'azure_arc', side: 'azure', type: 'ARC', tile: coordToIdx('C', 7) },            // 44
+      { id: 'azure_sword_1', side: 'azure', type: 'SWORD', tile: coordToIdx('B', 6) },      // 36
+      { id: 'azure_ward', side: 'azure', type: 'WARD', tile: coordToIdx('D', 6) },          // 38 (Ember)
+      { id: 'azure_sword_2', side: 'azure', type: 'SWORD', tile: coordToIdx('F', 6) },      // 40
+      { id: 'azure_runecaller', side: 'azure', type: 'RUNECALLER', tile: coordToIdx('E', 7) },// 46
+
+      // Crimson Escort (Sword B3/F3, Arc D3)
+      { id: 'crimson_sword_1', side: 'crimson', type: 'SWORD', tile: coordToIdx('B', 3) },  // 15
+      { id: 'crimson_arc', side: 'crimson', type: 'ARC', tile: coordToIdx('D', 3) },        // 17
+      { id: 'crimson_sword_2', side: 'crimson', type: 'SWORD', tile: coordToIdx('F', 3) }   // 19
+    ];
+
+    const COLORS = {
+      azure: {
+        primary: 0x2563eb,
+        bright: 0x38bdf8,
+        glow: 0x0ea5e9,
+        dark: 0x1e3a8a
+      },
+      crimson: {
+        primary: 0xdc2626,
+        bright: 0xf43f5e,
+        glow: 0xe11d48,
+        dark: 0x881337
+      },
+      gold: 0xf59e0b,
+      ember: 0xea580c,
+      heal: 0x10b981
+    };
+
+    /* =========================================================================
+       2. GAME STATE & ARENA STATE EXPORT
+       ========================================================================= */
+    let gameState = {
+      phase: 'READY',
+      turn: 1,
+      activeSide: 'azure',
+      units: [],
+      selectedUnitId: null,
+      reachableTiles: [],
+      actionTargets: [],
+      rosterOrder: [],
+      actingUnitId: null
+    };
+
+    function exportArenaState() {
+      window.__arena_state = {
+        phase: gameState.phase,
+        turn: gameState.turn,
+        activeSide: gameState.activeSide,
+        protocol: 'HUNTER',
+        units: gameState.units.map(u => ({
+          id: u.id,
+          side: u.side,
+          type: u.type,
+          hp: u.hp,
+          maxHp: u.maxHp,
+          tileIndex: u.tileIndex,
+          moved: u.moved,
+          acted: u.acted,
+          skillReady: u.skillReady,
+          'skill-ready': u.skillReady,
+          cooldownRemaining: u.cooldownRemaining,
+          'cooldown-remaining': u.cooldownRemaining,
+          charge: (u.type === 'RUNECALLER' ? u.charge : (u.charge || 0)),
+          'charge': (u.type === 'RUNECALLER' ? u.charge : (u.charge || 0))
+        })),
+        tiles: SPECIAL_TILES.map(st => ({
+          index: st.index,
+          kind: st.kind
+        })),
+        titan: runeTitan ? {
+          hp: runeTitan.hp,
+          maxHp: 60,
+          stage: runeTitan.stage,
+          nextAction: runeTitan.getNextActionName(),
+          'next-action': runeTitan.getNextActionName(),
+          blockTiles: runeTitan.getBlockTiles(),
+          'block-tiles': runeTitan.getBlockTiles(),
+          isDead: runeTitan.isDead
+        } : null
+      };
+    }
+
+    /* =========================================================================
+       3. THREE.JS SCENE SETUP
+       ========================================================================= */
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0c111e);
+    scene.fog = new THREE.FogExp2(0x131a2c, 0.016);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.5, 300);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    // Camera Orbit State
+    const camTarget = new THREE.Vector3(0, 0.5, 0);
+    let camDistance = 27.5;
+    let camAzimuth = Math.PI * 0.25;
+    let camElevation = 0.72;
+    const MIN_ELEVATION = 0.25;
+    const MAX_ELEVATION = 1.35;
+    const MIN_DISTANCE = 14.0;
+    const MAX_DISTANCE = 42.0;
+
+    function updateCameraPosition() {
+      const cosEl = Math.cos(camElevation);
+      const sinEl = Math.sin(camElevation);
+      camera.position.x = camTarget.x + camDistance * cosEl * Math.sin(camAzimuth);
+      camera.position.y = camTarget.y + camDistance * sinEl;
+      camera.position.z = camTarget.z + camDistance * cosEl * Math.cos(camAzimuth);
+      camera.lookAt(camTarget);
+    }
+    updateCameraPosition();
+
+    /* =========================================================================
+       4. ENVIRONMENT: THE SHATTERED SANCTUM
+       ========================================================================= */
+    const sanctumGroup = new THREE.Group();
+    scene.add(sanctumGroup);
+
+    // Dawn Lighting
+    const hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x1e293b, 0.75);
+    scene.add(hemiLight);
+
+    const sunLight = new THREE.DirectionalLight(0xffecd2, 1.25);
+    sunLight.position.set(24, 36, 18);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.camera.near = 10;
+    sunLight.shadow.camera.far = 80;
+    sunLight.shadow.camera.left = -16;
+    sunLight.shadow.camera.right = 16;
+    sunLight.shadow.camera.top = 16;
+    sunLight.shadow.camera.bottom = -16;
+    sunLight.shadow.bias = -0.0005;
+    scene.add(sunLight);
+
+    // Sea of clouds below
+    const cloudPlanes = [];
+    for (let c = 0; c < 3; c++) {
+      const cloudGeo = new THREE.PlaneGeometry(260, 260, 32, 32);
+      const pos = cloudGeo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const u = pos.getX(i);
+        const v = pos.getY(i);
+        const h = Math.sin(u * 0.05 + c) * Math.cos(v * 0.05 + c) * 3.5 +
+                  Math.sin(u * 0.12 - v * 0.08) * 1.5;
+        pos.setZ(i, h);
+      }
+      cloudGeo.computeVertexNormals();
+      const cloudMat = new THREE.MeshLambertMaterial({
+        color: c === 0 ? 0x223048 : (c === 1 ? 0x334466 : 0x55688a),
+        transparent: true,
+        opacity: 0.65 - c * 0.15,
+        depthWrite: false
+      });
+      const cloudMesh = new THREE.Mesh(cloudGeo, cloudMat);
+      cloudMesh.rotation.x = -Math.PI / 2;
+      cloudMesh.position.y = -18 - c * 6;
+      cloudPlanes.push(cloudMesh);
+      sanctumGroup.add(cloudMesh);
+    }
+
+    // Fractured Disc
+    const discRadius = 14.5;
+    const discHeight = 3.6;
+    const discGeo = new THREE.CylinderGeometry(discRadius, discRadius * 0.88, discHeight, 48, 4);
+    const discPos = discGeo.attributes.position;
+    for (let i = 0; i < discPos.count; i++) {
+      const y = discPos.getY(i);
+      const x = discPos.getX(i);
+      const z = discPos.getZ(i);
+      const angle = Math.atan2(z, x);
+      const r = Math.sqrt(x * x + z * z);
+      if (r > 8) {
+        const indent = Math.sin(angle * 7) * 0.45 + Math.cos(angle * 13) * 0.35 + Math.sin(angle * 3) * 0.8;
+        const newR = Math.max(8, r + indent);
+        discPos.setX(i, Math.cos(angle) * newR);
+        discPos.setZ(i, Math.sin(angle) * newR);
+      }
+    }
+    discGeo.computeVertexNormals();
+    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.85, metalness: 0.15 });
+    const discMesh = new THREE.Mesh(discGeo, stoneMat);
+    discMesh.position.y = -discHeight / 2 + 0.1;
+    discMesh.receiveShadow = true;
+    sanctumGroup.add(discMesh);
+
+    // Glowing Glyph Ring
+    const ringGeo = new THREE.RingGeometry(HALF_BOARD * 1.15, HALF_BOARD * 1.35, 64);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide, transparent: true, opacity: 0.45 });
+    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    ringMesh.rotation.x = -Math.PI / 2;
+    ringMesh.position.y = 0.12;
+    sanctumGroup.add(ringMesh);
+
+    // Rim pillars & banners
+    const banners = [];
+    const pillarAngles = [0.35, 0.9, 1.8, 2.7, 3.4, 4.2, 5.0, 5.8];
+    pillarAngles.forEach((ang, idx) => {
+      const pGroup = new THREE.Group();
+      const pRad = discRadius * 0.92;
+      pGroup.position.set(Math.cos(ang) * pRad, 0, Math.sin(ang) * pRad);
+
+      const pHeight = 4.5 + Math.sin(idx * 2) * 2.0;
+      const colGeo = new THREE.CylinderGeometry(0.55, 0.65, pHeight, 8);
+      const colMesh = new THREE.Mesh(colGeo, stoneMat);
+      colMesh.position.y = pHeight / 2;
+      colMesh.castShadow = true;
+      colMesh.receiveShadow = true;
+      pGroup.add(colMesh);
+
+      const capGeo = new THREE.BoxGeometry(1.5, 0.4, 1.5);
+      const capMesh = new THREE.Mesh(capGeo, stoneMat);
+      capMesh.position.y = pHeight + 0.2;
+      pGroup.add(capMesh);
+
+      if (idx % 2 === 0) {
+        const poleGeo = new THREE.CylinderGeometry(0.08, 0.08, 4.0, 6);
+        const poleMesh = new THREE.Mesh(poleGeo, stoneMat);
+        poleMesh.position.y = pHeight + 2.0;
+        pGroup.add(poleMesh);
+
+        const bannerGeo = new THREE.PlaneGeometry(1.2, 2.4, 6, 12);
+        const bannerColor = (idx % 4 === 0) ? COLORS.azure.bright : COLORS.crimson.bright;
+        const bannerMat = new THREE.MeshStandardMaterial({ color: bannerColor, side: THREE.DoubleSide, roughness: 0.6 });
+        const bannerMesh = new THREE.Mesh(bannerGeo, bannerMat);
+        bannerMesh.position.set(0.65, pHeight + 2.4, 0);
+        pGroup.add(bannerMesh);
+        banners.push({ mesh: bannerMesh, seed: idx * 1.5 });
+      }
+
+      sanctumGroup.add(pGroup);
+    });
+
+    // Orbiting rock shards
+    const orbitShards = [];
+    const shardGeo = new THREE.DodecahedronGeometry(0.7, 0);
+    for (let s = 0; s < 14; s++) {
+      const sm = new THREE.Mesh(shardGeo, stoneMat);
+      const sRadius = discRadius + 4 + (s % 5) * 2.5;
+      const sAngle = (s / 14) * Math.PI * 2;
+      const sY = Math.sin(s * 1.7) * 4 - 2;
+      sm.scale.set(0.6 + (s % 3) * 0.4, 0.8 + (s % 2) * 0.5, 0.6 + (s % 4) * 0.3);
+      sm.castShadow = true;
+      sanctumGroup.add(sm);
+      orbitShards.push({
+        mesh: sm,
+        radius: sRadius,
+        angle: sAngle,
+        speed: 0.002 + (s % 3) * 0.0015,
+        baseY: sY,
+        rotSpeed: 0.01 + (s % 4) * 0.005
+      });
+    }
+
+    /* =========================================================================
+       5. 7x7 RUNIC BOARD TILES WITH SPECIAL TERRAINS
+       ========================================================================= */
+    const boardGroup = new THREE.Group();
+    scene.add(boardGroup);
+
+    const tileMeshes = [];
+    const tileHighlightMeshes = [];
+    const tileAttackMarkers = [];
+    const tileHealMarkers = [];
+    const tileSkillMarkers = [];
+    const tileThreatMeshes = [];
+    const tileDangerUnitMarkers = [];
+    const blessingGlyphMeshes = [];
+    const emberSparks = [];
+    let isSkillTargetingMode = false;
+    let threatPreviewActive = false;
+
+    // Procedural Tile Canvas Textures
+    function createTileTexture(idx, kind) {
+      const cv = document.createElement('canvas');
+      cv.width = 128; cv.height = 128;
+      const ctx = cv.getContext('2d');
+      const { str } = idxToCoord(idx);
+
+      if (kind === 'blessing') {
+        // Golden sacred rune floor
+        ctx.fillStyle = '#3a3424';
+        ctx.fillRect(0, 0, 128, 128);
+        ctx.strokeStyle = '#b45309';
+        ctx.lineWidth = 6;
+        ctx.strokeRect(4, 4, 120, 120);
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(8, 8, 112, 112);
+
+        // Radiant starburst
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.6)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(64, 64, 30, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.7)';
+        ctx.font = 'bold 15px monospace';
+        ctx.fillText(str, 12, 26);
+
+      } else if (kind === 'ember') {
+        // Cracked volcanic stone with magma veins
+        ctx.fillStyle = '#1c1515';
+        ctx.fillRect(0, 0, 128, 128);
+        ctx.strokeStyle = '#7c2d12';
+        ctx.lineWidth = 6;
+        ctx.strokeRect(4, 4, 120, 120);
+
+        // Magma crack lines
+        ctx.strokeStyle = '#ea580c';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.moveTo(10, 64); ctx.lineTo(48, 52); ctx.lineTo(64, 68); ctx.lineTo(118, 40);
+        ctx.moveTo(64, 68); ctx.lineTo(82, 105); ctx.lineTo(95, 120);
+        ctx.moveTo(48, 52); ctx.lineTo(35, 15);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#fed7aa';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(249, 115, 22, 0.8)';
+        ctx.font = 'bold 15px monospace';
+        ctx.fillText(str, 12, 26);
+
+      } else if (kind === 'ledge') {
+        // High stone platform border
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(0, 0, 128, 128);
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 7;
+        ctx.strokeRect(4, 4, 120, 120);
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(10, 10, 108, 108);
+
+        // Double carved square
+        ctx.strokeRect(36, 36, 56, 56);
+
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.7)';
+        ctx.font = 'bold 15px monospace';
+        ctx.fillText(str, 12, 26);
+
+      } else {
+        // Standard rune floor
+        ctx.fillStyle = '#2d3748';
+        ctx.fillRect(0, 0, 128, 128);
+        ctx.strokeStyle = '#1a202c';
+        ctx.lineWidth = 6;
+        ctx.strokeRect(4, 4, 120, 120);
+        ctx.strokeStyle = '#4a5568';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(8, 8, 112, 112);
+
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        const cx = 64, cy = 64;
+        const runeType = (idx * 7) % 6;
+        if (runeType === 0) {
+          ctx.arc(cx, cy, 26, 0, Math.PI * 2);
+          ctx.moveTo(cx - 18, cy); ctx.lineTo(cx + 18, cy);
+          ctx.moveTo(cx, cy - 18); ctx.lineTo(cx, cy + 18);
+        } else if (runeType === 1) {
+          ctx.strokeRect(cx - 20, cy - 20, 40, 40);
+        } else if (runeType === 2) {
+          ctx.moveTo(cx, cy - 24); ctx.lineTo(cx + 22, cy + 16); ctx.lineTo(cx - 22, cy + 16); ctx.closePath();
+        } else if (runeType === 3) {
+          ctx.arc(cx, cy, 20, 0, Math.PI); ctx.moveTo(cx, cy - 22); ctx.lineTo(cx, cy + 22);
+        } else {
+          ctx.arc(cx, cy, 12, 0, Math.PI * 2); ctx.arc(cx, cy, 24, 0, Math.PI * 2);
+        }
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(100, 116, 139, 0.6)';
+        ctx.font = 'bold 15px monospace';
+        ctx.fillText(str, 12, 26);
+      }
+
+      return new THREE.CanvasTexture(cv);
+    }
+
+    // Build each of the 49 tiles
+    for (let r = 0; r < GRID_SIZE; r++) {
+      for (let c = 0; c < GRID_SIZE; c++) {
+        const idx = r * GRID_SIZE + c;
+        const kind = getTileKind(idx);
+        const isLedge = (kind === 'ledge');
+
+        const x = (c + 0.5) * TILE_SIZE - HALF_BOARD;
+        const z = (rowToZ(r));
+        function rowToZ(rowIdx) { return (rowIdx + 0.5) * TILE_SIZE - HALF_BOARD; }
+
+        const tileHeight = isLedge ? (0.2 + LEDGE_HEIGHT) : 0.2;
+        const tileCenterY = isLedge ? (LEDGE_HEIGHT / 2 + 0.1) : 0.1;
+
+        const tileGeo = new THREE.BoxGeometry(TILE_SIZE * 0.96, tileHeight, TILE_SIZE * 0.96);
+        const tileMat = new THREE.MeshStandardMaterial({
+          map: createTileTexture(idx, kind),
+          roughness: (kind === 'ember') ? 0.9 : 0.8,
+          metalness: (kind === 'blessing') ? 0.35 : 0.2
+        });
+
+        const tileMesh = new THREE.Mesh(tileGeo, tileMat);
+        tileMesh.position.set(x, tileCenterY, z);
+        tileMesh.receiveShadow = true;
+        tileMesh.castShadow = isLedge;
+        tileMesh.userData = { tileIndex: idx, coordStr: idxToCoord(idx).str, kind };
+        boardGroup.add(tileMesh);
+        tileMeshes[idx] = tileMesh;
+
+        const surfaceY = getTileElevation(idx);
+
+        // Reachable Move Highlight Overlay (Preserves terrain visuals with blending)
+        const hlGeo = new THREE.PlaneGeometry(TILE_SIZE * 0.90, TILE_SIZE * 0.90);
+        const hlMat = new THREE.MeshBasicMaterial({
+          color: 0x38bdf8,
+          transparent: true,
+          opacity: 0.0,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+        const hlMesh = new THREE.Mesh(hlGeo, hlMat);
+        hlMesh.rotation.x = -Math.PI / 2;
+        hlMesh.position.set(x, surfaceY + 0.025, z);
+        boardGroup.add(hlMesh);
+        tileHighlightMeshes[idx] = hlMesh;
+
+        // Attack Target Marker (Red Diamond Ring)
+        const atkGeo = new THREE.RingGeometry(0.7, 0.95, 4);
+        const atkMat = new THREE.MeshBasicMaterial({
+          color: 0xf43f5e,
+          transparent: true,
+          opacity: 0.0,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+        const atkMesh = new THREE.Mesh(atkGeo, atkMat);
+        atkMesh.rotation.x = -Math.PI / 2;
+        atkMesh.rotation.z = Math.PI / 4;
+        atkMesh.position.set(x, surfaceY + 0.03, z);
+        boardGroup.add(atkMesh);
+        tileAttackMarkers[idx] = atkMesh;
+
+        // Mend Target Marker (Green Circle Ring)
+        const mendGeo = new THREE.RingGeometry(0.75, 1.0, 16);
+        const mendMat = new THREE.MeshBasicMaterial({
+          color: 0x10b981,
+          transparent: true,
+          opacity: 0.0,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+        const mendMesh = new THREE.Mesh(mendGeo, mendMat);
+        mendMesh.rotation.x = -Math.PI / 2;
+        mendMesh.position.set(x, surfaceY + 0.035, z);
+        boardGroup.add(mendMesh);
+        tileHealMarkers[idx] = mendMesh;
+
+        // Skill Target Marker (Gold/Amber Octagon Ring)
+        const skillGeo = new THREE.RingGeometry(0.72, 0.98, 8);
+        const skillMat = new THREE.MeshBasicMaterial({
+          color: 0xfbbf24,
+          transparent: true,
+          opacity: 0.0,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+        const skillMesh = new THREE.Mesh(skillGeo, skillMat);
+        skillMesh.rotation.x = -Math.PI / 2;
+        skillMesh.position.set(x, surfaceY + 0.04, z);
+        boardGroup.add(skillMesh);
+        tileSkillMarkers[idx] = skillMesh;
+
+        // Threat Preview Overlay (Translucent Crimson Tint)
+        const threatGeo = new THREE.PlaneGeometry(TILE_SIZE * 0.92, TILE_SIZE * 0.92);
+        const threatMat = new THREE.MeshBasicMaterial({
+          color: 0xf43f5e,
+          transparent: true,
+          opacity: 0.0,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+        const threatMesh = new THREE.Mesh(threatGeo, threatMat);
+        threatMesh.rotation.x = -Math.PI / 2;
+        threatMesh.position.set(x, surfaceY + 0.028, z);
+        boardGroup.add(threatMesh);
+        tileThreatMeshes[idx] = threatMesh;
+
+        // Threatened Player Unit In-Danger Marker (Pulsing Red Square Ring)
+        const dangerGeo = new THREE.RingGeometry(0.82, 0.98, 4);
+        const dangerMat = new THREE.MeshBasicMaterial({
+          color: 0xff0033,
+          transparent: true,
+          opacity: 0.0,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+        const dangerMesh = new THREE.Mesh(dangerGeo, dangerMat);
+        dangerMesh.rotation.x = -Math.PI / 2;
+        dangerMesh.rotation.z = Math.PI / 4;
+        dangerMesh.position.set(x, surfaceY + 0.045, z);
+        boardGroup.add(dangerMesh);
+        tileDangerUnitMarkers[idx] = dangerMesh;
+
+        // SPECIAL TERRAIN DECORATIONS:
+        // 1. Blessing: Slowly rotating golden glyph + drifting motes
+        if (kind === 'blessing') {
+          const glyphGeo = new THREE.RingGeometry(0.5, 0.85, 8);
+          const glyphMat = new THREE.MeshBasicMaterial({
+            color: 0xfbbf24,
+            transparent: true,
+            opacity: 0.7,
+            side: THREE.DoubleSide,
+            depthWrite: false
+          });
+          const glyphMesh = new THREE.Mesh(glyphGeo, glyphMat);
+          glyphMesh.rotation.x = -Math.PI / 2;
+          glyphMesh.position.set(x, surfaceY + 0.015, z);
+          boardGroup.add(glyphMesh);
+
+          // Drifting motes
+          const motes = [];
+          for (let m = 0; m < 4; m++) {
+            const moteGeo = new THREE.SphereGeometry(0.045, 4, 4);
+            const moteMat = new THREE.MeshBasicMaterial({ color: 0xfde047 });
+            const moteMesh = new THREE.Mesh(moteGeo, moteMat);
+            moteMesh.position.set(x + (m - 1.5) * 0.35, surfaceY + 0.2 + m * 0.25, z + (m % 2 - 0.5) * 0.5);
+            boardGroup.add(moteMesh);
+            motes.push({ mesh: moteMesh, baseY: surfaceY + 0.2 + m * 0.25, offset: m * 1.5 });
+          }
+
+          blessingGlyphMeshes.push({ glyph: glyphMesh, motes, speed: 0.015 });
+        }
+
+        // 2. Ember: Glowing magma aura + rising sparks
+        if (kind === 'ember') {
+          const magmaAuraGeo = new THREE.PlaneGeometry(TILE_SIZE * 0.88, TILE_SIZE * 0.88);
+          const magmaAuraMat = new THREE.MeshBasicMaterial({
+            color: 0xea580c,
+            transparent: true,
+            opacity: 0.35,
+            side: THREE.DoubleSide,
+            depthWrite: false
+          });
+          const magmaAura = new THREE.Mesh(magmaAuraGeo, magmaAuraMat);
+          magmaAura.rotation.x = -Math.PI / 2;
+          magmaAura.position.set(x, surfaceY + 0.012, z);
+          boardGroup.add(magmaAura);
+
+          // Sparks
+          for (let sp = 0; sp < 3; sp++) {
+            const sparkGeo = new THREE.BoxGeometry(0.05, 0.05, 0.05);
+            const sparkMat = new THREE.MeshBasicMaterial({ color: 0xf97316 });
+            const sparkMesh = new THREE.Mesh(sparkGeo, sparkMat);
+            sparkMesh.position.set(x + (sp - 1) * 0.4, surfaceY + 0.1 + sp * 0.3, z + ((sp * 2) % 3 - 1) * 0.3);
+            boardGroup.add(sparkMesh);
+            emberSparks.push({ mesh: sparkMesh, basePos: new THREE.Vector3(x, surfaceY, z), seed: sp * 1.2 + idx });
+          }
+        }
+      }
+    }
+
+    // Carved border frame coordinates A-G & 1-7
+    function createBoardFrame() {
+      const frameGroup = new THREE.Group();
+      for (let c = 0; c < GRID_SIZE; c++) {
+        const char = String.fromCharCode('A'.charCodeAt(0) + c);
+        const x = (c + 0.5) * TILE_SIZE - HALF_BOARD;
+        const sprN = makeTextSprite(char, '#94a3b8');
+        sprN.position.set(x, 0.3, -HALF_BOARD - 0.7);
+        sprN.scale.set(1.4, 0.7, 1);
+        frameGroup.add(sprN);
+
+        const sprS = makeTextSprite(char, '#94a3b8');
+        sprS.position.set(x, 0.3, HALF_BOARD + 0.7);
+        sprS.scale.set(1.4, 0.7, 1);
+        frameGroup.add(sprS);
+      }
+      for (let r = 0; r < GRID_SIZE; r++) {
+        const numStr = (r + 1).toString();
+        const z = (r + 0.5) * TILE_SIZE - HALF_BOARD;
+        const sprW = makeTextSprite(numStr, '#94a3b8');
+        sprW.position.set(-HALF_BOARD - 0.7, 0.3, z);
+        sprW.scale.set(1.4, 0.7, 1);
+        frameGroup.add(sprW);
+
+        const sprE = makeTextSprite(numStr, '#94a3b8');
+        sprE.position.set(HALF_BOARD + 0.7, 0.3, z);
+        sprE.scale.set(1.4, 0.7, 1);
+        frameGroup.add(sprE);
+      }
+      boardGroup.add(frameGroup);
+    }
+    createBoardFrame();
+
+    function makeTextSprite(txt, color) {
+      const cv = document.createElement('canvas');
+      cv.width = 64; cv.height = 32;
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = color;
+      ctx.font = 'bold 24px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(txt, 32, 16);
+      const tex = new THREE.CanvasTexture(cv);
+      return new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+    }
+
+    /* =========================================================================
+       6. GOLEM CONSTRUCT MODELS
+       ========================================================================= */
+    const unitsGroup = new THREE.Group();
+    scene.add(unitsGroup);
+
+    function createGolemMaterials(side) {
+      const isAzure = side === 'azure';
+      return {
+        stone: new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.75, metalness: 0.25 }),
+        stoneDark: new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85, metalness: 0.2 }),
+        trim: new THREE.MeshStandardMaterial({ color: isAzure ? COLORS.azure.bright : COLORS.crimson.bright, roughness: 0.4, metalness: 0.6 }),
+        core: new THREE.MeshBasicMaterial({ color: isAzure ? COLORS.azure.glow : COLORS.crimson.glow })
+      };
+    }
+
+    function buildGolemMesh(type, side) {
+      const mats = createGolemMaterials(side);
+      const root = new THREE.Group();
+
+      let scaleX = 1.0, scaleY = 1.0, scaleZ = 1.0;
+      if (type === 'ARC') {
+        scaleX = 0.85; scaleY = 0.85; scaleZ = 0.85;
+      } else if (type === 'WARD') {
+        scaleX = 1.15; scaleY = 1.15; scaleZ = 1.15;
+      } else if (type === 'RUNECALLER') {
+        scaleX = 0.82; scaleY = 1.16; scaleZ = 0.82; // Tall and thin construct
+      } else if (type === 'SPRITE') {
+        scaleX = 0.48; scaleY = 0.48; scaleZ = 0.48; // Knee-high construct
+      }
+
+      const bodyGroup = new THREE.Group();
+      bodyGroup.scale.set(scaleX, scaleY, scaleZ);
+      root.add(bodyGroup);
+
+      // Torso
+      const torsoGeo = (type === 'RUNECALLER') ? new THREE.BoxGeometry(0.6, 0.95, 0.45) : new THREE.BoxGeometry(0.75, 0.85, 0.55);
+      const torso = new THREE.Mesh(torsoGeo, mats.stone);
+      torso.position.y = 1.35;
+      torso.castShadow = true;
+      bodyGroup.add(torso);
+
+      // Pauldrons
+      const pauldronGeo = new THREE.BoxGeometry(0.35, 0.25, 0.4);
+      const lPauldron = new THREE.Mesh(pauldronGeo, mats.trim);
+      lPauldron.position.set(-0.55, 1.65, 0);
+      lPauldron.castShadow = true;
+      bodyGroup.add(lPauldron);
+
+      const rPauldron = new THREE.Mesh(pauldronGeo, mats.trim);
+      rPauldron.position.set(0.55, 1.65, 0);
+      rPauldron.castShadow = true;
+      bodyGroup.add(rPauldron);
+
+      // Head
+      let headGeo;
+      if (type === 'ARC') {
+        headGeo = new THREE.ConeGeometry(0.3, 0.5, 6);
+      } else if (type === 'RUNECALLER') {
+        headGeo = new THREE.CylinderGeometry(0.2, 0.3, 0.65, 6); // Mitred hood head
+      } else {
+        headGeo = new THREE.BoxGeometry(0.42, 0.45, 0.42);
+      }
+      const head = new THREE.Mesh(headGeo, mats.stoneDark);
+      head.position.y = (type === 'RUNECALLER') ? 2.1 : 2.0;
+      head.castShadow = true;
+      bodyGroup.add(head);
+
+      // Visor slit
+      const eyeGeo = new THREE.BoxGeometry(0.28, 0.08, 0.1);
+      const eyeMesh = new THREE.Mesh(eyeGeo, mats.core);
+      eyeMesh.position.set(0, (type === 'RUNECALLER') ? 2.08 : 2.02, 0.2);
+      bodyGroup.add(eyeMesh);
+
+      // Rune Core in Chest (Runecaller has brighter / larger core)
+      const coreSize = (type === 'RUNECALLER') ? 0.26 : 0.18;
+      const coreGeo = new THREE.OctahedronGeometry(coreSize, 0);
+      const coreMesh = new THREE.Mesh(coreGeo, mats.core);
+      coreMesh.position.set(0, 1.4, 0.28);
+      bodyGroup.add(coreMesh);
+
+      // Legs
+      const legGeo = new THREE.BoxGeometry(0.26, 0.8, 0.3);
+      const lLeg = new THREE.Mesh(legGeo, mats.stone);
+      lLeg.position.set(-0.25, 0.45, 0);
+      lLeg.castShadow = true;
+      bodyGroup.add(lLeg);
+
+      const rLeg = new THREE.Mesh(legGeo, mats.stone);
+      rLeg.position.set(0.25, 0.45, 0);
+      rLeg.castShadow = true;
+      bodyGroup.add(rLeg);
+
+      // Arms
+      const lArmPivot = new THREE.Group();
+      lArmPivot.position.set(-0.5, 1.55, 0);
+      bodyGroup.add(lArmPivot);
+
+      const rArmPivot = new THREE.Group();
+      rArmPivot.position.set(0.5, 1.55, 0);
+      bodyGroup.add(rArmPivot);
+
+      const armGeo = new THREE.BoxGeometry(0.22, 0.7, 0.22);
+      const lArm = new THREE.Mesh(armGeo, mats.stone);
+      lArm.position.y = -0.35;
+      lArm.castShadow = true;
+      lArmPivot.add(lArm);
+
+      const rArm = new THREE.Mesh(armGeo, mats.stone);
+      rArm.position.y = -0.35;
+      rArm.castShadow = true;
+      rArmPivot.add(rArm);
+
+      let weaponMesh = null;
+      let floatingRuneStone = null;
+      let staffMotesGroup = null;
+
+      if (type === 'SWORD') {
+        const bladeGroup = new THREE.Group();
+        const bladeGeo = new THREE.BoxGeometry(0.16, 1.5, 0.35);
+        const blade = new THREE.Mesh(bladeGeo, mats.stone);
+        blade.position.set(0, 0.55, 0.2);
+        blade.castShadow = true;
+        bladeGroup.add(blade);
+
+        const hiltGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.4, 6);
+        const hilt = new THREE.Mesh(hiltGeo, mats.trim);
+        bladeGroup.add(hilt);
+
+        bladeGroup.position.set(0, -0.65, 0.1);
+        bladeGroup.rotation.x = Math.PI / 5;
+        rArmPivot.add(bladeGroup);
+        weaponMesh = bladeGroup;
+
+      } else if (type === 'WARD') {
+        const shieldGeo = new THREE.BoxGeometry(0.85, 1.5, 0.18);
+        const shield = new THREE.Mesh(shieldGeo, mats.stoneDark);
+        shield.position.set(0, -0.2, 0.35);
+        shield.castShadow = true;
+
+        const bossGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.22, 6);
+        bossGeo.rotateX(Math.PI / 2);
+        const boss = new THREE.Mesh(bossGeo, mats.trim);
+        boss.position.set(0, -0.2, 0.42);
+        shield.add(boss);
+
+        lArmPivot.add(shield);
+        weaponMesh = shield;
+
+      } else if (type === 'ARC') {
+        const bowGroup = new THREE.Group();
+        const curvePoints = [];
+        for (let i = -10; i <= 10; i++) {
+          const t = i / 10;
+          curvePoints.push(new THREE.Vector3(0, t * 0.9, (1 - t * t) * 0.38));
+        }
+        const bowCurve = new THREE.CatmullRomCurve3(curvePoints);
+        const bowGeo = new THREE.TubeGeometry(bowCurve, 16, 0.06, 6, false);
+        const bow = new THREE.Mesh(bowGeo, mats.trim);
+        bow.castShadow = true;
+        bowGroup.add(bow);
+
+        const strGeo = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(0, -0.9, 0),
+          new THREE.Vector3(0, 0, -0.1),
+          new THREE.Vector3(0, 0.9, 0)
+        ]);
+        const stringLine = new THREE.Line(strGeo, new THREE.LineBasicMaterial({ color: 0x94a3b8 }));
+        bowGroup.add(stringLine);
+
+        bowGroup.position.set(0, -0.4, 0.35);
+        lArmPivot.add(bowGroup);
+        weaponMesh = bowGroup;
+
+        // Quiver
+        const quiverGeo = new THREE.CylinderGeometry(0.18, 0.14, 0.9, 6);
+        const quiver = new THREE.Mesh(quiverGeo, mats.stoneDark);
+        quiver.position.set(0.15, 1.45, -0.4);
+        quiver.rotation.z = -0.3;
+        quiver.castShadow = true;
+        bodyGroup.add(quiver);
+
+        for (let b = 0; b < 3; b++) {
+          const boltGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.5, 4);
+          const bolt = new THREE.Mesh(boltGeo, mats.core);
+          bolt.position.set(0.15 + (b - 1) * 0.08, 1.85, -0.4);
+          bolt.rotation.z = -0.3;
+          bodyGroup.add(bolt);
+        }
+
+      } else if (type === 'RUNECALLER') {
+        // Staff topped by floating rune stone and orbiting motes
+        const staffGroup = new THREE.Group();
+        const shaftGeo = new THREE.CylinderGeometry(0.06, 0.08, 2.6, 8);
+        const shaft = new THREE.Mesh(shaftGeo, mats.stoneDark);
+        shaft.position.y = 0.7;
+        shaft.castShadow = true;
+        staffGroup.add(shaft);
+
+        const crownGeo = new THREE.TorusGeometry(0.22, 0.05, 6, 12);
+        crownGeo.rotateX(Math.PI / 2);
+        const crown = new THREE.Mesh(crownGeo, mats.trim);
+        crown.position.y = 1.95;
+        staffGroup.add(crown);
+
+        // Floating Rune Stone
+        const stoneGeo = new THREE.OctahedronGeometry(0.18, 0);
+        floatingRuneStone = new THREE.Mesh(stoneGeo, mats.core);
+        floatingRuneStone.position.y = 2.3;
+        staffGroup.add(floatingRuneStone);
+
+        // Orbiting glyph motes group (holds up to 6 motes)
+        staffMotesGroup = new THREE.Group();
+        staffMotesGroup.position.y = 2.3;
+        staffGroup.add(staffMotesGroup);
+
+        for (let m = 0; m < 6; m++) {
+          const mGeo = new THREE.SphereGeometry(0.045, 6, 6);
+          const mMote = new THREE.Mesh(mGeo, mats.core);
+          mMote.visible = false;
+          staffMotesGroup.add(mMote);
+        }
+
+        staffGroup.position.set(0, -0.6, 0.3);
+        rArmPivot.add(staffGroup);
+        weaponMesh = staffGroup;
+
+      } else if (type === 'SPRITE') {
+        // Pebble blade in right hand
+        const bladeGroup = new THREE.Group();
+        const bladeGeo = new THREE.ConeGeometry(0.14, 0.8, 5);
+        bladeGeo.rotateX(Math.PI);
+        const blade = new THREE.Mesh(bladeGeo, mats.stoneDark);
+        blade.position.set(0, -0.35, 0.15);
+        blade.castShadow = true;
+        bladeGroup.add(blade);
+
+        rArmPivot.add(bladeGroup);
+        weaponMesh = bladeGroup;
+      }
+
+      // Base ring
+      const baseRingGeo = new THREE.RingGeometry(0.7, 0.85, 24);
+      const baseRingMat = new THREE.MeshBasicMaterial({
+        color: (side === 'azure') ? COLORS.azure.bright : COLORS.crimson.bright,
+        side: THREE.DoubleSide
+      });
+      const baseRing = new THREE.Mesh(baseRingGeo, baseRingMat);
+      baseRing.rotation.x = -Math.PI / 2;
+      baseRing.position.y = 0.02;
+      root.add(baseRing);
+
+      return {
+        root,
+        bodyGroup,
+        coreMesh,
+        lArmPivot,
+        rArmPivot,
+        lLeg,
+        rLeg,
+        weaponMesh,
+        floatingRuneStone,
+        staffMotesGroup,
+        mats,
+        baseRing
+      };
+    }
+
+
+    /* =========================================================================
+       RUNE TITAN BOSS (2x2 Multi-tile Construct, 60 HP in 3 Stages)
+       ========================================================================= */
+    class RuneTitan {
+      constructor() {
+        this.id = 'titan';
+        this.name = 'Rune Titan';
+        this.side = 'crimson';
+        this.type = 'TITAN';
+        this.glyph = '⚡';
+        this.maxHp = 60;
+        this.hp = 60;
+        this.stage = 1;
+        this.scriptIndex = 0; // 0: Hammerfall, 1: Sweep, 2: Summons of the Deep
+        this.isDead = false;
+        this.moved = false;
+        this.acted = false;
+        this.col = 1; // B1 = col 1, row 0
+        this.row = 0; // 2x2 occupies (1,0), (2,0), (1,1), (2,1) -> B1, C1, B2, C2
+        this.mesh = null;
+        this.fractureLinesMat = null;
+        this.coreMesh = null;
+        this.lArmPivot = null;
+        this.rArmPivot = null;
+        this.bodyGroup = null;
+        this.initMesh();
+        this.updateBossBar();
+      }
+
+      reset() {
+        this.hp = 60;
+        this.stage = 1;
+        this.scriptIndex = 0;
+        this.isDead = false;
+        this.moved = false;
+        this.acted = false;
+        this.col = 1;
+        this.row = 0;
+        if (this.mesh) {
+          scene.remove(this.mesh);
+        }
+        this.initMesh();
+        this.updateBossBar();
+        const bossWrap = document.getElementById('boss-bar-wrap');
+        if (bossWrap) bossWrap.style.opacity = '1.0';
+      }
+
+      getBlockTiles(c = this.col, r = this.row) {
+        return [
+          r * GRID_SIZE + c,
+          r * GRID_SIZE + (c + 1),
+          (r + 1) * GRID_SIZE + c,
+          (r + 1) * GRID_SIZE + (c + 1)
+        ];
+      }
+
+      getNextActionName() {
+        if (this.scriptIndex === 0) return 'Hammerfall';
+        if (this.scriptIndex === 1) return 'Sweep';
+        return 'Summons of the Deep';
+      }
+
+      getDamageBonus() {
+        return this.stage - 1; // Stage 1: +0, Stage 2: +1, Stage 3: +2
+      }
+
+      updateBossBar() {
+        const textEl = document.getElementById('boss-hp-text');
+        const actEl = document.getElementById('boss-next-action');
+        const s1 = document.getElementById('boss-seg-1');
+        const s2 = document.getElementById('boss-seg-2');
+        const s3 = document.getElementById('boss-seg-3');
+        if (!textEl || !actEl) return;
+
+        actEl.textContent = `Next: ${this.getNextActionName()}`;
+
+        // Segment 1 (HP 41-60)
+        const seg1Hp = Math.max(0, Math.min(20, this.hp - 40));
+        s1.style.width = ((seg1Hp / 20) * 100) + '%';
+
+        // Segment 2 (HP 21-40)
+        const seg2Hp = Math.max(0, Math.min(20, this.hp - 20));
+        s2.style.width = ((seg2Hp / 20) * 100) + '%';
+        s2.className = 'boss-segment-fill stage2';
+
+        // Segment 3 (HP 1-20)
+        const seg3Hp = Math.max(0, Math.min(20, this.hp));
+        s3.style.width = ((seg3Hp / 20) * 100) + '%';
+        s3.className = 'boss-segment-fill stage3';
+
+        let stageStr = 'Stage I';
+        if (this.stage === 2) stageStr = 'Stage II';
+        if (this.stage === 3) stageStr = 'Stage III';
+        textEl.textContent = `${stageStr} — ${this.hp} / 60 HP`;
+      }
+
+      takeDamage(amount, attacker) {
+        if (this.isDead) return;
+        const oldHp = this.hp;
+        this.hp = Math.max(0, this.hp - amount);
+
+        showFloatingNumber(this.getCenterWorldPos(), `-${amount}`, 'damage');
+        this.updateBossBar();
+
+        if (attacker) {
+          logCombat(`${attacker.name} strikes the Rune Titan for ${amount} damage!`, attacker.side);
+        }
+
+        // Flinch shake
+        if (this.bodyGroup) {
+          this.bodyGroup.position.z -= 0.15;
+          setTimeout(() => { if (this.bodyGroup) this.bodyGroup.position.z = 0; }, 120);
+        }
+
+        // Check armor stage breaks:
+        if (oldHp > 40 && this.hp <= 40) {
+          this.triggerStageBreak(2);
+        } else if (oldHp > 20 && this.hp <= 20) {
+          this.triggerStageBreak(3);
+        }
+
+        if (this.hp <= 0) {
+          this.isDead = true;
+          scene.remove(this.mesh);
+          spawnDestructionFlourish({ mesh: { position: this.getCenterWorldPos() } });
+          logCombat('The Rune Titan crumbles into ancient stone dust!', 'death');
+          const bossWrap = document.getElementById('boss-bar-wrap');
+          if (bossWrap) bossWrap.style.opacity = '0.35';
+        }
+
+        refreshRosterOrder();
+        updateThreatPreview();
+        checkEndConditions();
+        exportArenaState();
+      }
+
+      triggerStageBreak(newStage) {
+        this.stage = newStage;
+        this.scriptIndex = 0; // Script restarts at Hammerfall on next enemy turn!
+        spawnShockwaveRing(this.getCenterWorldPos());
+
+        // Fracture lines glow brighter
+        if (this.fractureLinesMat) {
+          this.fractureLinesMat.color.setHex(newStage === 2 ? 0xf97316 : 0xff0033);
+        }
+
+        logCombat(`The Rune Titan's armor plates shatter! Entering Stage ${newStage} (+1 Titan Damage, script reset to Hammerfall)!`, 'crimson');
+        this.updateBossBar();
+      }
+
+      getCenterWorldPos(c = this.col, r = this.row) {
+        const x = (c + 1) * TILE_SIZE - HALF_BOARD;
+        const z = (r + 1) * TILE_SIZE - HALF_BOARD;
+        return new THREE.Vector3(x, BOARD_ELEVATION, z);
+      }
+
+      updateWorldPosition() {
+        const pos = this.getCenterWorldPos();
+        this.mesh.position.set(pos.x, pos.y, pos.z);
+      }
+
+      initMesh() {
+        const root = new THREE.Group();
+        const mats = {
+          stone: new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.8, metalness: 0.3 }),
+          stoneDark: new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9, metalness: 0.2 }),
+          trim: new THREE.MeshStandardMaterial({ color: COLORS.crimson.bright, roughness: 0.4, metalness: 0.6 }),
+          core: new THREE.MeshBasicMaterial({ color: 0xf43f5e }),
+          fracture: new THREE.MeshBasicMaterial({ color: 0xfb7185, wireframe: true })
+        };
+        this.fractureLinesMat = mats.fracture;
+
+        const bodyGroup = new THREE.Group();
+        root.add(bodyGroup);
+        this.bodyGroup = bodyGroup;
+
+        // Massive pillar legs
+        const lLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.75, 1.8, 8), mats.stoneDark);
+        lLeg.position.set(-0.85, 0.9, 0);
+        lLeg.castShadow = true;
+        bodyGroup.add(lLeg);
+
+        const rLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.75, 1.8, 8), mats.stoneDark);
+        rLeg.position.set(0.85, 0.9, 0);
+        rLeg.castShadow = true;
+        bodyGroup.add(rLeg);
+
+        // Vast Torso
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(2.5, 2.2, 1.6), mats.stone);
+        torso.position.y = 2.8;
+        torso.castShadow = true;
+        bodyGroup.add(torso);
+
+        // Glowing fracture lines over torso
+        const fractureOverlay = new THREE.Mesh(new THREE.BoxGeometry(2.52, 2.22, 1.62), mats.fracture);
+        fractureOverlay.position.y = 2.8;
+        bodyGroup.add(fractureOverlay);
+
+        // Huge chest rune core
+        const coreMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.55, 0), mats.core);
+        coreMesh.position.set(0, 2.9, 0.9);
+        bodyGroup.add(coreMesh);
+        this.coreMesh = coreMesh;
+
+        // Horned Head
+        const head = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.1, 1.0), mats.stoneDark);
+        head.position.y = 4.3;
+        head.castShadow = true;
+        bodyGroup.add(head);
+
+        // Horns
+        const lHorn = new THREE.Mesh(new THREE.ConeGeometry(0.22, 1.2, 6), mats.trim);
+        lHorn.position.set(-0.65, 4.9, -0.1);
+        lHorn.rotation.z = 0.45;
+        lHorn.rotation.x = -0.3;
+        bodyGroup.add(lHorn);
+
+        const rHorn = new THREE.Mesh(new THREE.ConeGeometry(0.22, 1.2, 6), mats.trim);
+        rHorn.position.set(0.65, 4.9, -0.1);
+        rHorn.rotation.z = -0.45;
+        rHorn.rotation.x = -0.3;
+        bodyGroup.add(rHorn);
+
+        // Glowing eye visor
+        const eyes = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.14, 0.2), mats.core);
+        eyes.position.set(0, 4.35, 0.52);
+        bodyGroup.add(eyes);
+
+        // Pauldrons
+        const lPauldron = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.85, 1.2), mats.trim);
+        lPauldron.position.set(-1.8, 3.6, 0);
+        bodyGroup.add(lPauldron);
+
+        const rPauldron = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.85, 1.2), mats.trim);
+        rPauldron.position.set(1.8, 3.6, 0);
+        bodyGroup.add(rPauldron);
+
+        // Arms & Hammer Fists
+        const lArmPivot = new THREE.Group();
+        lArmPivot.position.set(-1.6, 3.3, 0);
+        bodyGroup.add(lArmPivot);
+        this.lArmPivot = lArmPivot;
+
+        const lFist = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.6, 0.85), mats.stone);
+        lFist.position.set(0, -0.9, 0.3);
+        lFist.castShadow = true;
+        lArmPivot.add(lFist);
+
+        const rArmPivot = new THREE.Group();
+        rArmPivot.position.set(1.6, 3.3, 0);
+        bodyGroup.add(rArmPivot);
+        this.rArmPivot = rArmPivot;
+
+        const rFist = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.6, 0.85), mats.stone);
+        rFist.position.set(0, -0.9, 0.3);
+        rFist.castShadow = true;
+        rArmPivot.add(rFist);
+
+        this.mesh = root;
+        this.updateWorldPosition();
+        scene.add(root);
+      }
+    }
+
+    let runeTitan = null;
+
+    class Unit {
+      constructor(config) {
+        this.id = config.id;
+        this.side = config.side;
+        this.type = config.type;
+        const typeDef = UNIT_TYPES[config.type];
+        this.name = (this.side === 'azure' ? 'Azure ' : 'Crimson ') + typeDef.name;
+        this.maxHp = typeDef.maxHp;
+        this.hp = typeDef.maxHp;
+        this.move = typeDef.move;
+        this.power = typeDef.power;
+        this.rangeMin = typeDef.rangeMin;
+        this.rangeMax = typeDef.rangeMax;
+        this.isHealer = typeDef.isHealer;
+        this.glyph = typeDef.glyph;
+        this.tileIndex = config.tile;
+        this.moved = false;
+        this.acted = false;
+        this.isDead = false;
+        this.skillName = typeDef.skillName;
+        this.skillDesc = typeDef.skillDesc;
+        this.cooldownRemaining = 0;
+        this.skillReady = true;
+        this.bulwarkActive = false;
+        this.activationStartedThisRound = false;
+        this.cooldownAtStartOfTurn = 0;
+        this.charge = (this.type === 'RUNECALLER' ? 3 : 0); // Starts at 3, capped at 6
+
+        this.view = buildGolemMesh(this.type, this.side);
+        this.mesh = this.view.root;
+        const wPos = idxToWorld(this.tileIndex);
+        this.mesh.position.set(wPos.x, wPos.y, wPos.z);
+        this.mesh.rotation.y = (this.side === 'azure') ? 0 : Math.PI;
+        unitsGroup.add(this.mesh);
+
+        this.anim = {
+          isWalking: false,
+          walkPath: [],
+          isAttacking: false,
+          isFlinching: false,
+          flinchTime: 0
+        };
+      }
+
+      onActivationStart() {
+        if (this.bulwarkActive) {
+          this.bulwarkActive = false;
+        }
+        if (!this.activationStartedThisRound) {
+          this.cooldownAtStartOfTurn = this.cooldownRemaining;
+          if (this.cooldownRemaining > 0) {
+            this.cooldownRemaining--;
+          }
+          this.skillReady = (this.cooldownRemaining === 0);
+          this.activationStartedThisRound = true;
+        }
+      }
+
+      getEffectiveRangeMax(fromTileIdx) {
+        const tileIdx = (fromTileIdx !== undefined) ? fromTileIdx : this.tileIndex;
+        if (this.type === 'ARC' && getTileKind(tileIdx) === 'ledge') {
+          return 4; // High Ledge extends Arc Golem range band to 2-4
+        }
+        return this.rangeMax;
+      }
+
+      setDimmed(dim) {
+        this.view.mats.stone.color.setHex(dim ? 0x242a35 : 0x475569);
+        this.view.mats.trim.color.setHex(dim ? 0x444444 : (this.side === 'azure' ? COLORS.azure.bright : COLORS.crimson.bright));
+        this.view.baseRing.material.opacity = dim ? 0.3 : 1.0;
+        this.view.baseRing.material.transparent = dim;
+      }
+
+      update(delta, totalTime) {
+        if (this.isDead) return;
+
+        // Pulse Rune Core
+        const pulse = 0.85 + Math.sin(totalTime * 3.5 + this.tileIndex) * 0.25;
+        this.view.coreMesh.scale.set(pulse, pulse, pulse);
+
+        // Runecaller floating stone & orbiting motes
+        if (this.type === 'RUNECALLER') {
+          if (this.view.floatingRuneStone) {
+            this.view.floatingRuneStone.position.y = 2.3 + Math.sin(totalTime * 3.0) * 0.08;
+            this.view.floatingRuneStone.rotation.y += delta * 2.0;
+          }
+          if (this.view.staffMotesGroup) {
+            this.view.staffMotesGroup.rotation.y += delta * 3.0;
+            const currentCharge = Math.min(6, this.charge || 0);
+            for (let m = 0; m < 6; m++) {
+              const mote = this.view.staffMotesGroup.children[m];
+              if (m < currentCharge) {
+                mote.visible = true;
+                const angle = (m / Math.max(1, currentCharge)) * Math.PI * 2;
+                mote.position.set(Math.cos(angle) * 0.4, Math.sin(totalTime * 4.0 + m) * 0.06, Math.sin(angle) * 0.4);
+              } else {
+                mote.visible = false;
+              }
+            }
+          }
+        }
+
+        // Bulwark Oath Visual Aura
+        if (this.bulwarkActive) {
+          const bGlow = 0.5 + Math.sin(totalTime * 6.0) * 0.4;
+          this.view.baseRing.material.opacity = 0.95;
+          this.view.baseRing.material.color.setHex(0xfbbf24);
+        } else if (!this.view.baseRing.material.transparent) {
+          this.view.baseRing.material.color.setHex((this.side === 'azure') ? COLORS.azure.bright : COLORS.crimson.bright);
+        }
+
+        // Idle swaying
+        if (!this.anim.isWalking && !this.anim.isAttacking && !this.anim.isFlinching) {
+          const idleAngle = Math.sin(totalTime * 2.0 + this.tileIndex * 0.5) * 0.04;
+          this.view.bodyGroup.rotation.z = idleAngle;
+          this.view.bodyGroup.position.y = Math.sin(totalTime * 2.5 + this.tileIndex) * 0.03;
+        }
+
+        // Flinch
+        if (this.anim.isFlinching) {
+          this.anim.flinchTime += delta;
+          const t = this.anim.flinchTime / 0.35;
+          if (t >= 1.0) {
+            this.anim.isFlinching = false;
+            this.view.bodyGroup.rotation.x = 0;
+            this.view.bodyGroup.position.z = 0;
+          } else {
+            const push = Math.sin(t * Math.PI) * 0.3;
+            this.view.bodyGroup.position.z = -push;
+            this.view.bodyGroup.rotation.x = push * 0.4;
+          }
+        }
+      }
+    }
+
+    /* =========================================================================
+       7. COMBAT LOG & FLOATING NUMBERS & EFFECTS
+       ========================================================================= */
+    const combatLogEl = document.getElementById('combat-log');
+    const floatersLayer = document.getElementById('floaters-layer');
+
+    function logCombat(text, styleClass) {
+      const line = document.createElement('div');
+      line.className = 'log-line ' + (styleClass || '');
+      line.textContent = text;
+      combatLogEl.appendChild(line);
+      while (combatLogEl.children.length > 4) {
+        combatLogEl.removeChild(combatLogEl.firstChild);
+      }
+    }
+
+    function showFloatingNumber(pos3D, text, type) {
+      const el = document.createElement('div');
+      el.className = 'combat-number ' + type;
+      el.textContent = text;
+      floatersLayer.appendChild(el);
+
+      const screenPos = pos3D.clone().project(camera);
+      const x = (screenPos.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-(screenPos.y * 0.5) + 0.5) * window.innerHeight;
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+
+      requestAnimationFrame(() => {
+        el.style.transform = 'translate(-50%, -130%) scale(1.25)';
+        el.style.opacity = '0';
+      });
+
+      setTimeout(() => {
+        if (el.parentNode) el.parentNode.removeChild(el);
+      }, 850);
+    }
+
+    // Scorch flash on ember damage
+    function spawnScorchFlash(pos3D) {
+      const flashGeo = new THREE.SphereGeometry(0.85, 12, 12);
+      const flashMat = new THREE.MeshBasicMaterial({ color: 0xea580c, transparent: true, opacity: 0.85 });
+      const flashMesh = new THREE.Mesh(flashGeo, flashMat);
+      flashMesh.position.copy(pos3D);
+      flashMesh.position.y += 0.5;
+      scene.add(flashMesh);
+
+      let t = 0;
+      const start = performance.now();
+      function animFlash(now) {
+        t = (now - start) / 1000 / 0.35;
+        flashMesh.scale.setScalar(1 + t * 1.5);
+        flashMat.opacity = Math.max(0, 0.85 * (1 - t));
+        if (t < 1.0) {
+          requestAnimationFrame(animFlash);
+        } else {
+          scene.remove(flashMesh);
+        }
+      }
+      requestAnimationFrame(animFlash);
+    }
+
+    // Active Projectiles (Arc Golem Crystal Bolt)
+    const activeProjectiles = [];
+    function spawnCrystalBolt(fromPos, toPos, onHit) {
+      const boltGroup = new THREE.Group();
+      const geom = new THREE.CylinderGeometry(0.08, 0.08, 0.7, 6);
+      geom.rotateX(Math.PI / 2);
+      const mat = new THREE.MeshBasicMaterial({ color: 0x67e8f9 });
+      const mesh = new THREE.Mesh(geom, mat);
+      boltGroup.add(mesh);
+
+      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.2, 6, 6), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+      boltGroup.add(glow);
+
+      scene.add(boltGroup);
+
+      const start = fromPos.clone().add(new THREE.Vector3(0, 1.4, 0));
+      const end = toPos.clone().add(new THREE.Vector3(0, 1.2, 0));
+      const mid = start.clone().lerp(end, 0.5);
+      mid.y = Math.max(start.y, end.y) + 2.2;
+
+      activeProjectiles.push({
+        group: boltGroup,
+        start,
+        mid,
+        end,
+        progress: 0,
+        speed: 2.2,
+        onHit
+      });
+    }
+
+
+    // Rising Glyph Pillar for Stone Sprite Summon
+    const activeSummonPillars = [];
+    function spawnSummonPillar(pos3D) {
+      const pillarGroup = new THREE.Group();
+      const geom = new THREE.CylinderGeometry(0.65, 0.75, 3.2, 16, 1, true);
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.8,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const mesh = new THREE.Mesh(geom, mat);
+      mesh.position.y = 1.6;
+      pillarGroup.add(mesh);
+
+      pillarGroup.position.copy(pos3D);
+      scene.add(pillarGroup);
+
+      activeSummonPillars.push({
+        group: pillarGroup,
+        mat,
+        time: 0,
+        duration: 0.55
+      });
+    }
+
+    // Intake Swirl for Runecaller Focus
+    const activeIntakeSwirls = [];
+    function spawnIntakeSwirl(pos3D) {
+      const swirlGroup = new THREE.Group();
+      const ringGeo = new THREE.RingGeometry(0.3, 1.4, 16);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.85,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      swirlGroup.add(ring);
+
+      swirlGroup.position.copy(pos3D);
+      swirlGroup.position.y += 0.2;
+      scene.add(swirlGroup);
+
+      activeIntakeSwirls.push({
+        group: swirlGroup,
+        mat: ringMat,
+        time: 0,
+        duration: 0.45
+      });
+    }
+
+    // Rising Glyph Swirl for Vessel Mend (removed)
+    const activeHealSwirls = [];
+    function spawnHealSwirl(targetPos) {
+      const swirlGroup = new THREE.Group();
+      const ringGeo = new THREE.RingGeometry(0.6, 0.85, 16);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0x10b981,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.85,
+        depthWrite: false
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      swirlGroup.add(ring);
+
+      swirlGroup.position.copy(targetPos);
+      swirlGroup.position.y += 0.2;
+      scene.add(swirlGroup);
+
+      activeHealSwirls.push({
+        group: swirlGroup,
+        baseY: swirlGroup.position.y,
+        progress: 0,
+        speed: 1.5
+      });
+    }
+
+    // Skill VFX: Shockwave Ring for Bulwark Oath
+    const activeShockwaves = [];
+    function spawnShockwaveRing(pos3D) {
+      const ringGeo = new THREE.RingGeometry(0.5, 0.9, 32);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.9,
+        depthWrite: false
+      });
+      const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+      ringMesh.rotation.x = -Math.PI / 2;
+      ringMesh.position.copy(pos3D);
+      ringMesh.position.y += 0.04;
+      scene.add(ringMesh);
+
+      activeShockwaves.push({
+        mesh: ringMesh,
+        time: 0,
+        duration: 0.45
+      });
+    }
+
+    // Shield Flash when Bulwark Oath reduces damage
+    function spawnShieldFlash(pos3D) {
+      const shieldGeo = new THREE.SphereGeometry(1.1, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+      const shieldMat = new THREE.MeshBasicMaterial({
+        color: 0xfbbf24,
+        transparent: true,
+        opacity: 0.85,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const shieldMesh = new THREE.Mesh(shieldGeo, shieldMat);
+      shieldMesh.position.copy(pos3D);
+      shieldMesh.position.y += 0.2;
+      scene.add(shieldMesh);
+
+      let t = 0;
+      const start = performance.now();
+      function animShield(now) {
+        t = (now - start) / 1000 / 0.35;
+        shieldMesh.scale.setScalar(1 + t * 0.4);
+        shieldMat.opacity = Math.max(0, 0.85 * (1 - t));
+        if (t < 1.0) {
+          requestAnimationFrame(animShield);
+        } else {
+          scene.remove(shieldMesh);
+        }
+      }
+      requestAnimationFrame(animShield);
+    }
+
+    // Heavier crystal bolt for Piercing Bolt
+    function spawnHeavierBolt(fromPos, toPos, onHit) {
+      const boltGroup = new THREE.Group();
+      const geom = new THREE.CylinderGeometry(0.16, 0.16, 1.1, 8);
+      geom.rotateX(Math.PI / 2);
+      const mat = new THREE.MeshBasicMaterial({ color: 0xa5f3fc });
+      const mesh = new THREE.Mesh(geom, mat);
+      boltGroup.add(mesh);
+
+      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 8), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+      boltGroup.add(glow);
+
+      scene.add(boltGroup);
+
+      const start = fromPos.clone().add(new THREE.Vector3(0, 1.4, 0));
+      const end = toPos.clone().add(new THREE.Vector3(0, 1.2, 0));
+      const mid = start.clone().lerp(end, 0.5);
+      mid.y = Math.max(start.y, end.y) + 2.5;
+
+      activeProjectiles.push({
+        group: boltGroup,
+        start,
+        mid,
+        end,
+        progress: 0,
+        speed: 2.8,
+        onHit
+      });
+    }
+
+    // Dash trail for Rune Charge
+    function spawnDashTrail(fromPos, toPos) {
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([
+        fromPos.clone().add(new THREE.Vector3(0, 0.4, 0)),
+        toPos.clone().add(new THREE.Vector3(0, 0.4, 0))
+      ]);
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.9, linewidth: 3 });
+      const line = new THREE.Line(lineGeo, lineMat);
+      scene.add(line);
+
+      let t = 0;
+      const start = performance.now();
+      function animTrail(now) {
+        t = (now - start) / 1000 / 0.35;
+        lineMat.opacity = Math.max(0, 0.9 * (1 - t));
+        if (t < 1.0) {
+          requestAnimationFrame(animTrail);
+        } else {
+          scene.remove(line);
+        }
+      }
+      requestAnimationFrame(animTrail);
+    }
+
+    /* Math & Grid Helpers for Skills */
+    function gcd(a, b) {
+      a = Math.abs(a);
+      b = Math.abs(b);
+      while (b) {
+        const t = b;
+        b = a % b;
+        a = t;
+      }
+      return a || 1;
+    }
+
+    function isStraightOrthogonal(idx1, idx2) {
+      const c1 = idxToCoord(idx1);
+      const c2 = idxToCoord(idx2);
+      return (c1.col === c2.col || c1.row === c2.row);
+    }
+
+    function isPathClearOrthogonal(fromIdx, toIdx, ignoredUnitId) {
+      const c1 = idxToCoord(fromIdx);
+      const c2 = idxToCoord(toIdx);
+      if (c1.col !== c2.col && c1.row !== c2.row) return false;
+      const dc = Math.sign(c2.col - c1.col);
+      const dr = Math.sign(c2.row - c1.row);
+      const steps = Math.abs(c2.col - c1.col) + Math.abs(c2.row - c1.row);
+      for (let s = 1; s < steps; s++) {
+        const col = c1.col + dc * s;
+        const row = c1.row + dr * s;
+        const tIdx = row * GRID_SIZE + col;
+        const occ = getUnitAtTile(tIdx);
+        if (occ && occ.id !== ignoredUnitId) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function canChargeTarget(sword, target, launchTile) {
+      if (!target || target.isDead || target.side === sword.side) return false;
+      const lTile = (launchTile !== undefined) ? launchTile : sword.tileIndex;
+      const cL = idxToCoord(lTile);
+      const cT = idxToCoord(target.tileIndex);
+      const isOrth = (cL.col === cT.col || cL.row === cT.row);
+      if (!isOrth) return false;
+      const dist = Math.abs(cL.col - cT.col) + Math.abs(cL.row - cT.row);
+      if (dist !== 2 && dist !== 3) return false;
+      return isPathClearOrthogonal(lTile, target.tileIndex, sword.id);
+    }
+
+    function getChargeLandingTile(launchTile, targetTile) {
+      const cL = idxToCoord(launchTile);
+      const cT = idxToCoord(targetTile);
+      const dc = Math.sign(cT.col - cL.col);
+      const dr = Math.sign(cT.row - cL.row);
+      const stopCol = cT.col - dc;
+      const stopRow = cT.row - dr;
+      return stopRow * GRID_SIZE + stopCol;
+    }
+
+    function getSecondaryPiercingTarget(fromIdx, primaryIdx, shooterSide) {
+      const c0 = idxToCoord(fromIdx);
+      const c1 = idxToCoord(primaryIdx);
+      const dc = c1.col - c0.col;
+      const dr = c1.row - c0.row;
+      const g = gcd(dc, dr);
+      const stepC = dc / g;
+      const stepR = dr / g;
+
+      let c = c1.col + stepC;
+      let r = c1.row + stepR;
+      while (c >= 0 && c < GRID_SIZE && r >= 0 && r < GRID_SIZE) {
+        const idx = r * GRID_SIZE + c;
+        const u = getUnitAtTile(idx);
+        if (u) {
+          if (u.side !== shooterSide) {
+            return u; // First enemy encountered along line
+          }
+        }
+        c += stepC;
+        r += stepR;
+      }
+      return null;
+    }
+
+    // Destruction Flourish: Shards scatter, core flaring, scorched rune decal for 2s
+    const activeDestructions = [];
+    function spawnDestructionFlourish(unit) {
+      const deathGroup = new THREE.Group();
+      const origin = unit.mesh.position.clone();
+      origin.y += 0.8;
+      deathGroup.position.copy(origin);
+
+      const shardMat = unit.view.mats.stone.clone();
+      shardMat.transparent = true;
+      const shards = [];
+      for (let s = 0; s < 10; s++) {
+        const sGeo = new THREE.DodecahedronGeometry(0.25 + (s % 3) * 0.1, 0);
+        const sm = new THREE.Mesh(sGeo, shardMat);
+        const ang = (s / 10) * Math.PI * 2;
+        const speedH = 2.2 + (s % 4) * 0.8;
+        const velY = 3.2 + (s % 3) * 0.7;
+        shards.push({
+          mesh: sm,
+          vel: new THREE.Vector3(Math.cos(ang) * speedH, velY, Math.sin(ang) * speedH),
+          rotSpeed: new THREE.Vector3((s % 3) * 4, (s % 4) * 4, 3)
+        });
+        deathGroup.add(sm);
+      }
+
+      const flareMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.6, 12, 12),
+        new THREE.MeshBasicMaterial({ color: (unit.side === 'azure') ? 0x38bdf8 : 0xf43f5e, transparent: true, opacity: 1.0 })
+      );
+      deathGroup.add(flareMesh);
+      scene.add(deathGroup);
+
+      // Scorched rune sigil decal onto tile for ~2 seconds
+      const tilePos = idxToWorld(unit.tileIndex);
+      const scorchCv = document.createElement('canvas');
+      scorchCv.width = 128; scorchCv.height = 128;
+      const sCtx = scorchCv.getContext('2d');
+      sCtx.strokeStyle = (unit.side === 'azure') ? '#38bdf8' : '#f43f5e';
+      sCtx.lineWidth = 5;
+      sCtx.beginPath();
+      sCtx.arc(64, 64, 48, 0, Math.PI * 2);
+      sCtx.moveTo(24, 24); sCtx.lineTo(104, 104);
+      sCtx.moveTo(104, 24); sCtx.lineTo(24, 104);
+      sCtx.stroke();
+      const scorchTex = new THREE.CanvasTexture(scorchCv);
+      const scorchMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(TILE_SIZE * 0.85, TILE_SIZE * 0.85),
+        new THREE.MeshBasicMaterial({ map: scorchTex, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false })
+      );
+      scorchMesh.rotation.x = -Math.PI / 2;
+      scorchMesh.position.set(tilePos.x, tilePos.y + 0.03, tilePos.z);
+      scene.add(scorchMesh);
+
+      activeDestructions.push({
+        group: deathGroup,
+        shards,
+        flare: flareMesh,
+        scorch: scorchMesh,
+        time: 0,
+        duration: 2.0
+      });
+    }
+
+    /* =========================================================================
+       8. INITIALIZATION & RESTART
+       ========================================================================= */
+    function initGame() {
+      gameState.units.forEach(u => unitsGroup.remove(u.mesh));
+      if (!runeTitan) {
+        runeTitan = new RuneTitan();
+      } else {
+        runeTitan.reset();
+      }
+
+      gameState.units = INITIAL_DEPLOYMENT.map(cfg => new Unit(cfg));
+      gameState.phase = 'READY';
+      gameState.turn = 1;
+      gameState.activeSide = 'azure';
+      gameState.selectedUnitId = null;
+      gameState.reachableTiles = [];
+      gameState.actionTargets = [];
+      gameState.actingUnitId = null;
+      isSkillTargetingMode = false;
+
+      gameState.units.forEach(u => {
+        u.cooldownRemaining = 0;
+        u.skillReady = true;
+        u.bulwarkActive = false;
+        u.activationStartedThisRound = false;
+        if (u.type === 'RUNECALLER') u.charge = 3;
+      });
+
+      document.getElementById('ready-modal').style.display = 'flex';
+      document.getElementById('victory-modal').style.display = 'none';
+      document.getElementById('defeat-modal').style.display = 'none';
+      document.getElementById('unit-card').style.visibility = 'hidden';
+
+      refreshRosterOrder();
+      updateBanner();
+      clearHighlights();
+      combatLogEl.innerHTML = '';
+      logCombat('Sanctum wards awaken. Press Enter.', 'azure');
+
+      exportArenaState();
+    }
+
+    window.resetGame = function() {
+      initGame();
+      startGame();
+    };
+
+    function startGame() {
+      if (gameState.phase !== 'READY') return;
+      document.getElementById('ready-modal').style.display = 'none';
+      startPlayerTurn();
+    }
+
+    /* =========================================================================
+       9. TURN ORDER RIBBON & HUD INSPECTORS
+       ========================================================================= */
+    const orderRibbonEl = document.getElementById('order-ribbon');
+
+    function refreshRosterOrder() {
+      const azureUnits = gameState.units
+        .filter(u => u.side === 'azure' && !u.isDead)
+        .sort((a, b) => a.tileIndex - b.tileIndex);
+
+      const crimsonUnits = gameState.units
+        .filter(u => u.side === 'crimson' && !u.isDead)
+        .sort((a, b) => a.tileIndex - b.tileIndex);
+
+      const crimsonIds = crimsonUnits.map(u => u.id);
+      if (runeTitan && !runeTitan.isDead) {
+        crimsonIds.push('titan');
+      }
+
+      gameState.rosterOrder = [...azureUnits.map(u => u.id), ...crimsonIds];
+      renderRibbon();
+    }
+
+    function renderRibbon() {
+      orderRibbonEl.innerHTML = '';
+      const activeUnitId = gameState.actingUnitId || gameState.selectedUnitId;
+
+      gameState.rosterOrder.forEach(uid => {
+        if (uid === 'titan') {
+          if (!runeTitan || runeTitan.isDead) return;
+          const chip = document.createElement('div');
+          const isActing = (gameState.actingUnitId === 'titan');
+          chip.className = 'ribbon-chip crimson' + (isActing ? ' acting' : '');
+          chip.innerHTML = `<span class="chip-icon">⚡</span><span>TITAN (${runeTitan.hp})</span>`;
+          orderRibbonEl.appendChild(chip);
+          return;
+        }
+
+        const u = gameState.units.find(x => x.id === uid);
+        if (!u || u.isDead) return;
+
+        const chip = document.createElement('div');
+        const isActing = (u.id === activeUnitId);
+        const isFinished = (u.moved && u.acted);
+
+        chip.className = `ribbon-chip ${u.side}` +
+                         (isActing ? ' acting' : '') +
+                         (isFinished ? ' finished' : '');
+
+        chip.innerHTML = `<span class="chip-icon">${u.glyph}</span>` +
+                         `<span>${u.type} (${u.hp})</span>`;
+
+        orderRibbonEl.appendChild(chip);
+      });
+    }
+
+    function updateBanner() {
+      const banner = document.getElementById('turn-banner');
+      const protBadge = document.getElementById('protocol-badge');
+      if (gameState.phase === 'PLAYER_TURN') {
+        banner.className = 'player';
+        banner.textContent = `Player Turn — Round ${gameState.turn}`;
+        document.getElementById('btn-end-turn').disabled = false;
+        if (protBadge) protBadge.style.display = 'none';
+      } else if (gameState.phase === 'ENEMY_TURN') {
+        banner.className = 'enemy';
+        banner.textContent = `Crimson Turn — Round ${gameState.turn}`;
+        document.getElementById('btn-end-turn').disabled = true;
+        if (protBadge) protBadge.style.display = 'block';
+      } else if (gameState.phase === 'VICTORY') {
+        banner.className = 'player';
+        banner.textContent = 'Sanctum Reclaimed';
+        document.getElementById('btn-end-turn').disabled = true;
+        if (protBadge) protBadge.style.display = 'none';
+      } else if (gameState.phase === 'GAME_OVER') {
+        banner.className = 'enemy';
+        banner.textContent = 'Sanctum Lost';
+        document.getElementById('btn-end-turn').disabled = true;
+        if (protBadge) protBadge.style.display = 'none';
+      }
+    }
+
+    function updateUnitCard(unit) {
+      const card = document.getElementById('unit-card');
+      if (!unit || unit.isDead) {
+        card.style.visibility = 'hidden';
+        return;
+      }
+      card.style.visibility = 'visible';
+      document.getElementById('unit-name').innerHTML = `${unit.glyph} ${unit.name}`;
+      const sideTag = document.getElementById('unit-side-tag');
+      sideTag.textContent = unit.side.toUpperCase();
+      sideTag.style.color = (unit.side === 'azure') ? '#38bdf8' : '#f43f5e';
+
+      const hpPercent = Math.max(0, (unit.hp / unit.maxHp) * 100);
+      const hpFill = document.getElementById('unit-hp-fill');
+      hpFill.style.width = hpPercent + '%';
+      hpFill.className = 'hp-bar-fill ' + unit.side;
+
+      document.getElementById('unit-hp-val').textContent = `${unit.hp} / ${unit.maxHp}`;
+      document.getElementById('unit-move-val').textContent = `${unit.move} Tiles`;
+
+      const powerLabel = document.getElementById('unit-power-label');
+      const powerVal = document.getElementById('unit-power-val');
+      const tileKind = getTileKind(unit.tileIndex);
+      const isBlessed = (tileKind === 'blessing');
+      const bonusStr = isBlessed ? ' (+2 Blessing)' : '';
+
+      if (unit.type === 'RUNECALLER') {
+        powerLabel.textContent = 'Runic Power';
+        powerVal.textContent = 'Summoner (No Attack)';
+      } else if (unit.type === 'ARC') {
+        const rMax = unit.getEffectiveRangeMax();
+        powerLabel.textContent = 'Ranged Power';
+        powerVal.textContent = `${unit.power + (isBlessed ? 2 : 0)} Dmg (Rng 2-${rMax})${bonusStr}`;
+      } else if (unit.type === 'SPRITE') {
+        powerLabel.textContent = 'Pebble Blade';
+        powerVal.textContent = `${unit.power + (isBlessed ? 2 : 0)} Dmg (Rng 1)${bonusStr}`;
+      } else {
+        powerLabel.textContent = 'Melee Power';
+        powerVal.textContent = `${unit.power + (isBlessed ? 2 : 0)} Dmg (Rng 1)${bonusStr}`;
+      }
+
+      // Terrain Active Effect Tag
+      const terrainTag = document.getElementById('unit-terrain-tag');
+      if (tileKind === 'blessing') {
+        terrainTag.style.display = 'block';
+        terrainTag.style.borderColor = '#fbbf24';
+        terrainTag.style.color = '#fbbf24';
+        terrainTag.textContent = 'On Blessing: +2 damage / heal';
+      } else if (tileKind === 'ember') {
+        terrainTag.style.display = 'block';
+        terrainTag.style.borderColor = '#ea580c';
+        terrainTag.style.color = '#fb923c';
+        terrainTag.textContent = 'On Ember: 4 damage at turn end';
+      } else if (tileKind === 'ledge') {
+        terrainTag.style.display = 'block';
+        terrainTag.style.borderColor = '#94a3b8';
+        terrainTag.style.color = '#cbd5e1';
+        terrainTag.textContent = (unit.type === 'ARC') ? 'On Ledge: Arc range 2–4' : 'On Ledge: High ground';
+      } else {
+        terrainTag.style.display = 'none';
+      }
+
+      // Signature Skill & Runecaller Actions UI
+      const skillSection = document.getElementById('unit-skill-section');
+      const skillBtn = document.getElementById('btn-unit-skill');
+      const skillStatus = document.getElementById('unit-skill-status');
+      const skillDescEl = document.getElementById('unit-skill-desc');
+
+      if (skillSection && skillBtn) {
+        if (unit.side === 'azure') {
+          skillSection.style.display = 'block';
+
+          if (unit.type === 'RUNECALLER') {
+            const currentCharge = unit.charge || 0;
+            const pipsFilled = '● '.repeat(currentCharge);
+            const pipsEmpty = '○ '.repeat(6 - currentCharge);
+            skillStatus.textContent = `${pipsFilled}${pipsEmpty} (${currentCharge}/6)`;
+            skillStatus.style.color = '#38bdf8';
+
+            const spritesAlive = countLivingSprites('azure');
+            const canSummon = (currentCharge >= 3 && spritesAlive < 4 && !unit.acted);
+
+            skillDescEl.textContent = `Focus: +2 Charge. Summon: 3 Charge (Sprites: ${spritesAlive}/4). Eligible: adjacent empty plain tiles.`;
+
+            if (unit.acted) {
+              skillBtn.textContent = 'Runecaller Finished';
+              skillBtn.disabled = true;
+              skillBtn.classList.remove('active');
+            } else if (isSkillTargetingMode) {
+              skillBtn.textContent = 'Cancel Summon';
+              skillBtn.disabled = false;
+              skillBtn.classList.add('active');
+            } else {
+              skillBtn.textContent = canSummon ? 'Summon Sprite (3)' : 'Focus (+2 Charge)';
+              skillBtn.disabled = false;
+              skillBtn.classList.remove('active');
+            }
+
+          } else if (unit.type === 'SPRITE') {
+            skillStatus.textContent = 'Active Construct';
+            skillStatus.style.color = '#94a3b8';
+            skillBtn.textContent = 'Standard Melee';
+            skillBtn.disabled = true;
+            skillBtn.classList.remove('active');
+            skillDescEl.textContent = unit.skillDesc;
+
+          } else {
+            skillDescEl.textContent = unit.skillDesc;
+
+            if (unit.cooldownRemaining > 0) {
+              skillBtn.textContent = `${unit.skillName} (${unit.cooldownRemaining})`;
+              skillBtn.disabled = true;
+              skillBtn.classList.remove('active');
+              skillStatus.textContent = `Cooldown: ${unit.cooldownRemaining}`;
+              skillStatus.style.color = '#94a3b8';
+            } else if (unit.acted) {
+              skillBtn.textContent = unit.skillName;
+              skillBtn.disabled = true;
+              skillBtn.classList.remove('active');
+              skillStatus.textContent = 'Action Used';
+              skillStatus.style.color = '#94a3b8';
+            } else {
+              skillBtn.textContent = unit.skillName;
+              skillBtn.disabled = false;
+              skillStatus.textContent = 'Ready';
+              skillStatus.style.color = '#38bdf8';
+              if (isSkillTargetingMode) {
+                skillBtn.classList.add('active');
+              } else {
+                skillBtn.classList.remove('active');
+              }
+            }
+          }
+        } else {
+          skillSection.style.display = 'none';
+        }
+      }
+    }
+
+
+    /* =========================================================================
+       THREAT PREVIEW (Basic Attacks Only, Terrain Included)
+       ========================================================================= */
+    function computeThreatenedTiles() {
+      const threatened = new Set();
+      const livingCrimson = gameState.units.filter(u => u.side === 'crimson' && !u.isDead);
+
+      // Threat Preview for Rune Titan's named next action
+      if (runeTitan && !runeTitan.isDead) {
+        const nextAct = runeTitan.getNextActionName();
+
+        if (nextAct === 'Hammerfall') {
+          // Compute shift on current board
+          const livingAzure = gameState.units.filter(u => u.side === 'azure' && !u.isDead);
+          if (livingAzure.length > 0) {
+            const targets = [...livingAzure].sort((a, b) => {
+              if (a.hp !== b.hp) return a.hp - b.hp;
+              return a.tileIndex - b.tileIndex;
+            });
+            const huntTarget = targets[0];
+            let c = runeTitan.col, r = runeTitan.row;
+
+            function canOccupy(nc, nr) {
+              if (nc < 0 || nc + 1 >= GRID_SIZE || nr < 0 || nr + 1 >= GRID_SIZE) return false;
+              const bTiles = [nr * GRID_SIZE + nc, nr * GRID_SIZE + (nc + 1), (nr + 1) * GRID_SIZE + nc, (nr + 1) * GRID_SIZE + (nc + 1)];
+              if (bTiles.some(idx => getTileKind(idx) === 'ledge')) return false;
+              if (bTiles.some(idx => gameState.units.some(u => !u.isDead && u.tileIndex === idx))) return false;
+              return true;
+            }
+
+            for (let step = 0; step < 2; step++) {
+              const curDist = manhattanDist(r * GRID_SIZE + c, huntTarget.tileIndex);
+              const candidates = [
+                { dr: -1, dc: 0, isRow: true },
+                { dr: 1, dc: 0, isRow: true },
+                { dr: 0, dc: -1, isRow: false },
+                { dr: 0, dc: 1, isRow: false }
+              ];
+              let bestStep = null, bestDist = curDist, bestIsRow = false;
+              candidates.forEach(s => {
+                const nc = c + s.dc, nr = r + s.dr;
+                if (!canOccupy(nc, nr)) return;
+                const nDist = manhattanDist(nr * GRID_SIZE + nc, huntTarget.tileIndex);
+                if (nDist < bestDist) {
+                  bestDist = nDist; bestStep = s; bestIsRow = s.isRow;
+                } else if (nDist === bestDist && bestStep && s.isRow && !bestIsRow) {
+                  bestStep = s; bestIsRow = true;
+                }
+              });
+              if (bestStep && bestDist < curDist) {
+                c += bestStep.dc; r += bestStep.dr;
+              } else {
+                break;
+              }
+            }
+
+            // 2x3 slam rectangle
+            [r + 2, r + 3, r + 4].forEach(sr => {
+              if (sr < GRID_SIZE) {
+                threatened.add(sr * GRID_SIZE + c);
+                threatened.add(sr * GRID_SIZE + (c + 1));
+              }
+            });
+          }
+        } else if (nextAct === 'Sweep') {
+          // Manhattan distance 2 of any of its 4 tiles
+          const tTiles = runeTitan.getBlockTiles();
+          for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
+            if (tTiles.some(t => manhattanDist(t, i) <= 2)) {
+              threatened.add(i);
+            }
+          }
+        }
+      }
+
+      livingCrimson.forEach(golem => {
+        // Runecaller has no direct damage attacks
+        if (golem.type === 'RUNECALLER') return;
+
+        // Reachable tiles for this crimson golem on its next activation
+        const reach = getReachableTiles(golem);
+        const isArc = (golem.type === 'ARC');
+
+        reach.forEach(rTile => {
+          const rMin = isArc ? 2 : 1;
+          const rMax = isArc ? (getTileKind(rTile) === 'ledge' ? 4 : 3) : 1;
+
+          for (let t = 0; t < GRID_SIZE * GRID_SIZE; t++) {
+            const d = manhattanDist(rTile, t);
+            if (d >= rMin && d <= rMax) {
+              threatened.add(t);
+            }
+          }
+        });
+      });
+
+      return threatened;
+    }
+
+    function updateThreatPreview() {
+      // Clear current threat visuals
+      for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
+        if (tileThreatMeshes[i]) tileThreatMeshes[i].material.opacity = 0;
+        if (tileDangerUnitMarkers[i]) tileDangerUnitMarkers[i].material.opacity = 0;
+      }
+
+      if (!threatPreviewActive || gameState.phase !== 'PLAYER_TURN') return;
+
+      const threatened = computeThreatenedTiles();
+      threatened.forEach(idx => {
+        if (tileThreatMeshes[idx]) {
+          tileThreatMeshes[idx].material.opacity = 0.38;
+        }
+      });
+
+      // Outline player units currently in danger
+      const livingAzure = gameState.units.filter(u => u.side === 'azure' && !u.isDead);
+      livingAzure.forEach(u => {
+        if (threatened.has(u.tileIndex) && tileDangerUnitMarkers[u.tileIndex]) {
+          tileDangerUnitMarkers[u.tileIndex].material.opacity = 0.95;
+        }
+      });
+    }
+
+    function setThreatPreview(active) {
+      threatPreviewActive = active;
+      const btn = document.getElementById('btn-threat');
+      if (btn) {
+        if (threatPreviewActive) {
+          btn.style.background = 'linear-gradient(135deg, #dc2626, #991b1b)';
+          btn.style.borderColor = '#f87171';
+          btn.style.boxShadow = '0 0 12px rgba(244,63,94,0.5)';
+        } else {
+          btn.style.background = 'linear-gradient(135deg, #451a03, #1e1b4b)';
+          btn.style.borderColor = 'rgba(244,63,94,0.4)';
+          btn.style.boxShadow = 'none';
+        }
+      }
+      updateThreatPreview();
+    }
+
+    /* =========================================================================
+       10. PATHFINDING & TILE HIGHLIGHTING
+       ========================================================================= */
+    function isTileOccupied(idx) {
+      return gameState.units.some(u => !u.isDead && u.tileIndex === idx);
+    }
+
+    function getUnitAtTile(idx) {
+      return gameState.units.find(u => !u.isDead && u.tileIndex === idx);
+    }
+
+    function getReachableTiles(unit) {
+      if (unit.moved) return [unit.tileIndex];
+
+      const reachable = new Set([unit.tileIndex]);
+      const queue = [{ tile: unit.tileIndex, dist: 0 }];
+      const visited = new Map();
+      visited.set(unit.tileIndex, 0);
+
+      while (queue.length > 0) {
+        const { tile, dist } = queue.shift();
+        if (dist >= unit.move) continue;
+
+        const { col, row } = idxToCoord(tile);
+        const neighbors = [
+          { c: col + 1, r: row },
+          { c: col - 1, r: row },
+          { c: col, r: row + 1 },
+          { c: col, r: row - 1 }
+        ];
+
+        for (const n of neighbors) {
+          if (n.c >= 0 && n.c < GRID_SIZE && n.r >= 0 && n.r < GRID_SIZE) {
+            const nextIdx = n.r * GRID_SIZE + n.c;
+            if (!isTileOccupied(nextIdx)) {
+              const nextDist = dist + 1;
+              if (!visited.has(nextIdx) || visited.get(nextIdx) > nextDist) {
+                visited.set(nextIdx, nextDist);
+                reachable.add(nextIdx);
+                queue.push({ tile: nextIdx, dist: nextDist });
+              }
+            }
+          }
+        }
+      }
+
+      return Array.from(reachable);
+    }
+
+    function findPath(fromIdx, toIdx, maxSteps) {
+      if (fromIdx === toIdx) return [fromIdx];
+
+      const queue = [fromIdx];
+      const cameFrom = new Map();
+      cameFrom.set(fromIdx, null);
+
+      while (queue.length > 0) {
+        const curr = queue.shift();
+        if (curr === toIdx) break;
+
+        const { col, row } = idxToCoord(curr);
+        const neighbors = [
+          { c: col + 1, r: row },
+          { c: col - 1, r: row },
+          { c: col, r: row + 1 },
+          { c: col, r: row - 1 }
+        ];
+
+        for (const n of neighbors) {
+          if (n.c >= 0 && n.c < GRID_SIZE && n.r >= 0 && n.r < GRID_SIZE) {
+            const nextIdx = n.r * GRID_SIZE + n.c;
+            if (!cameFrom.has(nextIdx)) {
+              if (!isTileOccupied(nextIdx) || nextIdx === toIdx) {
+                cameFrom.set(nextIdx, curr);
+                queue.push(nextIdx);
+              }
+            }
+          }
+        }
+      }
+
+      if (!cameFrom.has(toIdx)) return [fromIdx, toIdx];
+
+      const path = [];
+      let step = toIdx;
+      while (step !== null) {
+        path.unshift(step);
+        step = cameFrom.get(step);
+      }
+      return path;
+    }
+
+    function getActionTargets(unit, fromTileIdx) {
+      if (unit.acted || unit.type === 'RUNECALLER') return [];
+
+      const evalTile = (fromTileIdx !== undefined) ? fromTileIdx : unit.tileIndex;
+      const targets = [];
+      const livingUnits = gameState.units.filter(u => !u.isDead);
+
+      const rMin = unit.rangeMin;
+      const rMax = unit.getEffectiveRangeMax(evalTile);
+      livingUnits.forEach(enemy => {
+        if (enemy.side !== unit.side) {
+          const d = manhattanDist(evalTile, enemy.tileIndex);
+          if (d >= rMin && d <= rMax) {
+            targets.push(enemy);
+          }
+        }
+      });
+
+      // Target Rune Titan if range reaches any of its 4 tiles
+      if (unit.side === 'azure' && runeTitan && !runeTitan.isDead) {
+        const titanTiles = runeTitan.getBlockTiles();
+        const canHitTitan = titanTiles.some(t => {
+          const d = manhattanDist(evalTile, t);
+          return (d >= rMin && d <= rMax);
+        });
+        if (canHitTitan) {
+          targets.push({ id: 'titan', side: 'crimson', name: 'Rune Titan', tileIndex: titanTiles[0], isTitan: true });
+        }
+      }
+
+      return targets;
+    }
+
+    function clearHighlights() {
+      for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
+        tileHighlightMeshes[i].material.opacity = 0;
+        tileAttackMarkers[i].material.opacity = 0;
+        tileHealMarkers[i].material.opacity = 0;
+        if (tileSkillMarkers[i]) tileSkillMarkers[i].material.opacity = 0;
+      }
+      updateThreatPreview();
+      gameState.reachableTiles = [];
+      gameState.actionTargets = [];
+    }
+
+    function highlightSelectedUnit(unit) {
+      clearHighlights();
+      if (!unit || unit.acted) return;
+
+      gameState.reachableTiles = getReachableTiles(unit);
+      gameState.reachableTiles.forEach(idx => {
+        tileHighlightMeshes[idx].material.opacity = 0.35;
+      });
+
+      gameState.actionTargets = getActionTargets(unit);
+      gameState.actionTargets.forEach(tgt => {
+        if (tgt.isTitan && runeTitan) {
+          runeTitan.getBlockTiles().forEach(idx => {
+            if (tileAttackMarkers[idx]) tileAttackMarkers[idx].material.opacity = 0.85;
+          });
+        } else if (tileAttackMarkers[tgt.tileIndex]) {
+          tileAttackMarkers[tgt.tileIndex].material.opacity = 0.85;
+        }
+      });
+
+      // Highlight Runecaller Summon tiles if in summon mode
+      if (unit.type === 'RUNECALLER' && isSkillTargetingMode && !unit.acted) {
+        const eligible = getEligibleSummonTiles(unit.tileIndex);
+        eligible.forEach(t => {
+          if (tileSkillMarkers[t]) tileSkillMarkers[t].material.opacity = 0.95;
+        });
+      }
+
+      // Highlight Signature Skill targets if ready (including Titan)
+      if (unit.skillReady && !unit.acted) {
+        if (unit.type === 'SWORD') {
+          // Highlight chargeable enemies
+          const enemies = gameState.units.filter(u => u.side !== unit.side && !u.isDead);
+          enemies.forEach(e => {
+            if (canChargeTarget(unit, e, unit.tileIndex)) {
+              if (tileSkillMarkers[e.tileIndex]) tileSkillMarkers[e.tileIndex].material.opacity = 0.95;
+            }
+          });
+          if (unit.side === 'azure' && runeTitan && !runeTitan.isDead) {
+            runeTitan.getBlockTiles().forEach(t => {
+              if (canChargeTarget(unit, { id: 'titan', side: 'crimson', isDead: false, tileIndex: t }, unit.tileIndex)) {
+                if (tileSkillMarkers[t]) tileSkillMarkers[t].material.opacity = 0.95;
+              }
+            });
+          }
+        } else if (unit.type === 'ARC' && isSkillTargetingMode) {
+          // Highlight Piercing Bolt targets
+          const enemies = gameState.units.filter(u => u.side !== unit.side && !u.isDead);
+          const rMin = unit.rangeMin;
+          const rMax = unit.getEffectiveRangeMax();
+          enemies.forEach(e => {
+            const d = manhattanDist(unit.tileIndex, e.tileIndex);
+            if (d >= rMin && d <= rMax) {
+              if (tileSkillMarkers[e.tileIndex]) tileSkillMarkers[e.tileIndex].material.opacity = 0.95;
+            }
+          });
+          if (unit.side === 'azure' && runeTitan && !runeTitan.isDead) {
+            runeTitan.getBlockTiles().forEach(t => {
+              const d = manhattanDist(unit.tileIndex, t);
+              if (d >= rMin && d <= rMax) {
+                if (tileSkillMarkers[t]) tileSkillMarkers[t].material.opacity = 0.95;
+              }
+            });
+          }
+        }
+      }
+    }
+
+    /* =========================================================================
+       11. ACTIONS: WALK (WITH LEDGE ELEVATION TWEEN), ATTACK, MEND, DEATH
+       ========================================================================= */
+    function selectUnit(unit) {
+      if (gameState.phase !== 'PLAYER_TURN') return;
+      if (unit && unit.side === 'azure' && !unit.isDead) {
+        unit.onActivationStart();
+        gameState.selectedUnitId = unit.id;
+        updateUnitCard(unit);
+        highlightSelectedUnit(unit);
+        renderRibbon();
+      } else {
+        deselectUnit();
+      }
+    }
+
+    function deselectUnit() {
+      gameState.selectedUnitId = null;
+      isSkillTargetingMode = false;
+      clearHighlights();
+      document.getElementById('unit-card').style.visibility = 'hidden';
+      renderRibbon();
+    }
+
+    // Walking with readable step-up / step-down elevation transitions on ledges
+    function walkUnitAlongPath(unit, path, onComplete) {
+      if (path.length <= 1) {
+        unit.moved = true;
+        if (onComplete) onComplete();
+        return;
+      }
+
+      unit.anim.isWalking = true;
+      unit.anim.walkPath = path.slice(1);
+
+      function stepNext() {
+        if (unit.anim.walkPath.length === 0) {
+          unit.anim.isWalking = false;
+          unit.moved = true;
+          const finalPos = idxToWorld(unit.tileIndex);
+          unit.mesh.position.set(finalPos.x, finalPos.y, finalPos.z);
+          unit.view.lLeg.position.y = 0.45;
+          unit.view.rLeg.position.y = 0.45;
+          if (onComplete) onComplete();
+          return;
+        }
+
+        const nextTile = unit.anim.walkPath[0];
+        const fromPos = idxToWorld(unit.tileIndex);
+        const toPos = idxToWorld(nextTile);
+
+        const dir = new THREE.Vector3().subVectors(toPos, fromPos);
+        dir.y = 0;
+        dir.normalize();
+        unit.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+
+        let progress = 0;
+        const stepDuration = 0.22;
+        const startTime = performance.now();
+
+        function animateStep(now) {
+          const elapsed = (now - startTime) / 1000;
+          progress = Math.min(1.0, elapsed / stepDuration);
+
+          // Interpolate X, Y (including ledge height), and Z smoothly
+          unit.mesh.position.lerpVectors(fromPos, toPos, progress);
+
+          // Foot steps & bounce
+          const legPhase = Math.sin(progress * Math.PI * 2);
+          unit.view.lLeg.position.y = 0.45 + legPhase * 0.15;
+          unit.view.rLeg.position.y = 0.45 - legPhase * 0.15;
+          unit.view.bodyGroup.position.y = Math.abs(Math.sin(progress * Math.PI)) * 0.15;
+
+          if (progress < 1.0) {
+            requestAnimationFrame(animateStep);
+          } else {
+            unit.tileIndex = nextTile;
+            unit.anim.walkPath.shift();
+            updateThreatPreview();
+            stepNext();
+          }
+        }
+        requestAnimationFrame(animateStep);
+      }
+
+      stepNext();
+    }
+
+    function executeAttack(attacker, defender, onComplete) {
+      attacker.acted = true;
+      attacker.moved = true;
+
+      const attPos = idxToWorld(attacker.tileIndex);
+      const defPos = idxToWorld(defender.tileIndex);
+      const dir = new THREE.Vector3().subVectors(defPos, attPos);
+      dir.y = 0;
+      dir.normalize();
+      attacker.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+
+      const isBlessed = (getTileKind(attacker.tileIndex) === 'blessing');
+      const finalDamage = attacker.power + (isBlessed ? 2 : 0);
+
+      if (attacker.type === 'ARC') {
+        let windup = 0;
+        const windupDur = 0.35;
+        const startW = performance.now();
+
+        function animWindup(now) {
+          windup = (now - startW) / 1000 / windupDur;
+          attacker.view.lArmPivot.rotation.x = -Math.PI / 4 * windup;
+          attacker.view.rArmPivot.rotation.x = -Math.PI / 2.5 * windup;
+
+          if (windup < 1.0) {
+            requestAnimationFrame(animWindup);
+          } else {
+            attacker.view.lArmPivot.rotation.x = 0;
+            attacker.view.rArmPivot.rotation.x = 0;
+
+            spawnCrystalBolt(attPos, defPos, () => {
+              applyDamage(attacker, defender, finalDamage, isBlessed);
+              if (onComplete) onComplete();
+            });
+          }
+        }
+        requestAnimationFrame(animWindup);
+
+      } else {
+        let swingProgress = 0;
+        const swingDur = 0.32;
+        const startS = performance.now();
+
+        function animSwing(now) {
+          swingProgress = (now - startS) / 1000 / swingDur;
+          if (swingProgress <= 0.4) {
+            const t = swingProgress / 0.4;
+            attacker.view.rArmPivot.rotation.x = -Math.PI * 0.6 * t;
+            attacker.mesh.position.y = attPos.y + t * 0.1;
+          } else if (swingProgress <= 0.8) {
+            const t = (swingProgress - 0.4) / 0.4;
+            attacker.view.rArmPivot.rotation.x = -Math.PI * 0.6 * (1 - t) + Math.PI * 0.3 * t;
+            attacker.mesh.position.y = attPos.y;
+          } else {
+            const t = (swingProgress - 0.8) / 0.2;
+            attacker.view.rArmPivot.rotation.x = Math.PI * 0.3 * (1 - t);
+          }
+
+          if (swingProgress < 1.0) {
+            requestAnimationFrame(animSwing);
+          } else {
+            attacker.view.rArmPivot.rotation.x = 0;
+            applyDamage(attacker, defender, finalDamage, isBlessed);
+            if (onComplete) onComplete();
+          }
+        }
+        requestAnimationFrame(animSwing);
+      }
+    }
+
+    function applyDamage(attacker, defender, amount, isBlessed, skillName) {
+      // Bulwark Oath: check if orthogonally adjacent to friendly living Ward Golem with bulwarkActive
+      let finalAmount = amount;
+      let bulwarkProtected = false;
+      const adjacentWard = gameState.units.find(u =>
+        u.side === defender.side &&
+        !u.isDead &&
+        u.type === 'WARD' &&
+        u.bulwarkActive &&
+        manhattanDist(u.tileIndex, defender.tileIndex) === 1
+      );
+
+      if (adjacentWard) {
+        finalAmount = Math.max(1, finalAmount - 2);
+        bulwarkProtected = true;
+        spawnShieldFlash(defender.mesh.position);
+      }
+
+      defender.hp = Math.max(0, defender.hp - finalAmount);
+      defender.anim.isFlinching = true;
+      defender.anim.flinchTime = 0;
+
+      const numType = isBlessed ? 'blessed-damage' : 'damage';
+      showFloatingNumber(defender.mesh.position, `-${finalAmount}`, numType);
+
+      const blessedSuffix = isBlessed ? ' (blessed)' : '';
+      const protSuffix = bulwarkProtected ? ' [Bulwark -2]' : '';
+
+      if (skillName) {
+        logCombat(`${attacker.name} uses ${skillName} on ${defender.name} for ${finalAmount}${blessedSuffix}${protSuffix}`, attacker.side);
+      } else {
+        logCombat(`${attacker.name} hits ${defender.name} for ${finalAmount}${blessedSuffix}${protSuffix}`, attacker.side);
+      }
+
+      if (defender.hp <= 0) {
+        defender.isDead = true;
+        if (defender.type === 'WARD') {
+          defender.bulwarkActive = false; // Ends immediately if Ward is destroyed
+        }
+        unitsGroup.remove(defender.mesh);
+        spawnDestructionFlourish(defender);
+        logCombat(`${defender.name} is destroyed!`, 'death');
+      }
+
+      attacker.setDimmed(true);
+      refreshRosterOrder();
+      checkEndConditions();
+      updateThreatPreview();
+    }
+
+    // Skill 1: Sword Golem — Rune Charge
+    function executeRuneCharge(sword, target, onComplete) {
+      sword.acted = true;
+      sword.moved = true;
+      sword.cooldownRemaining = 3;
+      sword.skillReady = false;
+
+      const launchTile = sword.tileIndex;
+      const landingTile = getChargeLandingTile(launchTile, target.tileIndex);
+      const isBlessed = (getTileKind(launchTile) === 'blessing');
+      const chargeDamage = 7 + (isBlessed ? 2 : 0);
+
+      const startPos = idxToWorld(launchTile);
+      const endPos = idxToWorld(landingTile);
+      const targetPos = idxToWorld(target.tileIndex);
+
+      spawnDashTrail(startPos, endPos);
+
+      // Dash rush animation
+      const dir = new THREE.Vector3().subVectors(targetPos, startPos);
+      dir.y = 0;
+      dir.normalize();
+      sword.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+
+      let progress = 0;
+      const duration = 0.28;
+      const startTime = performance.now();
+
+      function animDash(now) {
+        progress = (now - startTime) / 1000 / duration;
+        const p = Math.min(1.0, progress);
+        sword.mesh.position.lerpVectors(startPos, endPos, p);
+        sword.view.bodyGroup.rotation.x = 0.45 * Math.sin(p * Math.PI); // Lean forward into rush
+
+        if (progress < 1.0) {
+          requestAnimationFrame(animDash);
+        } else {
+          sword.tileIndex = landingTile;
+          sword.mesh.position.copy(endPos);
+          sword.view.bodyGroup.rotation.x = 0;
+
+          // Impact strike
+          let swing = 0;
+          const sStart = performance.now();
+          function animSlash(sNow) {
+            swing = (sNow - sStart) / 1000 / 0.18;
+            sword.view.rArmPivot.rotation.x = -Math.PI * 0.7 * Math.sin(Math.min(1, swing) * Math.PI);
+            if (swing < 1.0) {
+              requestAnimationFrame(animSlash);
+            } else {
+              sword.view.rArmPivot.rotation.x = 0;
+              applyDamage(sword, target, chargeDamage, isBlessed, 'Rune Charge');
+              if (onComplete) onComplete();
+            }
+          }
+          requestAnimationFrame(animSlash);
+        }
+      }
+      requestAnimationFrame(animDash);
+    }
+
+    // Skill 2: Ward Golem — Bulwark Oath
+    function executeBulwarkOath(ward, onComplete) {
+      ward.acted = true;
+      ward.moved = true;
+      ward.cooldownRemaining = 3;
+      ward.skillReady = false;
+      ward.bulwarkActive = true;
+
+      const wardPos = idxToWorld(ward.tileIndex);
+
+      // Shield slam animation
+      let slam = 0;
+      const sStart = performance.now();
+      function animSlam(now) {
+        slam = (now - sStart) / 1000 / 0.35;
+        if (slam <= 0.5) {
+          const t = slam / 0.5;
+          ward.view.lArmPivot.position.y = t * 0.35;
+          ward.view.lArmPivot.rotation.x = -Math.PI * 0.4 * t;
+        } else {
+          const t = (slam - 0.5) / 0.5;
+          ward.view.lArmPivot.position.y = (1 - t) * 0.35;
+          ward.view.lArmPivot.rotation.x = -Math.PI * 0.4 * (1 - t);
+        }
+
+        if (slam < 1.0) {
+          requestAnimationFrame(animSlam);
+        } else {
+          ward.view.lArmPivot.position.y = 0;
+          ward.view.lArmPivot.rotation.x = 0;
+
+          spawnShockwaveRing(wardPos);
+          logCombat(`${ward.name} invokes Bulwark Oath!`, ward.side);
+          ward.setDimmed(true);
+          refreshRosterOrder();
+          if (onComplete) onComplete();
+        }
+      }
+      requestAnimationFrame(animSlam);
+    }
+
+    // Skill 3: Arc Golem — Piercing Bolt
+    function executePiercingBolt(arc, primaryTarget, onComplete) {
+      arc.acted = true;
+      arc.moved = true;
+      arc.cooldownRemaining = 3;
+      arc.skillReady = false;
+
+      const launchTile = arc.tileIndex;
+      const isBlessed = (getTileKind(launchTile) === 'blessing');
+      const primaryDamage = 5 + (isBlessed ? 2 : 0);
+      const secondaryDamage = 3;
+
+      const attPos = idxToWorld(launchTile);
+      const defPos = idxToWorld(primaryTarget.tileIndex);
+      const dir = new THREE.Vector3().subVectors(defPos, attPos);
+      dir.y = 0;
+      dir.normalize();
+      arc.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+
+      // Windup
+      let windup = 0;
+      const windupDur = 0.32;
+      const startW = performance.now();
+
+      function animWindup(now) {
+        windup = (now - startW) / 1000 / windupDur;
+        arc.view.lArmPivot.rotation.x = -Math.PI / 4 * windup;
+        arc.view.rArmPivot.rotation.x = -Math.PI / 2.2 * windup;
+
+        if (windup < 1.0) {
+          requestAnimationFrame(animWindup);
+        } else {
+          arc.view.lArmPivot.rotation.x = 0;
+          arc.view.rArmPivot.rotation.x = 0;
+
+          // Check secondary target beyond
+          const secondaryTarget = getSecondaryPiercingTarget(launchTile, primaryTarget.tileIndex, arc.side);
+
+          spawnHeavierBolt(attPos, defPos, () => {
+            applyDamage(arc, primaryTarget, primaryDamage, isBlessed, 'Piercing Bolt');
+
+            if (secondaryTarget && !secondaryTarget.isDead) {
+              const secPos = idxToWorld(secondaryTarget.tileIndex);
+              spawnHeavierBolt(defPos, secPos, () => {
+                applyDamage(arc, secondaryTarget, secondaryDamage, false, 'Piercing Bolt (pierce)');
+                if (onComplete) onComplete();
+              });
+            } else {
+              if (onComplete) onComplete();
+            }
+          });
+        }
+      }
+      requestAnimationFrame(animWindup);
+    }
+
+
+    function countLivingSprites(side) {
+      return gameState.units.filter(u => u.side === side && !u.isDead && u.type === 'SPRITE').length;
+    }
+
+    function getEligibleSummonTiles(runecallerTile) {
+      const { col, row } = idxToCoord(runecallerTile);
+      const neighbors = [
+        { c: col + 1, r: row },
+        { c: col - 1, r: row },
+        { c: col, r: row + 1 },
+        { c: col, r: row - 1 }
+      ];
+
+      const eligible = [];
+      neighbors.forEach(n => {
+        if (n.c >= 0 && n.c < GRID_SIZE && n.r >= 0 && n.r < GRID_SIZE) {
+          const idx = n.r * GRID_SIZE + n.c;
+          // Must be empty and plain stone tile (special tiles cannot receive a summon)
+          if (!isTileOccupied(idx) && getTileKind(idx) === 'plain') {
+            eligible.push(idx);
+          }
+        }
+      });
+      return eligible;
+    }
+
+    let spriteIdCounter = 1;
+
+    function executeSummonSprite(runecaller, targetTile, onComplete) {
+      runecaller.acted = true;
+      runecaller.moved = true;
+      runecaller.charge = Math.max(0, (runecaller.charge || 0) - 3);
+
+      const tPos = idxToWorld(targetTile);
+      spawnSummonPillar(tPos);
+
+      // Create Stone Sprite
+      const spriteId = `${runecaller.side}_sprite_${spriteIdCounter++}`;
+      const sprite = new Unit({
+        id: spriteId,
+        side: runecaller.side,
+        type: 'SPRITE',
+        tile: targetTile
+      });
+
+      // Sprite acts from the next round on (finished for current round)
+      sprite.moved = true;
+      sprite.acted = true;
+      sprite.setDimmed(true);
+
+      gameState.units.push(sprite);
+
+      const coordStr = idxToCoord(targetTile).str;
+      logCombat(`${runecaller.name} summons Stone Sprite on ${coordStr}!`, runecaller.side);
+
+      runecaller.setDimmed(true);
+      refreshRosterOrder();
+      updateThreatPreview();
+      exportArenaState();
+
+      if (onComplete) onComplete();
+    }
+
+    function executeFocus(runecaller, onComplete) {
+      runecaller.acted = true;
+      runecaller.moved = true;
+
+      const rPos = idxToWorld(runecaller.tileIndex);
+      spawnIntakeSwirl(rPos);
+
+      runecaller.charge = Math.min(6, (runecaller.charge || 0) + 2);
+      logCombat(`${runecaller.name} uses Focus, gaining 2 Runic Charge (${runecaller.charge}/6)!`, runecaller.side);
+
+      runecaller.setDimmed(true);
+      refreshRosterOrder();
+      exportArenaState();
+
+      if (onComplete) onComplete();
+    }
+
+    /* =========================================================================
+       12. EMBER DAMAGE AT END OF TURN & TURN RESOLUTION
+       ========================================================================= */
+    // Resolves for every affected golem of the side whose turn just ended in ascending tile index
+    function resolveEmberEndTurnDamage(side, onComplete) {
+      const emberUnits = gameState.units
+        .filter(u => u.side === side && !u.isDead && getTileKind(u.tileIndex) === 'ember')
+        .sort((a, b) => a.tileIndex - b.tileIndex);
+
+      if (emberUnits.length === 0) {
+        if (onComplete) onComplete();
+        return;
+      }
+
+      let qIdx = 0;
+      function stepEmber() {
+        if (qIdx >= emberUnits.length) {
+          refreshRosterOrder();
+          if (!checkEndConditions() && onComplete) {
+            onComplete();
+          }
+          return;
+        }
+
+        const u = emberUnits[qIdx++];
+        u.hp = Math.max(0, u.hp - 4);
+        u.anim.isFlinching = true;
+        u.anim.flinchTime = 0;
+
+        spawnScorchFlash(u.mesh.position);
+        showFloatingNumber(u.mesh.position, '-4', 'scorch');
+        logCombat(`${u.name} scorched by Ember tile for 4 damage`, 'ember');
+
+        if (u.hp <= 0) {
+          u.isDead = true;
+          unitsGroup.remove(u.mesh);
+          spawnDestructionFlourish(u);
+          logCombat(`${u.name} burned away into stone fragments!`, 'death');
+        }
+
+        setTimeout(stepEmber, 450);
+      }
+
+      stepEmber();
+    }
+
+    function checkEndConditions() {
+      const livingAzure = gameState.units.filter(u => u.side === 'azure' && !u.isDead);
+      const livingCrimson = gameState.units.filter(u => u.side === 'crimson' && !u.isDead);
+
+      if (livingCrimson.length === 0) {
+        gameState.phase = 'VICTORY';
+        updateBanner();
+        document.getElementById('victory-modal').style.display = 'flex';
+        exportArenaState();
+        return true;
+      }
+      if (livingAzure.length === 0) {
+        gameState.phase = 'GAME_OVER';
+        updateBanner();
+        document.getElementById('defeat-modal').style.display = 'flex';
+        exportArenaState();
+        return true;
+      }
+      return false;
+    }
+
+    function startPlayerTurn() {
+      if (checkEndConditions()) return;
+
+      gameState.phase = 'PLAYER_TURN';
+      gameState.activeSide = 'azure';
+      gameState.selectedUnitId = null;
+      gameState.actingUnitId = null;
+      isSkillTargetingMode = false;
+
+      gameState.units.forEach(u => {
+        if (u.side === 'azure') {
+          u.moved = false;
+          u.acted = false;
+          u.activationStartedThisRound = false;
+          u.setDimmed(false);
+        }
+      });
+
+      refreshRosterOrder();
+      updateBanner();
+      clearHighlights();
+      exportArenaState();
+    }
+
+    function endPlayerTurn() {
+      if (gameState.phase !== 'PLAYER_TURN') return;
+      deselectUnit();
+
+      // A unit that is not activated does not cool down:
+      // If player selected a unit but took no action with it, restore cooldown!
+      gameState.units.forEach(u => {
+        if (u.side === 'azure' && !u.isDead) {
+          if (!u.moved && !u.acted && u.activationStartedThisRound) {
+            u.cooldownRemaining = u.cooldownAtStartOfTurn;
+            u.skillReady = (u.cooldownRemaining === 0);
+          }
+          u.activationStartedThisRound = false;
+        }
+      });
+
+      // Resolve Ember damage for Azure units before transitioning
+      resolveEmberEndTurnDamage('azure', () => {
+        startEnemyTurn();
+      });
+    }
+
+    function startEnemyTurn() {
+      if (checkEndConditions()) return;
+
+      gameState.phase = 'ENEMY_TURN';
+      gameState.activeSide = 'crimson';
+      gameState.selectedUnitId = null;
+
+      gameState.units.forEach(u => {
+        if (u.side === 'crimson') {
+          u.moved = false;
+          u.acted = false;
+          u.setDimmed(false);
+        }
+      });
+      if (runeTitan) runeTitan.acted = false;
+
+      refreshRosterOrder();
+      updateBanner();
+      exportArenaState();
+
+      playNextCrimsonUnit();
+    }
+
+    /* =========================================================================
+       13. THE CRIMSON PROTOCOL WITH TERRAIN AWARENESS
+       ========================================================================= */
+    function playNextCrimsonUnit() {
+      if (checkEndConditions()) return;
+
+      const pendingCrimson = gameState.units
+        .filter(u => u.side === 'crimson' && !u.isDead && !u.acted)
+        .sort((a, b) => a.tileIndex - b.tileIndex);
+
+      if (pendingCrimson.length > 0) {
+        const actingGolem = pendingCrimson[0];
+        actingGolem.onActivationStart();
+        gameState.actingUnitId = actingGolem.id;
+        renderRibbon();
+        updateUnitCard(actingGolem);
+
+        setTimeout(() => {
+          executeCrimsonAction(actingGolem, () => {
+            actingGolem.acted = true;
+            actingGolem.moved = true;
+            actingGolem.setDimmed(true);
+            gameState.actingUnitId = null;
+            renderRibbon();
+            updateThreatPreview();
+            exportArenaState();
+
+            if (checkEndConditions()) return;
+            setTimeout(playNextCrimsonUnit, 400);
+          });
+        }, 500);
+        return;
+      }
+
+      // Titan acts last each enemy turn, after all escort units!
+      if (runeTitan && !runeTitan.isDead && !runeTitan.acted) {
+        gameState.actingUnitId = 'titan';
+        renderRibbon();
+        setTimeout(() => {
+          executeTitanAction(() => {
+            if (runeTitan) runeTitan.acted = true;
+            gameState.actingUnitId = null;
+            renderRibbon();
+            updateThreatPreview();
+            exportArenaState();
+
+            if (checkEndConditions()) return;
+            setTimeout(playNextCrimsonUnit, 400);
+          });
+        }, 500);
+        return;
+      }
+
+      // Both escort units and Titan have completed their turn
+      resolveEmberEndTurnDamage('crimson', () => {
+        gameState.turn++;
+        setTimeout(startPlayerTurn, 350);
+      });
+    }
+
+    /**
+     * Crimson Protocol with Terrain Rules (Round 3):
+     * 1. Act in ascending tile index.
+     * 2. When choosing among qualifying attack tiles (existing lowest-index rule):
+     *    a. First discards any candidate tile that is an ember tile, unless EVERY qualifying tile is ember.
+     *    b. If 2+ candidate tiles survive and any of them is a Blessing tile, it picks the Blessing tile with the lowest index instead of overall lowest index.
+     *    c. Arc Golem evaluates range band per candidate tile: from ledge candidate the band is 2-4.
+     * 3. Approach move (no attackable target):
+     *    - Also discards ember tiles unless EVERY reachable tile is ember.
+     * 4. Runecaller Golem:
+     *    - Never approaches player.
+     *    - Moves by approach rules, then summons Sprite or Focuses.
+     *    - Retreat: discards ember tiles unless all reachable are ember; maximizes min distance to player units (ties by lower tile index).
+     */
+    function executeCrimsonAction(golem, onFinished) {
+      const livingPlayerUnits = gameState.units.filter(u => u.side === 'azure' && !u.isDead);
+      if (livingPlayerUnits.length === 0) {
+        onFinished();
+        return;
+      }
+
+      const reachableTiles = getReachableTiles(golem);
+
+      // ================= CRIMSON SKILL DOCTRINE =================
+      // 1. Sword Golem — Rune Charge
+      // Uses Rune Charge if some player unit is chargeable from current or any reachable tile;
+      // prefers target with lowest HP, ties by lower tile index;
+      // among qualifying launch tiles, lowest index (ember avoidance applies).
+      if (golem.type === 'SWORD' && golem.skillReady) {
+        const chargeableOptions = [];
+        for (const t of reachableTiles) {
+          for (const p of livingPlayerUnits) {
+            if (canChargeTarget(golem, p, t)) {
+              chargeableOptions.push({ launchTile: t, target: p });
+            }
+          }
+        }
+
+        if (chargeableOptions.length > 0) {
+          // Prefers target with lowest HP, ties by lower tile index
+          const targets = Array.from(new Set(chargeableOptions.map(o => o.target)));
+          targets.sort((a, b) => {
+            if (a.hp !== b.hp) return a.hp - b.hp;
+            return a.tileIndex - b.tileIndex;
+          });
+
+          const chosenTarget = targets[0];
+          const candidateLaunchTiles = chargeableOptions
+            .filter(o => o.target.id === chosenTarget.id)
+            .map(o => o.launchTile);
+
+          const chosenLaunchTile = chooseBestCandidateTile(candidateLaunchTiles);
+          const path = findPath(golem.tileIndex, chosenLaunchTile, golem.move);
+
+          walkUnitAlongPath(golem, path, () => {
+            executeRuneCharge(golem, chosenTarget, onFinished);
+          });
+          return;
+        }
+      }
+
+
+
+      // Helper to apply terrain rules to candidate tiles:
+      // (1) Discard ember tiles unless every candidate is ember
+      // (2) If 2+ survive and any is Blessing tile, pick lowest-index Blessing tile, else lowest-index tile
+      function chooseBestCandidateTile(candidateTiles) {
+        if (candidateTiles.length === 0) return null;
+        if (candidateTiles.length === 1) return candidateTiles[0];
+
+        // Rule 1: Discard ember tiles unless every candidate is ember
+        let nonEmber = candidateTiles.filter(t => getTileKind(t) !== 'ember');
+        let pool = (nonEmber.length > 0) ? nonEmber : candidateTiles;
+
+        if (pool.length === 1) return pool[0];
+
+        // Rule 2: If 2+ survive and any is Blessing tile, pick Blessing tile with lowest index
+        let blessingTiles = pool.filter(t => getTileKind(t) === 'blessing');
+        if (blessingTiles.length > 0) {
+          blessingTiles.sort((a, b) => a - b);
+          return blessingTiles[0];
+        }
+
+        // Otherwise overall lowest index
+        pool.sort((a, b) => a - b);
+        return pool[0];
+      }
+
+      // --- CASE A: RUNECALLER GOLEM (DOCTRINE) ---
+      if (golem.type === 'RUNECALLER') {
+        // Standard approach move toward player unit with lowest current HP (ties lower tile index)
+        let approachPool = reachableTiles.filter(t => getTileKind(t) !== 'ember');
+        if (approachPool.length === 0) approachPool = reachableTiles;
+
+        const playerTargetsByHp = [...livingPlayerUnits].sort((a, b) => {
+          if (a.hp !== b.hp) return a.hp - b.hp;
+          return a.tileIndex - b.tileIndex;
+        });
+        const huntTarget = playerTargetsByHp[0];
+
+        const sortedPool = [...approachPool].sort((a, b) => a - b);
+        let bestApproachTile = sortedPool[0];
+        let minD = 999;
+
+        for (const t of sortedPool) {
+          const d = manhattanDist(t, huntTarget.tileIndex);
+          if (d < minD) {
+            minD = d;
+            bestApproachTile = t;
+          }
+        }
+
+        const path = findPath(golem.tileIndex, bestApproachTile, golem.move);
+        walkUnitAlongPath(golem, path, () => {
+          const currentCharge = golem.charge || 0;
+          const spritesAlive = countLivingSprites('crimson');
+
+          // (1) If charge >= 3 and < 4 crimson sprites alive:
+          if (currentCharge >= 3 && spritesAlive < 4) {
+            // Check eligible adjacent tiles on the tile it ends its move on
+            const eligible = getEligibleSummonTiles(golem.tileIndex);
+            if (eligible.length > 0) {
+              // Summons on the one with lowest index
+              eligible.sort((a, b) => a - b);
+              const summonTile = eligible[0];
+              executeSummonSprite(golem, summonTile, onFinished);
+              return;
+            } else {
+              // Otherwise uses Focus
+              executeFocus(golem, onFinished);
+              return;
+            }
+          } else {
+            // (2) Otherwise uses Focus after moving
+            executeFocus(golem, onFinished);
+            return;
+          }
+        });
+        return;
+      }
+
+
+      // --- CASE B: ARC GOLEM & MELEE GOLEMS (PROTOCOL: HUNTER) ---
+      const isArc = (golem.type === 'ARC');
+      const qualifyingPairs = [];
+
+      for (const t of reachableTiles) {
+        const rMin = isArc ? 2 : 1;
+        const rMax = isArc ? (getTileKind(t) === 'ledge' ? 4 : 3) : 1;
+        const isBlessed = (getTileKind(t) === 'blessing');
+        const rawDamage = golem.power + (isBlessed ? 2 : 0);
+
+        for (const p of livingPlayerUnits) {
+          const d = manhattanDist(t, p.tileIndex);
+          if (d >= rMin && d <= rMax) {
+            // Target active Bulwark reduction
+            const hasBulwark = gameState.units.some(u =>
+              u.side === p.side &&
+              !u.isDead &&
+              u.type === 'WARD' &&
+              u.bulwarkActive &&
+              manhattanDist(u.tileIndex, p.tileIndex) === 1
+            );
+            const actualDamage = hasBulwark ? Math.max(1, rawDamage - 2) : rawDamage;
+            const isKill = (p.hp <= actualDamage);
+
+            qualifyingPairs.push({
+              tile: t,
+              target: p,
+              actualDamage,
+              isKill
+            });
+          }
+        }
+      }
+
+      if (qualifyingPairs.length > 0) {
+        // Target selection by KILL PRIORITY:
+        // A player unit whose current HP <= damage dealt is always preferred over any unit that would survive.
+        // Among kills: lowest current HP first, ties by lower tile index.
+        // Among non-kills: highest damage actually dealt first, then lowest HP, then lower tile index.
+        const targets = Array.from(new Set(qualifyingPairs.map(o => o.target)));
+
+        // Helper to determine best option metrics for each target
+        function getTargetPriority(target) {
+          const pairsForTarget = qualifyingPairs.filter(o => o.target.id === target.id);
+          const hasKill = pairsForTarget.some(o => o.isKill);
+          const maxDmg = Math.max(...pairsForTarget.map(o => o.actualDamage));
+          return { hasKill, maxDmg, hp: target.hp, tileIndex: target.tileIndex };
+        }
+
+        targets.sort((a, b) => {
+          const prioA = getTargetPriority(a);
+          const prioB = getTargetPriority(b);
+
+          // Rule 2a: Kill preferred over non-kill
+          if (prioA.hasKill !== prioB.hasKill) {
+            return prioA.hasKill ? -1 : 1;
+          }
+
+          if (prioA.hasKill) {
+            // Among kills: lowest current HP first, ties by lower tile index
+            if (prioA.hp !== prioB.hp) return prioA.hp - prioB.hp;
+            return prioA.tileIndex - prioB.tileIndex;
+          } else {
+            // Among non-kills: highest damage actually dealt first, then lowest HP, then lower tile index
+            if (prioA.maxDmg !== prioB.maxDmg) return prioB.maxDmg - prioA.maxDmg;
+            if (prioA.hp !== prioB.hp) return prioA.hp - prioB.hp;
+            return prioA.tileIndex - prioB.tileIndex;
+          }
+        });
+
+        const chosenTarget = targets[0];
+        const targetPrio = getTargetPriority(chosenTarget);
+
+        // Candidate launch tiles for chosenTarget
+        let candidateTiles = qualifyingPairs
+          .filter(o => o.target.id === chosenTarget.id)
+          .filter(o => !targetPrio.hasKill || o.isKill) // If killable, candidate tiles must achieve kill
+          .map(o => o.tile);
+
+        if (candidateTiles.length === 0) {
+          candidateTiles = qualifyingPairs
+            .filter(o => o.target.id === chosenTarget.id)
+            .map(o => o.tile);
+        }
+
+        // Among pairs sharing chosen target, launch tile picked by existing chain:
+        // discard ember tiles unless all are ember, then lowest-index Blessing tile, then lowest index
+        const chosenTile = chooseBestCandidateTile(candidateTiles);
+        const path = findPath(golem.tileIndex, chosenTile, golem.move);
+
+        walkUnitAlongPath(golem, path, () => {
+          // Arc skill check: uses Piercing Bolt whenever normal targeting lets it hit player unit
+          // and another player unit stands beyond target on the same line
+          if (golem.type === 'ARC' && golem.skillReady) {
+            const sec = getSecondaryPiercingTarget(golem.tileIndex, chosenTarget.tileIndex, 'crimson');
+            if (sec) {
+              executePiercingBolt(golem, chosenTarget, onFinished);
+              return;
+            }
+          }
+
+          // Ward skill check: uses Bulwark Oath if at least 2 crimson golems are orthogonally adjacent after move
+          if (golem.type === 'WARD' && golem.skillReady) {
+            const adj = gameState.units.filter(u =>
+              u.side === 'crimson' &&
+              !u.isDead &&
+              u.id !== golem.id &&
+              manhattanDist(golem.tileIndex, u.tileIndex) === 1
+            );
+            if (adj.length >= 2) {
+              executeBulwarkOath(golem, onFinished);
+              return;
+            }
+          }
+
+          executeAttack(golem, chosenTarget, onFinished);
+        });
+        return;
+      }
+
+      // Approach Move (Rule 3):
+      // With no attackable unit, moves toward the player unit with the LOWEST CURRENT HP (ties lower tile index),
+      // still avoiding ember tiles under existing exception, choosing reachable tile at minimum Manhattan distance to that target,
+      // ties by lower tile index.
+      let approachPool = reachableTiles.filter(t => getTileKind(t) !== 'ember');
+      if (approachPool.length === 0) approachPool = reachableTiles;
+
+      // Player unit with lowest current HP (ties by lower tile index)
+      const playerTargetsByHp = [...livingPlayerUnits].sort((a, b) => {
+        if (a.hp !== b.hp) return a.hp - b.hp;
+        return a.tileIndex - b.tileIndex;
+      });
+      const huntTarget = playerTargetsByHp[0];
+
+      // Reachable tile at minimum Manhattan distance to huntTarget (ties by lower tile index)
+      const sortedApproachPool = [...approachPool].sort((a, b) => a - b);
+      let bestApproachTile = sortedApproachPool[0];
+      let minD = 999;
+
+      for (const t of sortedApproachPool) {
+        const d = manhattanDist(t, huntTarget.tileIndex);
+        if (d < minD) {
+          minD = d;
+          bestApproachTile = t;
+        }
+      }
+
+      const path = findPath(golem.tileIndex, bestApproachTile, golem.move);
+      walkUnitAlongPath(golem, path, () => {
+        // Ward check after approach move
+        if (golem.type === 'WARD' && golem.skillReady) {
+          const adj = gameState.units.filter(u =>
+            u.side === 'crimson' &&
+            !u.isDead &&
+            u.id !== golem.id &&
+            manhattanDist(golem.tileIndex, u.tileIndex) === 1
+          );
+          if (adj.length >= 2) {
+            executeBulwarkOath(golem, onFinished);
+            return;
+          }
+        }
+        onFinished();
+      });
+
+    }
+
+
+    /* =========================================================================
+       TITAN TURN SCRIPT IMPLEMENTATION
+       ========================================================================= */
+    function executeTitanAction(onComplete) {
+      if (!runeTitan || runeTitan.isDead) {
+        if (onComplete) onComplete();
+        return;
+      }
+
+      const actionName = runeTitan.getNextActionName();
+
+      if (actionName === 'Hammerfall') {
+        executeTitanHammerfall(() => {
+          runeTitan.scriptIndex = 1; // Advance script to Sweep
+          runeTitan.updateBossBar();
+          if (onComplete) onComplete();
+        });
+      } else if (actionName === 'Sweep') {
+        executeTitanSweep(() => {
+          runeTitan.scriptIndex = 2; // Advance script to Summons of the Deep
+          runeTitan.updateBossBar();
+          if (onComplete) onComplete();
+        });
+      } else {
+        executeTitanSummons(() => {
+          runeTitan.scriptIndex = 0; // Repeats from Hammerfall
+          runeTitan.updateBossBar();
+          if (onComplete) onComplete();
+        });
+      }
+    }
+
+    function executeTitanHammerfall(onComplete) {
+      const livingAzure = gameState.units.filter(u => u.side === 'azure' && !u.isDead);
+      if (livingAzure.length === 0) {
+        if (onComplete) onComplete();
+        return;
+      }
+
+      // Target azure unit with lowest HP (ties by lower tile index)
+      const targets = [...livingAzure].sort((a, b) => {
+        if (a.hp !== b.hp) return a.hp - b.hp;
+        return a.tileIndex - b.tileIndex;
+      });
+      const huntTarget = targets[0];
+
+      // Shift 2x2 block up to 2 tiles toward huntTarget, one tile at a time
+      let c = runeTitan.col;
+      let r = runeTitan.row;
+
+      function canOccupyBlock(nc, nr) {
+        if (nc < 0 || nc + 1 >= GRID_SIZE || nr < 0 || nr + 1 >= GRID_SIZE) return false;
+        const bTiles = [nr * GRID_SIZE + nc, nr * GRID_SIZE + (nc + 1), (nr + 1) * GRID_SIZE + nc, (nr + 1) * GRID_SIZE + (nc + 1)];
+        // Cannot overlap ledge
+        if (bTiles.some(idx => getTileKind(idx) === 'ledge')) return false;
+        // Cannot overlap any unit
+        if (bTiles.some(idx => gameState.units.some(u => !u.isDead && u.tileIndex === idx))) return false;
+        return true;
+      }
+
+      for (let step = 0; step < 2; step++) {
+        const curDist = manhattanDist(r * GRID_SIZE + c, huntTarget.tileIndex);
+        const candidates = [
+          { dr: -1, dc: 0, isRow: true },  // North
+          { dr: 1, dc: 0, isRow: true },   // South
+          { dr: 0, dc: -1, isRow: false }, // West
+          { dr: 0, dc: 1, isRow: false }   // East
+        ];
+
+        let bestStep = null;
+        let bestDist = curDist;
+        let bestIsRow = false;
+
+        candidates.forEach(s => {
+          const nc = c + s.dc;
+          const nr = r + s.dr;
+          if (!canOccupyBlock(nc, nr)) return;
+
+          const nDist = manhattanDist(nr * GRID_SIZE + nc, huntTarget.tileIndex);
+          if (nDist < bestDist) {
+            bestDist = nDist;
+            bestStep = s;
+            bestIsRow = s.isRow;
+          } else if (nDist === bestDist && bestStep) {
+            // Row step beats column step on ties
+            if (s.isRow && !bestIsRow) {
+              bestStep = s;
+              bestIsRow = true;
+            }
+          }
+        });
+
+        if (bestStep && bestDist < curDist) {
+          c += bestStep.dc;
+          r += bestStep.dr;
+        } else {
+          break; // Stops early when no step reduces distance
+        }
+      }
+
+      runeTitan.col = c;
+      runeTitan.row = r;
+      runeTitan.updateWorldPosition();
+
+      // Slams both fists onto 2x3 rectangle of 3 rows directly south of block in its two columns
+      const slamDamage = 6 + runeTitan.getDamageBonus();
+
+      // Fist slam animation
+      if (runeTitan.lArmPivot && runeTitan.rArmPivot) {
+        runeTitan.lArmPivot.rotation.x = -Math.PI * 0.7;
+        runeTitan.rArmPivot.rotation.x = -Math.PI * 0.7;
+      }
+
+      setTimeout(() => {
+        if (runeTitan.lArmPivot && runeTitan.rArmPivot) {
+          runeTitan.lArmPivot.rotation.x = Math.PI * 0.4;
+          runeTitan.rArmPivot.rotation.x = Math.PI * 0.4;
+        }
+
+        // Camera shake
+        let shakeT = 0;
+        const origCamPos = camera.position.clone();
+        function animShake() {
+          if (shakeT < 10) {
+            camera.position.x = origCamPos.x + (shakeT % 2 === 0 ? 0.35 : -0.35);
+            camera.position.y = origCamPos.y + (shakeT % 3 === 0 ? 0.25 : -0.25);
+            shakeT++;
+            requestAnimationFrame(animShake);
+          } else {
+            camera.position.copy(origCamPos);
+          }
+        }
+        animShake();
+
+        // 2x3 rectangle of rows directly south
+        const southRows = [r + 2, r + 3, r + 4];
+        const hitTiles = [];
+        southRows.forEach(sr => {
+          if (sr < GRID_SIZE) {
+            hitTiles.push(sr * GRID_SIZE + c);
+            hitTiles.push(sr * GRID_SIZE + (c + 1));
+          }
+        });
+
+        // Dust burst & damage
+        hitTiles.forEach(idx => {
+          const wPos = idxToWorld(idx);
+          spawnShockwaveRing(wPos);
+          const u = getUnitAtTile(idx);
+          if (u && u.side === 'azure' && !u.isDead) {
+            // Apply damage with active Bulwark check
+            applyDamage({ name: 'Rune Titan', side: 'crimson' }, u, slamDamage, false, 'Hammerfall');
+          }
+        });
+
+        logCombat(`The Rune Titan slams Hammerfall south for ${slamDamage} damage!`, 'crimson');
+
+        setTimeout(() => {
+          if (runeTitan.lArmPivot && runeTitan.rArmPivot) {
+            runeTitan.lArmPivot.rotation.x = 0;
+            runeTitan.rArmPivot.rotation.x = 0;
+          }
+          if (onComplete) onComplete();
+        }, 500);
+      }, 350);
+    }
+
+    function executeTitanSweep(onComplete) {
+      const sweepDamage = 4 + runeTitan.getDamageBonus();
+      const titanTiles = runeTitan.getBlockTiles();
+      const livingAzure = gameState.units.filter(u => u.side === 'azure' && !u.isDead);
+
+      // Swing half-circle animation
+      if (runeTitan.rArmPivot) {
+        runeTitan.rArmPivot.rotation.y = -Math.PI * 0.6;
+        runeTitan.rArmPivot.rotation.x = -Math.PI * 0.3;
+      }
+
+      setTimeout(() => {
+        if (runeTitan.rArmPivot) {
+          runeTitan.rArmPivot.rotation.y = Math.PI * 0.6;
+        }
+
+        spawnShockwaveRing(runeTitan.getCenterWorldPos());
+
+        // Every azure unit within Manhattan distance 2 of any of its 4 tiles
+        const affectedAzure = livingAzure.filter(u =>
+          titanTiles.some(t => manhattanDist(t, u.tileIndex) <= 2)
+        );
+
+        affectedAzure.forEach(u => {
+          // Find nearest Titan tile (ties by lower index)
+          const sortedTitanTiles = [...titanTiles].sort((a, b) => {
+            const da = manhattanDist(a, u.tileIndex);
+            const db = manhattanDist(b, u.tileIndex);
+            if (da !== db) return da - db;
+            return a - b;
+          });
+          const nearestTile = sortedTitanTiles[0];
+
+          // Push 1 tile directly away along axis with larger offset, row axis winning ties
+          const uC = u.tileIndex % GRID_SIZE;
+          const uR = Math.floor(u.tileIndex / GRID_SIZE);
+          const tC = nearestTile % GRID_SIZE;
+          const tR = Math.floor(nearestTile / GRID_SIZE);
+          const dc = uC - tC;
+          const dr = uR - tR;
+
+          let pushDc = 0, pushDr = 0;
+          if (Math.abs(dr) >= Math.abs(dc)) {
+            pushDr = Math.sign(dr) || 1;
+          } else {
+            pushDc = Math.sign(dc) || 1;
+          }
+
+          const destC = uC + pushDc;
+          const destR = uR + pushDr;
+
+          // Apply damage
+          applyDamage({ name: 'Rune Titan', side: 'crimson' }, u, sweepDamage, false, 'Sweep');
+
+          // Check push validity
+          if (destC >= 0 && destC < GRID_SIZE && destR >= 0 && destR < GRID_SIZE) {
+            const destIdx = destR * GRID_SIZE + destC;
+            if (!isTileOccupied(destIdx) && !titanTiles.includes(destIdx)) {
+              u.tileIndex = destIdx;
+              const wPos = idxToWorld(destIdx);
+              u.mesh.position.set(wPos.x, wPos.y, wPos.z);
+            }
+          }
+        });
+
+        logCombat(`The Rune Titan sweeps surrounding tiles for ${sweepDamage} damage and knockback!`, 'crimson');
+
+        setTimeout(() => {
+          if (runeTitan.rArmPivot) {
+            runeTitan.rArmPivot.rotation.y = 0;
+            runeTitan.rArmPivot.rotation.x = 0;
+          }
+          if (onComplete) onComplete();
+        }, 500);
+      }, 350);
+    }
+
+    function executeTitanSummons(onComplete) {
+      const titanTiles = runeTitan.getBlockTiles();
+      const neighborTiles = new Set();
+
+      titanTiles.forEach(tIdx => {
+        const { col, row } = idxToCoord(tIdx);
+        const offsets = [{ c: col + 1, r: row }, { c: col - 1, r: row }, { c: col, r: row + 1 }, { c: col, r: row - 1 }];
+        offsets.forEach(n => {
+          if (n.c >= 0 && n.c < GRID_SIZE && n.r >= 0 && n.r < GRID_SIZE) {
+            const idx = n.r * GRID_SIZE + n.c;
+            if (!titanTiles.includes(idx)) {
+              neighborTiles.add(idx);
+            }
+          }
+        });
+      });
+
+      // Filter: empty, plain stone tile
+      const eligible = Array.from(neighborTiles).filter(idx =>
+        !isTileOccupied(idx) && getTileKind(idx) === 'plain'
+      );
+      eligible.sort((a, b) => a - b);
+
+      const livingCrimsonSprites = countLivingSprites('crimson');
+      const summonCount = Math.min(2, Math.min(eligible.length, 4 - livingCrimsonSprites));
+
+      for (let s = 0; s < summonCount; s++) {
+        const targetTile = eligible[s];
+        const tPos = idxToWorld(targetTile);
+        spawnSummonPillar(tPos);
+
+        const spriteId = `crimson_sprite_titan_${spriteIdCounter++}`;
+        const sprite = new Unit({
+          id: spriteId,
+          side: 'crimson',
+          type: 'SPRITE',
+          tile: targetTile
+        });
+        sprite.moved = true;
+        sprite.acted = true;
+        sprite.setDimmed(true);
+        gameState.units.push(sprite);
+      }
+
+      logCombat(`The Rune Titan invokes Summons of the Deep, raising ${summonCount} Stone Sprites!`, 'crimson');
+      spawnShockwaveRing(runeTitan.getCenterWorldPos());
+
+      refreshRosterOrder();
+      updateThreatPreview();
+      exportArenaState();
+
+      setTimeout(() => {
+        if (onComplete) onComplete();
+      }, 500);
+    }
+
+    /* =========================================================================
+       14. INTERACTION & INPUT HANDLING
+       ========================================================================= */
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let hoveredTileIndex = null;
+    let isDragging = false;
+    let dragStart = { x: 0, y: 0 };
+    let dragDistanceMoved = 0;
+
+    const tileInspectorEl = document.getElementById('tile-inspector');
+    const tileTerrainValEl = document.getElementById('tile-terrain-val');
+    const tileFeatureValEl = document.getElementById('tile-feature-val');
+
+    function onPointerMove(e) {
+      if (isDragging) {
+        const dx = e.clientX - dragStart.x;
+        const dy = e.clientY - dragStart.y;
+        dragDistanceMoved += Math.abs(dx) + Math.abs(dy);
+        camAzimuth -= dx * 0.006;
+        camElevation = Math.max(MIN_ELEVATION, Math.min(MAX_ELEVATION, camElevation + dy * 0.006));
+        dragStart = { x: e.clientX, y: e.clientY };
+        updateCameraPosition();
+        return;
+      }
+
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(tileMeshes);
+
+      if (intersects.length > 0) {
+        const hitTile = intersects[0].object;
+        const idx = hitTile.userData.tileIndex;
+        if (hoveredTileIndex !== idx) {
+          hoveredTileIndex = idx;
+          const { str } = idxToCoord(idx);
+          let occupant = getUnitAtTile(idx);
+          if (!occupant && runeTitan && !runeTitan.isDead && runeTitan.getBlockTiles().includes(idx)) {
+            occupant = { name: 'Rune Titan (2x2)' };
+          }
+          const kind = getTileKind(idx);
+
+          let terrainName = 'Plain Stone';
+          let featureDesc = 'Standard Sanctum Floor';
+          if (kind === 'blessing') {
+            terrainName = 'Blessing Tile';
+            featureDesc = '+2 Damage / Healing Power';
+          } else if (kind === 'ember') {
+            terrainName = 'Ember Tile';
+            featureDesc = '4 Damage at Turn End';
+          } else if (kind === 'ledge') {
+            terrainName = 'High Ledge';
+            featureDesc = 'Arc Golem Range 2-4';
+          }
+
+          tileTerrainValEl.textContent = terrainName;
+          tileFeatureValEl.textContent = featureDesc;
+
+          if (occupant) {
+            tileInspectorEl.textContent = `Tile: ${str} (${idx}) • [${occupant.name}]`;
+          } else {
+            tileInspectorEl.textContent = `Tile: ${str} (${idx})`;
+          }
+        }
+      } else {
+        hoveredTileIndex = null;
+        tileInspectorEl.textContent = 'Tile: None';
+        tileTerrainValEl.textContent = 'Plain Stone';
+        tileFeatureValEl.textContent = 'Standard Floor';
+      }
+    }
+
+    function onPointerDown(e) {
+      if (e.target.closest('#ui-layer') && !e.target.closest('#order-ribbon-container') && !e.target.closest('#canvas-container')) {
+        return;
+      }
+      isDragging = true;
+      dragStart = { x: e.clientX, y: e.clientY };
+      dragDistanceMoved = 0;
+    }
+
+    function onPointerUp(e) {
+      isDragging = false;
+      if (dragDistanceMoved > 8) return;
+
+      if (gameState.phase !== 'PLAYER_TURN') return;
+
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+
+      const intersects = raycaster.intersectObjects(tileMeshes);
+      if (intersects.length === 0) {
+        deselectUnit();
+        return;
+      }
+
+      const clickedTileIdx = intersects[0].object.userData.tileIndex;
+      const clickedUnit = getUnitAtTile(clickedTileIdx);
+      const selectedUnit = gameState.units.find(u => u.id === gameState.selectedUnitId);
+      const isTitanTile = (runeTitan && !runeTitan.isDead && runeTitan.getBlockTiles().includes(clickedTileIdx));
+
+      // Clicked Azure unit -> Select
+      if (clickedUnit && clickedUnit.side === 'azure' && !clickedUnit.isDead) {
+        selectUnit(clickedUnit);
+        return;
+      }
+
+      // Action Target clicked (Basic Attack or Skill Target or Summon Tile)
+      if (selectedUnit && !selectedUnit.acted) {
+        // Runecaller Summoning click on eligible adjacent plain tile
+        if (selectedUnit.type === 'RUNECALLER' && isSkillTargetingMode) {
+          const eligible = getEligibleSummonTiles(selectedUnit.tileIndex);
+          if (eligible.includes(clickedTileIdx)) {
+            executeSummonSprite(selectedUnit, clickedTileIdx, () => {
+              deselectUnit();
+              exportArenaState();
+            });
+            return;
+          }
+        }
+        // Check Signature Skill targeting first (including against Rune Titan)
+        if (selectedUnit.skillReady && isTitanTile) {
+          // Sword: Rune Charge against Titan
+          if (selectedUnit.type === 'SWORD') {
+            const titanTiles = runeTitan.getBlockTiles();
+            const validTile = titanTiles.find(t => canChargeTarget(selectedUnit, { id: 'titan', side: 'crimson', isDead: false, tileIndex: t }, selectedUnit.tileIndex));
+            if (validTile !== undefined) {
+              const launchTile = selectedUnit.tileIndex;
+              const landingTile = getChargeLandingTile(launchTile, validTile);
+              const isBlessed = (getTileKind(launchTile) === 'blessing');
+              const dmg = 7 + (isBlessed ? 2 : 0);
+
+              selectedUnit.acted = true;
+              selectedUnit.moved = true;
+              selectedUnit.cooldownRemaining = 3;
+              selectedUnit.skillReady = false;
+              selectedUnit.setDimmed(true);
+
+              spawnDashTrail(idxToWorld(launchTile), idxToWorld(landingTile));
+              selectedUnit.tileIndex = landingTile;
+              selectedUnit.mesh.position.copy(idxToWorld(landingTile));
+
+              runeTitan.takeDamage(dmg, selectedUnit);
+              logCombat(`${selectedUnit.name} uses Rune Charge on the Rune Titan for ${dmg} damage!`, selectedUnit.side);
+              deselectUnit();
+              exportArenaState();
+              return;
+            }
+          }
+          // Arc: Piercing Bolt against Titan
+          if (selectedUnit.type === 'ARC' && isSkillTargetingMode) {
+            const titanTiles = runeTitan.getBlockTiles();
+            const inRangeTile = titanTiles.find(t => {
+              const d = manhattanDist(selectedUnit.tileIndex, t);
+              return (d >= selectedUnit.rangeMin && d <= selectedUnit.getEffectiveRangeMax());
+            });
+            if (inRangeTile !== undefined) {
+              const launchTile = selectedUnit.tileIndex;
+              const isBlessed = (getTileKind(launchTile) === 'blessing');
+              const dmg = 5 + (isBlessed ? 2 : 0);
+
+              selectedUnit.acted = true;
+              selectedUnit.moved = true;
+              selectedUnit.cooldownRemaining = 3;
+              selectedUnit.skillReady = false;
+              selectedUnit.setDimmed(true);
+
+              spawnHeavierBolt(idxToWorld(launchTile), runeTitan.getCenterWorldPos(), () => {
+                runeTitan.takeDamage(dmg, selectedUnit);
+                deselectUnit();
+                exportArenaState();
+              });
+              return;
+            }
+          }
+        }
+
+        if (selectedUnit.skillReady && clickedUnit && clickedUnit.side === 'crimson') {
+          // Sword: Rune Charge target
+          if (selectedUnit.type === 'SWORD' && canChargeTarget(selectedUnit, clickedUnit, selectedUnit.tileIndex)) {
+            executeRuneCharge(selectedUnit, clickedUnit, () => {
+              deselectUnit();
+              exportArenaState();
+            });
+            return;
+          }
+          // Arc: Piercing Bolt target (when in skill targeting mode)
+          if (selectedUnit.type === 'ARC' && isSkillTargetingMode) {
+            const d = manhattanDist(selectedUnit.tileIndex, clickedUnit.tileIndex);
+            if (d >= selectedUnit.rangeMin && d <= selectedUnit.getEffectiveRangeMax()) {
+              executePiercingBolt(selectedUnit, clickedUnit, () => {
+                deselectUnit();
+                exportArenaState();
+              });
+              return;
+            }
+          }
+        }
+
+        // Attack Rune Titan
+        if (isTitanTile) {
+          const isTitanTarget = gameState.actionTargets.some(t => t.isTitan || t.id === 'titan');
+          if (isTitanTarget) {
+            // Melee / Ranged attack on Rune Titan
+            const isBlessed = (getTileKind(selectedUnit.tileIndex) === 'blessing');
+            const dmg = selectedUnit.power + (isBlessed ? 2 : 0);
+            selectedUnit.acted = true;
+            selectedUnit.moved = true;
+            selectedUnit.setDimmed(true);
+
+            if (selectedUnit.type === 'ARC') {
+              spawnHeavierBolt(idxToWorld(selectedUnit.tileIndex), runeTitan.getCenterWorldPos(), () => {
+                runeTitan.takeDamage(dmg, selectedUnit);
+                deselectUnit();
+              });
+            } else {
+              runeTitan.takeDamage(dmg, selectedUnit);
+              deselectUnit();
+            }
+            return;
+          }
+        }
+
+        const isActionTarget = gameState.actionTargets.some(t => t.tileIndex === clickedTileIdx);
+        if (isActionTarget && clickedUnit && clickedUnit.side === 'crimson') {
+          executeAttack(selectedUnit, clickedUnit, () => {
+            deselectUnit();
+            exportArenaState();
+          });
+          return;
+        }
+
+        // Move clicked
+        if (!selectedUnit.moved && gameState.reachableTiles.includes(clickedTileIdx) && clickedTileIdx !== selectedUnit.tileIndex) {
+          const path = findPath(selectedUnit.tileIndex, clickedTileIdx, selectedUnit.move);
+          walkUnitAlongPath(selectedUnit, path, () => {
+            highlightSelectedUnit(selectedUnit);
+            updateUnitCard(selectedUnit);
+            renderRibbon();
+            exportArenaState();
+          });
+          return;
+        }
+      }
+
+      deselectUnit();
+    }
+
+    function onWheel(e) {
+      camDistance = Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, camDistance + e.deltaY * 0.02));
+      updateCameraPosition();
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        startGame();
+      } else if (e.key === 'r' || e.key === 'R') {
+        resetGame();
+      } else if (e.key === 'e' || e.key === 'E') {
+        if (gameState.phase === 'PLAYER_TURN') {
+          endPlayerTurn();
+        }
+      } else if (e.key === 't' || e.key === 'T') {
+        if (gameState.phase === 'PLAYER_TURN') {
+          setThreatPreview(true);
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 't' || e.key === 'T') {
+        // If button was toggled, keyup won't disable it unless button is also off
+        if (!threatButtonToggled) {
+          setThreatPreview(false);
+        }
+      }
+    });
+
+    let threatButtonToggled = false;
+    const btnThreat = document.getElementById('btn-threat');
+    if (btnThreat) {
+      btnThreat.addEventListener('click', () => {
+        if (gameState.phase !== 'PLAYER_TURN') return;
+        threatButtonToggled = !threatButtonToggled;
+        setThreatPreview(threatButtonToggled);
+      });
+    }
+
+    document.getElementById('btn-start-game').addEventListener('click', startGame);
+    document.getElementById('btn-end-turn').addEventListener('click', () => {
+      threatButtonToggled = false;
+      setThreatPreview(false);
+      endPlayerTurn();
+    });
+
+    document.getElementById('btn-unit-skill').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const selected = gameState.units.find(u => u.id === gameState.selectedUnitId);
+      if (!selected || selected.side !== 'azure' || selected.acted) return;
+
+      if (selected.type === 'RUNECALLER') {
+        const currentCharge = selected.charge || 0;
+        const spritesAlive = countLivingSprites('azure');
+        const canSummon = (currentCharge >= 3 && spritesAlive < 4);
+
+        if (isSkillTargetingMode) {
+          // Cancel summon mode
+          isSkillTargetingMode = false;
+          highlightSelectedUnit(selected);
+          updateUnitCard(selected);
+          return;
+        }
+
+        if (canSummon) {
+          // Enter Summon Sprite mode
+          isSkillTargetingMode = true;
+          highlightSelectedUnit(selected);
+          updateUnitCard(selected);
+        } else {
+          // Execute Focus
+          executeFocus(selected, () => {
+            deselectUnit();
+            exportArenaState();
+          });
+        }
+        return;
+      }
+
+      if (!selected.skillReady) return;
+
+      if (selected.type === 'WARD') {
+        // Bulwark Oath triggers immediately
+        executeBulwarkOath(selected, () => {
+          deselectUnit();
+          exportArenaState();
+        });
+      } else if (selected.type === 'SWORD' || selected.type === 'ARC') {
+        // Toggle skill targeting mode
+        isSkillTargetingMode = !isSkillTargetingMode;
+        highlightSelectedUnit(selected);
+        updateUnitCard(selected);
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('wheel', onWheel, { passive: true });
+
+    /* =========================================================================
+       15. ANIMATION & RENDER LOOP
+       ========================================================================= */
+    let lastTime = performance.now();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const now = performance.now();
+      const delta = Math.min(0.1, (now - lastTime) / 1000);
+      lastTime = now;
+      const totalTime = now * 0.001;
+
+      // Update Projectiles
+      for (let i = activeProjectiles.length - 1; i >= 0; i--) {
+        const p = activeProjectiles[i];
+        p.progress += delta * p.speed;
+        if (p.progress >= 1.0) {
+          scene.remove(p.group);
+          activeProjectiles.splice(i, 1);
+          if (p.onHit) p.onHit();
+        } else {
+          const t = p.progress;
+          const pos = new THREE.Vector3()
+            .copy(p.start).multiplyScalar((1 - t) * (1 - t))
+            .add(p.mid.clone().multiplyScalar(2 * (1 - t) * t))
+            .add(p.end.clone().multiplyScalar(t * t));
+          p.group.position.copy(pos);
+        }
+      }
+
+      // Update Shockwaves (Bulwark Oath & Surge of Renewal)
+      for (let i = activeShockwaves.length - 1; i >= 0; i--) {
+        const sw = activeShockwaves[i];
+        sw.time += delta;
+        const progress = sw.time / sw.duration;
+        if (progress >= 1.0) {
+          scene.remove(sw.mesh);
+          activeShockwaves.splice(i, 1);
+        } else {
+          sw.mesh.scale.setScalar(1 + progress * 4.5);
+          sw.mesh.material.opacity = Math.max(0, 0.9 * (1 - progress));
+        }
+      }
+
+      // Update Summon Pillars
+      for (let i = activeSummonPillars.length - 1; i >= 0; i--) {
+        const sp = activeSummonPillars[i];
+        sp.time += delta;
+        const progress = sp.time / sp.duration;
+        if (progress >= 1.0) {
+          scene.remove(sp.group);
+          activeSummonPillars.splice(i, 1);
+        } else {
+          sp.mat.opacity = Math.max(0, 0.8 * (1 - progress));
+          sp.group.scale.y = 1 + progress * 0.8;
+          sp.group.rotation.y += delta * 5.0;
+        }
+      }
+
+      // Update Intake Swirls
+      for (let i = activeIntakeSwirls.length - 1; i >= 0; i--) {
+        const isw = activeIntakeSwirls[i];
+        isw.time += delta;
+        const progress = isw.time / isw.duration;
+        if (progress >= 1.0) {
+          scene.remove(isw.group);
+          activeIntakeSwirls.splice(i, 1);
+        } else {
+          isw.mat.opacity = Math.max(0, 0.85 * (1 - progress));
+          isw.group.scale.setScalar(Math.max(0.1, 1.4 * (1 - progress)));
+          isw.group.rotation.y += delta * 8.0;
+          isw.group.position.y += delta * 1.5;
+        }
+      }
+
+      // Update Destruction Flourishes
+      for (let i = activeDestructions.length - 1; i >= 0; i--) {
+        const df = activeDestructions[i];
+        df.time += delta;
+        const progress = df.time / df.duration;
+        if (progress >= 1.0) {
+          scene.remove(df.group);
+          scene.remove(df.scorch);
+          activeDestructions.splice(i, 1);
+        } else {
+          for (const s of df.shards) {
+            s.vel.y -= 9.8 * delta;
+            s.mesh.position.addScaledVector(s.vel, delta);
+            s.mesh.rotation.x += s.rotSpeed.x * delta;
+            s.mesh.rotation.y += s.rotSpeed.y * delta;
+            s.mesh.material.opacity = 1.0 - progress;
+          }
+          const flareT = Math.min(1.0, df.time / 0.4);
+          df.flare.scale.setScalar(1.0 + flareT * 2.5);
+          df.flare.material.opacity = 1.0 - flareT;
+          df.scorch.material.opacity = Math.max(0, 0.9 * (1.0 - progress));
+        }
+      }
+
+      // Terrain Ambient Animations: Blessing glyph rotation & motes, Ember sparks
+      blessingGlyphMeshes.forEach(bg => {
+        bg.glyph.rotation.z += bg.speed;
+        bg.motes.forEach(m => {
+          m.mesh.position.y = m.baseY + Math.sin(totalTime * 2.5 + m.offset) * 0.15;
+        });
+      });
+
+      emberSparks.forEach(sp => {
+        const cycle = (totalTime * 1.8 + sp.seed) % 1.5;
+        sp.mesh.position.y = sp.basePos.y + 0.1 + cycle * 0.8;
+        sp.mesh.material.opacity = Math.max(0, 1.0 - (cycle / 1.5));
+      });
+
+      // Pulse Rune Titan Core
+      if (runeTitan && !runeTitan.isDead && runeTitan.coreMesh) {
+        const tPulse = 1.0 + Math.sin(totalTime * 4.0) * 0.25;
+        runeTitan.coreMesh.scale.set(tPulse, tPulse, tPulse);
+        if (runeTitan.fractureLinesMat) {
+          const fGlow = 0.6 + Math.sin(totalTime * 5.0) * 0.4;
+          runeTitan.fractureLinesMat.opacity = fGlow;
+        }
+      }
+
+      // Pulse Danger Unit Markers when Threat Preview is active
+      if (threatPreviewActive && gameState.phase === 'PLAYER_TURN') {
+        const pulse = 0.5 + Math.sin(totalTime * 8.0) * 0.45;
+        for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
+          if (tileDangerUnitMarkers[i] && tileDangerUnitMarkers[i].material.opacity > 0) {
+            tileDangerUnitMarkers[i].material.opacity = pulse;
+            tileDangerUnitMarkers[i].scale.setScalar(1 + (pulse - 0.5) * 0.15);
+          }
+        }
+      }
+
+      // Update Golems & Scene Ambient
+      if (gameState.phase !== 'READY' && gameState.phase !== 'VICTORY' && gameState.phase !== 'GAME_OVER') {
+        gameState.units.forEach(u => u.update(delta, totalTime));
+
+        banners.forEach(b => {
+          b.mesh.rotation.y = Math.sin(totalTime * 4.0 + b.seed) * 0.35 + Math.cos(totalTime * 2.5) * 0.15;
+        });
+
+        orbitShards.forEach(s => {
+          s.angle += s.speed;
+          s.mesh.position.x = Math.cos(s.angle) * s.radius;
+          s.mesh.position.z = Math.sin(s.angle) * s.radius;
+          s.mesh.position.y = s.baseY + Math.sin(totalTime * 1.5 + s.radius) * 0.8;
+          s.mesh.rotation.x += s.rotSpeed;
+          s.mesh.rotation.y += s.rotSpeed * 0.7;
+        });
+
+        cloudPlanes.forEach((cp, idx) => {
+          cp.rotation.z += 0.0003 * (idx + 1);
+        });
+      }
+
+      exportArenaState();
+      renderer.render(scene, camera);
+    }
+
+    initGame();
+    animate();
+
+  })();
+  </script>
+</body>
+</html>

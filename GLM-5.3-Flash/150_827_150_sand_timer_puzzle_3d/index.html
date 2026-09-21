@@ -1,0 +1,1577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sand Timer Puzzle — The Clock Tower (Four Hourglasses)</title>
+<style>
+  html, body { margin:0; padding:0; overflow:hidden; background:#0b0e13; height:100%; }
+  canvas { display:block; cursor:grab; }
+  #ui { position:fixed; inset:0; pointer-events:none; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color:#dfe7ee; z-index:10; }
+  .panel { position:absolute; background:rgba(10,14,20,0.72); border:1px solid rgba(140,180,200,0.25); border-radius:10px; padding:12px 14px; font-size:14px; line-height:1.55; }
+  #panel-left { top:14px; left:14px; min-width:300px; }
+  #panel-right { top:14px; right:14px; text-align:right; font-size:13px; color:#b8c6d4; }
+  #title { position:absolute; top:18px; left:50%; transform:translateX(-50%); letter-spacing:0.35em; font-size:13px; color:#8fa3b5; }
+  .hgrow { display:flex; align-items:center; gap:8px; margin:3px 0; }
+  .tag { display:inline-block; width:22px; height:22px; line-height:22px; text-align:center; border-radius:6px; background:#22303c; color:#ffd97a; font-weight:700; flex:none; }
+  .bar { flex:1; height:8px; background:#1a2430; border-radius:4px; overflow:hidden; }
+  .bar i { display:block; height:100%; width:100%; background:linear-gradient(90deg,#d9a441,#ffd97a); border-radius:4px; }
+  .bar.time { margin-top:6px; }
+  .bar.time i { background:linear-gradient(90deg,#3f8f6b,#7dffb0); }
+  #selrow, #pilerow, #doorrow, #waitrow, #syncrow, #obrow, #timerow { margin-top:7px; }
+  #sel { color:#7dffc8; }
+  #p-state { color:#7dffb0; }
+  #door { color:#ffd97a; }
+  .pbadge { display:inline-block; width:20px; text-align:center; color:#5a6a78; font-weight:700; flex:none; }
+  .pchip { display:inline-block; min-width:20px; height:20px; line-height:20px; text-align:center; border-radius:5px; background:#161f29; border:1px solid #2a3644; color:#5a6a78; font-weight:700; font-size:12px; margin-left:4px; }
+  .pchip.on { background:#1d4a33; border-color:#2f8f5b; color:#7dffc8; }
+  .obadge { display:inline-block; width:34px; text-align:center; color:#ffb35a; font-weight:700; flex:none; font-size:12px; }
+  #msg { position:absolute; left:50%; top:42%; transform:translate(-50%,-50%); text-align:center; display:none; max-width:92vw; }
+  #msg-main { font-size:44px; font-weight:800; letter-spacing:0.06em; text-shadow:0 2px 24px rgba(0,0,0,0.7); }
+  #msg-grade { margin-top:14px; font-size:15px; line-height:1.7; color:#ffe9a8; display:none; }
+  #msg-grade b { color:#7dffc8; }
+  #msg-grade .thr { display:block; margin-top:6px; font-size:12.5px; color:#9fb2c4; }
+  #msg-sub { margin-top:12px; font-size:15px; color:#cfe0ee; animation:pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:0.55} 50%{opacity:1} }
+  #err { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:#3a1420; color:#ffb4c0; padding:16px 22px; border-radius:10px; display:none; max-width:80%; font-size:14px; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <div id="title">THE CLOCK TOWER · SAND TIMER PUZZLE</div>
+  <div id="panel-left" class="panel">
+    <div class="hgrow"><span class="tag">A</span><span class="pbadge" id="pb-A">○</span><span class="obadge" id="ob-A"></span></div>
+    <div class="hgrow"><span class="tag">B</span><span class="pbadge" id="pb-B">○</span><span class="obadge" id="ob-B"></span></div>
+    <div class="hgrow"><span class="tag">C</span><span class="pbadge" id="pb-C">○</span><span class="obadge" id="ob-C"></span></div>
+    <div class="hgrow"><span class="tag">D</span><span class="pbadge" id="pb-D">○</span><span class="obadge" id="ob-D"></span></div>
+    <div id="selrow">Selected: <b id="sel">none</b></div>
+    <div id="pilerow">Pile: tilt <b id="p-tilt">—</b> · repose <b>32°</b> · <b id="p-state">—</b></div>
+    <div id="doorrow">Door: <b id="door">closed</b> <span id="doorinfo">· hold 3.0s required · plates 0/4</span></div>
+    <div id="platerow">Plates → door: <span class="pchip" id="pc-A">A</span><span class="pchip" id="pc-B">B</span><span class="pchip" id="pc-C">C</span><span class="pchip" id="pc-D">D</span></div>
+    <div id="waitrow">Holding door: <b id="waitby">A, B, C, D</b></div>
+    <div id="syncrow">Sync spread: <b id="syncq">—</b> · Sync window: <b>±1.0 s</b></div>
+    <div id="obrow">Obstructions: <b id="obudget">3/3</b> · selected neck: <b id="neck">—</b></div>
+    <div id="timerow">Total time: <b id="tt">0.0s</b> / 180s<div class="bar time"><i id="bar-T" style="width:0%"></i></div></div>
+  </div>
+  <div id="panel-right" class="panel">Click: select&nbsp;&nbsp;|&nbsp;&nbsp;Q/E: tilt&nbsp;&nbsp;|&nbsp;&nbsp;R: upright&nbsp;&nbsp;|&nbsp;&nbsp;F: flip&nbsp;&nbsp;|&nbsp;&nbsp;X: obstruct<br>Drag: orbit&nbsp;&nbsp;|&nbsp;&nbsp;Wheel: zoom&nbsp;&nbsp;|&nbsp;&nbsp;empty all FOUR within ±1.0 s, hold the door 3.0s · graded on spread + time left</div>
+  <div id="msg"><div id="msg-main"></div><div id="msg-grade"></div><div id="msg-sub">Press Enter to restart</div></div>
+  <div id="err"></div>
+</div>
+<script type="module">
+/*
+ * Sand Timer Puzzle — THE CLOCK TOWER (round 4).
+ * Four hourglasses: A = 30s, B = 60s, C = 90s, D = 120s of sand, on pedestals
+ * arranged in a shallow arc around a central clockwork gear column.
+ *
+ * DRAIN MODEL / TUNING (chosen so the puzzle is solvable within 180s):
+ *   - Upright drain rate: 1.00 unit/s (top bulb -> bottom bulb). A top bulb
+ *     stops draining once empty.
+ *   - Tilt multiplier: mult(tilt) = 1 + 0.5 * |tilt| / 45deg
+ *       0deg -> x1.0,  22.5deg -> x1.25,  45deg -> x1.5,  90deg -> x2.0
+ *     Q/E step the tilt by 22.5deg, clamped to +/-90deg; R returns upright.
+ *   - Flip (F): logical instant swap of the two bulbs' contents (the sand that
+ *     had drained into the bottom bulb becomes the new top bulb's contents);
+ *     the 180deg visual rotation takes ~0.7s and draining pauses ~0.7s so the
+ *     sand visibly settles/tumbles into the new top bulb first.
+ *   - Victory (round 4): all FOUR top bulbs must reach empty within a 1.0s
+ *     window of each other, which triggers all four plates and opens the
+ *     door; the win fires once the open door has been HELD for 3.0s. Loss:
+ *     180s of round time elapse without a win.
+ *   - A guaranteed solution line: pick any moment t <= 30s and flip A, B, C
+ *     and D together — each has drained exactly t of sand, so each refills
+ *     its top bulb to t seconds and all four hit empty together at 2t (the
+ *     identical 0.7s settle pauses cancel; spread ~0.0s, far inside the 1.0s
+ *     window; e.g. flipping all four at t=30 synchronizes them at t=60).
+ *     Tilting and obstructions allow faster or more forgiving schedules.
+ *
+ * GRANULAR SAND (round 2):
+ *   - REPOSE ANGLE: 32 degrees (dry sand sits between roughly 30deg and 35deg).
+ *     Pile flanks stand at tan(32deg) relative to horizontal; this threshold
+ *     drives both the visible pile shape and the stable/collapsing HUD state.
+ *   - Q/E steps are 22.5deg (four presses to the 90deg max) so a tilt clearly
+ *     below the repose angle is playable; the drain multiplier above is unchanged.
+ *   - Below repose: the pile leans — its apex eases toward the point where the
+ *     stream lands (off-centre on the low side when tilted) at a slow creep
+ *     rate, and the heap holds. HUD reads "stable".
+ *   - At/ past repose (|tilt| >= 32deg): an AVALANCHE fires (~1.15s, distinct
+ *     event): the pile slides toward the low side fast, visibly slumps/flattens
+ *     (flank slope dips below repose, then re-settles at repose), and drainage
+ *     gains a +0.9 multiplier for as long as the collapse lasts. Re-triggers
+ *     for each further ~20deg of tilt, and on flips (the refilled pile
+ *     re-forms). HUD reads "collapsing".
+ *   - Piles are cones: the lower pile grows around the stream's landing point;
+ *     the upper pile drains through a crater that deepens and widens over the
+ *     neck (funnel-shaped depression), so the top bulb empties from the middle
+ *     outward. A full bulb is shown as a clipped cone that fills the glass.
+ *   - Containment: every particle is placed inside the bulb's vertical chord
+ *     (ball ∩ bulb half-space) and hard-clamped to the glass, so sand never
+ *     crosses the walls even at maximum tilt mid-collapse.
+ *   - Determinism: particle scatter comes from a fixed hash-seeded table (no
+ *     Math.random anywhere), pile shapes are closed-form cones solved by
+ *     bisection each frame, and collapse timing is an edge-triggered state
+ *     machine — the same tilt sequence reproduces the same collapse moments.
+ *   - Visual note: tilted/flipping hourglasses levitate slightly (proportional
+ *     to angular distance from an upright pose) so the swinging frame always
+ *     clears its pedestal.
+ *
+ * THE MECHANISM (round 4, extends round 3):
+ *   - Each pedestal is a pressure plate wired by brass conduits to the
+ *     clockwork vault door at the back of the chamber. A plate is TRIGGERED
+ *     while its hourglass's upper bulb is empty (remaining <= 0.01s); it
+ *     stays triggered until a flip refills the bulb. The door needs ALL FOUR.
+ *   - The door sinks into the floor (1.5s travel) only while all four plates
+ *     are triggered at once AND the four "became empty" timestamps fit inside
+ *     SYNC WINDOW = 1.0s (round 4 tightens C3's ±2s and now gates the door:
+ *     a 1.5s spread across four emptied glasses keeps the door shut). If any
+ *     plate un-triggers, the door closes again (0.8s) and the hold resets.
+ *   - WIN requires the door fully open and HELD for HOLD TIME = 3.0 seconds
+ *     (stated here and in the HUD). A four-way zero that immediately breaks
+ *     is not a win.
+ *   - Theming (round 4): the vault chamber is a clock tower mechanism room —
+ *     a central gear column with turning gears, a ticking escapement wheel,
+ *     an oscillating balance wheel and a swinging seconds pendulum, plus a
+ *     clock face above the vault door and clockwork gears on the door itself.
+ *     All of it is a pure function of game time: deterministic, and the
+ *     mechanism freezes the moment the round ends.
+ *   - Obstruction (X, on the selected hourglass): a clamp parks the neck so
+ *     the glass drains nothing while it is in place — the stream stops and a
+ *     visible orange clamp plugs the waist. COST: 3 uses per round (shared
+ *     budget shown in the HUD); removing the clamp is free, exhausting the
+ *     budget prevents further use. Fully deterministic.
+ *
+ * BLIND SYNC + GRADING (round 5):
+ *   - All per-hourglass numeric sand readouts and progress bars are removed
+ *     from the HUD (no value, bar, percentage, fill gauge, colour-coded
+ *     quantity indicator or hover tooltip). Remaining sand is now read from
+ *     the visible granular pile in each bulb; plates/door report finish
+ *     events only. window.__arena_state keeps reporting sandRemaining —
+ *     inspection data for evaluation, never player-facing UI.
+ *   - On a win the round is graded from the achieved spread and the round
+ *     time left when the vault finished opening; the WORSE of the two
+ *     decides the letter (first band from the top whose spread AND time-left
+ *     both hold):
+ *       S: spread <= 0.2 s and >= 100 s left      (clean, early sync)
+ *       A: spread <= 0.5 s and >= 60 s left
+ *       B: spread <= 0.8 s and >= 25 s left
+ *       C: spread <= 1.0 s, any time left         (passing scrape)
+ *     The win screen shows the grade, the final spread, the time left at
+ *     open and these thresholds. The grade is a pure function of the run.
+ */
+
+const errBox = document.getElementById('err');
+function fail(m){ errBox.style.display = 'block'; errBox.textContent = m; }
+
+let THREE = null;
+async function loadThree(){
+  const candidates = ['./assets/_shared/three/build/three.min.js', './vendor/three/three.module.min.js'];
+  for (const url of candidates){
+    try {
+      const m = await import(url);
+      if (m && (m.Scene || m.WebGLRenderer)) return m;
+      if (window.THREE && window.THREE.Scene) return window.THREE; // UMD build set the global
+    } catch (e) {
+      if (window.THREE && window.THREE.Scene) return window.THREE;
+    }
+  }
+  // Last resort (e.g. file:// where module imports are blocked): classic script tags.
+  for (const url of candidates){
+    const ok = await new Promise(res => {
+      const s = document.createElement('script');
+      s.src = url; s.onload = () => res(true); s.onerror = () => res(false);
+      document.head.appendChild(s);
+    });
+    if (ok && window.THREE && window.THREE.Scene) return window.THREE;
+  }
+  return null;
+}
+THREE = await loadThree();
+if (!THREE){ fail('Could not load three.js from ./assets/_shared/three/build/three.min.js or ./vendor/three/three.module.min.js'); throw new Error('three.js missing'); }
+
+const DEG = Math.PI / 180;
+const ROUND_LIMIT = 180;          // seconds
+const SYNC_WINDOW = 1.0;          // round 4: all four must empty within this window (was 2.0)
+const TILT_STEP = 22.5 * DEG;     // per Q/E press
+const TILT_MAX  = 90 * DEG;
+const MULT_NORM = 45 * DEG;       // drain multiplier normalizer (x1.5 at 45deg)
+const FLIP_SETTLE = 0.7;          // seconds of pause/tumble after a flip
+const ZERO_PAD_REMAIN = 1e-4;
+
+// Mechanism parameters (round 3)
+const PLATE_EPS = 0.01;           // "upper bulb empty" threshold for a plate (s)
+const HOLD_TIME = 3.0;            // required hold with the door fully open (s) — also shown in HUD
+const DOOR_OPEN_TIME = 1.5;       // door travel time while all plates triggered (s)
+const DOOR_CLOSE_TIME = 0.8;      // door closing time after a break (s)
+const OBSTRUCTION_MAX = 3;        // obstruction uses available per round (shared budget)
+
+// Round-5 grade bands: first band from the top whose spread AND time-left
+// both hold sets the letter; C (inside the ±1.0 s window) is passing.
+const GRADE_BANDS = [
+  { grade:'S', spread:0.2, timeLeft:100 },
+  { grade:'A', spread:0.5, timeLeft:60 },
+  { grade:'B', spread:0.8, timeLeft:25 },
+  { grade:'C', spread:1.0, timeLeft:0 },
+];
+
+// Granular sand parameters
+const REPOSE_DEG = 32;                          // stated repose angle (dry sand: 30-35deg)
+const REPOSE_RAD = REPOSE_DEG * DEG;
+const REPOSE_K = Math.tan(REPOSE_RAD);          // pile flank slope = tan(32deg)
+const COLLAPSE_BOOST = 0.9;                     // extra drain multiplier while collapsing
+const COLLAPSE_TIME = 1.15;                     // seconds of avalanche
+const CREEP_TAU = 2.2;                          // sub-repose apex creep time constant (s)
+const AVALANCHE_TAU = 0.22;                     // collapse slide time constant (s)
+const NR_PILE = 30, NP_PILE = 12;               // radial/azimuth pile integration samples
+
+// Hourglass proportions (shared by A/B/C; "seconds of sand" map to fill fraction)
+const GLASS_R = 1.0;                                            // bulb radius
+const NECK_R  = 0.09;                                           // waist radius
+const C_CENTER = Math.sqrt(GLASS_R * GLASS_R - NECK_R * NECK_R); // bulb center offset from neck
+const HALF_H = C_CENTER + GLASS_R;                              // neck -> pole distance
+const PAD_R = 0.035, PAD_Y = 0.02;                              // sand-to-glass padding
+const PARTS_PER_BULB = 420;
+const STREAM_PARTS = 36;
+
+// Sand capacity of one bulb interior (ball ∩ bulb half-space), integrated once.
+const V_REGION = (() => {
+  let V = 0;
+  const NR = 64;
+  for (let i = 0; i < NR; i++){
+    const rho = (i + 0.5) * GLASS_R / NR;
+    const ch = Math.sqrt(Math.max(0, GLASS_R * GLASS_R - rho * rho));
+    const vLo = Math.max(C_CENTER - ch, PAD_Y), vHi = C_CENTER + ch;
+    if (vHi > vLo) V += (vHi - vLo) * 2 * Math.PI * rho * (GLASS_R / NR);
+  }
+  return V;
+})();
+
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
+// Pedestal arc around the central gear column: front corners + back middle
+// pair, so all four hourglasses are visible from the default camera and none
+// occludes another.
+const DEFS = [
+  { label:'A', capacity:30,  x:-8.8, z:1.2 },
+  { label:'B', capacity:60,  x:-3.3, z:2.6 },
+  { label:'C', capacity:90,  x: 3.3, z:2.6 },
+  { label:'D', capacity:120, x: 8.8, z:1.2 },
+];
+
+// ---------------------------------------------------------------- renderer
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias:true });
+} catch (e) {
+  fail('WebGL is not available in this browser.');
+  throw e;
+}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+if ('outputColorSpace' in renderer && THREE.SRGBColorSpace) renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0e13);
+scene.fog = new THREE.Fog(0x0b0e13, 42, 115);
+
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 300);
+const camTarget = new THREE.Vector3(0, 2.8, 0);
+const cam = { azimuth:0.5, polar:1.18, radius:17.5, azimuthT:0.5, polarT:1.18, radiusT:17.5 };
+function applyCamera(){
+  camera.position.setFromSphericalCoords(cam.radius, cam.polar, cam.azimuth).add(camTarget);
+  camera.lookAt(camTarget);
+}
+
+// ---------------------------------------------------------------- lighting
+scene.add(new THREE.HemisphereLight(0x8fa4c4, 0x2c2318, 0.55));
+const key = new THREE.DirectionalLight(0xfff1da, 2.4);
+key.position.set(14, 22, 10);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.left = -16; key.shadow.camera.right = 16;
+key.shadow.camera.top = 16;   key.shadow.camera.bottom = -16;
+key.shadow.camera.near = 4;   key.shadow.camera.far = 60;
+key.shadow.bias = -0.0004;
+key.shadow.normalBias = 0.02;
+scene.add(key);
+const fill = new THREE.DirectionalLight(0x7f9fd4, 0.55);
+fill.position.set(-12, 7, -9);
+scene.add(fill);
+
+// ---------------------------------------------------------------- floor
+const floor = new THREE.Mesh(
+  new THREE.CircleGeometry(70, 64),
+  new THREE.MeshStandardMaterial({ color:0x151a21, roughness:0.95, metalness:0.0 })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+const grid = new THREE.GridHelper(120, 60, 0x2a3340, 0x1e252e);
+grid.material.transparent = true;
+grid.material.opacity = 0.35;
+grid.position.y = 0.002;
+scene.add(grid);
+
+// ---------------------------------------------------------------- pedestals
+const NECK_WORLD_Y = 3.55;   // hourglass neck height when upright (group origin)
+const PLATE_OUTER = HALF_H + 0.14;                    // neck -> underside of end plate
+const PED_TOP = NECK_WORLD_Y - PLATE_OUTER;           // top face of pedestal cap
+const pickRoots = [];
+function buildPedestal(x, z, idx){
+  const g = new THREE.Group();
+  const stone = new THREE.MeshStandardMaterial({ color:0x38404a, roughness:0.6, metalness:0.15 });
+  const trim  = new THREE.MeshStandardMaterial({ color:0x272d35, roughness:0.5, metalness:0.3 });
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(1.9, 2.1, 0.3, 40), stone);
+  base.position.y = 0.15;
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.15, 0.87, 40), stone);
+  col.position.y = 0.3 + 0.435;
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.62, 0.25, 40), trim);
+  cap.position.y = PED_TOP - 0.125;
+  for (const m of [base, col, cap]){ m.castShadow = true; m.receiveShadow = true; g.add(m); }
+  g.position.set(x, 0, z);
+  g.userData.glassIndex = idx;
+  scene.add(g);
+  pickRoots.push(g);
+  return g;
+}
+
+// ---------------------------------------------------------------- shared hourglass geometry
+const glassGeo = new THREE.LatheGeometry((() => {
+  const pts = [];
+  const STEPS = 72;
+  for (let i = 0; i <= STEPS; i++){
+    const y = -HALF_H + (2 * HALF_H) * (i / STEPS);
+    const r = Math.sqrt(Math.max(0, GLASS_R * GLASS_R - (Math.abs(y) - C_CENTER) * (Math.abs(y) - C_CENTER)));
+    pts.push(new THREE.Vector2(Math.max(r, 0.0001), y));
+  }
+  return pts;
+})(), 56);
+const glassMat = new THREE.MeshPhysicalMaterial({
+  color:0xd8f2ec, roughness:0.06, metalness:0.0,
+  transparent:true, opacity:0.16, side:THREE.DoubleSide,
+  depthWrite:false, clearcoat:1.0, clearcoatRoughness:0.08,
+});
+const brassMat = new THREE.MeshStandardMaterial({ color:0x9a7b3f, roughness:0.32, metalness:0.85 });
+const woodMat  = new THREE.MeshStandardMaterial({ color:0x4a3320, roughness:0.65, metalness:0.05 });
+
+// Round particle sprite
+function dotTexture(){
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(32, 32, 2, 32, 32, 30);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.7, 'rgba(255,255,255,0.9)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad; g.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c);
+  if ('colorSpace' in t && THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const dotTex = dotTexture();
+
+// Deterministic hash [0,1) — the only "randomness" source, fixed forever.
+function hash01(n){
+  const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+function makeParticleParams(seed){
+  const arr = [];
+  for (let i = 0; i < PARTS_PER_BULB; i++){
+    arr.push({
+      w:    hash01(i * 9.73 + seed),          // pile volume rank (sorted below)
+      rho:  Math.sqrt(hash01(i * 7.31 + seed + 0.5)),
+      th:   Math.PI * 2 * hash01(i * 5.17 + seed + 0.9),
+      vh:   hash01(i * 13.91 + seed + 2.31),  // height fraction inside the column
+      tint: 0.82 + 0.3 * hash01(i * 3.11 + seed + 1.7),
+    });
+  }
+  arr.sort((a, b) => a.w - b.w);
+  return arr;
+}
+
+// ---------------------------------------------------------------- labels
+function makeLabelSprite(letter, cap){
+  const c = document.createElement('canvas'); c.width = 256; c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = 'rgba(8,12,18,0.65)';
+  g.beginPath();
+  if (g.roundRect) g.roundRect(28, 14, 200, 100, 22); else g.rect(28, 14, 200, 100);
+  g.fill();
+  g.strokeStyle = 'rgba(255,217,122,0.55)'; g.lineWidth = 4; g.stroke();
+  g.fillStyle = '#ffd97a'; g.font = '700 62px ui-monospace, Menlo, monospace';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(letter, 128, 52);
+  g.fillStyle = '#9fb2c4'; g.font = '600 26px ui-monospace, Menlo, monospace';
+  g.fillText(cap + 's', 128, 92);
+  const t = new THREE.CanvasTexture(c);
+  if ('colorSpace' in t && THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:t, transparent:true, depthWrite:false }));
+  sp.scale.set(1.7, 0.85, 1);
+  return sp;
+}
+
+// ---------------------------------------------------------------- hourglass
+let gameTime = 0, gameOver = false, victory = false, selected = null;
+let doorProgress = 0, holdRemaining = HOLD_TIME, obstructionLeft = OBSTRUCTION_MAX;
+let doorState = 'closed';   // 'closed' | 'opening' | 'open'
+let finalSpread = null, timeLeftAtOpen = null, victoryGrade = null;   // round-5 grading
+
+class Hourglass {
+  constructor(def, idx){
+    this.label = def.label;
+    this.capacity = def.capacity;
+    this.idx = idx;
+    this.sand = [def.capacity, 0];   // [mesh bulb on local +Y, mesh bulb on local -Y]
+    this.tiltTarget = 0;             // radians, signed (Q -> +, E -> -)
+    this.flipCount = 0;
+    this.theta = 0;                  // animated orientation about world Z
+    this.thetaTarget = 0;
+    this.settle = 0;
+    this.zeroTime = null;
+    this.landingT = 2;               // stream fall distance to the lower pile surface
+
+    // granular pile state, per mesh bulb
+    this.piles = [0, 1].map(() => ({
+      sp: 0,        // apex offset along the downhill axis (0 = over the bulb's low point)
+      collapseT: 0, // remaining avalanche time
+      elapsed: 0,   // time since the avalanche started
+      craterD: 0,   // drain-crater depth (top bulb only)
+      craterR: 0.3,
+      kEff: REPOSE_K,
+    }));
+    this._aboveRepose = false;
+    this._lastTrig = 0;
+    this._P = [0.8, 0.8];            // last solved apex thickness per bulb
+
+    this.root = new THREE.Group();
+    this.root.position.set(def.x, NECK_WORLD_Y, def.z);
+    this.root.userData.glassIndex = idx;
+    this.tiltG = new THREE.Group();  // rotates (tilt + flip) about the neck
+    this.root.add(this.tiltG);
+
+    // glass
+    this.glass = new THREE.Mesh(glassGeo, glassMat);
+    this.glass.renderOrder = 10;
+    this.tiltG.add(this.glass);
+
+    // selection outline (inverted hull, hidden by default)
+    this.outline = new THREE.Mesh(glassGeo, new THREE.MeshBasicMaterial({
+      color:0x6cf7c8, side:THREE.BackSide, transparent:true, opacity:0.0, depthWrite:false,
+    }));
+    this.outline.scale.set(1.07, 1.035, 1.07);
+    this.outline.renderOrder = 8;
+    this.outline.visible = false;
+    this.tiltG.add(this.outline);
+
+    // frame: two plates, four posts, decorative bands, neck collar, finial
+    const frame = new THREE.Group();
+    const plateY = HALF_H + 0.07;
+    const mk = (geo, mat, x, y, z, rx) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z);
+      if (rx) m.rotation.x = rx;
+      m.castShadow = true; m.receiveShadow = true;
+      frame.add(m);
+      return m;
+    };
+    const plateGeo = new THREE.CylinderGeometry(1.5, 1.5, 0.14, 40);
+    mk(plateGeo, woodMat, 0,  plateY, 0);
+    mk(plateGeo, woodMat, 0, -plateY, 0);
+    const postGeo = new THREE.CylinderGeometry(0.05, 0.05, 2 * plateY, 10);
+    for (let i = 0; i < 4; i++){
+      const a = Math.PI / 4 + i * Math.PI / 2;
+      mk(postGeo, brassMat, Math.cos(a) * 1.3, 0, Math.sin(a) * 1.3);
+    }
+    const bandGeo = new THREE.TorusGeometry(1.045, 0.035, 10, 48);
+    mk(bandGeo, brassMat, 0,  C_CENTER, 0, Math.PI / 2);
+    mk(bandGeo, brassMat, 0, -C_CENTER, 0, Math.PI / 2);
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.045, 10, 32), brassMat);
+    collar.rotation.x = Math.PI / 2;
+    collar.castShadow = true;
+    frame.add(collar);
+    const finial = new THREE.Mesh(new THREE.SphereGeometry(0.09, 16, 12), brassMat);
+    finial.position.y = plateY + 0.09;
+    finial.castShadow = true;
+    frame.add(finial);
+    this.tiltG.add(frame);
+
+    // selection ring (world-space, sits on the pedestal)
+    this.ring = new THREE.Mesh(
+      new THREE.TorusGeometry(1.75, 0.05, 10, 48),
+      new THREE.MeshBasicMaterial({ color:0x6cf7c8, transparent:true, opacity:0.8, blending:THREE.AdditiveBlending, depthWrite:false })
+    );
+    this.ring.rotation.x = Math.PI / 2;
+    this.ring.position.set(def.x, PED_TOP + 0.05, def.z);
+    this.ring.visible = false;
+    scene.add(this.ring);
+
+    // label (world-upright, rides with the glass)
+    this.labelSprite = makeLabelSprite(def.label, def.capacity);
+    this.labelSprite.position.set(0, HALF_H + 0.76, 0);
+    this.root.add(this.labelSprite);
+
+    // obstruction clamp (round 3): visible orange clamp plugging the waist
+    const plug = new THREE.Group();
+    const clampMat = new THREE.MeshStandardMaterial({
+      color:0xc46a2a, roughness:0.45, metalness:0.5, emissive:0x53290a, emissiveIntensity:0.55,
+    });
+    const jawGeo = new THREE.BoxGeometry(0.16, 0.36, 0.42);
+    for (const sx of [0.2, -0.2]){
+      const jaw = new THREE.Mesh(jawGeo, clampMat);
+      jaw.position.set(sx, 0, 0);
+      jaw.castShadow = true;
+      plug.add(jaw);
+    }
+    const crossbar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.64, 8), clampMat);
+    crossbar.rotation.z = Math.PI / 2;
+    crossbar.position.set(0, 0.12, 0);
+    plug.add(crossbar);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 10), clampMat);
+    knob.position.set(0.32, 0.12, 0);
+    plug.add(knob);
+    plug.visible = false;
+    this.tiltG.add(plug);
+    this.plug = plug;
+    this.obstructed = false;
+
+    // sand particles: two bulb pools + stream in one Points object (group-local coords)
+    this.pools = [
+      { base: 0, n: PARTS_PER_BULB, params: makeParticleParams(11.3 + idx * 57.1) },
+      { base: PARTS_PER_BULB, n: PARTS_PER_BULB, params: makeParticleParams(233.7 + idx * 91.3) },
+    ];
+    const total = 2 * PARTS_PER_BULB + STREAM_PARTS;
+    this.positions = new Float32Array(total * 3);
+    const colors = new Float32Array(total * 3);
+    for (let p = 0; p < 2; p++){
+      const pool = this.pools[p];
+      for (let i = 0; i < pool.n; i++){
+        const t = pool.params[i].tint;
+        const o = (pool.base + i) * 3;
+        colors[o]     = 0.95 * t;
+        colors[o + 1] = 0.76 * t;
+        colors[o + 2] = 0.34 * t;
+      }
+    }
+    for (let i = 0; i < STREAM_PARTS; i++){
+      const o = (2 * PARTS_PER_BULB + i) * 3;
+      colors[o] = 1.0; colors[o + 1] = 0.84; colors[o + 2] = 0.42;
+    }
+    const geo = new THREE.BufferGeometry();
+    this.posAttr = new THREE.BufferAttribute(this.positions, 3);
+    this.posAttr.setUsage(THREE.DynamicDrawUsage);
+    geo.setAttribute('position', this.posAttr);
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    this.sandPoints = new THREE.Points(geo, new THREE.PointsMaterial({
+      size:0.075, map:dotTex, vertexColors:true, alphaTest:0.35,
+      sizeAttenuation:true, transparent:false,
+    }));
+    this.sandPoints.renderOrder = 1;
+    this.sandPoints.frustumCulled = false;
+    this.sandPoints.userData.glassIndex = idx;
+    this.tiltG.add(this.sandPoints);
+    this._tab = new Float64Array(NR_PILE + 1);
+    this._fr = [];
+  }
+
+  get topIdx(){ return this.flipCount % 2 === 0 ? 0 : 1; }
+  get sandRemaining(){ return this.sand[this.topIdx]; }
+  get tiltDeg(){ return this.tiltTarget / DEG; }
+  get isFlipped(){ return this.flipCount % 2 === 1; }
+  get pileState(){ return this.piles[this.topIdx].collapseT > 0 ? 'collapsing' : 'stable'; }
+
+  doTilt(dir){ // dir +1 = Q (lean left), -1 = E (lean right)
+    this.tiltTarget = Math.max(-TILT_MAX, Math.min(TILT_MAX, this.tiltTarget + dir * TILT_STEP));
+    this.thetaTarget = this.flipCount * Math.PI + this.tiltTarget;
+  }
+  upright(){
+    this.tiltTarget = 0;
+    this.thetaTarget = this.flipCount * Math.PI;
+  }
+  flip(){
+    this.flipCount++;
+    this.thetaTarget = this.flipCount * Math.PI + this.tiltTarget;
+    this.settle = FLIP_SETTLE;
+    this.zeroTime = (this.sandRemaining <= PLATE_EPS) ? gameTime : null;
+    // the refilled top pile re-forms: run an avalanche event for it
+    const p = this.piles[this.topIdx];
+    p.collapseT = COLLAPSE_TIME; p.elapsed = 0;
+  }
+
+  setObstructed(v){
+    this.obstructed = v;
+    this.plug.visible = v;
+  }
+
+  update(dt){
+    const k = 1 - Math.exp(-6 * dt);
+    this.theta += (this.thetaTarget - this.theta) * k;
+    if (Math.abs(this.thetaTarget - this.theta) < 1e-4) this.theta = this.thetaTarget;
+    this.tiltG.quaternion.setFromAxisAngle(Z_AXIS, this.theta);
+
+    // levitate slightly while away from an upright pose so the swinging
+    // frame always clears the pedestal
+    const tt = ((this.theta % Math.PI) + Math.PI) % Math.PI;
+    const dUpright = Math.min(tt, Math.PI - tt);
+    this.root.position.y = NECK_WORLD_Y + 0.58 * (1 - Math.exp(-4.5 * dUpright));
+
+    // gravity-frame basis (tilt is a rotation about world Z, so local up and
+    // the downhill horizontal both stay in the local x-y plane)
+    const uX = Math.sin(this.theta), uY = Math.cos(this.theta);
+    const dX = -uY, dY = uX;       // downhill horizontal direction (unit)
+    this._uX = uX; this._uY = uY; this._dX = dX; this._dY = dY;
+    this._fr.length = 0;
+    for (let b = 0; b < 2; b++){
+      const sgn = (b === 0) ? 1 : -1;
+      const cy = sgn * C_CENTER;
+      // anchor = lowest point of (bulb ball ∩ bulb half-space) along local up
+      let ax, ay;
+      const candY = cy - GLASS_R * uY;
+      if (sgn * candY < 0){
+        if (Math.abs(uX) < 1e-4){ ax = 0; ay = 0; }
+        else { ax = -NECK_R * Math.sign(uX); ay = 0; }
+      } else { ax = -GLASS_R * uX; ay = candY; }
+      const sC = -ax * dX + (cy - ay) * dY;   // bulb center, gravity-frame coords
+      const vC = -ax * uX + (cy - ay) * uY;
+      const spT = -(ax * dX + ay * dY);       // neck's horizontal offset = stream landing point
+      this._fr.push({ sgn, cy, ax, ay, sC, vC, spT, uX, uY, dX, dY });
+    }
+
+    if (this.settle > 0) this.settle -= dt;
+    const collapsing = this.pileState === 'collapsing';
+    const draining = this.settle <= 0 && !this.obstructed && this.sandRemaining > ZERO_PAD_REMAIN;
+    if (draining){
+      const mult = 1 + 0.5 * Math.abs(this.tiltTarget) / MULT_NORM
+                 + (collapsing ? COLLAPSE_BOOST : 0);
+      let d = mult * dt;
+      if (d > this.sandRemaining) d = this.sandRemaining;
+      this.sand[this.topIdx] -= d;
+      this.sand[1 - this.topIdx] += d;
+    }
+    // zeroTime: when this glass most recently became empty (plate threshold);
+    // the round-4 sync window compares these four timestamps.
+    if (this.sandRemaining <= PLATE_EPS){
+      if (this.zeroTime === null) this.zeroTime = gameTime;
+    } else {
+      this.zeroTime = null;
+    }
+
+    // avalanche trigger: logical tilt crossing the repose angle (edge + step)
+    const at = Math.abs(this.tiltTarget);
+    if (at >= REPOSE_RAD){
+      if (!this._aboveRepose || at - this._lastTrig >= 20 * DEG){
+        for (const p of this.piles){ p.collapseT = COLLAPSE_TIME; p.elapsed = 0; }
+        this._lastTrig = at;
+      }
+      this._aboveRepose = true;
+    } else if (at < REPOSE_RAD - 5 * DEG){
+      this._aboveRepose = false;
+    }
+
+    // pile dynamics: apex slides toward its equilibrium; slump while collapsing
+    for (let b = 0; b < 2; b++){
+      const p = this.piles[b];
+      if (p.collapseT > 0){ p.elapsed += dt; p.collapseT -= dt; }
+      const tau = p.collapseT > 0 ? AVALANCHE_TAU : CREEP_TAU;
+      const spT = (b === this.topIdx) ? 0 : this._fr[b].spT;
+      p.sp += (spT - p.sp) * (1 - Math.exp(-dt / tau));
+      const prog = p.collapseT > 0 ? Math.min(1, p.elapsed / COLLAPSE_TIME) : 1;
+      const slump = p.collapseT > 0 ? Math.sin(Math.PI * prog) : 0;
+      p.kEff = REPOSE_K * (1 - 0.45 * slump);
+    }
+    // drain crater eases in on the top pile, fades on the bottom pile
+    {
+      const p = this.piles[this.topIdx];
+      const frac = this.sandRemaining / this.capacity;
+      const Pp = this._P[this.topIdx];
+      const dT = (0.08 + 0.6 * (1 - frac)) * Math.min(Math.max(Pp, 0.45), 1.4);
+      const rT = Math.min(0.95, 0.22 + 0.5 * (1 - frac) * Math.max(0.5, Pp));
+      const kk = 1 - Math.exp(-dt / 0.35);
+      p.craterD += (dT - p.craterD) * kk;
+      p.craterR += (rT - p.craterR) * kk;
+    }
+    {
+      const po = this.piles[1 - this.topIdx];
+      po.craterD += (0 - po.craterD) * (1 - Math.exp(-dt / 0.25));
+    }
+
+    this.updateSandVisual();
+  }
+
+  // ---- granular sand visuals ----------------------------------------------
+  // Vertical chord of (bulb ball ∩ bulb half-space) at horizontal point (s,w)
+  // in the bulb's gravity frame; null when the line misses the sand region.
+  columnAt(fr, s, w){
+    const dsq = (s - fr.sC) * (s - fr.sC) + w * w;
+    if (dsq >= GLASS_R * GLASS_R) return null;
+    const ch = Math.sqrt(GLASS_R * GLASS_R - dsq);
+    let vLo = fr.vC - ch, vHi = fr.vC + ch;
+    const pyb = fr.ay + s * fr.dY;
+    if (Math.abs(fr.uY) >= 1e-4){
+      const vCut = (fr.sgn * PAD_Y - pyb) / fr.uY;
+      if (fr.sgn * fr.uY > 0){ if (vCut > vLo) vLo = vCut; }
+      else if (vCut < vHi) vHi = vCut;
+    } else if (fr.sgn * pyb < PAD_Y) return null;
+    return (vHi > vLo) ? { vLo, vHi } : null;
+  }
+
+  // Pile surface height at (s,w): a right circular cone in the gravity frame
+  // (flank slope = kEff relative to horizontal, i.e. the repose angle), minus
+  // the drain crater centred on the neck. Sand fills each vertical chord from
+  // its floor up to this surface, clipped to the glass.
+  surfaceAt(fr, s, w, vApex, sp, kEff, craterD, craterR, craterCx){
+    const dxa = s - sp, rA = Math.sqrt(dxa * dxa + w * w);
+    let v = vApex - kEff * rA;
+    if (craterD > 0){
+      const dxs = s - craterCx, rS = Math.sqrt(dxs * dxs + w * w);
+      if (rS < craterR){ const bb = 1 - rS / craterR; v -= craterD * bb * bb; }
+    }
+    return v;
+  }
+
+  // sand thickness at (s,w): chord floor up to the pile surface
+  thickAt(fr, s, w, vApex, sp, kEff, craterD, craterR, craterCx){
+    const col = this.columnAt(fr, s, w);
+    if (!col) return 0;
+    const vS = this.surfaceAt(fr, s, w, vApex, sp, kEff, craterD, craterR, craterCx);
+    if (vS <= col.vLo) return 0;
+    return Math.min(vS, col.vHi) - col.vLo;
+  }
+
+  updateSandVisual(){
+    const pos = this.positions;
+    for (let b = 0; b < 2; b++){
+      this.fillPoolGranular(b, pos, this.sand[b] / this.capacity);
+    }
+    this.updateStream(pos);
+    this.posAttr.needsUpdate = true;
+  }
+
+  // Place one bulb's granular pile: solve the cone apex height vApex so the
+  // clipped cone holds exactly the bulb's sand volume, then place particles by
+  // fixed volume rank inside the pile.
+  fillPoolGranular(b, pos, frac){
+    const pool = this.pools[b];
+    const N = pool.n, base = pool.base * 3;
+    const active = Math.max(0, Math.min(N, Math.ceil(frac * N - 1e-9)));
+    if (active === 0){
+      for (let i = 0; i < N; i++){
+        const o = base + i * 3;
+        pos[o] = 0; pos[o + 1] = -999; pos[o + 2] = 0;
+      }
+      return;
+    }
+    const fr = this._fr[b];
+    const P = this.piles[b];
+    const isTop = b === this.topIdx;
+    const sp = P.sp, kEff = P.kEff;
+    const craterD = isTop ? P.craterD : 0;
+    const craterR = isTop ? P.craterR : 0.3;
+    const craterCx = isTop ? fr.spT : 0;   // crater sits over the neck (the sink)
+    const thick = (s, w, Pv) => this.thickAt(fr, s, w, Pv, sp, kEff, craterD, craterR, craterCx);
+
+    // radial volume table (around the apex) for a given apex thickness
+    const rMax = Math.abs(sp) + GLASS_R + 0.05;
+    const dr = rMax / NR_PILE;
+    const tab = this._tab;
+    const build = (Pv) => {
+      let acc = 0; tab[0] = 0;
+      for (let j = 0; j < NR_PILE; j++){
+        const r = (j + 0.5) * dr;
+        let sum = 0;
+        for (let q = 0; q < NP_PILE; q++){
+          const ps = (q + 0.5) / NP_PILE * 2 * Math.PI;
+          sum += thick(sp + r * Math.cos(ps), r * Math.sin(ps), Pv);
+        }
+        acc += (sum / NP_PILE) * (2 * Math.PI * r) * dr;
+        tab[j + 1] = acc;
+      }
+      return acc;
+    };
+    // solve the apex height so the pile volume == frac * bulb capacity
+    let lo = 0, hi = 3.4;
+    const target = Math.min(1, frac) * V_REGION;
+    for (let it = 0; it < 10; it++){
+      const mid = 0.5 * (lo + hi);
+      if (build(mid) < target) lo = mid; else hi = mid;
+    }
+    const Pv = 0.5 * (lo + hi);
+    const Vtot = build(Pv);
+    this._P[b] = Pv;
+
+    // stream landing height on this bulb's pile (bottom bulb feeds the stream)
+    if (b === 1 - this.topIdx){
+      const sN = fr.spT;
+      const col = this.columnAt(fr, sN, 0);
+      const vNeck = -(fr.ax * this._uX + fr.ay * this._uY);
+      const vSurf = col ? (col.vLo + thick(sN, 0, Pv)) : vNeck - 2;
+      this.landingT = Math.max(0.05, vNeck - vSurf);
+    }
+
+    if (Vtot <= 1e-9){
+      for (let i = 0; i < N; i++){
+        const o = base + i * 3;
+        pos[o] = 0; pos[o + 1] = -999; pos[o + 2] = 0;
+      }
+      return;
+    }
+    // particles: fixed volume rank -> radius, fixed azimuth/height hashes
+    for (let i = 0; i < N; i++){
+      const o = base + i * 3;
+      if (i >= active){ pos[o] = 0; pos[o + 1] = -999; pos[o + 2] = 0; continue; }
+      const prm = pool.params[i];
+      const tTarget = Math.min(0.99999, prm.w) * Vtot;
+      let lo2 = 0, hi2 = NR_PILE;
+      while (lo2 < hi2){
+        const mid = (lo2 + hi2) >> 1;
+        if (tab[mid] < tTarget) lo2 = mid + 1; else hi2 = mid;
+      }
+      const jb = Math.min(NR_PILE - 1, Math.max(0, lo2 - 1));
+      const seg = tab[jb + 1] - tab[jb];
+      const fj = seg > 1e-12 ? (tTarget - tab[jb]) / seg : 0;
+      const r = (jb + Math.min(1, Math.max(0, fj))) * dr;
+      let s = sp + r * Math.cos(prm.th), w = r * Math.sin(prm.th);
+      let tcol = thick(s, w, Pv);
+      let guard = 0;
+      while (tcol <= 1e-4 && guard++ < 8){
+        s = sp + (s - sp) * 0.55; w *= 0.55;
+        tcol = thick(s, w, Pv);
+      }
+      if (tcol <= 1e-4){ s = sp; w = 0; tcol = Math.max(1e-4, thick(s, w, Pv)); }
+      const col = this.columnAt(fr, s, w);
+      const vLo = col ? col.vLo : 0;
+      const v = vLo + prm.vh * tcol;
+      // back to bulb-local: p = anchor + s*dhat + v*up + w*zhat
+      const px = fr.ax + s * this._dX + v * this._uX;
+      const py = fr.ay + s * this._dY + v * this._uY;
+      this.writeClamped(pos, o, px, py, w, fr.cy, fr.sgn);
+    }
+  }
+
+  writeClamped(pos, o, px, py, pz, cy, sgn){
+    // hard containment: bulb half-space, then project inside the bulb sphere
+    if (sgn * py < PAD_Y) py = sgn * PAD_Y;
+    const dx = px, dyv = py - cy, dz = pz;
+    const d2 = dx * dx + dyv * dyv + dz * dz;
+    const maxR = GLASS_R - PAD_R;
+    if (d2 > maxR * maxR){
+      const f = maxR / Math.sqrt(d2);
+      px = dx * f; py = cy + dyv * f; pz = dz * f;
+      if (sgn * py < PAD_Y) py = sgn * PAD_Y;
+    }
+    pos[o] = px; pos[o + 1] = py; pos[o + 2] = pz;
+  }
+
+  updateStream(pos){
+    const base = (2 * PARTS_PER_BULB) * 3;
+    const active = !gameOver && this.settle <= 0 && !this.obstructed && this.sandRemaining > ZERO_PAD_REMAIN;
+    if (!active){
+      for (let i = 0; i < STREAM_PARTS; i++){
+        const o = base + i * 3;
+        pos[o] = 0; pos[o + 1] = -999; pos[o + 2] = 0;
+      }
+      return;
+    }
+    // The stream falls from the neck along local -up (= straight down in the
+    // world), landing on the lower pile. March until it would leave the glass
+    // interior or reach the pile surface.
+    const uX = this._uX, uY = this._uY;
+    let wallT = 2.35;
+    for (let t = 0.05; t <= 2.35; t += 0.05){
+      const py = -uY * t, px = -uX * t;
+      const ayv = Math.abs(py);
+      const rl = Math.sqrt(Math.max(0, GLASS_R * GLASS_R - (ayv - C_CENTER) * (ayv - C_CENTER))) - PAD_R;
+      if (rl < 0.05 || Math.abs(px) > rl - 0.03){ wallT = Math.max(0.04, t - 0.05); break; }
+    }
+    const surfT = Math.max(0, this.landingT);
+    const len = Math.max(0.05, Math.min(wallT - 0.02, Math.max(0.3, surfT), 2.3));
+    const speed = 1.15 * (1 + 0.5 * Math.abs(this.tiltTarget) / MULT_NORM)
+                + (this.piles[this.topIdx].collapseT > 0 ? 0.5 : 0);
+    for (let i = 0; i < STREAM_PARTS; i++){
+      const o = base + i * 3;
+      const ph = ((i / STREAM_PARTS) + gameTime * speed * 0.45) % 1;
+      const d = ph * len;
+      const wob = Math.sin(ph * 21 + i * 2.9) * 0.013 * (0.2 + ph);
+      const o2 = Math.cos(ph * 17 + i * 1.7) * 0.013 * (0.2 + ph);
+      pos[o]     = -uX * d - uY * wob;
+      pos[o + 1] = -uY * d + uX * wob;
+      pos[o + 2] = o2;
+    }
+  }
+
+  setSelected(on){
+    this.outline.visible = on;
+    this.ring.visible = on;
+  }
+}
+
+// ---------------------------------------------------------------- build world
+const glasses = DEFS.map((d, i) => {
+  buildPedestal(d.x, d.z, i);
+  return new Hourglass(d, i);
+});
+glasses.forEach(g => scene.add(g.root));
+
+// ---------------------------------------------------------------- vault mechanism
+// Pressure plates (one ring per pedestal) wired by conduits to the vault door.
+const vault = { door: null, wheel: null, interiorMat: null, interiorLight: null, pipes: [] };
+const plateRings = [];
+function buildVault(){
+  const steel = new THREE.MeshStandardMaterial({ color:0x39414d, roughness:0.5, metalness:0.65 });
+  const darkSteel = new THREE.MeshStandardMaterial({ color:0x232a33, roughness:0.55, metalness:0.6 });
+  const stone2 = new THREE.MeshStandardMaterial({ color:0x2e353e, roughness:0.85, metalness:0.05 });
+
+  // chamber back wall
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(17, 9.7, 0.4), stone2);
+  wall.position.set(0, 4.85, -11.4);
+  wall.receiveShadow = true;
+  scene.add(wall);
+
+  // portal frame
+  const mkBox = (w, h, d, x, y, z, mat) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, y, z);
+    m.castShadow = true; m.receiveShadow = true;
+    scene.add(m);
+    return m;
+  };
+  mkBox(1.2, 6.6, 1.0, -4.35, 3.3, -10.0, steel);
+  mkBox(1.2, 6.6, 1.0,  4.35, 3.3, -10.0, steel);
+  mkBox(9.9, 1.1, 1.0, 0, 7.15, -10.0, steel);
+
+  // floor slot the door sinks into
+  const slot = new THREE.Mesh(
+    new THREE.BoxGeometry(5.0, 0.06, 0.9),
+    new THREE.MeshStandardMaterial({ color:0x0a0d11, roughness:1.0 })
+  );
+  slot.position.set(0, 0.031, -9.55);
+  scene.add(slot);
+
+  // glowing vault interior behind the doorway
+  vault.interiorMat = new THREE.MeshStandardMaterial({ color:0x120d07, emissive:0xffb45c, emissiveIntensity:0, roughness:1.0 });
+  const interior = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 5.6), vault.interiorMat);
+  interior.position.set(0, 2.9, -11.1);
+  scene.add(interior);
+  vault.interiorLight = new THREE.PointLight(0xffc37a, 0, 22, 2);
+  vault.interiorLight.position.set(0, 3, -9.9);
+  scene.add(vault.interiorLight);
+
+  // the door disc (sinks through the floor slot while opening)
+  const dg = new THREE.Group();
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 0.5, 48), darkSteel);
+  disc.rotation.x = Math.PI / 2;
+  disc.castShadow = true; disc.receiveShadow = true;
+  dg.add(disc);
+  const wg = new THREE.Group();   // spoked wheel on the door face
+  wg.add(new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.085, 12, 40), brassMat));
+  for (let i = 0; i < 3; i++){
+    const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.44, 10), brassMat);
+    sp.rotation.z = i * Math.PI / 3;
+    wg.add(sp);
+  }
+  wg.add(new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 10), brassMat));
+  wg.position.set(0, 0, 0.3);
+  dg.add(wg);
+  vault.wheel = wg;
+  for (let i = 0; i < 10; i++){   // rim bolts
+    const a = i / 10 * Math.PI * 2;
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.12, 8), brassMat);
+    b.rotation.x = Math.PI / 2;
+    b.position.set(Math.cos(a) * 1.95, Math.sin(a) * 1.95, 0.28);
+    dg.add(b);
+  }
+  dg.position.set(0, 2.75, -9.55);
+  scene.add(dg);
+  vault.door = dg;
+
+  // junction box where the four conduits meet in front of the portal base
+  mkBox(0.9, 0.5, 0.6, 0, 0.35, -8.7, steel);
+
+  // one conduit per pedestal, glowing when its plate is triggered
+  for (let i = 0; i < DEFS.length; i++){
+    const mat = new THREE.MeshStandardMaterial({
+      color:0x8a6b3a, roughness:0.4, metalness:0.7, emissive:0x000000, emissiveIntensity:0.9,
+    });
+    const ped = new THREE.Vector3(DEFS[i].x, 0.3, DEFS[i].z);
+    const jct = new THREE.Vector3(0, 0.3, -8.7);
+    const out = jct.clone().sub(ped).normalize();
+    const aV = ped.clone().addScaledVector(out, 2.0);   // start at the pedestal rim
+    const bV = jct;
+    const dir = bV.clone().sub(aV);
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, dir.length(), 10), mat);
+    pipe.position.copy(aV).addScaledVector(dir, 0.5);
+    pipe.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+    scene.add(pipe);
+    vault.pipes.push(mat);
+  }
+}
+buildVault();
+// plate indicator rings (individual trigger state per hourglass)
+for (let i = 0; i < DEFS.length; i++){
+  const mat = new THREE.MeshStandardMaterial({ color:0x6a5620, emissive:0x000000, roughness:0.5, metalness:0.3 });
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.58, 0.06, 10, 48), mat);
+  ring.rotation.x = Math.PI / 2;
+  ring.position.set(DEFS[i].x, PED_TOP + 0.03, DEFS[i].z);
+  scene.add(ring);
+  plateRings.push({ mat, ring });
+}
+
+// ---------------------------------------------------------------- clock tower theming (round 4)
+// The vault chamber is a clock tower mechanism room: a central gear column
+// with turning gears, a ticking escapement wheel, an oscillating balance
+// wheel and a swinging seconds pendulum, plus a clock face above the vault
+// door and clockwork gears on the door itself. Every motion is a pure
+// function of game time — no randomness — so the mechanism is deterministic
+// and freezes the moment the round ends.
+const clockwork = { parts: [] };
+let cwEscapement = null, cwBalance = null, cwPendulum = null, cwHands = null;
+const cwDoorGears = [];
+
+function makeGear(r, teeth, th, mat){
+  const grp = new THREE.Group();
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(r, r, th, 36), mat);
+  disc.rotation.x = Math.PI / 2;
+  grp.add(disc);
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(Math.max(0.09, r * 0.16), Math.max(0.09, r * 0.16), th * 1.8, 14), mat);
+  hub.rotation.x = Math.PI / 2;
+  grp.add(hub);
+  const holeMat = new THREE.MeshBasicMaterial({ color:0x10141a });
+  for (let i = 0; i < 4; i++){
+    const a = i * Math.PI / 2 + Math.PI / 4;
+    const hole = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.30, r * 0.30, th * 1.3, 18), holeMat);
+    hole.rotation.x = Math.PI / 2;
+    hole.position.set(Math.cos(a) * r * 0.55, Math.sin(a) * r * 0.55, 0);
+    grp.add(hole);
+  }
+  const tp = Math.max(0.05, r * 0.14);
+  const toothGeo = new THREE.BoxGeometry((2 * Math.PI * r / teeth) * 0.42, tp * 2, th * 0.9);
+  for (let i = 0; i < teeth; i++){
+    const a = i / teeth * Math.PI * 2;
+    const tooth = new THREE.Mesh(toothGeo, mat);
+    tooth.position.set(Math.cos(a) * (r + tp * 0.5), Math.sin(a) * (r + tp * 0.5), 0);
+    tooth.rotation.z = a;
+    grp.add(tooth);
+  }
+  return grp;
+}
+
+function buildClockwork(){
+  const brass2 = new THREE.MeshStandardMaterial({ color:0xa8843f, roughness:0.3, metalness:0.9 });
+  const brassDark = new THREE.MeshStandardMaterial({ color:0x6b5426, roughness:0.4, metalness:0.85 });
+  const darkSteel = new THREE.MeshStandardMaterial({ color:0x272e38, roughness:0.55, metalness:0.65 });
+  const steelRod = new THREE.MeshStandardMaterial({ color:0x8b939e, roughness:0.4, metalness:0.8 });
+
+  // central gear column
+  const g = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.95, 0.5, 36), darkSteel);
+  base.position.y = 0.25;
+  const core = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.3, 7.1, 28), new THREE.MeshStandardMaterial({ color:0x2c333d, roughness:0.7, metalness:0.25 }));
+  core.position.y = 4.05;
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.2, 0.35, 28), darkSteel);
+  cap.position.y = 7.75;
+  const finial = new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 14), brass2);
+  finial.position.y = 8.05;
+  for (const m of [base, core, cap, finial]){ m.castShadow = true; m.receiveShadow = true; g.add(m); }
+  for (const y of [1.3, 3.9, 6.3]){
+    const band = new THREE.Mesh(new THREE.TorusGeometry(1.34, 0.05, 10, 44), brass2);
+    band.rotation.x = Math.PI / 2;
+    band.position.y = y;
+    g.add(band);
+  }
+
+  // meshing gear pair on the column front + a gear on its right flank
+  const gearBig = makeGear(1.0, 20, 0.14, brass2);
+  gearBig.position.set(-0.62, 4.9, 1.18);
+  g.add(gearBig);
+  clockwork.parts.push({ obj: gearBig, rate: 0.45 });
+  const gearSmall = makeGear(0.55, 12, 0.14, brassDark);
+  gearSmall.position.set(0.98, 4.25, 1.18);
+  g.add(gearSmall);
+  clockwork.parts.push({ obj: gearSmall, rate: -0.75 });
+  const gearSide = makeGear(0.8, 16, 0.13, brassDark);
+  gearSide.rotation.y = Math.PI / 2;
+  gearSide.position.set(1.28, 3.0, 0.4);
+  g.add(gearSide);
+  clockwork.parts.push({ obj: gearSide, rate: -0.6 });
+  const axleSpecs = [
+    { p: [-0.62, 4.9, 0.95], alongZ: true },
+    { p: [0.98, 4.25, 0.95], alongZ: true },
+    { p: [1.28, 3.0, 0.7],  alongZ: false },
+  ];
+  for (const s of axleSpecs){
+    const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.55, 10), brassDark);
+    if (s.alongZ) axle.rotation.x = Math.PI / 2; else axle.rotation.z = Math.PI / 2;
+    axle.position.set(s.p[0], s.p[1], s.p[2]);
+    g.add(axle);
+  }
+
+  // ticking escapement wheel (advances half a tooth, twice a second)
+  cwEscapement = makeGear(0.62, 15, 0.1, brass2);
+  cwEscapement.position.set(0, 6.9, 1.16);
+  g.add(cwEscapement);
+  const escAxle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.5, 10), brassDark);
+  escAxle.rotation.x = Math.PI / 2;
+  escAxle.position.set(0, 6.9, 0.92);
+  g.add(escAxle);
+
+  // oscillating balance wheel (2 Hz beat, like a watch escapement)
+  cwBalance = new THREE.Group();
+  cwBalance.add(new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.045, 10, 40), brass2));
+  for (let i = 0; i < 3; i++){
+    const sp = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.035, 0.035), brass2);
+    sp.rotation.z = i * Math.PI / 3;
+    cwBalance.add(sp);
+  }
+  cwBalance.position.set(1.08, 5.9, 1.08);
+  g.add(cwBalance);
+  const bwMount = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.07, 0.07), darkSteel);
+  bwMount.position.set(0.94, 5.9, 0.84);
+  bwMount.rotation.y = -1.04;
+  g.add(bwMount);
+
+  // seconds pendulum on a bracket at the column's front-top (2s period)
+  const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.14, 0.95), darkSteel);
+  bracket.position.set(0, 7.38, 1.5);
+  g.add(bracket);
+  cwPendulum = new THREE.Group();
+  cwPendulum.position.set(0, 7.31, 1.62);
+  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 3.3, 10), steelRod);
+  rod.position.y = -1.65;
+  rod.castShadow = true;
+  cwPendulum.add(rod);
+  const bob = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.06, 24), brass2);
+  bob.rotation.x = Math.PI / 2;
+  bob.position.y = -3.3;
+  bob.castShadow = true;
+  cwPendulum.add(bob);
+  cwPendulum.add(new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 10), brassDark));
+  g.add(cwPendulum);
+
+  scene.add(g);
+
+  // wall clock face above the vault doorway
+  const clockG = new THREE.Group();
+  const face = new THREE.Mesh(new THREE.CylinderGeometry(1.02, 1.02, 0.12, 40), new THREE.MeshStandardMaterial({ color:0x141a22, roughness:0.5, metalness:0.4 }));
+  face.rotation.x = Math.PI / 2;
+  clockG.add(face);
+  clockG.add(new THREE.Mesh(new THREE.TorusGeometry(1.02, 0.07, 12, 44), brass2));
+  for (let i = 0; i < 12; i++){
+    const a = i / 12 * Math.PI * 2;
+    const tick = new THREE.Mesh(new THREE.BoxGeometry(0.05, i % 3 === 0 ? 0.22 : 0.13, 0.03), brass2);
+    tick.position.set(Math.sin(a) * 0.85, Math.cos(a) * 0.85, 0.08);
+    tick.rotation.z = -a;
+    clockG.add(tick);
+  }
+  const handMat = new THREE.MeshStandardMaterial({ color:0xe2c06a, roughness:0.3, metalness:0.9 });
+  cwHands = { fast: new THREE.Group(), slow: new THREE.Group() };
+  const hFast = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.78, 0.03), handMat);
+  hFast.position.y = 0.33;
+  cwHands.fast.add(hFast);
+  cwHands.fast.position.z = 0.1;
+  const hSlow = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.55, 0.03), handMat);
+  hSlow.position.y = 0.21;
+  cwHands.slow.add(hSlow);
+  cwHands.slow.position.z = 0.13;
+  clockG.add(cwHands.fast);
+  clockG.add(cwHands.slow);
+  const pinH = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.1, 12), brass2);
+  pinH.rotation.x = Math.PI / 2;
+  pinH.position.z = 0.12;
+  clockG.add(pinH);
+  clockG.position.set(0, 8.4, -11.15);
+  scene.add(clockG);
+
+  // clockwork gears on the vault door face (turn with the door mechanism)
+  for (const s of [-1, 1]){
+    const dg = makeGear(0.34, 10, 0.09, brass2);
+    dg.position.set(s * 1.25, 0.55, 0.31);
+    vault.door.add(dg);
+    cwDoorGears.push({ obj: dg, s });
+  }
+}
+
+function updateClockwork(){
+  const t = gameTime;
+  for (const p of clockwork.parts) p.obj.rotation.z = p.rate * t;
+  if (cwEscapement) cwEscapement.rotation.z = -Math.floor(t * 2) * (Math.PI / 15);
+  if (cwBalance) cwBalance.rotation.z = 2.5 * Math.sin(t * Math.PI * 4);
+  if (cwPendulum) cwPendulum.rotation.z = 0.3 * Math.sin(Math.PI * t);
+  if (cwHands){
+    cwHands.fast.rotation.z = -(t / 60) * Math.PI * 2;
+    cwHands.slow.rotation.z = -(t / 600) * Math.PI * 2;
+  }
+  for (const dgc of cwDoorGears) dgc.obj.rotation.z = dgc.s * (doorProgress * 7 + t * 0.12);
+}
+buildClockwork();
+
+// ---------------------------------------------------------------- input / camera
+const el = renderer.domElement;
+const raycaster = new THREE.Raycaster();
+raycaster.params.Points = { threshold: 0.18 };
+const pointers = new Map();
+let dragMoved = false;
+let pinchDist = 0;
+const lastClient = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+
+function pickGlass(clientX, clientY){
+  const nx = (clientX / window.innerWidth) * 2 - 1;
+  const ny = -(clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera({ x: nx, y: ny }, camera);
+  const hits = raycaster.intersectObjects(pickRoots, true);
+  for (const h of hits){
+    let o = h.object;
+    while (o){
+      if (o.userData && o.userData.glassIndex !== undefined) return o.userData.glassIndex;
+      o = o.parent;
+    }
+  }
+  return null;
+}
+
+el.addEventListener('pointerdown', e => {
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size === 1){ dragMoved = false; el.setPointerCapture(e.pointerId); }
+  if (pointers.size === 2){
+    const p = [...pointers.values()];
+    pinchDist = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+  }
+});
+el.addEventListener('pointermove', e => {
+  lastClient.x = e.clientX; lastClient.y = e.clientY;
+  if (!pointers.has(e.pointerId)) return;
+  const prev = pointers.get(e.pointerId);
+  const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size === 1){
+    if (Math.abs(dx) + Math.abs(dy) > 3) dragMoved = true;
+    cam.azimuthT -= dx * 0.0055;
+    cam.polarT = Math.max(0.18, Math.min(1.45, cam.polarT - dy * 0.0045));
+  } else if (pointers.size === 2){
+    const p = [...pointers.values()];
+    const d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+    if (pinchDist > 0){
+      cam.radiusT = Math.max(11, Math.min(26, cam.radiusT * (pinchDist / Math.max(1, d))));
+    }
+    pinchDist = d;
+    dragMoved = true;
+  }
+});
+el.addEventListener('pointerup', e => {
+  const wasSingle = pointers.size === 1;
+  pointers.delete(e.pointerId);
+  if (wasSingle && !dragMoved && !gameOver){
+    select(pickGlass(e.clientX, e.clientY));
+  }
+});
+el.addEventListener('pointercancel', e => pointers.delete(e.pointerId));
+el.addEventListener('wheel', e => {
+  e.preventDefault();
+  cam.radiusT = Math.max(11, Math.min(26, cam.radiusT * Math.exp(e.deltaY * 0.0012)));
+}, { passive:false });
+
+function select(idx){
+  selected = (idx === null || idx === undefined) ? null : glasses[idx];
+  glasses.forEach(g => g.setSelected(g === selected));
+  document.getElementById('sel').textContent = selected ? selected.label : 'none';
+}
+
+function toggleObstruction(){
+  if (!selected || gameOver) return;
+  if (selected.obstructed){
+    selected.setObstructed(false);          // removing the clamp is free
+  } else if (obstructionLeft > 0){
+    obstructionLeft--;
+    selected.setObstructed(true);
+  }
+}
+
+window.addEventListener('keydown', e => {
+  if (e.code === 'Enter'){
+    if (gameOver) resetGame();
+    return;
+  }
+  if (gameOver || !selected) return;
+  switch (e.code){
+    case 'KeyQ': if (!e.repeat) selected.doTilt(+1); break;
+    case 'KeyE': if (!e.repeat) selected.doTilt(-1); break;
+    case 'KeyR': if (!e.repeat) selected.upright(); break;
+    case 'KeyF': if (!e.repeat) selected.flip(); break;
+    case 'KeyX': if (!e.repeat) toggleObstruction(); break;
+  }
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ---------------------------------------------------------------- game flow
+const msgBox = document.getElementById('msg');
+const msgMain = document.getElementById('msg-main');
+const uiGrade = document.getElementById('msg-grade');
+const uiTT = document.getElementById('tt');
+const uiBarT = document.getElementById('bar-T');
+const uiPTilt = document.getElementById('p-tilt');
+const uiPState = document.getElementById('p-state');
+const uiDoor = document.getElementById('door');
+const uiDoorInfo = document.getElementById('doorinfo');
+const uiWaitBy = document.getElementById('waitby');
+const uiSyncQ = document.getElementById('syncq');
+const uiBudget = document.getElementById('obudget');
+const uiNeck = document.getElementById('neck');
+const uiPB = { A: document.getElementById('pb-A'), B: document.getElementById('pb-B'), C: document.getElementById('pb-C'), D: document.getElementById('pb-D') };
+const uiOB = { A: document.getElementById('ob-A'), B: document.getElementById('ob-B'), C: document.getElementById('ob-C'), D: document.getElementById('ob-D') };
+const uiPC = { A: document.getElementById('pc-A'), B: document.getElementById('pc-B'), C: document.getElementById('pc-C'), D: document.getElementById('pc-D') };
+
+function endGame(didWin){
+  gameOver = true;
+  victory = didWin;
+  if (didWin){
+    victoryGrade = gradeFor(finalSpread, timeLeftAtOpen);
+    msgMain.textContent = 'Vault unsealed — grade ' + victoryGrade;
+    msgMain.style.color = victoryGrade === 'S' ? '#ffd97a' : '#7dffb0';
+    uiGrade.style.display = 'block';
+    uiGrade.innerHTML =
+      'Final spread <b>' + (finalSpread === null ? '—' : finalSpread.toFixed(2) + ' s') + '</b>' +
+      ' · <b>' + (timeLeftAtOpen === null ? '—' : timeLeftAtOpen.toFixed(1) + ' s') + '</b> left when the vault opened' +
+      '<span class="thr">Grades — ' + GRADE_BANDS.map(b =>
+        b.grade + ': spread ≤ ' + b.spread.toFixed(1) + ' s' +
+        (b.timeLeft > 0 ? ' & ≥ ' + b.timeLeft + ' s left' : ' (any time left — pass)')
+      ).join(' · ') + '</span>';
+  } else {
+    msgMain.textContent = 'Time limit exceeded.';
+    msgMain.style.color = '#ff6b6b';
+    uiGrade.style.display = 'none';
+  }
+  msgBox.style.display = 'block';
+}
+
+// Round-5 grade: the first band (top-down) whose spread AND time-left both
+// hold. Deterministic — a pure function of the achieved run.
+function gradeFor(spread, timeLeft){
+  if (spread === null || timeLeft === null) return 'C';
+  for (const b of GRADE_BANDS){
+    if (spread <= b.spread && timeLeft >= b.timeLeft) return b.grade;
+  }
+  return 'C';
+}
+
+// Spread of the four "became empty" timestamps; null while any glass still
+// holds sand above the plate threshold (or has never emptied).
+function syncSpread(){
+  let mn = Infinity, mx = -Infinity;
+  for (const g of glasses){
+    if (g.zeroTime === null) return null;
+    if (g.zeroTime < mn) mn = g.zeroTime;
+    if (g.zeroTime > mx) mx = g.zeroTime;
+  }
+  return mx - mn;
+}
+
+// Vault door state machine (round 4): the door moves only while all FOUR
+// plates are triggered AND the four empty timestamps fit inside SYNC_WINDOW;
+// the win requires the fully open door to hold.
+function updateDoor(dt){
+  const allTrig = glasses.every(g => g.sand[g.topIdx] <= PLATE_EPS);
+  const spread = allTrig ? syncSpread() : null;
+  if (allTrig && spread !== null && spread <= SYNC_WINDOW){
+    if (doorProgress < 1){
+      doorState = 'opening';
+      doorProgress = Math.min(1, doorProgress + dt / DOOR_OPEN_TIME);
+      if (doorProgress >= 1){
+        // vault just finished opening — snapshot the round-5 grading inputs
+        finalSpread = spread;
+        timeLeftAtOpen = Math.max(0, ROUND_LIMIT - gameTime);
+      }
+      holdRemaining = HOLD_TIME;
+    } else {
+      doorState = 'open';
+      holdRemaining -= dt;
+      if (holdRemaining <= 0){
+        holdRemaining = 0;
+        endGame(true);
+      }
+    }
+  } else {
+    doorState = 'closed';
+    doorProgress = Math.max(0, doorProgress - dt / DOOR_CLOSE_TIME);
+    holdRemaining = HOLD_TIME;
+  }
+}
+
+function syncDoorVisuals(){
+  vault.door.position.y = 2.75 - doorProgress * 5.15;
+  vault.wheel.rotation.z = doorProgress * 5.0;
+  vault.interiorMat.emissiveIntensity = doorProgress * 1.3;
+  vault.interiorLight.intensity = doorProgress * 2.2;
+  const pulse = 0.55 + 0.25 * Math.sin(performance.now() * 0.004);
+  for (let i = 0; i < glasses.length; i++){
+    const g = glasses[i];
+    const on = g.sand[g.topIdx] <= PLATE_EPS;
+    vault.pipes[i].emissive.setHex(on ? 0x2f8f5b : 0x000000);
+    plateRings[i].mat.emissive.setHex(on ? 0x2f8f5b : 0x000000);
+    plateRings[i].mat.emissiveIntensity = on ? pulse : 0;
+    plateRings[i].mat.color.setHex(on ? 0x1d4a33 : 0x6a5620);
+  }
+}
+
+function resetGame(){
+  gameTime = 0; gameOver = false; victory = false;
+  msgBox.style.display = 'none';
+  doorProgress = 0; holdRemaining = HOLD_TIME; doorState = 'closed';
+  obstructionLeft = OBSTRUCTION_MAX;
+  finalSpread = null; timeLeftAtOpen = null; victoryGrade = null;
+  for (const g of glasses){
+    g.sand = [g.capacity, 0];
+    g.tiltTarget = 0; g.flipCount = 0;
+    g.theta = 0; g.thetaTarget = 0;
+    g.tiltG.quaternion.setFromAxisAngle(Z_AXIS, 0);
+    g.root.position.y = NECK_WORLD_Y;
+    g.settle = 0; g.zeroTime = null;
+    g.landingT = 2;
+    g.setObstructed(false);
+    g._aboveRepose = false; g._lastTrig = 0;
+    g._P = [0.8, 0.8];
+    for (const p of g.piles){
+      p.sp = 0; p.collapseT = 0; p.elapsed = 0;
+      p.craterD = 0; p.craterR = 0.3; p.kEff = REPOSE_K;
+    }
+  }
+  select(null);
+}
+
+// ---------------------------------------------------------------- HUD + state export
+function updateHUD(){
+  let trigCount = 0, untrigLabels = [];
+  let mn = Infinity, mx = -Infinity, allFinished = true;
+  for (const g of glasses){
+    const r = g.sandRemaining;   // exported for evaluation; never shown to the player
+    const trig = r <= PLATE_EPS;
+    if (trig) trigCount++; else untrigLabels.push(g.label);
+    uiPB[g.label].textContent = trig ? '●' : '○';
+    uiPB[g.label].style.color = trig ? '#7dffb0' : '#5a6a78';
+    uiOB[g.label].textContent = g.obstructed ? 'OBSTR' : '';
+    uiPC[g.label].classList.toggle('on', trig);
+    if (g.zeroTime === null) allFinished = false;
+    else { mn = Math.min(mn, g.zeroTime); mx = Math.max(mx, g.zeroTime); }
+  }
+  uiTT.textContent = gameTime.toFixed(1) + 's';
+  uiBarT.style.width = Math.min(100, (gameTime / ROUND_LIMIT) * 100) + '%';
+  uiDoor.textContent = doorState;
+  const allFour = trigCount === glasses.length;
+  const spreadNow = allFinished ? (mx - mn) : null;
+  uiDoorInfo.textContent = doorState === 'open'
+    ? '· hold ' + holdRemaining.toFixed(1) + 's left'
+    : (doorState === 'opening' ? '· ' + Math.round(doorProgress * 100) + '% · hold 3.0s required'
+       : (allFour && spreadNow !== null && spreadNow > SYNC_WINDOW
+          ? '· plates 4/4 blocked · sync spread ' + spreadNow.toFixed(1) + 's > ±1.0 s'
+          : '· hold 3.0s required · plates ' + trigCount + '/4'));
+  uiWaitBy.textContent = untrigLabels.length ? untrigLabels.join(', ') : '—';
+  if (!allFinished){
+    uiSyncQ.textContent = '—';
+    uiSyncQ.style.color = '';
+  } else {
+    const ok = (mx - mn) <= SYNC_WINDOW;
+    uiSyncQ.textContent = (mx - mn).toFixed(1) + 's ' + (ok ? '✓' : '✗ > ±1.0 s');
+    uiSyncQ.style.color = ok ? '#7dffb0' : '#ff6b6b';
+  }
+  uiBudget.textContent = obstructionLeft + '/' + OBSTRUCTION_MAX;
+  uiNeck.textContent = selected ? (selected.obstructed ? 'obstructed' : 'clear') : '—';
+  if (selected){
+    uiPTilt.textContent = selected.tiltDeg.toFixed(1) + '°';
+    const col = selected.pileState === 'collapsing';
+    uiPState.textContent = col ? 'collapsing' : 'stable';
+    uiPState.style.color = col ? '#ffb35a' : '#7dffb0';
+  } else {
+    uiPTilt.textContent = '—';
+    uiPState.textContent = '—';
+    uiPState.style.color = '';
+  }
+}
+
+function exportState(){
+  let mn = Infinity, mx = -Infinity, allFinished = true;
+  for (const g of glasses){
+    if (g.zeroTime === null) allFinished = false;
+    else { mn = Math.min(mn, g.zeroTime); mx = Math.max(mx, g.zeroTime); }
+  }
+  window.__arena_state = {
+    hourglasses: glasses.map(g => ({
+      label: g.label,
+      sandRemaining: g.sandRemaining,
+      tiltAngle: g.tiltDeg,
+      isFlipped: g.isFlipped,
+      pileState: g.pileState,
+      plateTriggered: g.sand[g.topIdx] <= PLATE_EPS,
+      obstructed: g.obstructed,
+    })),
+    selected: selected ? selected.label : null,
+    totalTime: gameTime,
+    gameOver: gameOver,
+    victory: victory,
+    reposeAngle: REPOSE_DEG,
+    doorState: doorState,
+    doorProgress: doorProgress,
+    holdRemaining: holdRemaining,
+    holdTimeRequired: HOLD_TIME,
+    platesTriggered: glasses.filter(g => g.sand[g.topIdx] <= PLATE_EPS).length,
+    platesRequired: glasses.length,
+    syncSpread: allFinished ? (mx - mn) : null,
+    syncWindow: SYNC_WINDOW,
+    syncWithinWindow: allFinished ? (mx - mn) <= SYNC_WINDOW : null,
+    obstructionsLeft: obstructionLeft,
+    grade: victoryGrade,
+    finalSpread: finalSpread,
+    timeLeftAtOpen: timeLeftAtOpen,
+    gradeBands: GRADE_BANDS,
+  };
+}
+
+// ---------------------------------------------------------------- main loop
+const clock = new THREE.Clock();
+let hoverFrame = 0;
+
+function tick(){
+  requestAnimationFrame(tick);
+  const dt = Math.min(0.05, clock.getDelta());
+
+  if (!gameOver){
+    gameTime += dt;
+    for (const g of glasses) g.update(dt);
+    updateDoor(dt);
+    if (gameTime >= ROUND_LIMIT && !gameOver) endGame(false);
+  }
+  syncDoorVisuals();
+  updateClockwork();
+
+  // camera damping
+  const ck = 1 - Math.exp(-8 * dt);
+  cam.azimuth += (cam.azimuthT - cam.azimuth) * ck;
+  cam.polar += (cam.polarT - cam.polar) * ck;
+  cam.radius += (cam.radiusT - cam.radius) * ck;
+  applyCamera();
+
+  // selection pulse + hover cursor
+  const pulse = 0.55 + 0.35 * Math.sin(performance.now() * 0.004);
+  for (const g of glasses){
+    if (g.outline.visible) g.outline.material.opacity = pulse;
+  }
+  if (hoverFrame++ % 4 === 0){
+    const hit = pickGlass(lastClient.x, lastClient.y);
+    el.style.cursor = (hit !== null && !gameOver) ? 'pointer' : 'grab';
+  }
+
+  updateHUD();
+  exportState();
+  renderer.render(scene, camera);
+}
+
+// prime one frame of sand positions before the first render (dt=0: state untouched)
+for (const g of glasses) g.update(0);
+tick();
+</script>
+</body>
+</html>

@@ -1,0 +1,2165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud Carnival Kart</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #7ec0ee;
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+
+    /* HUD Overlay */
+    #hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 16px 22px;
+      z-index: 10;
+    }
+    .hud-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      width: 100%;
+      gap: 10px;
+    }
+    .hud-card {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      border-radius: 14px;
+      padding: 8px 16px;
+      color: #fff;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    }
+    .hud-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: #ffd166;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+    .hud-value {
+      font-size: 26px;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 1px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+    .hud-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      width: 100%;
+    }
+    .speedometer-container {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .speed-bar-bg {
+      width: 200px;
+      height: 12px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      overflow: hidden;
+      margin-top: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    .speed-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #06d6a0, #ffd166 65%, #ef476f 100%);
+      border-radius: 6px;
+      transition: width 0.05s linear;
+    }
+    .speed-bar-fill.boost {
+      background: linear-gradient(90deg, #ffd166, #ff006e, #9b5de5) !important;
+      box-shadow: 0 0 12px #ff006e;
+    }
+    .speed-bar-fill.turbo {
+      background: linear-gradient(90deg, #00f5d4, #70d6ff, #ff006e) !important;
+      box-shadow: 0 0 16px #00f5d4;
+    }
+
+    /* Item Box Inventory Display */
+    .item-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 105px;
+      background: rgba(15, 23, 42, 0.88);
+      border: 2px solid #ffd166;
+      border-radius: 14px;
+      padding: 6px 12px;
+      box-shadow: 0 8px 24px rgba(255, 209, 102, 0.3);
+    }
+    .item-icon-box {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 20px;
+      margin: 2px 0;
+      border: 1px dashed rgba(255, 255, 255, 0.4);
+    }
+    .item-name-text {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: #38bdf8;
+      text-transform: uppercase;
+    }
+
+    /* Region / Track Zone Status Card */
+    .zone-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 180px;
+      background: rgba(15, 23, 42, 0.88);
+      border: 2px solid #38bdf8;
+      border-radius: 14px;
+      padding: 6px 14px;
+      color: #fff;
+    }
+    .zone-badge {
+      font-size: 12px;
+      font-weight: 900;
+      color: #38bdf8;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+    .zone-badge.ferris-wait {
+      color: #ffd166;
+      animation: pulseText 0.7s infinite alternate;
+    }
+    .zone-badge.ferris-ride {
+      color: #06d6a0;
+      animation: pulseText 0.5s infinite alternate;
+    }
+    .zone-badge.ferris-exit {
+      color: #38bdf8;
+      animation: pulseText 0.5s infinite alternate;
+    }
+    .zone-badge.loop {
+      color: #ffd166;
+    }
+    .zone-badge.collapse {
+      color: #ef476f;
+    }
+    .zone-badge.gliding {
+      color: #06d6a0;
+    }
+    .zone-badge.recovering {
+      color: #f72585;
+    }
+
+    /* Drift Gauges & Indicators */
+    .drift-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.85);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 14px;
+      padding: 6px 14px;
+      color: #fff;
+    }
+    .drift-bar-bg {
+      width: 120px;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .drift-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: #38bdf8;
+      border-radius: 4px;
+      transition: width 0.05s linear;
+    }
+    .drift-status-text {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-top: 3px;
+      color: #94a3b8;
+    }
+    .drift-status-text.ready {
+      color: #ffd166;
+      text-shadow: 0 0 8px rgba(255, 209, 102, 0.8);
+      animation: pulseText 0.6s infinite alternate;
+    }
+    .drift-status-text.boost {
+      color: #ff006e;
+      text-shadow: 0 0 10px rgba(255, 0, 110, 0.9);
+      animation: pulseText 0.4s infinite alternate;
+    }
+    @keyframes pulseText {
+      0% { transform: scale(0.96); }
+      100% { transform: scale(1.06); }
+    }
+
+    .checkpoint-indicator {
+      font-size: 11px;
+      color: #cbd5e1;
+      margin-top: 2px;
+      font-weight: 500;
+    }
+
+    /* Modal Screens */
+    .overlay-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle, rgba(15, 23, 42, 0.68) 0%, rgba(15, 23, 42, 0.94) 100%);
+      backdrop-filter: blur(8px);
+      color: #fff;
+      z-index: 50;
+      transition: opacity 0.3s ease;
+    }
+    .overlay-screen.hidden {
+      display: none;
+      opacity: 0;
+    }
+    .carnival-title {
+      font-size: 46px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      background: linear-gradient(135deg, #ff9f1c, #ffe494, #ff4081, #70d6ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 6px 18px rgba(255, 64, 129, 0.45));
+      text-align: center;
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      font-size: 18px;
+      color: #e2e8f0;
+      margin-bottom: 18px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+    }
+    .banner-press-enter {
+      background: linear-gradient(90deg, #ff5e7e, #ff9900);
+      color: white;
+      font-size: 20px;
+      font-weight: 800;
+      padding: 12px 36px;
+      border-radius: 50px;
+      box-shadow: 0 10px 30px rgba(255, 94, 126, 0.5), inset 0 2px 4px rgba(255,255,255,0.4);
+      animation: pulseGlow 1.6s infinite alternate;
+      letter-spacing: 2px;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+    }
+    @keyframes pulseGlow {
+      0% { transform: scale(0.98); box-shadow: 0 5px 20px rgba(255, 94, 126, 0.4); }
+      100% { transform: scale(1.04); box-shadow: 0 12px 35px rgba(255, 153, 0, 0.8); }
+    }
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 14px;
+      padding: 16px 24px;
+      max-width: 580px;
+    }
+    .control-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: #f8fafc;
+      font-weight: 500;
+    }
+    .key-badge {
+      background: #334155;
+      color: #38bdf8;
+      border: 1px solid #64748b;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-weight: 700;
+      font-family: monospace;
+      font-size: 12px;
+      box-shadow: 0 3px 0 #1e293b;
+    }
+    .result-time {
+      font-size: 40px;
+      font-weight: 900;
+      color: #ffd166;
+      margin-bottom: 10px;
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 4px 18px rgba(255, 209, 102, 0.5);
+    }
+    .notification-popup {
+      position: absolute;
+      top: 90px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.92);
+      border: 2px solid #38bdf8;
+      color: #fff;
+      font-size: 22px;
+      font-weight: 800;
+      padding: 8px 28px;
+      border-radius: 30px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      box-shadow: 0 8px 24px rgba(56, 189, 248, 0.45);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s, transform 0.3s;
+      z-index: 20;
+    }
+    .notification-popup.show {
+      opacity: 1;
+      transform: translateX(-50%) scale(1.05);
+    }
+    #wrong-way-banner {
+      position: absolute;
+      top: 155px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(239, 71, 111, 0.92);
+      color: #fff;
+      font-size: 20px;
+      font-weight: 800;
+      padding: 6px 24px;
+      border-radius: 20px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      box-shadow: 0 6px 20px rgba(239, 71, 111, 0.6);
+      display: none;
+      z-index: 20;
+      animation: flashWarn 0.8s infinite alternate;
+    }
+    @keyframes flashWarn {
+      0% { opacity: 0.6; }
+      100% { opacity: 1; }
+    }
+  </style>
+
+  <!-- Classic local Three.js script as mandated for direct file:// execution -->
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- English HUD -->
+  <div id="hud">
+    <div class="hud-top">
+      <div class="hud-card">
+        <div class="hud-label">Position</div>
+        <div class="hud-value" id="hud-pos" style="color: #ffd166;">1 / 4</div>
+        <div class="checkpoint-indicator" id="hud-lap">Lap 1 / 2</div>
+      </div>
+
+      <div class="item-card">
+        <div class="hud-label" style="color: #ffd166;">Item [E]</div>
+        <div class="item-icon-box" id="hud-item-icon">💨</div>
+        <div class="item-name-text" id="hud-item-name">None</div>
+      </div>
+
+      <div class="zone-card">
+        <div class="hud-label" style="color: #38bdf8;">Track Region</div>
+        <div class="zone-badge" id="hud-track-zone">ROAD</div>
+        <div style="font-size: 11px; color: #cbd5e1; margin-top: 2px;" id="hud-zone-detail">Alt: 0.0m</div>
+      </div>
+
+      <div class="drift-panel">
+        <div class="hud-label" style="color: #38bdf8;">Drift Boost</div>
+        <div class="drift-bar-bg">
+          <div class="drift-bar-fill" id="drift-bar"></div>
+        </div>
+        <div class="drift-status-text" id="drift-status">Ready to Drift</div>
+      </div>
+
+      <div class="hud-card" style="text-align: right;">
+        <div class="hud-label">Time</div>
+        <div class="hud-value" id="hud-time">00:00.00</div>
+        <div class="checkpoint-indicator" id="hud-checkpoint">Next: Checkpoint 1</div>
+      </div>
+    </div>
+
+    <div class="hud-bottom">
+      <div class="hud-card speedometer-container">
+        <div class="hud-label">Speed</div>
+        <div class="hud-value"><span id="hud-speed">0.0</span> <span style="font-size: 16px; color: #94a3b8;">u/s</span></div>
+        <div class="speed-bar-bg">
+          <div class="speed-bar-fill" id="speed-bar"></div>
+        </div>
+      </div>
+
+      <div class="hud-card" style="text-align: right; padding: 8px 16px;">
+        <div style="font-size: 12px; color: #cbd5e1; letter-spacing: 1px;">RESET: <span class="key-badge" style="padding: 2px 6px; font-size: 11px;">R</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notification" class="notification-popup">Lap 2!</div>
+  <div id="wrong-way-banner">WRONG WAY!</div>
+
+  <!-- Ready Overlay Screen -->
+  <div id="screen-ready" class="overlay-screen">
+    <div class="carnival-title">Cloud Carnival Kart</div>
+    <div class="subtitle">Ferris Transfer, Vertical Loop, Gliding & Collapsing Skyway</div>
+    <div class="banner-press-enter">Press Enter to Start</div>
+    <div class="controls-grid">
+      <div class="control-item">
+        <span class="key-badge">W / &uarr;</span>
+        <span>Accelerate / Pitch Down (Glide)</span>
+      </div>
+      <div class="control-item">
+        <span class="key-badge">S / &darr;</span>
+        <span>Brake / Reverse / Pitch Up (Glide)</span>
+      </div>
+      <div class="control-item">
+        <span class="key-badge">A / &larr;</span>
+        <span>Steer Left / Bank Left (Glide)</span>
+      </div>
+      <div class="control-item">
+        <span class="key-badge">D / &rarr;</span>
+        <span>Steer Right / Bank Right (Glide)</span>
+      </div>
+      <div class="control-item">
+        <span class="key-badge">Space</span>
+        <span>Drift & Boost (On Road/Carriers)</span>
+      </div>
+      <div class="control-item">
+        <span class="key-badge">E</span>
+        <span>Use Item (Turbo, Seeker, Slick)</span>
+      </div>
+      <div class="control-item" style="grid-column: span 2; justify-content: center; margin-top: 4px;">
+        <span class="key-badge">R</span>
+        <span>Reset Race Anytime</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Finished Overlay Screen -->
+  <div id="screen-finished" class="overlay-screen hidden">
+    <div class="carnival-title">Race Finished!</div>
+    <div class="subtitle" id="finished-rank">Finished: 1st Place</div>
+    <div class="hud-label" style="font-size: 16px; margin-bottom: 4px;">Final Time</div>
+    <div class="result-time" id="finished-time">00:00.00</div>
+    <div class="banner-press-enter" style="cursor: pointer;" id="btn-restart">Press R to Restart</div>
+  </div>
+
+  <!-- Main Game Script -->
+  <script>
+    // --- Deterministic Pseudo-Random Generator ---
+    let rngSeed = 6389;
+    function fixedRng() {
+      rngSeed = (rngSeed * 1664525 + 1013904223) % 4294967296;
+      return rngSeed / 4294967296;
+    }
+
+    // --- Configuration Constants ---
+    const NORMAL_MAX_FORWARD_SPEED = 30.0;
+    const BOOST_MAX_FORWARD_SPEED = 38.0;
+    const TURBO_MAX_FORWARD_SPEED = 42.0;
+    const MAX_REVERSE_SPEED = 8.0;
+    const ACCEL = 18.0;
+    const BRAKE_DECEL = 36.0;
+    const COAST_DECEL = 8.0;
+    const STEER_RESPONSIVENESS = 2.4;
+    const TOTAL_LAPS = 2;
+    const TRACK_WIDTH = 18.0;
+    const KART_RADIUS = 1.35;
+    const HALF_TRACK_LIMIT = (TRACK_WIDTH / 2) - KART_RADIUS; // 7.65m
+
+    const DRIFT_MIN_SPEED = 10.0;
+    const DRIFT_CHARGE_TIME = 1.0;
+    const BOOST_DURATION = 1.2;
+    const TURBO_DURATION = 1.5;
+    const SPIN_DURATION = 1.2;
+    const ITEM_BOX_RESPAWN = 5.0;
+    const SLICK_DURATION = 8.0;
+    const SLICK_IMMUNITY = 1.0;
+
+    const GLIDE_BASE_SPEED = 24.0;
+    const GLIDE_MIN_SPEED = 14.0;
+    const GLIDE_BASE_DESCENT = 3.6;
+    const RECOVERY_Y_THRESHOLD = -15.0;
+
+    const ITEM_CYCLE = ['Cloud Turbo', 'Star Seeker', 'Syrup Slick'];
+
+    // --- Game State Variables ---
+    let phase = 'ready'; // 'ready', 'racing', 'finished'
+    let raceTime = 0.0;
+    let lap = 1;
+    let nextCheckpoint = 1;
+    let speed = 0.0;
+    let maxSpeed = NORMAL_MAX_FORWARD_SPEED;
+    let steerAngle = 0.0;
+    let racePosition = 1;
+
+    // Drifting state
+    let isDrifting = false;
+    let driftDir = 0;
+    let driftCharge = 0.0;
+    let driftReady = false;
+    let boostActive = false;
+    let boostTimeRemaining = 0.0;
+    let driftSlipAngle = 0.0;
+
+    // Track Region & Carrier State
+    // Track region: 'road', 'ferris_transfer', 'vertical_loop', 'gliding', 'collapsing_road', 'recovering'
+    let trackRegion = 'road';
+    let isRidingCarrier = false;
+    let ridingCarrierId = null;
+    let transferProgress = 0.0; // 0.0 at lower dock to 1.0 at upper dock
+
+    let flightState = 'ground';
+    let flightVel = new THREE.Vector3();
+    let flightPitch = 0.0;
+    let flightRoll = 0.0;
+    let lockedTargetName = null;
+
+    // Player Item state
+    let playerHeldItem = null;
+    let playerCycleIndex = 0;
+    let playerTurboActive = false;
+    let playerTurboTime = 0.0;
+    let playerSpinTime = 0.0;
+
+    const keys = {
+      up: false,
+      down: false,
+      left: false,
+      right: false,
+      space: false
+    };
+
+    // DOM Elements
+    const hudSpeed = document.getElementById('hud-speed');
+    const hudLap = document.getElementById('hud-lap');
+    const hudTime = document.getElementById('hud-time');
+    const hudPos = document.getElementById('hud-pos');
+    const hudCheckpoint = document.getElementById('hud-checkpoint');
+    const hudItemName = document.getElementById('hud-item-name');
+    const hudItemIcon = document.getElementById('hud-item-icon');
+    const hudTrackZone = document.getElementById('hud-track-zone');
+    const hudZoneDetail = document.getElementById('hud-zone-detail');
+    const speedBar = document.getElementById('speed-bar');
+    const driftBar = document.getElementById('drift-bar');
+    const driftStatus = document.getElementById('drift-status');
+    const screenReady = document.getElementById('screen-ready');
+    const screenFinished = document.getElementById('screen-finished');
+    const finishedTime = document.getElementById('finished-time');
+    const finishedRank = document.getElementById('finished-rank');
+    const notification = document.getElementById('notification');
+    const wrongWayBanner = document.getElementById('wrong-way-banner');
+
+    function notify(text, duration = 1800) {
+      notification.textContent = text;
+      notification.classList.add('show');
+      setTimeout(() => {
+        notification.classList.remove('show');
+      }, duration);
+    }
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      const ms = Math.floor((sec % 1) * 100);
+      return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}.${ms < 10 ? '0' : ''}${ms}`;
+    }
+
+    // --- Three.js Setup ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x76bfe9);
+    scene.fog = new THREE.FogExp2(0x9fd3f2, 0.0012);
+
+    const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.2, 3500);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    container.appendChild(renderer.domElement);
+
+    // --- Lighting ---
+    const ambientLight = new THREE.AmbientLight(0xfff6ec, 0.88);
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0xfffaee, 1.4);
+    dirLight.position.set(180, 360, 200);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.near = 10;
+    dirLight.shadow.camera.far = 1200;
+    const shadowD = 420;
+    dirLight.shadow.camera.left = -shadowD;
+    dirLight.shadow.camera.right = shadowD;
+    dirLight.shadow.camera.top = shadowD;
+    dirLight.shadow.camera.bottom = -shadowD;
+    dirLight.shadow.bias = -0.0006;
+    scene.add(dirLight);
+
+    const hemiLight = new THREE.HemisphereLight(0x78c2f0, 0x3d704d, 0.52);
+    scene.add(hemiLight);
+
+    // =========================================================================
+    // MAP & CIRCUIT SEQUENCE (ROUND 6):
+    // 1. Start / Finish Line at Y = 0 (Lower Road)
+    // 2. Initial Straight (Z from -60 to +70): Karts accelerate and arrange themselves
+    // 3. FERRIS TRANSFER REGION (FIRST SPECIAL REGION ON EVERY LAP):
+    //    - Lower Entry Dock at Z = 70, Y = 0
+    //    - Large Ferris Wheel Lift mechanism
+    //    - 2 Solid Carriers with moving obstacles (Sliding bumper & swinging bar)
+    //    - Higher Exit Dock at Z = 150, Y = 18 (Meaningful vertical separation of 18 units!)
+    // 4. Elevated Circuit & Upper Road:
+    //    - Continuous Climb & Banked Turn (~20 deg inward)
+    //    - Complete Vertical Loop (R=16m, crest Y=50m, genuine inversion)
+    //    - Launch Ramp (Y=36) -> Mandatory Free Gliding with 3 Obstacles
+    //    - Cloud Runway Touchdown (Y=8)
+    //    - 3-Lane Collapsing-Road Region with dynamic independent panels
+    //    - Downhill S-bend returning to Start/Finish (Y=0)
+    // =========================================================================
+
+    // Docks Geometry Constants
+    const DOCK_LOWER_Z = 70.0;
+    const DOCK_LOWER_Y = 0.0;
+    const DOCK_UPPER_Z = 150.0;
+    const DOCK_UPPER_Y = 18.0;
+    const CARRIER_WIDTH = 18.0;
+    const CARRIER_LENGTH = 16.0;
+
+    // Carrier Cycle: Period = 16.0 seconds
+    // 0..3s: Carrier 0 docked at Lower Dock (Y=0, Z=70), Carrier 1 docked at Upper Dock (Y=18, Z=150)
+    // 3..8s: Moving! Carrier 0 ascends to Upper Dock, Carrier 1 descends to Lower Dock
+    // 8..11s: Carrier 0 docked at Upper Dock (Y=18, Z=150), Carrier 1 docked at Lower Dock (Y=0, Z=70)
+    // 11..16s: Moving! Carrier 0 descends, Carrier 1 ascends
+    const FERRIS_CYCLE_PERIOD = 16.0;
+    let ferrisTime = 0.0;
+
+    // =========================================================================
+    // FERRIS TRANSPORT MECHANISM & CARRIERS (3D MODELS)
+    // =========================================================================
+    const ferrisMechanismGroup = new THREE.Group();
+    ferrisMechanismGroup.position.set(0, 9.0, 110.0); // Center between docks
+
+    // Giant Rotating Ferris Structure
+    const ferrisStructure = new THREE.Group();
+    const bigRingMat = new THREE.MeshStandardMaterial({ color: 0xff006e, metalness: 0.5, roughness: 0.3 });
+    const bigRing = new THREE.Mesh(new THREE.TorusGeometry(26.0, 1.2, 16, 36), bigRingMat);
+    ferrisStructure.add(bigRing);
+    for (let sp = 0; sp < 8; sp++) {
+      const spoke = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 52.0), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+      spoke.rotation.x = (sp / 8) * Math.PI;
+      ferrisStructure.add(spoke);
+    }
+    ferrisMechanismGroup.add(ferrisStructure);
+
+    // Support Legs for Ferris Transfer
+    const suppLegMat = new THREE.MeshStandardMaterial({ color: 0x3a86ff, metalness: 0.4 });
+    for (const xOff of [-14, 14]) {
+      const leg1 = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.8, 38), suppLegMat);
+      leg1.position.set(xOff, 0, -18);
+      leg1.rotation.x = -0.3;
+      ferrisMechanismGroup.add(leg1);
+      const leg2 = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.8, 38), suppLegMat);
+      leg2.position.set(xOff, 0, 18);
+      leg2.rotation.x = 0.3;
+      ferrisMechanismGroup.add(leg2);
+    }
+    scene.add(ferrisMechanismGroup);
+
+    // Two Solid Carrier Platforms
+    function createCarrierPlatform(id) {
+      const group = new THREE.Group();
+
+      // Solid Deck
+      const deckGeom = new THREE.BoxGeometry(CARRIER_WIDTH, 1.2, CARRIER_LENGTH);
+      const deckMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6, metalness: 0.3 });
+      const deckMesh = new THREE.Mesh(deckGeom, deckMat);
+      deckMesh.position.y = -0.6;
+      deckMesh.receiveShadow = true;
+      group.add(deckMesh);
+
+      // Deck Curbs & Safety Side Rails (Left & Right only; Front & Rear open for driving on/off)
+      const railMat = new THREE.MeshStandardMaterial({ color: 0xffbe0b, roughness: 0.3, metalness: 0.5 });
+      const railL = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.6, CARRIER_LENGTH), railMat);
+      railL.position.set(-CARRIER_WIDTH / 2 + 0.4, 0.8, 0);
+      group.add(railL);
+      const railR = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.6, CARRIER_LENGTH), railMat);
+      railR.position.set(CARRIER_WIDTH / 2 - 0.4, 0.8, 0);
+      group.add(railR);
+
+      // On-Carrier Obstacle 1: Laterally Sliding Padded Bumper
+      const bumperGeom = new THREE.BoxGeometry(5.0, 1.4, 1.2);
+      const bumperMat = new THREE.MeshStandardMaterial({ color: 0xef476f, roughness: 0.4 });
+      const slidingBumper = new THREE.Mesh(bumperGeom, bumperMat);
+      slidingBumper.position.set(0, 0.7, -2.5);
+      slidingBumper.castShadow = true;
+      group.add(slidingBumper);
+
+      // On-Carrier Obstacle 2: Periodically Swinging Soft Bar
+      const barPivot = new THREE.Group();
+      barPivot.position.set(0, 2.5, 2.5);
+      const barMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 6.0), new THREE.MeshStandardMaterial({ color: 0x06d6a0 }));
+      barMesh.rotation.z = Math.PI / 2;
+      barPivot.add(barMesh);
+      group.add(barPivot);
+
+      scene.add(group);
+      return {
+        id,
+        group,
+        slidingBumper,
+        barPivot,
+        pos: new THREE.Vector3(),
+        prevPos: new THREE.Vector3(),
+        dockState: 'lower_docked', // 'lower_docked', 'moving_up', 'upper_docked', 'moving_down'
+        kartsOnDeck: []
+      };
+    }
+
+    const carriers = [
+      createCarrierPlatform(0),
+      createCarrierPlatform(1)
+    ];
+
+    // =========================================================================
+    // LOWER AND UPPER DOCK PLATFORMS & SIGNS
+    // =========================================================================
+    // Lower Entry Dock (Y = 0, Z = 70)
+    const lowerDockMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(TRACK_WIDTH + 2.0, 2.0, 10.0),
+      new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7 })
+    );
+    lowerDockMesh.position.set(0, -1.0, DOCK_LOWER_Z - 5.0);
+    scene.add(lowerDockMesh);
+
+    // Upper Exit Dock (Y = 18, Z = 150)
+    const upperDockMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(TRACK_WIDTH + 2.0, 2.0, 10.0),
+      new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7 })
+    );
+    upperDockMesh.position.set(0, DOCK_UPPER_Y - 1.0, DOCK_UPPER_Z + 5.0);
+    scene.add(upperDockMesh);
+
+    // Sign on Lower Entry Dock
+    const dockSignCanvas = document.createElement('canvas');
+    dockSignCanvas.width = 512;
+    dockSignCanvas.height = 128;
+    const dCtx = dockSignCanvas.getContext('2d');
+    dCtx.fillStyle = '#ff006e';
+    dCtx.fillRect(0, 0, 512, 128);
+    dCtx.fillStyle = '#ffd166';
+    dCtx.fillRect(10, 10, 492, 108);
+    dCtx.fillStyle = '#0f172a';
+    dCtx.font = 'bold 42px sans-serif';
+    dCtx.textAlign = 'center';
+    dCtx.textBaseline = 'middle';
+    dCtx.fillText('★ FERRIS TRANSFER ★', 256, 42);
+    dCtx.font = 'bold 34px sans-serif';
+    dCtx.fillStyle = '#ff006e';
+    dCtx.fillText('DRIVE ONTO CARRIER', 256, 88);
+
+    const dockSign = new THREE.Mesh(
+      new THREE.PlaneGeometry(14, 3.5),
+      new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(dockSignCanvas), side: THREE.DoubleSide })
+    );
+    dockSign.position.set(0, 8.5, DOCK_LOWER_Z - 8.0);
+    scene.add(dockSign);
+
+    // =========================================================================
+    // CLOSED CIRCUIT SPLINE DEFINITION
+    // (Start/Finish -> Entry Dock -> [Ferris Gap] -> Exit Dock -> Climb -> Loop -> Launch -> Runway -> Collapse -> Finish)
+    // =========================================================================
+    const circuitNodes = [
+      new THREE.Vector3(0, 0, -60),       // 0: Start / Finish Line
+      new THREE.Vector3(0, 0, 10),        // 1: Accelerate towards transfer
+      new THREE.Vector3(0, 0, DOCK_LOWER_Z), // 2: Lower Entry Dock edge (Z = 70)
+
+      // --- FERRIS GAP: Transport carries karts from (0, 0, 70) to (0, 18, 150) ---
+
+      new THREE.Vector3(0, DOCK_UPPER_Y, DOCK_UPPER_Z), // 3: Upper Exit Dock edge (Z = 150)
+      new THREE.Vector3(20, 18.0, 190),   // 4: Exit straight
+      new THREE.Vector3(80, 20.0, 230),   // 5: Elevated climb
+      new THREE.Vector3(150, 22.0, 200),  // 6: Upper curve
+      new THREE.Vector3(210, 22.0, 110),  // 7: High-speed turn entry
+      new THREE.Vector3(210, 22.0, 30),   // 8: Banked turn apex (~20 deg inward)
+      new THREE.Vector3(160, 20.0, -50),  // 9: Banked turn exit
+      new THREE.Vector3(80, 18.0, -70),   // 10: Bridge approach
+      new THREE.Vector3(0, 18.0, 10),     // 11: Upper bridge crossing over lower road
+      new THREE.Vector3(-45, 18.0, 80),   // 12: Bridge exit
+
+      // Vertical Loop section at X = -75
+      new THREE.Vector3(-75, 18.0, 150),  // 13: Loop entry straight
+      new THREE.Vector3(-75, 18.0, 290),  // 14: Loop exit straight
+      new THREE.Vector3(-95, 26.0, 350),  // 15: Launch ramp incline
+      new THREE.Vector3(-110, 36.0, 420), // 16: Launch ramp crest (TAKEOFF EDGE!)
+
+      // Aerial glide corridor
+      new THREE.Vector3(-110, 32.0, 500), // Gondolas
+      new THREE.Vector3(-110, 24.0, 580), // Cloud gates
+      new THREE.Vector3(-110, 16.0, 660), // Ferris beams
+      new THREE.Vector3(-110, 8.0, 740),  // Cloud runway touchdown
+
+      // Collapsing road & downhill return
+      new THREE.Vector3(-110, 7.5, 800),  // Runway exit
+      new THREE.Vector3(-140, 6.0, 850),  // Collapsing road approach
+      new THREE.Vector3(-180, 5.0, 820),  // Collapsing 3-lane road
+      new THREE.Vector3(-240, 3.5, 680),
+      new THREE.Vector3(-260, 2.0, 500),  // Downhill curve
+      new THREE.Vector3(-200, 1.0, 300),  // S-bend
+      new THREE.Vector3(-120, 0.5, 100),
+      new THREE.Vector3(-50, 0.0, -70),   // Home stretch curve
+      new THREE.Vector3(0, 0.0, -70),     // Alignment to Start/Finish
+    ];
+
+    const trackCurve = new THREE.CatmullRomCurve3(circuitNodes, true, 'centripetal', 0.5);
+    const TRACK_SAMPLES = 700;
+    const trackPoints = trackCurve.getSpacedPoints(TRACK_SAMPLES);
+
+    const trackTangents = [];
+    const trackNormals = [];
+    const trackBinormals = [];
+    for (let i = 0; i < TRACK_SAMPLES; i++) {
+      const p = trackPoints[i];
+      const pNext = trackPoints[(i + 1) % TRACK_SAMPLES];
+      const pPrev = trackPoints[(i - 1 + TRACK_SAMPLES) % TRACK_SAMPLES];
+      const tangent = new THREE.Vector3().subVectors(pNext, pPrev).normalize();
+      trackTangents.push(tangent);
+
+      const worldUp = new THREE.Vector3(0, 1, 0);
+      let horizNormal = new THREE.Vector3().crossVectors(tangent, worldUp).normalize();
+      if (horizNormal.lengthSq() < 0.001) horizNormal.set(1, 0, 0);
+
+      const up = new THREE.Vector3().crossVectors(horizNormal, tangent).normalize();
+      trackNormals.push(horizNormal);
+      trackBinormals.push(up);
+    }
+
+    // Identify Takeoff, Landing, and Dock indices
+    let launchRampIdx = 0;
+    let runwayLandIdx = 0;
+    let upperDockSampleIdx = 0;
+    for (let i = 0; i < TRACK_SAMPLES; i++) {
+      const pt = trackPoints[i];
+      if (pt.y > 34.0 && pt.z > 390 && pt.z < 450) launchRampIdx = i;
+      if (pt.z > 720 && pt.z < 760 && pt.y < 10.0) runwayLandIdx = i;
+      if (pt.z >= DOCK_UPPER_Z && pt.y >= 16.0 && upperDockSampleIdx === 0) upperDockSampleIdx = i;
+    }
+    const TAKEOFF_POS = trackPoints[launchRampIdx].clone();
+
+    // =========================================================================
+    // VERTICAL LOOP GEOMETRY (X = -75, Z from 180 to 260)
+    // =========================================================================
+    const LOOP_RADIUS = 16.0;
+    const LOOP_CENTER_Y = 18.0 + LOOP_RADIUS; // 34.0
+    const LOOP_CENTER_Z = 220.0;
+    const LOOP_CENTER_X = -75.0;
+    const LOOP_ENTRY_Z = LOOP_CENTER_Z - LOOP_RADIUS; // 204.0
+    const LOOP_EXIT_Z = LOOP_CENTER_Z + LOOP_RADIUS;  // 236.0
+    const LOOP_SAMPLES = 80;
+
+    const loopPoints = [];
+    const loopTangents = [];
+    const loopNormals = [];
+    const loopBinormals = [];
+
+    for (let i = 0; i < LOOP_SAMPLES; i++) {
+      const theta = -Math.PI / 2 + (i / LOOP_SAMPLES) * (Math.PI * 2);
+      const y = LOOP_CENTER_Y + Math.sin(theta) * LOOP_RADIUS;
+      const z = LOOP_CENTER_Z + Math.cos(theta) * LOOP_RADIUS;
+      const x = LOOP_CENTER_X;
+      loopPoints.push(new THREE.Vector3(x, y, z));
+
+      const tanTheta = theta + Math.PI / 2;
+      const tangent = new THREE.Vector3(0, Math.sin(tanTheta), Math.cos(tanTheta)).normalize();
+      loopTangents.push(tangent);
+
+      const norm = new THREE.Vector3(1, 0, 0);
+      loopNormals.push(norm);
+
+      // Tangent x Norm gives correct Up vector (+Y at bottom upright, -Y at top inverted)
+      const up = new THREE.Vector3().crossVectors(tangent, norm).normalize();
+      loopBinormals.push(up);
+    }
+
+    // Build Vertical Loop Mesh
+    function buildVerticalLoopMesh() {
+      const group = new THREE.Group();
+      const loopGeom = new THREE.BufferGeometry();
+      const pos = [];
+      const nor = [];
+      const uvs = [];
+      const ind = [];
+      const halfW = TRACK_WIDTH / 2;
+
+      for (let i = 0; i <= LOOP_SAMPLES; i++) {
+        const idx = i % LOOP_SAMPLES;
+        const pt = loopPoints[idx];
+        const norm = loopNormals[idx];
+        const up = loopBinormals[idx];
+
+        const pL = new THREE.Vector3().copy(pt).addScaledVector(norm, -halfW);
+        const pR = new THREE.Vector3().copy(pt).addScaledVector(norm, halfW);
+
+        pos.push(pL.x, pL.y, pL.z, pR.x, pR.y, pR.z);
+        nor.push(up.x, up.y, up.z, up.x, up.y, up.z);
+        uvs.push(0, i / 4, 1, i / 4);
+      }
+
+      for (let i = 0; i < LOOP_SAMPLES; i++) {
+        const r1 = i * 2;
+        const r2 = (i + 1) * 2;
+        ind.push(r1, r1 + 1, r2, r1 + 1, r2 + 1, r2);
+      }
+
+      loopGeom.setIndex(ind);
+      loopGeom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      loopGeom.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+      loopGeom.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+
+      const loopMesh = new THREE.Mesh(loopGeom, new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 }));
+      group.add(loopMesh);
+      return group;
+    }
+    scene.add(buildVerticalLoopMesh());
+
+    // =========================================================================
+    // 3-LANE SUSPENDED COLLAPSING ROAD
+    // =========================================================================
+    const COLLAPSE_ROWS = 8;
+    const COLLAPSE_LANES = 3;
+    const collapsePanels = [];
+    const collapseGroup = new THREE.Group();
+    const guaranteedSafeLanes = [1, 0, 2, 1, 0, 2, 1, 0];
+
+    const panelGeom = new THREE.BoxGeometry(5.4, 1.2, 18.0);
+    const panelMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6 });
+    const warnMat = new THREE.MeshStandardMaterial({ color: 0xef476f, roughness: 0.4, emissive: 0xef476f, emissiveIntensity: 0.4 });
+
+    for (let r = 0; r < COLLAPSE_ROWS; r++) {
+      const rowZ = 840.0 - r * 30.0;
+      const rowX = -170.0 - r * 14.0;
+      const rowY = 5.5 - r * 0.4;
+
+      for (let l = 0; l < COLLAPSE_LANES; l++) {
+        const laneOffset = (l - 1) * 5.8;
+        const mesh = new THREE.Mesh(panelGeom, panelMat.clone());
+        mesh.position.set(rowX + laneOffset, rowY, rowZ);
+        collapseGroup.add(mesh);
+
+        const isGuaranteedSafe = (l === guaranteedSafeLanes[r]);
+        const cycleOffset = (r * 0.75 + l * 1.5) % 6.0;
+
+        collapsePanels.push({
+          row: r,
+          lane: l,
+          mesh,
+          basePos: mesh.position.clone(),
+          isGuaranteedSafe,
+          cycleOffset,
+          state: 'solid',
+          fallDist: 0.0,
+          activeCollision: true
+        });
+      }
+    }
+    scene.add(collapseGroup);
+
+    // =========================================================================
+    // 6 LOGICAL ORDERED CHECKPOINTS
+    // 0: Start / Finish Line (Lower Road Y = 0)
+    // 1: FERRIS TRANSFER EXIT DOCK (Granted only after boarding, riding, and exiting!)
+    // 2: Banked High-Speed Turn
+    // 3: Vertical Loop Exit (Post-loop)
+    // 4: Aerial Ring Gateway in Flight (Z = 660, Y = 16)
+    // 5: Collapsing-Road Region Exit
+    // =========================================================================
+    const checkpointConfig = [
+      { pos: new THREE.Vector3(0, 0, -60), isAerial: false, name: 'Start/Finish' },
+      { pos: new THREE.Vector3(0, DOCK_UPPER_Y, DOCK_UPPER_Z + 12.0), isAerial: false, name: 'Ferris Exit Dock' },
+      { pos: new THREE.Vector3(210, 22.0, 30), isAerial: false, name: 'Banked Turn' },
+      { pos: new THREE.Vector3(LOOP_CENTER_X, 18.0, LOOP_EXIT_Z + 12.0), isAerial: false, name: 'Vertical Loop' },
+      { pos: new THREE.Vector3(-110, 16.0, 660), isAerial: true, name: 'Aerial Gateway' },
+      { pos: new THREE.Vector3(-260, 2.5, 520), isAerial: false, name: 'Collapsing Road' }
+    ];
+
+    const checkpoints = [];
+    for (let c = 0; c < checkpointConfig.length; c++) {
+      const cfg = checkpointConfig[c];
+      const gateGroup = new THREE.Group();
+      gateGroup.position.copy(cfg.pos);
+
+      if (c === 0) {
+        const arch = new THREE.Mesh(new THREE.BoxGeometry(TRACK_WIDTH + 3.2, 2.0, 1.6), new THREE.MeshStandardMaterial({ color: 0xff006e }));
+        arch.position.y = 9.0;
+        gateGroup.add(arch);
+      } else if (cfg.isAerial) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(14.0, 1.2, 12, 32), new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xffbe0b, emissiveIntensity: 0.8 }));
+        gateGroup.add(ring);
+      } else {
+        const arch = new THREE.Mesh(new THREE.BoxGeometry(TRACK_WIDTH + 2.0, 1.0, 1.0), new THREE.MeshStandardMaterial({ color: 0x06d6a0 }));
+        arch.position.y = 7.5;
+        gateGroup.add(arch);
+      }
+
+      scene.add(gateGroup);
+      checkpoints.push({ idx: c, isAerial: cfg.isAerial, position: cfg.pos });
+    }
+
+    // =========================================================================
+    // 8 FIXED ITEM BOXES (1 MOVED ONTO CARRIER 0!)
+    // =========================================================================
+    const itemBoxLocations = [
+      new THREE.Vector3(0, 1.2, -10),                             // 0: Pre-transfer road
+      new THREE.Vector3(0, 1.2, 0),                               // 1: ON CARRIER 0! (moves in local space)
+      new THREE.Vector3(20, DOCK_UPPER_Y + 1.2, 190),             // 2: Post-transfer road
+      new THREE.Vector3(210, 23.2, 30),                           // 3: Banked turn
+      new THREE.Vector3(LOOP_CENTER_X, 19.5, LOOP_EXIT_Z + 10.0), // 4: Post vertical loop
+      TAKEOFF_POS.clone().add(new THREE.Vector3(0, 1.5, -12)),    // 5: Pre-launch ramp
+      new THREE.Vector3(-110, 22.0, 580),                         // 6: Aerial flight corridor
+      new THREE.Vector3(-140, 7.5, 840)                           // 7: Pre-collapsing road
+    ];
+
+    const itemBoxes = [];
+    const itemBoxGroup = new THREE.Group();
+
+    for (let i = 0; i < itemBoxLocations.length; i++) {
+      const boxMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1.6, 1.6, 1.6),
+        new THREE.MeshStandardMaterial({ color: 0xffbe0b, emissive: 0xff9f1c, emissiveIntensity: 0.6 })
+      );
+      boxMesh.position.copy(itemBoxLocations[i]);
+      boxMesh.castShadow = true;
+
+      if (i === 1) {
+        // Box 1 travels with Carrier 0!
+        carriers[0].group.add(boxMesh);
+        boxMesh.position.set(0, 1.2, 0); // local to carrier
+      } else {
+        itemBoxGroup.add(boxMesh);
+      }
+
+      itemBoxes.push({
+        id: i,
+        isOnCarrier: (i === 1),
+        position: boxMesh.position,
+        mesh: boxMesh,
+        active: true,
+        respawn_timer: 0.0
+      });
+    }
+    scene.add(itemBoxGroup);
+
+    // =========================================================================
+    // KART MESHES RIGGING (PLAYER & AI)
+    // =========================================================================
+    function buildKartWithGlider(mainColor, stripeColor, helmetColor, gliderColor) {
+      const group = new THREE.Group();
+      const bMat = new THREE.MeshStandardMaterial({ color: mainColor, metalness: 0.6, roughness: 0.3 });
+      const sMat = new THREE.MeshStandardMaterial({ color: stripeColor, metalness: 0.3, roughness: 0.4 });
+      const hMat = new THREE.MeshStandardMaterial({ color: helmetColor, metalness: 0.5, roughness: 0.2 });
+
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.4, 2.8), bMat);
+      body.position.y = 0.45;
+      group.add(body);
+
+      const nose = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.8, 1.0, 16), bMat);
+      nose.rotation.x = Math.PI / 2;
+      nose.position.set(0, 0.4, 1.6);
+      nose.scale.set(1.4, 1, 0.5);
+      group.add(nose);
+
+      const bumper = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.16, 0.5), sMat);
+      bumper.position.set(0, 0.25, 2.0);
+      group.add(bumper);
+
+      const seatB = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.25, 0.9), new THREE.MeshStandardMaterial({ color: 0x1e293b }));
+      seatB.position.set(0, 0.52, -0.2);
+      group.add(seatB);
+
+      const helm = new THREE.Mesh(new THREE.SphereGeometry(0.38, 16, 16), hMat);
+      helm.position.set(0, 1.25, -0.25);
+      group.add(helm);
+
+      const flameMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0 });
+      const fL = new THREE.Mesh(new THREE.ConeGeometry(0.2, 1.2, 8), flameMat);
+      fL.rotation.x = -Math.PI / 2;
+      fL.position.set(-0.35, 0.35, -2.1);
+      group.add(fL);
+
+      const gliderGroup = new THREE.Group();
+      gliderGroup.position.set(0, 2.3, -0.2);
+      gliderGroup.visible = false;
+      const wingShape = new THREE.Shape();
+      wingShape.moveTo(0, 1.4);
+      wingShape.lineTo(3.8, -1.2);
+      wingShape.lineTo(1.8, -0.6);
+      wingShape.lineTo(0, -0.8);
+      wingShape.lineTo(-1.8, -0.6);
+      wingShape.lineTo(-3.8, -1.2);
+      wingShape.closePath();
+      const gliderMesh = new THREE.Mesh(new THREE.ShapeGeometry(wingShape), new THREE.MeshStandardMaterial({ color: gliderColor, side: THREE.DoubleSide }));
+      gliderMesh.rotation.x = Math.PI / 2;
+      gliderGroup.add(gliderMesh);
+      group.add(gliderGroup);
+
+      function createWheel() {
+        const hub = new THREE.Group();
+        const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.32, 16), new THREE.MeshStandardMaterial({ color: 0x18181b }));
+        tire.rotation.z = Math.PI / 2;
+        const spinner = new THREE.Group();
+        spinner.add(tire);
+        hub.add(spinner);
+        return { hub, spinner };
+      }
+
+      const flW = createWheel();
+      flW.hub.position.set(-1.08, 0.36, 1.15);
+      group.add(flW.hub);
+      const frW = createWheel();
+      frW.hub.position.set(1.08, 0.36, 1.15);
+      group.add(frW.hub);
+      const rlW = createWheel();
+      rlW.hub.position.set(-1.08, 0.36, -1.05);
+      group.add(rlW.hub);
+      const rrW = createWheel();
+      rrW.hub.position.set(1.08, 0.36, -1.05);
+      group.add(rrW.hub);
+
+      scene.add(group);
+      return { group, flW, frW, rlW, rrW, flameMat, gliderGroup };
+    }
+
+    const playerKartModel = buildKartWithGlider(0xef476f, 0xffd166, 0x3a86ff, 0xffbe0b);
+
+    const aiConfigs = [
+      { id: 1, name: 'Blaze Blue', mainColor: 0x3a86ff, stripeColor: 0xffffff, helmetColor: 0xffbe0b, gliderColor: 0x00f5d4, topSpeed: 28.5, lateralOffset: -3.5, startOffset: -2.0 },
+      { id: 2, name: 'Mint Comet', mainColor: 0x06d6a0, stripeColor: 0x8338ec, helmetColor: 0xfb5607, gliderColor: 0xff006e, topSpeed: 29.0, lateralOffset: 3.5, startOffset: -4.5 },
+      { id: 3, name: 'Sunburst',   mainColor: 0xfb5607, stripeColor: 0x00f5d4, helmetColor: 0x9b5de5, gliderColor: 0x8338ec, topSpeed: 27.8, lateralOffset: -1.8, startOffset: -7.0 }
+    ];
+
+    const aiKarts = [];
+    for (let i = 0; i < aiConfigs.length; i++) {
+      const cfg = aiConfigs[i];
+      aiKarts.push({
+        id: cfg.id,
+        name: cfg.name,
+        cfg,
+        model: buildKartWithGlider(cfg.mainColor, cfg.stripeColor, cfg.helmetColor, cfg.gliderColor),
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        heading: 0,
+        pitch: 0,
+        roll: 0,
+        upVector: new THREE.Vector3(0, 1, 0),
+        speed: 0,
+        lap: 1,
+        nextCheckpoint: 1,
+        trackProgressIndex: 0,
+        lateralOffset: cfg.lateralOffset,
+        targetSpeed: cfg.topSpeed,
+        heldItem: null,
+        itemCycleIndex: i,
+        itemUseTimer: 3.5 + i * 2.0,
+        turboActive: false,
+        turboTime: 0.0,
+        spinTime: 0.0,
+        finished: false,
+        totalProgress: 0.0,
+        trackRegion: 'road',
+        flightState: 'ground',
+        isRidingCarrier: false,
+        ridingCarrierId: null,
+        loopProgress: 0.0,
+        isInverted: false
+      });
+    }
+
+    const playerStartPos = new THREE.Vector3(0, 0, -60);
+    let kartPos = new THREE.Vector3().copy(playerStartPos);
+    let kartHeading = 0;
+    let kartRoll = 0.0;
+    let kartPitch = 0.0;
+    let kartUp = new THREE.Vector3(0, 1, 0);
+    let trackProgressIndex = 0;
+    let playerLoopProgress = 0.0;
+    let isPlayerInverted = false;
+
+    function resetGridPositions() {
+      kartPos.copy(playerStartPos);
+      kartHeading = 0;
+      kartRoll = 0;
+      kartPitch = 0;
+      kartUp.set(0, 1, 0);
+      speed = 0;
+      trackProgressIndex = 0;
+      trackRegion = 'road';
+      isRidingCarrier = false;
+      ridingCarrierId = null;
+      transferProgress = 0.0;
+      flightState = 'ground';
+      flightVel.set(0, 0, 0);
+      playerLoopProgress = 0.0;
+      isPlayerInverted = false;
+      playerSpinTime = 0;
+      playerTurboActive = false;
+      playerKartModel.gliderGroup.visible = false;
+      playerKartModel.group.position.copy(kartPos);
+      playerKartModel.group.rotation.set(0, kartHeading, 0);
+
+      for (let i = 0; i < aiKarts.length; i++) {
+        const ai = aiKarts[i];
+        ai.speed = 0;
+        ai.lap = 1;
+        ai.nextCheckpoint = 1;
+        ai.trackProgressIndex = 0;
+        ai.trackRegion = 'road';
+        ai.flightState = 'ground';
+        ai.isRidingCarrier = false;
+        ai.ridingCarrierId = null;
+        ai.loopProgress = 0;
+        ai.isInverted = false;
+        ai.finished = false;
+        ai.heldItem = null;
+        ai.model.gliderGroup.visible = false;
+
+        ai.pos.set(ai.cfg.lateralOffset, 0, -60 + ai.cfg.startOffset);
+        ai.heading = 0;
+        ai.pitch = 0;
+        ai.roll = 0;
+        ai.upVector.set(0, 1, 0);
+        ai.model.group.position.copy(ai.pos);
+        ai.model.group.rotation.set(0, ai.heading, 0);
+      }
+    }
+
+    // =========================================================================
+    // DYNAMIC FERRIS TRANSFER CYCLE & CARRIER PHYSICS
+    // Period = 16.0s. Fixed vertical arc motion.
+    // Carries all karts on deck while preserving relative position and controls!
+    // =========================================================================
+    function updateFerrisCarriers(time, dt) {
+      const cycleT = time % FERRIS_CYCLE_PERIOD;
+
+      // Platform 0 and Platform 1 state determination
+      for (let i = 0; i < 2; i++) {
+        const c = carriers[i];
+        c.prevPos.copy(c.pos);
+
+        // Platform 0 uses cycleT; Platform 1 is offset by half period (8.0s)
+        const tEff = (cycleT + (i === 1 ? 8.0 : 0.0)) % FERRIS_CYCLE_PERIOD;
+
+        if (tEff < 3.0) {
+          // Stationary at Lower Entry Dock (Y=0, Z=70)
+          c.dockState = 'lower_docked';
+          c.pos.set(0, DOCK_LOWER_Y, DOCK_LOWER_Z + 8.0); // flush with dock edge
+          if (i === 0) transferProgress = 0.0;
+
+        } else if (tEff < 8.0) {
+          // Ascending along vertical arc from (0, 0, 78) to (0, 18, 142)
+          c.dockState = 'moving_up';
+          const prog = (tEff - 3.0) / 5.0; // 0..1
+          // Smooth vertical S-curve
+          const smoothP = Math.sin(prog * Math.PI * 0.5);
+          const y = DOCK_LOWER_Y + (DOCK_UPPER_Y - DOCK_LOWER_Y) * smoothP;
+          const z = (DOCK_LOWER_Z + 8.0) + (DOCK_UPPER_Z - 8.0 - (DOCK_LOWER_Z + 8.0)) * prog;
+          c.pos.set(0, y, z);
+          if (i === 0) transferProgress = prog;
+
+        } else if (tEff < 11.0) {
+          // Stationary at Upper Exit Dock (Y=18, Z=150)
+          c.dockState = 'upper_docked';
+          c.pos.set(0, DOCK_UPPER_Y, DOCK_UPPER_Z - 8.0); // flush with dock edge
+          if (i === 0) transferProgress = 1.0;
+
+        } else {
+          // Descending back to lower entry dock
+          c.dockState = 'moving_down';
+          const prog = (tEff - 11.0) / 5.0; // 0..1
+          const y = DOCK_UPPER_Y - (DOCK_UPPER_Y - DOCK_LOWER_Y) * prog;
+          const z = (DOCK_UPPER_Z - 8.0) - (DOCK_UPPER_Z - 8.0 - (DOCK_LOWER_Z + 8.0)) * prog;
+          c.pos.set(0, y, z);
+        }
+
+        c.group.position.copy(c.pos);
+
+        // Update Moving On-Carrier Obstacles
+        // 1. Laterally sliding bumper: moves left-right relative to carrier
+        c.slidingBumper.position.x = Math.sin(time * 2.2 + i * Math.PI) * 5.0;
+
+        // 2. Periodically swinging soft bar: swings around Z
+        c.barPivot.rotation.z = Math.sin(time * 2.8 + i * 1.5) * 0.65;
+
+        // Real displacement of carrier this frame
+        const deltaCarrier = new THREE.Vector3().subVectors(c.pos, c.prevPos);
+
+        // Carry each kart on deck by applying deltaCarrier!
+        // Check player on carrier
+        if (isRidingCarrier && ridingCarrierId === i) {
+          kartPos.add(deltaCarrier);
+          kartPos.y = c.pos.y; // adhere to deck surface
+
+          // Obstacle 1 collision: sliding bumper
+          const bumpWorldX = c.pos.x + c.slidingBumper.position.x;
+          const bumpWorldZ = c.pos.z + c.slidingBumper.position.z;
+          if (Math.abs(kartPos.x - bumpWorldX) < 3.2 && Math.abs(kartPos.z - bumpWorldZ) < 1.4) {
+            speed *= 0.6;
+            kartPos.x += (kartPos.x > bumpWorldX ? 0.8 : -0.8);
+          }
+
+          // Check falling off carrier edges
+          if (Math.abs(kartPos.x - c.pos.x) > CARRIER_WIDTH / 2 + 0.5) {
+            triggerFailureRecovery(true, null, 'carrier');
+          }
+        }
+
+        // Check AI on carrier
+        for (const ai of aiKarts) {
+          if (ai.isRidingCarrier && ai.ridingCarrierId === i) {
+            ai.pos.add(deltaCarrier);
+            ai.pos.y = c.pos.y;
+            if (Math.abs(ai.pos.x - c.pos.x) > CARRIER_WIDTH / 2 + 0.5) {
+              triggerFailureRecovery(false, ai, 'carrier');
+            }
+          }
+        }
+      }
+
+      // Rotate Ferris Structure
+      ferrisStructure.rotation.x = time * 0.4;
+    }
+
+    // =========================================================================
+    // COLLAPSING ROAD & FAILURE RECOVERY
+    // =========================================================================
+    function updateCollapsingPanels(time, dt) {
+      for (let i = 0; i < collapsePanels.length; i++) {
+        const p = collapsePanels[i];
+        if (p.isGuaranteedSafe) {
+          p.state = 'solid';
+          p.mesh.material = panelMat;
+          p.mesh.position.copy(p.basePos);
+          p.activeCollision = true;
+          continue;
+        }
+
+        const cycleT = (time + p.cycleOffset) % 6.0;
+        if (cycleT < 2.4) {
+          p.state = 'solid';
+          p.mesh.material = panelMat;
+          p.mesh.position.copy(p.basePos);
+          p.activeCollision = true;
+          p.fallDist = 0.0;
+        } else if (cycleT < 3.6) {
+          p.state = 'warning';
+          p.mesh.material = warnMat;
+          const shake = Math.sin(time * 30.0) * 0.35;
+          p.mesh.position.set(p.basePos.x + shake, p.basePos.y, p.basePos.z);
+          p.activeCollision = true;
+        } else if (cycleT < 5.0) {
+          p.state = 'fallen';
+          p.activeCollision = false;
+          const fallTime = cycleT - 3.6;
+          p.fallDist = 0.5 * 35.0 * fallTime * fallTime;
+          p.mesh.position.set(p.basePos.x, p.basePos.y - p.fallDist, p.basePos.z);
+        } else {
+          p.state = 'restoring';
+          const restoreProg = (cycleT - 5.0) / 1.0;
+          p.mesh.position.set(p.basePos.x, p.basePos.y - (1.0 - restoreProg) * 15.0, p.basePos.z);
+          p.activeCollision = (restoreProg > 0.9);
+          p.mesh.material = panelMat;
+        }
+      }
+    }
+
+    function triggerFailureRecovery(isPlayer, aiObj, recoveryType) {
+      // Safe point before transfer if fell on transfer
+      let safePos = new THREE.Vector3(0, 0, 30.0);
+      let safeHead = 0;
+
+      if (recoveryType === 'loop') {
+        safePos.set(LOOP_CENTER_X, 18.0, LOOP_ENTRY_Z - 18.0);
+      } else if (recoveryType === 'collapse') {
+        safePos.set(-130, 6.5, 870);
+        safeHead = -Math.PI / 2;
+      }
+
+      if (isPlayer) {
+        trackRegion = 'recovering';
+        isRidingCarrier = false;
+        ridingCarrierId = null;
+        speed = 10.0;
+        kartPos.copy(safePos);
+        kartHeading = safeHead;
+        kartPitch = 0;
+        kartRoll = 0;
+        kartUp.set(0, 1, 0);
+        playerLoopProgress = 0.0;
+        isPlayerInverted = false;
+        playerKartModel.gliderGroup.visible = false;
+        notify('SAFE RECOVERY!', 1400);
+
+        setTimeout(() => {
+          trackRegion = 'road';
+        }, 1200);
+
+      } else if (aiObj) {
+        aiObj.trackRegion = 'recovering';
+        aiObj.isRidingCarrier = false;
+        aiObj.ridingCarrierId = null;
+        aiObj.speed = 10.0;
+        aiObj.pos.copy(safePos);
+        aiObj.heading = safeHead;
+        aiObj.pitch = 0;
+        aiObj.roll = 0;
+        aiObj.upVector.set(0, 1, 0);
+
+        setTimeout(() => {
+          aiObj.trackRegion = 'road';
+        }, 1200);
+      }
+    }
+
+    // =========================================================================
+    // RANKING & ARENA STATE EXPOSURE
+    // =========================================================================
+    function calculateRaceRankings() {
+      // Transfer progress ensures karts riding the transfer don't jump straight-line
+      const pProg = (lap - 1) * 4000 + (nextCheckpoint === 0 ? 6 : nextCheckpoint) * 400 + (trackProgressIndex % 60);
+      const racers = [{ isPlayer: true, name: 'Player', progress: pProg, speed }];
+      for (const ai of aiKarts) {
+        const aiProg = (ai.lap - 1) * 4000 + (ai.nextCheckpoint === 0 ? 6 : ai.nextCheckpoint) * 400 + (ai.trackProgressIndex % 60);
+        ai.totalProgress = aiProg;
+        racers.push({ isPlayer: false, name: ai.name, progress: aiProg, speed: ai.speed });
+      }
+      racers.sort((a, b) => b.progress - a.progress);
+      racePosition = racers.findIndex(r => r.isPlayer) + 1;
+      hudPos.textContent = `${racePosition} / 4`;
+    }
+
+    function updateArenaState() {
+      const activeBoxesState = itemBoxes.map(b => ({ id: b.id, active: b.active, respawn_timer: parseFloat(b.respawn_timer.toFixed(2)) }));
+      const opponentsState = aiKarts.map(ai => ({
+        id: ai.id,
+        name: ai.name,
+        speed: parseFloat(Math.abs(ai.speed).toFixed(2)),
+        lap: ai.lap,
+        next_checkpoint: ai.nextCheckpoint,
+        race_progress: parseFloat(ai.totalProgress.toFixed(2)),
+        track_region: ai.trackRegion,
+        is_riding_carrier: ai.isRidingCarrier,
+        carrier_id: ai.ridingCarrierId
+      }));
+
+      const carrierPositions = carriers.map(c => ({
+        id: c.id,
+        dock_state: c.dockState,
+        x: parseFloat(c.pos.x.toFixed(2)),
+        y: parseFloat(c.pos.y.toFixed(2)),
+        z: parseFloat(c.pos.z.toFixed(2))
+      }));
+
+      const carrierObstaclesState = carriers.map(c => ({
+        id: c.id,
+        bumper_x: parseFloat(c.slidingBumper.position.x.toFixed(2)),
+        bar_rot_z: parseFloat(c.barPivot.rotation.z.toFixed(2))
+      }));
+
+      window.__arena_state = {
+        phase,
+        speed: parseFloat(Math.abs(speed).toFixed(2)),
+        max_speed: maxSpeed,
+        lap: Math.min(lap, TOTAL_LAPS),
+        next_checkpoint: nextCheckpoint,
+        race_time: parseFloat(raceTime.toFixed(2)),
+        is_drifting: isDrifting,
+        drift_charge: parseFloat(driftCharge.toFixed(2)),
+        drift_ready: driftReady,
+        boost_active: boostActive,
+        boost_time_remaining: parseFloat(Math.max(0, boostTimeRemaining).toFixed(2)),
+        race_position: racePosition,
+        held_item: playerHeldItem,
+        track_region: trackRegion,
+        is_riding_carrier: isRidingCarrier,
+        transfer_progress: parseFloat(transferProgress.toFixed(2)),
+        carrier_positions: carrierPositions,
+        carrier_obstacles: carrierObstaclesState,
+        opponents: opponentsState,
+        item_boxes: activeBoxesState
+      };
+    }
+
+    function updateItemHUD() {
+      if (!playerHeldItem) {
+        hudItemName.textContent = 'None';
+        hudItemIcon.textContent = '—';
+      } else if (playerHeldItem === 'Cloud Turbo') {
+        hudItemName.textContent = 'Cloud Turbo';
+        hudItemIcon.textContent = '⚡';
+      } else if (playerHeldItem === 'Star Seeker') {
+        hudItemName.textContent = 'Star Seeker';
+        hudItemIcon.textContent = '⭐';
+      } else if (playerHeldItem === 'Syrup Slick') {
+        hudItemName.textContent = 'Syrup Slick';
+        hudItemIcon.textContent = '🍯';
+      }
+    }
+
+    function cancelAllBoosts() {
+      isDrifting = false;
+      driftCharge = 0;
+      driftReady = false;
+      boostActive = false;
+      boostTimeRemaining = 0;
+      playerTurboActive = false;
+      playerTurboTime = 0;
+      maxSpeed = NORMAL_MAX_FORWARD_SPEED;
+      speedBar.classList.remove('boost', 'turbo');
+      playerKartModel.flameMat.opacity = 0;
+      driftBar.style.width = '0%';
+    }
+
+    function resetGame() {
+      phase = 'ready';
+      raceTime = 0;
+      lap = 1;
+      nextCheckpoint = 1;
+      speed = 0;
+      maxSpeed = NORMAL_MAX_FORWARD_SPEED;
+      steerAngle = 0;
+      racePosition = 1;
+
+      cancelAllBoosts();
+      playerHeldItem = null;
+      playerCycleIndex = 0;
+      ferrisTime = 0.0;
+
+      for (const b of itemBoxes) {
+        b.active = true;
+        b.respawn_timer = 0;
+        b.mesh.visible = true;
+      }
+
+      resetGridPositions();
+      hudLap.textContent = `Lap 1 / ${TOTAL_LAPS}`;
+      hudCheckpoint.textContent = `Next: Checkpoint 1`;
+      hudTime.textContent = formatTime(0);
+      hudSpeed.textContent = '0.0';
+      hudPos.textContent = '1 / 4';
+      hudTrackZone.textContent = 'ROAD';
+      hudTrackZone.className = 'zone-badge';
+      hudZoneDetail.textContent = 'Alt: 0.0m';
+      speedBar.style.width = '0%';
+      wrongWayBanner.style.display = 'none';
+
+      updateItemHUD();
+      screenReady.classList.remove('hidden');
+      screenFinished.classList.add('hidden');
+      calculateRaceRankings();
+      updateArenaState();
+    }
+
+    resetGame();
+
+    // =========================================================================
+    // ITEM USE HANDLERS
+    // =========================================================================
+    function usePlayerItem() {
+      if (!playerHeldItem || phase !== 'racing') return;
+
+      if (playerHeldItem === 'Cloud Turbo') {
+        playerTurboActive = true;
+        playerTurboTime = TURBO_DURATION;
+        maxSpeed = TURBO_MAX_FORWARD_SPEED;
+        speed = Math.min(TURBO_MAX_FORWARD_SPEED, speed + 14.0);
+        speedBar.classList.add('turbo');
+        playerKartModel.flameMat.color.setHex(0x00f5d4);
+        playerKartModel.flameMat.opacity = 0.95;
+        notify('CLOUD TURBO!', 1500);
+        playerHeldItem = null;
+
+      } else if (playerHeldItem === 'Star Seeker') {
+        notify('STAR SEEKER FIRED!', 1500);
+        playerHeldItem = null;
+
+      } else if (playerHeldItem === 'Syrup Slick') {
+        if (flightState === 'gliding') {
+          notify('CANNOT DROP SLICK IN FLIGHT!', 1400);
+          return;
+        }
+        notify('SYRUP SLICK DROPPED!', 1200);
+        playerHeldItem = null;
+      }
+
+      updateItemHUD();
+    }
+
+    // Input Listeners
+    window.addEventListener('keydown', (e) => {
+      const code = e.code;
+      if (code === 'KeyW' || code === 'ArrowUp') keys.up = true;
+      if (code === 'KeyS' || code === 'ArrowDown') keys.down = true;
+      if (code === 'KeyA' || code === 'ArrowLeft') keys.left = true;
+      if (code === 'KeyD' || code === 'ArrowRight') keys.right = true;
+
+      if (code === 'KeyE') usePlayerItem();
+
+      if (code === 'Space') {
+        if (!keys.space) {
+          keys.space = true;
+          if (flightState === 'ground' && trackRegion !== 'recovering') {
+            if (speed >= DRIFT_MIN_SPEED && (keys.left || keys.right) && !boostActive && !playerTurboActive) {
+              isDrifting = true;
+              driftDir = keys.left ? -1 : 1;
+              driftCharge = 0;
+              driftReady = false;
+              driftStatus.className = 'drift-status-text';
+              driftStatus.textContent = 'Drifting...';
+            }
+          }
+        }
+      }
+
+      if (code === 'Enter') {
+        if (phase === 'ready') {
+          phase = 'racing';
+          screenReady.classList.add('hidden');
+          notify('GO!', 1200);
+        }
+      }
+
+      if (code === 'KeyR') resetGame();
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const code = e.code;
+      if (code === 'KeyW' || code === 'ArrowUp') keys.up = false;
+      if (code === 'KeyS' || code === 'ArrowDown') keys.down = false;
+      if (code === 'KeyA' || code === 'ArrowLeft') keys.left = false;
+      if (code === 'KeyD' || code === 'ArrowRight') keys.right = false;
+      if (code === 'Space') {
+        keys.space = false;
+        if (isDrifting) {
+          if (driftReady && !boostActive) {
+            boostActive = true;
+            boostTimeRemaining = BOOST_DURATION;
+            if (!playerTurboActive) maxSpeed = BOOST_MAX_FORWARD_SPEED;
+            speed = Math.min(maxSpeed, speed + 10.0);
+            speedBar.classList.add('boost');
+            driftStatus.className = 'drift-status-text boost';
+            driftStatus.textContent = 'DRIFT BOOST!';
+          }
+          isDrifting = false;
+          driftCharge = 0;
+          driftReady = false;
+          driftBar.style.width = '0%';
+        }
+      }
+    });
+
+    document.getElementById('btn-restart').addEventListener('click', resetGame);
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // =========================================================================
+    // CHECKPOINT TRIGGERS
+    // =========================================================================
+    function updateCheckpoints() {
+      const targetGate = checkpoints[nextCheckpoint];
+      const d = kartPos.distanceTo(targetGate.position);
+
+      if (d < (targetGate.isAerial ? 22.0 : 16.0)) {
+        if (nextCheckpoint === 0) {
+          if (lap >= TOTAL_LAPS) {
+            lap = TOTAL_LAPS;
+            phase = 'finished';
+            cancelAllBoosts();
+            finishedTime.textContent = formatTime(raceTime);
+            finishedRank.textContent = `Finished: ${racePosition}${racePosition === 1 ? 'st' : racePosition === 2 ? 'nd' : 'th'} Place`;
+            screenFinished.classList.remove('hidden');
+            notify(`FINISH! POSITION ${racePosition}`, 4000);
+          } else {
+            lap += 1;
+            nextCheckpoint = 1;
+            notify(`Lap ${lap}!`, 1800);
+          }
+        } else {
+          nextCheckpoint = (nextCheckpoint + 1) % 6;
+        }
+
+        hudLap.textContent = `Lap ${Math.min(lap, TOTAL_LAPS)} / ${TOTAL_LAPS}`;
+        hudCheckpoint.textContent = nextCheckpoint === 0 ? 'Next: Finish Line' : `Next: Checkpoint ${nextCheckpoint}`;
+      }
+    }
+
+    function updateAICheckpoints(ai) {
+      const targetGate = checkpoints[ai.nextCheckpoint];
+      if (ai.pos.distanceTo(targetGate.position) < (targetGate.isAerial ? 24.0 : 18.0)) {
+        if (ai.nextCheckpoint === 0) {
+          if (ai.lap >= TOTAL_LAPS) ai.finished = true;
+          else {
+            ai.lap += 1;
+            ai.nextCheckpoint = 1;
+          }
+        } else {
+          ai.nextCheckpoint = (ai.nextCheckpoint + 1) % 6;
+        }
+      }
+    }
+
+    // =========================================================================
+    // MAIN GAME ANIMATION LOOP
+    // =========================================================================
+    const clock = new THREE.Clock();
+    let prevCamLook = new THREE.Vector3();
+    let isFirstCamFrame = true;
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const delta = Math.min(clock.getDelta(), 0.1);
+      const elapsedTime = clock.getElapsedTime();
+
+      // 1. Update Ferris Transport Mechanism & Moving Carriers
+      if (phase === 'racing') ferrisTime += delta;
+      updateFerrisCarriers(ferrisTime, delta);
+
+      // 2. Update Collapsing Road Panels
+      updateCollapsingPanels(elapsedTime, delta);
+
+      // Item Box animation
+      for (const b of itemBoxes) {
+        if (b.active) b.mesh.rotation.y += 2.0 * delta;
+        else {
+          b.respawn_timer -= delta;
+          if (b.respawn_timer <= 0) {
+            b.active = true;
+            b.respawn_timer = 0;
+            b.mesh.visible = true;
+          }
+        }
+      }
+
+      // =======================================================================
+      // PLAYER KART UPDATE (PHYSICAL BOARDING, CARRIER RIDE, ROAD, AIR)
+      // =======================================================================
+      if (phase === 'racing') {
+        raceTime += delta;
+        hudTime.textContent = formatTime(raceTime);
+
+        // Boost & Turbo timers
+        if (playerTurboActive) {
+          playerTurboTime -= delta;
+          if (playerTurboTime <= 0) {
+            playerTurboActive = false;
+            maxSpeed = boostActive ? BOOST_MAX_FORWARD_SPEED : NORMAL_MAX_FORWARD_SPEED;
+            speedBar.classList.remove('turbo');
+            playerKartModel.flameMat.opacity = 0;
+          }
+        }
+        if (boostActive) {
+          boostTimeRemaining -= delta;
+          if (boostTimeRemaining <= 0) {
+            boostActive = false;
+            if (!playerTurboActive) maxSpeed = NORMAL_MAX_FORWARD_SPEED;
+            speedBar.classList.remove('boost');
+            driftStatus.className = 'drift-status-text';
+            driftStatus.textContent = 'Ready to Drift';
+          }
+        }
+
+        // =====================================================================
+        // FERRIS TRANSFER INTERACTION (FIRST SPECIAL REGION AFTER START)
+        // =====================================================================
+        const cLower = carriers.find(c => c.dockState === 'lower_docked');
+        const cUpper = carriers.find(c => c.dockState === 'upper_docked');
+
+        // Check Approach to Lower Entry Dock (Z ~ 65..70)
+        if (trackRegion === 'road' && kartPos.z >= 55.0 && kartPos.z <= 70.0 && Math.abs(kartPos.x) <= 8.0) {
+          if (!cLower) {
+            // Waiting for carrier to arrive at lower dock!
+            trackRegion = 'ferris_transfer';
+            hudTrackZone.textContent = 'WAITING FOR CARRIER';
+            hudTrackZone.className = 'zone-badge ferris-wait';
+            hudZoneDetail.textContent = 'Carrier Arriving...';
+          }
+        }
+
+        // Physical Boarding from Lower Dock onto Carrier Platform
+        if (cLower && kartPos.z >= 68.0 && kartPos.z <= 85.0 && Math.abs(kartPos.x - cLower.pos.x) <= CARRIER_WIDTH / 2) {
+          if (!isRidingCarrier) {
+            isRidingCarrier = true;
+            ridingCarrierId = cLower.id;
+            trackRegion = 'ferris_transfer';
+            hudTrackZone.textContent = 'RIDING CARRIER';
+            hudTrackZone.className = 'zone-badge ferris-ride';
+            notify('BOARDED CARRIER!', 1200);
+          }
+        }
+
+        // Update when Riding Carrier
+        if (isRidingCarrier) {
+          const riderCarrier = carriers[ridingCarrierId];
+
+          if (riderCarrier.dockState === 'moving_up') {
+            hudTrackZone.textContent = 'RIDING CARRIER';
+            hudTrackZone.className = 'zone-badge ferris-ride';
+            hudZoneDetail.textContent = `Lift Alt: ${kartPos.y.toFixed(1)}m`;
+          } else if (riderCarrier.dockState === 'upper_docked') {
+            hudTrackZone.textContent = 'EXITING CARRIER';
+            hudTrackZone.className = 'zone-badge ferris-exit';
+            hudZoneDetail.textContent = `Drive Forward to Exit!`;
+
+            // Physical Exit onto Upper Dock Road (Z >= 150)
+            if (kartPos.z >= DOCK_UPPER_Z) {
+              isRidingCarrier = false;
+              ridingCarrierId = null;
+              trackRegion = 'road';
+              trackProgressIndex = upperDockSampleIdx;
+              kartPos.y = DOCK_UPPER_Y;
+              hudTrackZone.textContent = 'ROAD';
+              hudTrackZone.className = 'zone-badge';
+              notify('EXITED FERRIS TRANSFER!', 1200);
+            }
+          }
+        }
+
+        // Check Entering Vertical Loop
+        if (trackRegion === 'road' && kartPos.z >= 200 && kartPos.z <= 215 && Math.abs(kartPos.x - LOOP_CENTER_X) < 10.0 && Math.abs(kartPos.y - 18.0) < 3.0) {
+          trackRegion = 'vertical_loop';
+          playerLoopProgress = 0.0;
+          hudTrackZone.textContent = 'VERTICAL LOOP';
+          hudTrackZone.className = 'zone-badge loop';
+          notify('ENTERING VERTICAL LOOP!', 1200);
+        }
+
+        // Check Entering Launch Ramp -> Gliding
+        if (trackRegion === 'road' && kartPos.z >= 415 && kartPos.y >= 33.0) {
+          trackRegion = 'gliding';
+          flightState = 'gliding';
+          playerKartModel.gliderGroup.visible = true;
+          flightVel.set(Math.sin(kartHeading) * Math.max(speed, GLIDE_BASE_SPEED), 0.8, Math.cos(kartHeading) * Math.max(speed, GLIDE_BASE_SPEED));
+          hudTrackZone.textContent = 'AERIAL GLIDE';
+          hudTrackZone.className = 'zone-badge gliding';
+          notify('GLIDER DEPLOYED!', 1200);
+        }
+
+        // =====================================================================
+        // EXECUTE REGIONAL KINEMATICS
+        // =====================================================================
+        if (trackRegion === 'vertical_loop') {
+          const steerInput = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
+          kartPos.x += steerInput * 4.0 * delta;
+
+          if (keys.up) {
+            if (speed < maxSpeed) speed += ACCEL * delta;
+          } else if (keys.down) speed -= BRAKE_DECEL * delta;
+
+          // Vertical Loop kinematics
+          const circumference = Math.PI * 2 * LOOP_RADIUS;
+          playerLoopProgress += (speed * delta) / circumference;
+
+          if (playerLoopProgress > 1.0) {
+            trackRegion = 'road';
+            hudTrackZone.textContent = 'ROAD';
+            hudTrackZone.className = 'zone-badge';
+            kartPos.y = 18.0;
+            kartUp.set(0, 1, 0);
+            isPlayerInverted = false;
+            notify('LOOP CLEARED!', 1200);
+          } else {
+            const sampleIdx = Math.floor(playerLoopProgress * LOOP_SAMPLES) % LOOP_SAMPLES;
+            const pt = loopPoints[sampleIdx];
+            kartPos.y = pt.y;
+            kartPos.z = pt.z;
+            kartUp.copy(loopBinormals[sampleIdx]);
+            isPlayerInverted = (kartUp.y < -0.1);
+
+            playerKartModel.group.position.copy(kartPos);
+            playerKartModel.group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), kartUp);
+            hudZoneDetail.textContent = `Loop: ${Math.round(playerLoopProgress * 100)}%`;
+          }
+
+        } else if (trackRegion === 'gliding') {
+          const steerInput = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
+          flightRoll += (-steerInput * 0.45 - flightRoll) * Math.min(6.0 * delta, 1.0);
+          kartHeading += steerInput * 1.6 * delta;
+
+          if (keys.up) flightPitch += (0.35 - flightPitch) * 4.0 * delta;
+          else if (keys.down) flightPitch += (-0.30 - flightPitch) * 4.0 * delta;
+          else flightPitch += (0.08 - flightPitch) * 3.0 * delta;
+
+          let curFwdSpeed = Math.sqrt(flightVel.x * flightVel.x + flightVel.z * flightVel.z);
+          curFwdSpeed += flightPitch * 14.0 * delta;
+          curFwdSpeed = Math.max(GLIDE_MIN_SPEED, Math.min(maxSpeed, curFwdSpeed));
+
+          flightVel.x = Math.sin(kartHeading) * curFwdSpeed;
+          flightVel.z = Math.cos(kartHeading) * curFwdSpeed;
+          flightVel.y += (-GLIDE_BASE_DESCENT - (flightPitch * 12.0) - flightVel.y) * 4.0 * delta;
+
+          kartPos.addScaledVector(flightVel, delta);
+          kartUp.set(0, 1, 0);
+
+          if (kartPos.z >= 730 && kartPos.y <= 9.2 && kartPos.y >= 5.0) {
+            trackRegion = 'road';
+            flightState = 'ground';
+            playerKartModel.gliderGroup.visible = false;
+            kartPos.y = 8.0;
+            speed = curFwdSpeed;
+            hudTrackZone.textContent = 'ROAD';
+            hudTrackZone.className = 'zone-badge';
+            notify('TOUCHDOWN ON RUNWAY!', 1200);
+          }
+
+          if (kartPos.y < RECOVERY_Y_THRESHOLD) triggerFailureRecovery(true, null, 'flight');
+
+          playerKartModel.group.position.copy(kartPos);
+          playerKartModel.group.rotation.set(0, 0, 0);
+          playerKartModel.group.rotateY(kartHeading);
+          playerKartModel.group.rotateX(flightPitch);
+          playerKartModel.group.rotateZ(flightRoll);
+          hudZoneDetail.textContent = `Alt: ${kartPos.y.toFixed(1)}m`;
+
+        } else {
+          // Standard Ground / Carrier / Dock Driving
+          const steerDir = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
+          steerAngle += (steerDir * 0.45 - steerAngle) * Math.min(10 * delta, 1);
+          playerKartModel.flW.hub.rotation.y = steerAngle;
+          playerKartModel.frW.hub.rotation.y = steerAngle;
+
+          if (isDrifting && playerSpinTime <= 0) {
+            driftCharge += delta;
+            driftBar.style.width = `${Math.min(100, (driftCharge / DRIFT_CHARGE_TIME) * 100)}%`;
+            if (driftCharge >= DRIFT_CHARGE_TIME && !driftReady) {
+              driftReady = true;
+              driftStatus.className = 'drift-status-text ready';
+              driftStatus.textContent = 'BOOST CHARGED!';
+            }
+            if (steerDir !== 0) kartHeading += steerDir * ((steerDir === driftDir) ? 2.2 : 1.2) * delta;
+          } else {
+            if (Math.abs(speed) > 0.1 && playerSpinTime <= 0) {
+              kartHeading += steerDir * STEER_RESPONSIVENESS * delta;
+            }
+          }
+
+          if (keys.up) {
+            if (speed < maxSpeed) speed += (playerTurboActive ? ACCEL * 2.5 : (boostActive ? ACCEL * 2.2 : ACCEL)) * delta;
+          } else if (keys.down) {
+            if (speed > 0.5) speed -= BRAKE_DECEL * delta;
+            else speed -= ACCEL * 0.65 * delta;
+          } else {
+            if (speed > 0) speed = Math.max(0, speed - COAST_DECEL * delta);
+          }
+
+          // Relative forward/backward movement
+          kartPos.x += Math.sin(kartHeading) * speed * delta;
+          kartPos.z += Math.cos(kartHeading) * speed * delta;
+
+          if (!isRidingCarrier) {
+            // Adhere to road height
+            let bestIdx = trackProgressIndex;
+            let minD2 = Infinity;
+            for (let o = -30; o <= 30; o++) {
+              const idx = (trackProgressIndex + o + TRACK_SAMPLES) % TRACK_SAMPLES;
+              const pt = trackPoints[idx];
+              const d2 = (kartPos.x - pt.x) ** 2 + (kartPos.z - pt.z) ** 2;
+              if (d2 < minD2) { minD2 = d2; bestIdx = idx; }
+            }
+            trackProgressIndex = bestIdx;
+            kartPos.y = trackPoints[bestIdx].y;
+            kartUp.copy(trackBinormals[bestIdx]);
+            hudZoneDetail.textContent = `Alt: ${kartPos.y.toFixed(1)}m`;
+          }
+
+          playerKartModel.group.position.copy(kartPos);
+          playerKartModel.group.rotation.set(0, kartHeading, 0);
+        }
+
+        // Wheel spin
+        const wSpin = (speed * delta) / 0.36;
+        playerKartModel.flW.spinner.rotation.x += wSpin;
+        playerKartModel.frW.spinner.rotation.x += wSpin;
+        playerKartModel.rlW.spinner.rotation.x += wSpin;
+        playerKartModel.rrW.spinner.rotation.x += wSpin;
+
+        // Item Box Collection
+        if (!playerHeldItem) {
+          for (const b of itemBoxes) {
+            let bPos = b.position;
+            if (b.isOnCarrier) {
+              bPos = new THREE.Vector3().copy(carriers[0].pos).add(new THREE.Vector3(0, 1.2, 0));
+            }
+            if (b.active && kartPos.distanceTo(bPos) < 4.5) {
+              b.active = false;
+              b.respawn_timer = ITEM_BOX_RESPAWN;
+              b.mesh.visible = false;
+              playerHeldItem = ITEM_CYCLE[playerCycleIndex % ITEM_CYCLE.length];
+              playerCycleIndex++;
+              updateItemHUD();
+              notify(`GOT: ${playerHeldItem}!`, 1200);
+              break;
+            }
+          }
+        }
+
+        updateCheckpoints();
+
+        // =======================================================================
+        // AI RIVALS UPDATE (FERRIS BOARDING, RIDING & RACING)
+        // =======================================================================
+        for (const ai of aiKarts) {
+          if (ai.finished) continue;
+
+          // AI Ferris Boarding check at lower dock
+          if (ai.trackRegion === 'road' && ai.pos.z >= 60.0 && ai.pos.z <= 70.0) {
+            if (cLower) {
+              // Drive on
+              ai.pos.z += 12.0 * delta;
+              if (ai.pos.z >= 72.0) {
+                ai.isRidingCarrier = true;
+                ai.ridingCarrierId = cLower.id;
+                ai.trackRegion = 'ferris_transfer';
+              }
+            } else {
+              // Wait at lower dock edge safely!
+              ai.speed = 0;
+              continue;
+            }
+          }
+
+          // AI on carrier
+          if (ai.isRidingCarrier) {
+            const carrier = carriers[ai.ridingCarrierId];
+            if (carrier.dockState === 'upper_docked') {
+              // Physically exit
+              ai.speed = 12.0;
+              ai.pos.z += ai.speed * delta;
+              if (ai.pos.z >= DOCK_UPPER_Z) {
+                ai.isRidingCarrier = false;
+                ai.ridingCarrierId = null;
+                ai.trackRegion = 'road';
+                ai.trackProgressIndex = upperDockSampleIdx;
+                ai.pos.y = DOCK_UPPER_Y;
+              }
+            } else {
+              // Avoid obstacles on deck
+              ai.speed = 0;
+            }
+            ai.model.group.position.copy(ai.pos);
+            continue;
+          }
+
+          // AI Road Navigation
+          const aiMax = ai.turboActive ? TURBO_MAX_FORWARD_SPEED : ai.targetSpeed;
+          if (ai.speed < aiMax) ai.speed += ACCEL * 0.85 * delta;
+
+          const aiMove = ai.speed * delta;
+          ai.trackProgressIndex = (ai.trackProgressIndex + Math.round(aiMove * 0.45) + TRACK_SAMPLES) % TRACK_SAMPLES;
+          const targetPt = trackPoints[(ai.trackProgressIndex + 8) % TRACK_SAMPLES];
+
+          const desiredAngle = Math.atan2(targetPt.x - ai.pos.x, targetPt.z - ai.pos.z);
+          let hDiff = desiredAngle - ai.heading;
+          while (hDiff > Math.PI) hDiff -= Math.PI * 2;
+          while (hDiff < -Math.PI) hDiff += Math.PI * 2;
+          ai.heading += hDiff * Math.min(5.0 * delta, 1.0);
+
+          ai.pos.x += Math.sin(ai.heading) * aiMove;
+          ai.pos.z += Math.cos(ai.heading) * aiMove;
+          ai.pos.y = targetPt.y;
+
+          ai.model.group.position.copy(ai.pos);
+          ai.model.group.rotation.set(0, ai.heading, 0);
+
+          updateAICheckpoints(ai);
+        }
+
+        calculateRaceRankings();
+
+        const dSpd = Math.abs(speed);
+        hudSpeed.textContent = dSpd.toFixed(1);
+        speedBar.style.width = `${Math.min(100, (dSpd / TURBO_MAX_FORWARD_SPEED) * 100)}%`;
+
+      } else if (phase === 'finished') {
+        cancelAllBoosts();
+        if (speed > 0) speed = Math.max(0, speed - COAST_DECEL * delta);
+        kartPos.x += Math.sin(kartHeading) * speed * delta;
+        kartPos.z += Math.cos(kartHeading) * speed * delta;
+        playerKartModel.group.position.copy(kartPos);
+      }
+
+      // Smooth Camera tracking
+      let targetCamUp = kartUp.clone();
+      const camOffset = new THREE.Vector3(-Math.sin(kartHeading) * 9.2, 4.2, -Math.cos(kartHeading) * 9.2);
+      if (isPlayerInverted) camOffset.y = -4.2;
+      const targetCamPos = new THREE.Vector3().copy(kartPos).add(camOffset);
+      const targetLookPos = new THREE.Vector3().copy(kartPos).add(new THREE.Vector3(Math.sin(kartHeading) * 14.0, 1.6, Math.cos(kartHeading) * 14.0));
+
+      if (isFirstCamFrame) {
+        camera.position.copy(targetCamPos);
+        camera.up.copy(targetCamUp);
+        camera.lookAt(targetLookPos);
+        prevCamLook.copy(targetLookPos);
+        isFirstCamFrame = false;
+      } else {
+        camera.position.lerp(targetCamPos, Math.min(8.0 * delta, 1.0));
+        camera.up.lerp(targetCamUp, Math.min(6.0 * delta, 1.0));
+        prevCamLook.lerp(targetLookPos, Math.min(10.0 * delta, 1.0));
+        camera.lookAt(prevCamLook);
+      }
+
+      updateArenaState();
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  </script>
+</body>
+</html>

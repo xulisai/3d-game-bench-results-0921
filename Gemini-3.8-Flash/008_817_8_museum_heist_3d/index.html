@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Museum Heist 3D</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; background: #0b0e17; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; user-select: none; }
+  #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; }
+  
+  #hud {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    color: #e2e8f0;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .hud-panel {
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 16px 22px;
+    min-width: 270px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  }
+  .hud-title {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #38bdf8;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .hud-title::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: #38bdf8;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #38bdf8;
+  }
+  .meter-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .meter-bar {
+    width: 100%;
+    height: 12px;
+    background: #1e293b;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .meter-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #f59e0b, #ef4444);
+    border-radius: 6px;
+    transition: width 0.04s linear;
+  }
+  .status-row {
+    margin-top: 10px;
+    font-size: 13px;
+    display: flex;
+    justify-content: space-between;
+    color: #94a3b8;
+  }
+  .status-val {
+    font-weight: 600;
+    color: #f8fafc;
+  }
+  .status-alert {
+    color: #ef4444 !important;
+    font-weight: 700;
+    text-shadow: 0 0 10px rgba(239, 68, 68, 0.8);
+    animation: pulse 0.7s infinite alternate;
+  }
+  @keyframes pulse {
+    from { opacity: 0.6; }
+    to { opacity: 1; }
+  }
+  #overlay-msg {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(15, 23, 42, 0.9);
+    backdrop-filter: blur(12px);
+    border: 1px solid #38bdf8;
+    border-radius: 14px;
+    padding: 28px 44px;
+    text-align: center;
+    color: #f8fafc;
+    z-index: 20;
+    pointer-events: none;
+    box-shadow: 0 0 40px rgba(56, 189, 248, 0.35);
+  }
+  #overlay-msg h1 {
+    font-size: 30px;
+    margin-bottom: 10px;
+    color: #38bdf8;
+    letter-spacing: 2px;
+  }
+  #overlay-msg p {
+    font-size: 15px;
+    color: #94a3b8;
+    line-height: 1.7;
+  }
+  #spotted-banner {
+    display: none;
+    position: absolute;
+    bottom: 45px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(239, 68, 68, 0.95);
+    color: #fff;
+    padding: 14px 34px;
+    border-radius: 8px;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: 2.5px;
+    z-index: 15;
+    box-shadow: 0 0 35px rgba(239, 68, 68, 0.8);
+    animation: pulse 0.5s infinite alternate;
+  }
+</style>
+<script type="importmap">
+{"imports": {"three": "/assets/_shared/three/build/three.module.min.js",
+             "three/addons/": "/assets/_shared/three/jsm/"}}
+</script>
+</head>
+<body>
+<div id="canvas-container"></div>
+<div id="hud">
+  <div class="hud-panel">
+    <div class="hud-title">Security Feed</div>
+    <div class="meter-label">
+      <span>DETECTION</span>
+      <span id="det-percent">0%</span>
+    </div>
+    <div class="meter-bar">
+      <div id="det-fill" class="meter-fill"></div>
+    </div>
+    <div class="meter-label" style="margin-top: 10px;">
+      <span>NOISE LEVEL</span>
+      <span id="noise-percent">0%</span>
+    </div>
+    <div class="meter-bar">
+      <div id="noise-fill" class="meter-fill" style="background: linear-gradient(90deg, #38bdf8, #ec4899);"></div>
+    </div>
+    <div class="status-row">
+      <span>Stance:</span>
+      <span id="stance-val" class="status-val">Standing</span>
+    </div>
+    <div class="status-row">
+      <span>Guard Pos:</span>
+      <span id="guard-pos-val" class="status-val">X: 0.0, Z: -12.0</span>
+    </div>
+    <div class="status-row">
+      <span>Guard Alert:</span>
+      <span id="guard-alert-val" class="status-val">Normal</span>
+    </div>
+    <div class="status-row">
+      <span>Security Status:</span>
+      <span id="alert-val" class="status-val">PATROLLING</span>
+    </div>
+    <div class="status-row">
+      <span>Alarm:</span>
+      <span id="alarm-status-val" class="status-val" style="color: #10b981;">INACTIVE</span>
+    </div>
+    <div class="status-row" id="escape-timer-row" style="color: #ef4444;">
+      <span>Escape Timer:</span>
+      <span id="escape-timer-val" class="status-val" style="color: #ef4444;">30.0s</span>
+    </div>
+    <div class="status-row">
+      <span>Camera Alert:</span>
+      <span id="cam-detect-val" class="status-val" style="color: #10b981;">CLEAR</span>
+    </div>
+    <div class="status-row">
+      <span>Camera Hack:</span>
+      <span id="cam-hack-val" class="status-val">0.0s</span>
+    </div>
+    <div class="status-row">
+      <span>Laser Grid:</span>
+      <span id="laser-tripped-val" class="status-val" style="color: #10b981;">ARMED</span>
+    </div>
+    <div class="status-row">
+      <span>EMP Charges:</span>
+      <span id="emp-charges-val" class="status-val" style="color: #38bdf8;">1</span>
+    </div>
+    <div class="status-row">
+      <span>Cameras Outage:</span>
+      <span id="cameras-down-val" class="status-val">0.0s</span>
+    </div>
+    <div class="status-row">
+      <span>Lockdown:</span>
+      <span id="lockdown-val" class="status-val" style="color: #10b981;">INACTIVE</span>
+    </div>
+    <div class="status-row">
+      <span>Open Exits:</span>
+      <span id="open-exits-val" class="status-val" style="color: #10b981;">3 / 3</span>
+    </div>
+    <div class="status-row">
+      <span>Loot:</span>
+      <span id="loot-val" class="status-val" style="color: #facc15;">$0 (0 items)</span>
+    </div>
+    <div class="status-row">
+      <span>Move Speed:</span>
+      <span id="speed-val" class="status-val">4.00</span>
+    </div>
+    <div class="status-row">
+      <span>Escaped:</span>
+      <span id="escaped-val" class="status-val" style="color: #94a3b8;">NO</span>
+    </div>
+    <div class="status-row">
+      <span>Score:</span>
+      <span id="score-val" class="status-val" style="color: #38bdf8;">0</span>
+    </div>
+  </div>
+</div>
+
+<div id="interaction-prompt" style="display:none; position:absolute; bottom:80px; left:50%; transform:translateX(-50%); background:rgba(15,23,42,0.9); border:1px solid #38bdf8; color:#f8fafc; padding:10px 22px; border-radius:8px; font-size:15px; font-weight:600; z-index:15; pointer-events:none; box-shadow:0 0 20px rgba(56,189,248,0.4);">
+  Press [E] to Interact
+</div>
+
+<div id="overlay-msg">
+  <h1>MUSEUM HEIST</h1>
+  <p>WASD to Move &nbsp;|&nbsp; Shift to Run &nbsp;|&nbsp; E to Steal / Hack &nbsp;|&nbsp; Q for EMP<br>
+  Steal 3 exhibits: Porcelain (-6,6), Buddha (0,6), Painting (6,6). Weight slows you down!<br>
+  Escape via still-open exits (North z=15, East x=14, West x=-14) to secure score.<br><br>
+  <strong style="color:#38bdf8; font-size:17px; letter-spacing:1px;">Press [ENTER] to Start Mission</strong></p>
+</div>
+
+<div id="spotted-banner">ALARM! INTRUDER DETECTED!<br><span id="banner-timer" style="font-size:16px;">ESCAPE TIME REMAINING: 30.0s</span></div>
+
+<script type="module">
+import * as THREE from 'three';
+
+// -------------------------------------------------------------
+// Global Game State (State Contract)
+// -------------------------------------------------------------
+let started = false;
+let player_x = 0;
+let player_z = 0;
+let running = false;
+let detection = 0;
+let guard_x = -14;
+let guard_z = -4;
+let spotted = false;
+let noise_level = 0;
+let guard_alert = false;
+let investigating = false;
+let investigateTargetX = 0;
+let investigateTargetZ = 0;
+let investigateWaitTimer = 0;
+let alarm_active = false;
+let escape_timer = 30;
+let camera_detecting = false;
+let camera_hack_cooldown = 0;
+let laser_tripped = false;
+let emp_charges = 1;
+let cameras_down_remaining = 0;
+let lockdown_active = false;
+let exits_open_count = 3;
+let loot_value = 0;
+let loot_count = 0;
+let total_weight = 0;
+let move_speed = 4.0;
+let escaped = false;
+let score = 0;
+
+// Publish plain object literal immediately on load
+window.__arena_state = {
+  player_x,
+  player_z,
+  detection,
+  guard_x,
+  guard_z,
+  spotted,
+  noise_level,
+  guard_alert,
+  alarm_active,
+  escape_timer,
+  camera_detecting,
+  camera_hack_cooldown,
+  laser_tripped,
+  emp_charges,
+  cameras_down_remaining,
+  lockdown_active,
+  exits_open_count,
+  loot_value,
+  loot_count,
+  move_speed,
+  escaped,
+  score,
+};
+
+// -------------------------------------------------------------
+// Input Handling
+// -------------------------------------------------------------
+const keys = {};
+
+window.addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+  if (e.key === 'Shift' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+    running = true;
+  }
+  if (e.code === 'KeyE' || e.key === 'e' || e.key === 'E') {
+    handleInteraction();
+  }
+  if (e.code === 'KeyQ' || e.key === 'q' || e.key === 'Q') {
+    triggerEMP();
+  }
+  if (e.code === 'Enter' || e.key === 'Enter') {
+    if (!started) {
+      started = true;
+      const overlay = document.getElementById('overlay-msg');
+      if (overlay) overlay.style.display = 'none';
+    }
+  }
+});
+
+window.addEventListener('keyup', (e) => {
+  keys[e.code] = false;
+  if (e.key === 'Shift' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+    running = false;
+  }
+});
+
+// -------------------------------------------------------------
+// Three.js Scene Setup
+// -------------------------------------------------------------
+const container = document.getElementById('canvas-container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0e17);
+scene.fog = new THREE.FogExp2(0x0b0e17, 0.022);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 120);
+camera.position.set(0, 18, 16);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// -------------------------------------------------------------
+// Environment & Lighting
+// -------------------------------------------------------------
+const ambientLight = new THREE.AmbientLight(0x334155, 1.4);
+scene.add(ambientLight);
+
+const ceilingLight = new THREE.DirectionalLight(0xf8fafc, 0.7);
+ceilingLight.position.set(10, 24, 10);
+ceilingLight.castShadow = true;
+ceilingLight.shadow.mapSize.width = 1024;
+ceilingLight.shadow.mapSize.height = 1024;
+scene.add(ceilingLight);
+
+// Museum Floor
+const floorGeo = new THREE.PlaneGeometry(64, 64);
+const floorMat = new THREE.MeshStandardMaterial({
+  color: 0x172033,
+  roughness: 0.25,
+  metalness: 0.35,
+});
+const floor = new THREE.Mesh(floorGeo, floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+// Floor grid
+const gridHelper = new THREE.GridHelper(64, 32, 0x38bdf8, 0x1e293b);
+gridHelper.position.y = 0.01;
+scene.add(gridHelper);
+
+// Museum Walls
+const wallMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.8 });
+function createWall(w, h, d, x, y, z) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  return mesh;
+}
+createWall(64, 6, 1, 0, 3, -32);
+createWall(64, 6, 1, 0, 3, 32);
+createWall(1, 6, 64, -32, 3, 0);
+createWall(1, 6, 64, 32, 3, 0);
+
+// Emergency Exit Door (South Wall Escape Route)
+const exitDoor = new THREE.Mesh(
+  new THREE.BoxGeometry(6, 4.5, 0.3),
+  new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.4, emissive: 0x10b981, emissiveIntensity: 0.3 })
+);
+exitDoor.position.set(0, 2.25, 31.8);
+scene.add(exitDoor);
+
+const exitSign = new THREE.Mesh(
+  new THREE.BoxGeometry(2.4, 0.7, 0.2),
+  new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x22c55e, emissiveIntensity: 0.8 })
+);
+exitSign.position.set(0, 4.8, 31.7);
+scene.add(exitSign);
+
+// -------------------------------------------------------------
+// Museum Exits for Zone Lockdown (North z=15, East x=14, West x=-14)
+// -------------------------------------------------------------
+const exitGates = [
+  { id: 'north', name: 'North Exit (z=15)', x: 0, z: 15, rotY: 0, width: 6, depth: 0.4 },
+  { id: 'east', name: 'East Exit (x=14)', x: 14, z: 0, rotY: Math.PI / 2, width: 6, depth: 0.4 },
+  { id: 'west', name: 'West Exit (x=-14)', x: -14, z: 0, rotY: Math.PI / 2, width: 6, depth: 0.4 },
+];
+
+exitGates.forEach((gate) => {
+  const gGroup = new THREE.Group();
+  gGroup.position.set(gate.x, 0, gate.z);
+  gGroup.rotation.y = gate.rotY;
+  scene.add(gGroup);
+
+  // Door Frame
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7, roughness: 0.3 });
+  const leftPillar = new THREE.Mesh(new THREE.BoxGeometry(0.5, 4.5, 0.5), frameMat);
+  leftPillar.position.set(-gate.width / 2, 2.25, 0);
+  gGroup.add(leftPillar);
+  const rightPillar = new THREE.Mesh(new THREE.BoxGeometry(0.5, 4.5, 0.5), frameMat);
+  rightPillar.position.set(gate.width / 2, 2.25, 0);
+  gGroup.add(rightPillar);
+  const topBeam = new THREE.Mesh(new THREE.BoxGeometry(gate.width + 0.5, 0.5, 0.5), frameMat);
+  topBeam.position.set(0, 4.5, 0);
+  gGroup.add(topBeam);
+
+  // Security Shutter / Barrier Mesh
+  const barrierMat = new THREE.MeshStandardMaterial({
+    color: 0x10b981,
+    roughness: 0.2,
+    emissive: 0x10b981,
+    emissiveIntensity: 0.35,
+    transparent: true,
+    opacity: 0.35,
+  });
+  const barrier = new THREE.Mesh(new THREE.BoxGeometry(gate.width - 0.2, 4.2, 0.2), barrierMat);
+  barrier.position.set(0, 2.1, 0);
+  gGroup.add(barrier);
+  gate.barrier = barrier;
+  gate.barrierMat = barrierMat;
+
+  // Status Indicator Light
+  const statusLight = new THREE.PointLight(0x10b981, 1.2, 6);
+  statusLight.position.set(0, 4.2, 0.4);
+  gGroup.add(statusLight);
+  gate.statusLight = statusLight;
+});
+
+// Museum Display Pedestals & Artifacts
+const pedestals = [
+  { x: -8, z: -8, color: 0x38bdf8, gem: 'diamond' },
+  { x: 8, z: -8, color: 0x38bdf8, gem: 'diamond' },
+  { x: -8, z: -16, color: 0x10b981, gem: 'emerald' },
+  { x: 8, z: -16, color: 0x10b981, gem: 'emerald' },
+  { x: 0, z: -12, color: 0xef4444, gem: 'ruby' }, // Grand centerpiece
+];
+
+pedestals.forEach((p) => {
+  // Pedestal base
+  const pedGeo = new THREE.BoxGeometry(2.4, 1.8, 2.4);
+  const pedMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 });
+  const ped = new THREE.Mesh(pedGeo, pedMat);
+  ped.position.set(p.x, 0.9, p.z);
+  ped.castShadow = true;
+  ped.receiveShadow = true;
+  scene.add(ped);
+
+  // Glass Case
+  const glassGeo = new THREE.BoxGeometry(2.6, 2.2, 2.6);
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: 0xbae6fd,
+    transparent: true,
+    opacity: 0.22,
+    roughness: 0.1,
+  });
+  const glass = new THREE.Mesh(glassGeo, glassMat);
+  glass.position.set(p.x, 2.9, p.z);
+  scene.add(glass);
+
+  // Gem
+  let gemGeo;
+  if (p.gem === 'ruby') {
+    gemGeo = new THREE.DodecahedronGeometry(0.75);
+  } else if (p.gem === 'emerald') {
+    gemGeo = new THREE.BoxGeometry(0.7, 0.9, 0.7);
+  } else {
+    gemGeo = new THREE.OctahedronGeometry(0.65);
+  }
+
+  const gemMat = new THREE.MeshStandardMaterial({
+    color: p.color,
+    metalness: 0.85,
+    roughness: 0.15,
+    emissive: p.color,
+    emissiveIntensity: 0.45,
+  });
+  const gem = new THREE.Mesh(gemGeo, gemMat);
+  gem.position.set(p.x, 2.9, p.z);
+  gem.castShadow = true;
+  scene.add(gem);
+
+  // Spotlight overhead
+  const spot = new THREE.SpotLight(0xffffff, 2.5, 16, Math.PI / 7, 0.35);
+  spot.position.set(p.x, 7.5, p.z);
+  spot.target = gem;
+  scene.add(spot);
+  scene.add(spot.target);
+});
+
+// Museum Pillars
+const pillarMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 });
+[[-18, -12], [18, -12], [-18, 4], [18, 4]].forEach(([px, pz]) => {
+  const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 6, 16), pillarMat);
+  pillar.position.set(px, 3, pz);
+  pillar.castShadow = true;
+  pillar.receiveShadow = true;
+  scene.add(pillar);
+});
+
+// -------------------------------------------------------------
+// Player Model (Procedural Infiltrator)
+// -------------------------------------------------------------
+const playerGroup = new THREE.Group();
+playerGroup.position.set(player_x, 0, player_z);
+scene.add(playerGroup);
+
+// Infiltrator Torso
+const pSuitMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4 });
+const pVestMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.6 });
+const pGlowMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x38bdf8, emissiveIntensity: 0.8 });
+
+const pTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.32, 1.1, 12), pSuitMat);
+pTorso.position.y = 0.95;
+pTorso.castShadow = true;
+playerGroup.add(pTorso);
+
+// Infiltrator Head & Goggles
+const pHead = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 16), pVestMat);
+pHead.position.y = 1.7;
+pHead.castShadow = true;
+playerGroup.add(pHead);
+
+const pGoggles = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.1, 0.16), pGlowMat);
+pGoggles.position.set(0, 1.72, 0.22);
+playerGroup.add(pGoggles);
+
+// Infiltrator Backpack
+const pPack = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.55, 0.25), pVestMat);
+pPack.position.set(0, 1.05, -0.25);
+pPack.castShadow = true;
+playerGroup.add(pPack);
+
+// Sound ripple ring on player
+const soundRingGeo = new THREE.RingGeometry(0.3, 0.45, 32);
+soundRingGeo.rotateX(-Math.PI / 2);
+const soundRingMat = new THREE.MeshBasicMaterial({
+  color: 0x38bdf8,
+  transparent: true,
+  opacity: 0,
+  side: THREE.DoubleSide,
+  depthWrite: false,
+});
+const soundRing = new THREE.Mesh(soundRingGeo, soundRingMat);
+soundRing.position.y = 0.05;
+playerGroup.add(soundRing);
+
+// -------------------------------------------------------------
+// EMP Shockwave Visual & Trigger
+// -------------------------------------------------------------
+const empWaveGeo = new THREE.RingGeometry(0.2, 0.8, 32);
+empWaveGeo.rotateX(-Math.PI / 2);
+const empWaveMat = new THREE.MeshBasicMaterial({
+  color: 0x38bdf8,
+  transparent: true,
+  opacity: 0,
+  side: THREE.DoubleSide,
+  depthWrite: false,
+});
+const empWave = new THREE.Mesh(empWaveGeo, empWaveMat);
+empWave.position.y = 0.15;
+scene.add(empWave);
+let empWaveTimer = 0;
+
+function triggerEMP() {
+  if (emp_charges <= 0) return;
+  emp_charges = 0;
+  cameras_down_remaining = 15.0;
+  empWave.position.set(player_x, 0.15, player_z);
+  empWaveTimer = 1.0;
+}
+
+// -------------------------------------------------------------
+// Security Cameras at (-6, -2) and (6, -2)
+// -------------------------------------------------------------
+const CAM_VISION_DIST = 12;
+const CAM_HALF_ANGLE = (25 * Math.PI) / 180; // 25 degrees
+
+const camerasData = [
+  { x: -6, z: -2, hackTimer: 0, isDetecting: false },
+  { x: 6, z: -2, hackTimer: 0, isDetecting: false },
+];
+
+camerasData.forEach((c) => {
+  const camGroup = new THREE.Group();
+  camGroup.position.set(c.x, 3.2, c.z);
+  scene.add(camGroup);
+
+  // Mounting pole
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.06, 3.2, 8),
+    new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7 })
+  );
+  pole.position.y = -1.6;
+  camGroup.add(pole);
+
+  // Camera Body
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(0.35, 0.35, 0.7),
+    new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 })
+  );
+  camGroup.add(body);
+
+  // Lens
+  const lens = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.12, 0.12, 0.2, 16),
+    new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.2 })
+  );
+  lens.rotation.x = Math.PI / 2;
+  lens.position.set(0, 0, 0.4);
+  camGroup.add(lens);
+
+  // LED Indicator
+  const led = new THREE.Mesh(
+    new THREE.SphereGeometry(0.06, 8, 8),
+    new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x10b981, emissiveIntensity: 1.0 })
+  );
+  led.position.set(0.12, 0.14, 0.35);
+  camGroup.add(led);
+  c.led = led;
+
+  // Vision Cone Geometry facing +z
+  const coneGeo = new THREE.ConeGeometry(CAM_VISION_DIST * Math.tan(CAM_HALF_ANGLE), CAM_VISION_DIST, 24, 1, true);
+  coneGeo.rotateX(-Math.PI / 2);
+  coneGeo.translate(0, 0, CAM_VISION_DIST / 2);
+
+  const coneMat = new THREE.MeshBasicMaterial({
+    color: 0x38bdf8,
+    transparent: true,
+    opacity: 0.22,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const coneMesh = new THREE.Mesh(coneGeo, coneMat);
+  coneMesh.position.set(0, 0, 0.4);
+  camGroup.add(coneMesh);
+  c.coneMesh = coneMesh;
+  c.coneMat = coneMat;
+
+  // Spotlight pointing +z
+  const camLight = new THREE.SpotLight(0x38bdf8, 3, 16, CAM_HALF_ANGLE, 0.3);
+  camLight.position.set(0, 0, 0.4);
+  const camTarget = new THREE.Object3D();
+  camTarget.position.set(0, 0, 8);
+  camGroup.add(camTarget);
+  camGroup.add(camLight);
+  camLight.target = camTarget;
+  c.camLight = camLight;
+});
+
+// -------------------------------------------------------------
+// Museum Exhibits (Loot System: Porcelain, Buddha, Painting)
+// -------------------------------------------------------------
+const exhibitsData = [
+  { id: 'porcelain', name: 'Blue & White Porcelain', x: -6, z: 6, value: 40, weight: 1, collected: false },
+  { id: 'buddha', name: 'Golden Buddha', x: 0, z: 6, value: 60, weight: 2, collected: false },
+  { id: 'painting', name: 'Masterpiece Painting', x: 6, z: 6, value: 30, weight: 1, collected: false },
+];
+
+exhibitsData.forEach((ex) => {
+  const exGroup = new THREE.Group();
+  exGroup.position.set(ex.x, 0, ex.z);
+  scene.add(exGroup);
+  ex.group = exGroup;
+
+  // Pedestal Base
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.65, 0.75, 1.2, 16),
+    new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5, metalness: 0.3 })
+  );
+  base.position.y = 0.6;
+  base.castShadow = true;
+  base.receiveShadow = true;
+  exGroup.add(base);
+
+  // Exhibit Artwork
+  if (ex.id === 'porcelain') {
+    // Elegant Porcelain Vase
+    const vaseMat = new THREE.MeshStandardMaterial({
+      color: 0xf0fdf4,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.25,
+      roughness: 0.1,
+      metalness: 0.1,
+    });
+    const vaseLower = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.18, 0.5, 16), vaseMat);
+    vaseLower.position.y = 1.45;
+    exGroup.add(vaseLower);
+    const vaseUpper = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.35, 0.45, 16), vaseMat);
+    vaseUpper.position.y = 1.9;
+    exGroup.add(vaseUpper);
+    const vaseRim = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.16, 0.12, 16), vaseMat);
+    vaseRim.position.y = 2.15;
+    exGroup.add(vaseRim);
+  } else if (ex.id === 'buddha') {
+    // Radiant Golden Buddha Statue
+    const goldMat = new THREE.MeshStandardMaterial({
+      color: 0xfbbf24,
+      emissive: 0xd97706,
+      emissiveIntensity: 0.35,
+      roughness: 0.25,
+      metalness: 0.9,
+    });
+    const lotusBase = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.5, 0.2, 16), goldMat);
+    lotusBase.position.y = 1.3;
+    exGroup.add(lotusBase);
+    const statueTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.38, 0.6, 12), goldMat);
+    statueTorso.position.y = 1.7;
+    exGroup.add(statueTorso);
+    const statueHead = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), goldMat);
+    statueHead.position.y = 2.15;
+    exGroup.add(statueHead);
+  } else if (ex.id === 'painting') {
+    // Ornate Framed Masterpiece Canvas
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0xb45309, metalness: 0.6, roughness: 0.4 });
+    const canvasMat = new THREE.MeshStandardMaterial({
+      color: 0xec4899,
+      emissive: 0x831843,
+      emissiveIntensity: 0.4,
+      roughness: 0.3,
+    });
+    const easel = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.4, 0.08), frameMat);
+    easel.position.set(0, 1.5, -0.15);
+    easel.rotation.x = -0.12;
+    exGroup.add(easel);
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.8, 0.08), frameMat);
+    frame.position.set(0, 1.8, 0);
+    exGroup.add(frame);
+    const canvas = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.64, 0.09), canvasMat);
+    canvas.position.set(0, 1.8, 0.01);
+    exGroup.add(canvas);
+  }
+
+  // Exhibit Highlight Beacon
+  const beacon = new THREE.PointLight(0xfacc15, 1.2, 3.5);
+  beacon.position.set(0, 2.3, 0);
+  exGroup.add(beacon);
+});
+
+function checkExhibitPickup() {
+  exhibitsData.forEach((ex) => {
+    if (!ex.collected) {
+      const dist = Math.hypot(player_x - ex.x, player_z - ex.z);
+      if (dist <= 1.5) {
+        ex.collected = true;
+        ex.group.visible = false;
+        loot_value += ex.value;
+        loot_count += 1;
+        total_weight += ex.weight;
+        move_speed = 4.0 * (1 - 0.15 * total_weight);
+      }
+    }
+  });
+}
+
+function checkCameraHack() {
+  camerasData.forEach((cam) => {
+    const dist = Math.hypot(player_x - cam.x, player_z - cam.z);
+    if (dist <= 2.5) {
+      cam.hackTimer = 10.0;
+    }
+  });
+}
+
+function handleInteraction() {
+  checkExhibitPickup();
+  checkCameraHack();
+}
+
+// -------------------------------------------------------------
+// Laser Grid at z = 2, from x = -8 to 8
+// -------------------------------------------------------------
+const laserGroup = new THREE.Group();
+scene.add(laserGroup);
+
+// Laser Emitter Posts at (-8, 2) and (8, 2)
+[-8, 8].forEach((lx) => {
+  const post = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.18, 0.22, 2.6, 16),
+    new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.3 })
+  );
+  post.position.set(lx, 1.3, 2.0);
+  laserGroup.add(post);
+
+  const postCap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.2, 16, 16),
+    new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 1.0 })
+  );
+  postCap.position.set(lx, 2.6, 2.0);
+  laserGroup.add(postCap);
+});
+
+// Horizontal Laser Beams at heights y = 0.4, 0.9, 1.4, 1.9
+const laserBeams = [];
+const beamMat = new THREE.MeshBasicMaterial({
+  color: 0xff0044,
+  transparent: true,
+  opacity: 0.85,
+});
+
+[0.4, 0.9, 1.4, 1.9].forEach((by) => {
+  const beamGeo = new THREE.CylinderGeometry(0.018, 0.018, 16, 8);
+  beamGeo.rotateZ(Math.PI / 2);
+  const beam = new THREE.Mesh(beamGeo, beamMat);
+  beam.position.set(0, by, 2.0);
+  laserGroup.add(beam);
+  laserBeams.push(beam);
+});
+
+const laserLight = new THREE.PointLight(0xff0044, 1.5, 6);
+laserLight.position.set(0, 1.2, 2.0);
+laserGroup.add(laserLight);
+
+// -------------------------------------------------------------
+// Guard Model (Procedural Security Guard with Flashlight)
+// -------------------------------------------------------------
+const guardGroup = new THREE.Group();
+guardGroup.position.set(guard_x, 0, guard_z);
+scene.add(guardGroup);
+
+const gUniformMat = new THREE.MeshStandardMaterial({ color: 0x1e3a5f, roughness: 0.6 });
+const gSkinMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.5 });
+const gHatMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4 });
+
+// Alert icon above guard head (visible when investigating or spotted)
+const alertIconGeo = new THREE.OctahedronGeometry(0.25);
+const alertIconMat = new THREE.MeshStandardMaterial({
+  color: 0xf59e0b,
+  emissive: 0xf59e0b,
+  emissiveIntensity: 0.8,
+  visible: false,
+});
+const alertIcon = new THREE.Mesh(alertIconGeo, alertIconMat);
+alertIcon.position.set(0, 2.4, 0);
+guardGroup.add(alertIcon);
+
+// Guard Torso
+const gTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.38, 1.25, 12), gUniformMat);
+gTorso.position.y = 1.02;
+gTorso.castShadow = true;
+guardGroup.add(gTorso);
+
+// Guard Head
+const gHead = new THREE.Mesh(new THREE.SphereGeometry(0.32, 16, 16), gSkinMat);
+gHead.position.y = 1.85;
+gHead.castShadow = true;
+guardGroup.add(gHead);
+
+// Guard Cap
+const gCap = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.16, 16), gHatMat);
+gCap.position.y = 2.05;
+guardGroup.add(gCap);
+const gVisor = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.05, 0.25), gHatMat);
+gVisor.position.set(0, 2.0, 0.22);
+guardGroup.add(gVisor);
+
+// Guard Flashlight (held in right hand)
+const flashBody = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.4, 12), new THREE.MeshStandardMaterial({ color: 0x334155 }));
+flashBody.rotation.x = Math.PI / 2;
+flashBody.position.set(0.42, 1.1, 0.3);
+guardGroup.add(flashBody);
+
+// Flashlight Vision Cone Geometry & Light
+const VISION_DISTANCE = 9.5;
+const VISION_ANGLE_DEG = 50; // half angle 25 deg
+const VISION_HALF_ANGLE = (VISION_ANGLE_DEG * Math.PI) / 360; // radians
+
+const coneGeo = new THREE.ConeGeometry(VISION_DISTANCE * Math.tan(VISION_HALF_ANGLE), VISION_DISTANCE, 24, 1, true);
+coneGeo.rotateX(-Math.PI / 2);
+coneGeo.translate(0, 0, VISION_DISTANCE / 2);
+
+const coneMat = new THREE.MeshBasicMaterial({
+  color: 0xfacc15,
+  transparent: true,
+  opacity: 0.28,
+  side: THREE.DoubleSide,
+  depthWrite: false,
+});
+const visionConeMesh = new THREE.Mesh(coneGeo, coneMat);
+visionConeMesh.position.set(0.42, 1.1, 0.4);
+guardGroup.add(visionConeMesh);
+
+// Guard Flashlight Spotlight
+const flashLight = new THREE.SpotLight(0xfef08a, 4, 18, VISION_HALF_ANGLE, 0.28);
+flashLight.position.set(0.42, 1.1, 0.4);
+const lightTarget = new THREE.Object3D();
+lightTarget.position.set(0.42, 1.1, 6);
+guardGroup.add(lightTarget);
+guardGroup.add(flashLight);
+flashLight.target = lightTarget;
+
+// -------------------------------------------------------------
+// Deterministic Scripted Guard Patrol Route
+// -------------------------------------------------------------
+// The guard patrols a fixed rectangular circuit around the main exhibits
+const waypoints = [
+  { x: 14, z: -4 },
+  { x: 14, z: -20 },
+  { x: -14, z: -20 },
+  { x: -14, z: -4 },
+];
+let currentWaypointIdx = 0;
+let guardYaw = Math.PI / 2; // initial facing towards +X
+const GUARD_SPEED = 3.2; // units per second
+
+// -------------------------------------------------------------
+// DOM Elements
+// -------------------------------------------------------------
+const detFill = document.getElementById('det-fill');
+const detPercent = document.getElementById('det-percent');
+const noiseFill = document.getElementById('noise-fill');
+const noisePercent = document.getElementById('noise-percent');
+const stanceVal = document.getElementById('stance-val');
+const guardPosVal = document.getElementById('guard-pos-val');
+const alertVal = document.getElementById('alert-val');
+const guardAlertVal = document.getElementById('guard-alert-val');
+const alarmStatusVal = document.getElementById('alarm-status-val');
+const escapeTimerVal = document.getElementById('escape-timer-val');
+const bannerTimer = document.getElementById('banner-timer');
+const spottedBanner = document.getElementById('spotted-banner');
+const camDetectVal = document.getElementById('cam-detect-val');
+const camHackVal = document.getElementById('cam-hack-val');
+const laserTrippedVal = document.getElementById('laser-tripped-val');
+const empChargesVal = document.getElementById('emp-charges-val');
+const camerasDownVal = document.getElementById('cameras-down-val');
+const lockdownVal = document.getElementById('lockdown-val');
+const openExitsVal = document.getElementById('open-exits-val');
+
+// -------------------------------------------------------------
+// Main Game Loop
+// -------------------------------------------------------------
+let lastTime = performance.now();
+
+function animate(currentTime) {
+  requestAnimationFrame(animate);
+
+  const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
+  lastTime = currentTime;
+
+  if (started) {
+    // Escape Timer & Alarm Countdown
+    if (alarm_active) {
+      lockdown_active = true;
+      escape_timer = Math.max(0, escape_timer - dt);
+    }
+
+    // Zone Lockdown Exits Countdown (North -> East -> West seals every 10s)
+    if (lockdown_active) {
+      if (escape_timer > 20) {
+        exits_open_count = 3;
+      } else if (escape_timer > 10) {
+        exits_open_count = 2; // North sealed
+      } else if (escape_timer > 0) {
+        exits_open_count = 1; // North & East sealed
+      } else {
+        exits_open_count = 0; // All 3 sealed
+      }
+    } else {
+      exits_open_count = 3;
+    }
+
+    // Update 3D Gate visuals
+    exitGates.forEach((gate) => {
+      let isSealed = false;
+      if (lockdown_active) {
+        if (gate.id === 'north' && escape_timer <= 20) isSealed = true;
+        if (gate.id === 'east' && escape_timer <= 10) isSealed = true;
+        if (gate.id === 'west' && escape_timer <= 0) isSealed = true;
+      }
+      if (isSealed) {
+        gate.barrierMat.color.setHex(0xef4444);
+        gate.barrierMat.emissive.setHex(0xef4444);
+        gate.barrierMat.opacity = 0.85;
+        gate.statusLight.color.setHex(0xef4444);
+      } else {
+        gate.barrierMat.color.setHex(0x10b981);
+        gate.barrierMat.emissive.setHex(0x10b981);
+        gate.barrierMat.opacity = 0.35;
+        gate.statusLight.color.setHex(0x10b981);
+      }
+    });
+
+    // Group Camera Outage Countdown after EMP
+    if (cameras_down_remaining > 0) {
+      cameras_down_remaining = Math.max(0, cameras_down_remaining - dt);
+    }
+
+    // Animate EMP Shockwave
+    if (empWaveTimer > 0) {
+      empWaveTimer = Math.max(0, empWaveTimer - dt);
+      const progress = 1.0 - empWaveTimer;
+      const scale = 1 + progress * 40;
+      empWave.scale.set(scale, scale, 1);
+      empWaveMat.opacity = empWaveTimer * 0.85;
+    } else {
+      empWaveMat.opacity = 0;
+    }
+
+    // Update Individual Camera Hack Timers
+    camerasData.forEach((cam) => {
+      if (cam.hackTimer > 0) {
+        cam.hackTimer = Math.max(0, cam.hackTimer - dt);
+      }
+    });
+
+    // Nearest Camera Hack Cooldown
+    const distCam0 = Math.hypot(player_x - camerasData[0].x, player_z - camerasData[0].z);
+    const distCam1 = Math.hypot(player_x - camerasData[1].x, player_z - camerasData[1].z);
+    const nearestCam = distCam0 < distCam1 ? camerasData[0] : camerasData[1];
+    const nearestCamDist = Math.min(distCam0, distCam1);
+    camera_hack_cooldown = nearestCam.hackTimer;
+
+    // Interaction Prompt (Exhibits & Camera Hacking)
+    const interactionPrompt = document.getElementById('interaction-prompt');
+    let nearbyExhibit = null;
+    let minExhibitDist = 999;
+    exhibitsData.forEach((ex) => {
+      if (!ex.collected) {
+        const d = Math.hypot(player_x - ex.x, player_z - ex.z);
+        if (d <= 1.5 && d < minExhibitDist) {
+          minExhibitDist = d;
+          nearbyExhibit = ex;
+        }
+      }
+    });
+
+    if (nearbyExhibit) {
+      if (interactionPrompt) {
+        interactionPrompt.textContent = `Press [E] to Steal ${nearbyExhibit.name} ($${nearbyExhibit.value}, W:${nearbyExhibit.weight})`;
+        interactionPrompt.style.display = 'block';
+      }
+    } else if (nearestCamDist <= 2.5) {
+      if (interactionPrompt) {
+        const isCamDown = nearestCam.hackTimer > 0 || cameras_down_remaining > 0;
+        interactionPrompt.textContent = isCamDown ? `Camera Disabled` : 'Press [E] to Hack Security Camera (10s)';
+        interactionPrompt.style.display = 'block';
+      }
+    } else {
+      if (interactionPrompt) interactionPrompt.style.display = 'none';
+    }
+
+    // 1. Player Movement & Stance
+    const prevX = player_x;
+    const prevZ = player_z;
+
+    // Weight penalty on move_speed: 4 x (1 - 0.15 x totalWeight), running speed scaled proportionally
+    move_speed = 4.0 * (1 - 0.15 * total_weight);
+    let speed = running ? (move_speed * 1.75) : move_speed;
+
+    let moveX = 0;
+    let moveZ = 0;
+    if (keys['KeyW'] || keys['ArrowUp']) moveZ -= 1;
+    if (keys['KeyS'] || keys['ArrowDown']) moveZ += 1;
+    if (keys['KeyA'] || keys['ArrowLeft']) moveX -= 1;
+    if (keys['KeyD'] || keys['ArrowRight']) moveX += 1;
+
+    if (moveX !== 0 || moveZ !== 0) {
+      const len = Math.hypot(moveX, moveZ);
+      player_x += (moveX / len) * speed * dt;
+      player_z += (moveZ / len) * speed * dt;
+
+      // Keep within museum room walls
+      player_x = Math.max(-29, Math.min(29, player_x));
+      player_z = Math.max(-29, Math.min(29, player_z));
+
+      // Player facing movement direction
+      const angle = Math.atan2(moveX, moveZ);
+      playerGroup.rotation.y = angle;
+    }
+
+    playerGroup.position.set(player_x, 0, player_z);
+    playerGroup.scale.set(1, 1, 1);
+
+    // Escape and Score Settlement Check
+    if (!escaped) {
+      const atNorthExit = Math.abs(player_z - 15) <= 1.2 && Math.abs(player_x) <= 3.5;
+      const atEastExit = Math.abs(player_x - 14) <= 1.2 && Math.abs(player_z) <= 3.5;
+      const atWestExit = Math.abs(player_x - (-14)) <= 1.2 && Math.abs(player_z) <= 3.5;
+
+      const isNorthOpen = !lockdown_active || escape_timer > 20;
+      const isEastOpen = !lockdown_active || escape_timer > 10;
+      const isWestOpen = !lockdown_active || escape_timer > 0;
+
+      if ((atNorthExit && isNorthOpen) || (atEastExit && isEastOpen) || (atWestExit && isWestOpen)) {
+        escaped = true;
+        score = loot_value;
+      } else {
+        const distToG = Math.hypot(player_x - guard_x, player_z - guard_z);
+        if (distToG <= 1.0) {
+          spotted = true;
+          alarm_active = true;
+          score = 0;
+        } else if (lockdown_active && exits_open_count === 0) {
+          score = 0;
+        }
+      }
+    }
+
+    // Laser Grid crossing check on z = 2 (x from -8 to 8, always active)
+    // Running (Shift held) through this line immediately trips alarm and latches laser_tripped
+    if (running) {
+      const minX = Math.min(prevX, player_x);
+      const maxX = Math.max(prevX, player_x);
+      if (maxX >= -8.0 && minX <= 8.0) {
+        const crossedZ = (prevZ - 2.0) * (player_z - 2.0) <= 0;
+        const nearZ = Math.abs(player_z - 2.0) < 0.35 && (moveX !== 0 || moveZ !== 0);
+        if (crossedZ || nearZ) {
+          laser_tripped = true;
+          spotted = true;
+          alarm_active = true;
+        }
+      }
+    }
+
+    // 2. Sound & Noise System
+    // Running (holding Shift) generates sound; standing still lets it settle
+    if (running) {
+      noise_level = Math.min(100, noise_level + dt * 80);
+    } else {
+      noise_level = Math.max(0, noise_level - dt * 35);
+    }
+
+    // Sound ring visual animation
+    if (noise_level > 5) {
+      const scale = 1 + (noise_level / 100) * 4;
+      soundRing.scale.set(scale, scale, 1);
+      soundRingMat.opacity = Math.min(0.7, (noise_level / 100) * 0.8);
+    } else {
+      soundRingMat.opacity = 0;
+    }
+
+    // High noise attracts guard to investigate noise source (guards continue patrol / investigating during alarm)
+    const NOISE_THRESHOLD = 50;
+    const distToGuard = Math.hypot(player_x - guard_x, player_z - guard_z);
+    if (noise_level >= NOISE_THRESHOLD && distToGuard <= 40) {
+      investigating = true;
+      guard_alert = true;
+      investigateTargetX = player_x;
+      investigateTargetZ = player_z;
+      investigateWaitTimer = 0;
+    }
+
+    // 3. Guard Movement: Investigating Noise vs Fixed Route Patrol (No pursuit during alarm)
+    if (investigating) {
+      guard_alert = true;
+      const toNoiseX = investigateTargetX - guard_x;
+      const toNoiseZ = investigateTargetZ - guard_z;
+      const distToNoise = Math.hypot(toNoiseX, toNoiseZ);
+
+      if (distToNoise > 0.8) {
+        // Guard walks towards noise source
+        const step = Math.min(distToNoise, (GUARD_SPEED + 0.4) * dt);
+        guard_x += (toNoiseX / distToNoise) * step;
+        guard_z += (toNoiseZ / distToNoise) * step;
+        guardYaw = Math.atan2(toNoiseX, toNoiseZ);
+      } else {
+        // Guard arrived at noise source: search deterministically
+        investigateWaitTimer += dt;
+        guardYaw = Math.atan2(toNoiseX, toNoiseZ) + Math.sin(investigateWaitTimer * 3.0) * 0.8;
+
+        if (investigateWaitTimer >= 2.5) {
+          // Finished investigating noise source
+          investigating = false;
+          guard_alert = false;
+        }
+      }
+    } else {
+      guard_alert = false;
+      const targetWp = waypoints[currentWaypointIdx];
+      const dx = targetWp.x - guard_x;
+      const dz = targetWp.z - guard_z;
+      const distToWp = Math.hypot(dx, dz);
+
+      if (distToWp < 0.2) {
+        currentWaypointIdx = (currentWaypointIdx + 1) % waypoints.length;
+      } else {
+        const step = Math.min(distToWp, GUARD_SPEED * dt);
+        guard_x += (dx / distToWp) * step;
+        guard_z += (dz / distToWp) * step;
+        guardYaw = Math.atan2(dx, dz);
+      }
+    }
+
+    guardGroup.position.set(guard_x, 0, guard_z);
+    guardGroup.rotation.y = guardYaw;
+
+    // 4. Guard Vision Cone Detection
+    const guardFwdX = Math.sin(guardYaw);
+    const guardFwdZ = Math.cos(guardYaw);
+
+    const relX = player_x - guard_x;
+    const relZ = player_z - guard_z;
+    const distToPlayer = Math.hypot(relX, relZ);
+
+    let insideVisionCone = false;
+
+    if (distToPlayer > 0.001 && distToPlayer <= VISION_DISTANCE) {
+      const dirX = relX / distToPlayer;
+      const dirZ = relZ / distToPlayer;
+      const dot = dirX * guardFwdX + dirZ * guardFwdZ;
+      const angleToPlayer = Math.acos(Math.max(-1, Math.min(1, dot)));
+
+      if (angleToPlayer <= VISION_HALF_ANGLE) {
+        insideVisionCone = true;
+      }
+    }
+
+    // 5. Security Cameras Detection
+    let anyCamSeeing = false;
+    camerasData.forEach((cam) => {
+      const isCameraDown = (cam.hackTimer > 0) || (cameras_down_remaining > 0);
+      if (!isCameraDown) {
+        // Non-hacked and non-EMP camera: monitor +z
+        const cx = player_x - cam.x;
+        const cz = player_z - cam.z;
+        const dist = Math.hypot(cx, cz);
+        if (dist > 0.001 && dist <= CAM_VISION_DIST) {
+          // Forward vector is (0, 1), dot product is cz / dist
+          const dirZ = cz / dist;
+          const angle = Math.acos(Math.max(-1, Math.min(1, dirZ)));
+          if (angle <= CAM_HALF_ANGLE) {
+            anyCamSeeing = true;
+            cam.isDetecting = true;
+          } else {
+            cam.isDetecting = false;
+          }
+        } else {
+          cam.isDetecting = false;
+        }
+      } else {
+        cam.isDetecting = false;
+      }
+    });
+    camera_detecting = anyCamSeeing;
+
+    // Update Camera Visual Indicators
+    camerasData.forEach((cam) => {
+      const isCameraDown = (cam.hackTimer > 0) || (cameras_down_remaining > 0);
+      if (isCameraDown) {
+        cam.led.material.color.setHex(0x38bdf8);
+        cam.led.material.emissive.setHex(0x38bdf8);
+        cam.coneMat.color.setHex(0x38bdf8);
+        cam.coneMat.opacity = 0.06;
+        cam.camLight.intensity = 0.4;
+      } else if (cam.isDetecting) {
+        cam.led.material.color.setHex(0xef4444);
+        cam.led.material.emissive.setHex(0xef4444);
+        cam.coneMat.color.setHex(0xef4444);
+        cam.coneMat.opacity = 0.45;
+        cam.camLight.intensity = 4.0;
+      } else {
+        cam.led.material.color.setHex(0x10b981);
+        cam.led.material.emissive.setHex(0x10b981);
+        cam.coneMat.color.setHex(0x38bdf8);
+        cam.coneMat.opacity = 0.22;
+        cam.camLight.intensity = 2.5;
+      }
+    });
+
+    // 6. Combined Detection Accumulation (Rate +120/s in parallel)
+    const playerDetected = insideVisionCone || camera_detecting;
+    if (playerDetected) {
+      detection += dt * 120; // +120 per second
+      if (detection >= 100) {
+        detection = 100;
+        spotted = true;
+        alarm_active = true;
+      }
+    } else {
+      // Cooldown if not spotted
+      if (!spotted) {
+        detection = Math.max(0, detection - dt * 25);
+      }
+    }
+
+    // If spotted externally or internally, ensure alarm triggers
+    if (spotted && !alarm_active) {
+      alarm_active = true;
+    }
+
+    // Smooth camera tracking
+    camera.position.x += (player_x - camera.position.x) * 0.06;
+    camera.position.z += (player_z + 16 - camera.position.z) * 0.06;
+    camera.lookAt(player_x, 0, player_z - 2);
+  }
+
+  // Visual cues based on alert, spotted & alarm states
+  if (alarm_active || spotted) {
+    coneMat.color.setHex(0xef4444);
+    coneMat.opacity = 0.65;
+    flashLight.color.setHex(0xef4444);
+    alertIconMat.visible = true;
+    alertIconMat.color.setHex(0xef4444);
+    alertIconMat.emissive.setHex(0xef4444);
+    spottedBanner.style.display = 'block';
+    bannerTimer.textContent = `ESCAPE TIME REMAINING: ${escape_timer.toFixed(1)}s`;
+    alertVal.textContent = 'ALARM! LOCKDOWN!';
+    alertVal.className = 'status-val status-alert';
+    alarmStatusVal.textContent = 'ACTIVE';
+    alarmStatusVal.className = 'status-val status-alert';
+  } else if (guard_alert) {
+    coneMat.color.setHex(0xf59e0b);
+    coneMat.opacity = 0.45;
+    flashLight.color.setHex(0xf59e0b);
+    alertIconMat.visible = true;
+    alertIconMat.color.setHex(0xf59e0b);
+    alertIconMat.emissive.setHex(0xf59e0b);
+    spottedBanner.style.display = 'none';
+    alertVal.textContent = 'INVESTIGATING NOISE';
+    alertVal.className = 'status-val';
+    alertVal.style.color = '#f59e0b';
+    alarmStatusVal.textContent = 'INACTIVE';
+    alarmStatusVal.className = 'status-val';
+    alarmStatusVal.style.color = '#10b981';
+  } else if (detection > 0) {
+    coneMat.color.setHex(0xf59e0b);
+    coneMat.opacity = 0.38;
+    flashLight.color.setHex(0xf59e0b);
+    alertIconMat.visible = false;
+    spottedBanner.style.display = 'none';
+    alertVal.textContent = 'SUSPICIOUS';
+    alertVal.className = 'status-val';
+    alertVal.style.color = '#f59e0b';
+    alarmStatusVal.textContent = 'INACTIVE';
+    alarmStatusVal.className = 'status-val';
+    alarmStatusVal.style.color = '#10b981';
+  } else {
+    coneMat.color.setHex(0xfacc15);
+    coneMat.opacity = 0.28;
+    flashLight.color.setHex(0xfef08a);
+    alertIconMat.visible = false;
+    spottedBanner.style.display = 'none';
+    alertVal.textContent = 'PATROLLING';
+    alertVal.className = 'status-val';
+    alertVal.style.color = '#10b981';
+    alarmStatusVal.textContent = 'INACTIVE';
+    alarmStatusVal.className = 'status-val';
+    alarmStatusVal.style.color = '#10b981';
+  }
+
+  // Update HUD
+  detFill.style.width = `${Math.min(100, Math.round(detection))}%`;
+  detPercent.textContent = `${Math.min(100, Math.round(detection))}%`;
+  noiseFill.style.width = `${Math.min(100, Math.round(noise_level))}%`;
+  noisePercent.textContent = `${Math.min(100, Math.round(noise_level))}%`;
+  escapeTimerVal.textContent = `${escape_timer.toFixed(1)}s`;
+
+  if (camera_detecting) {
+    camDetectVal.textContent = 'DETECTING!';
+    camDetectVal.className = 'status-val status-alert';
+  } else {
+    camDetectVal.textContent = 'CLEAR';
+    camDetectVal.className = 'status-val';
+    camDetectVal.style.color = '#10b981';
+  }
+
+  if (camera_hack_cooldown > 0) {
+    camHackVal.textContent = `${camera_hack_cooldown.toFixed(1)}s`;
+    camHackVal.style.color = '#38bdf8';
+  } else {
+    camHackVal.textContent = '0.0s';
+    camHackVal.style.color = '#94a3b8';
+  }
+
+  if (laser_tripped) {
+    laserTrippedVal.textContent = 'TRIPPED (ALERT)';
+    laserTrippedVal.className = 'status-val status-alert';
+  } else {
+    laserTrippedVal.textContent = 'ARMED';
+    laserTrippedVal.className = 'status-val';
+    laserTrippedVal.style.color = '#10b981';
+  }
+
+  if (empChargesVal) {
+    empChargesVal.textContent = `${emp_charges}`;
+    empChargesVal.style.color = emp_charges > 0 ? '#38bdf8' : '#64748b';
+  }
+
+  if (camerasDownVal) {
+    if (cameras_down_remaining > 0) {
+      camerasDownVal.textContent = `${cameras_down_remaining.toFixed(1)}s`;
+      camerasDownVal.style.color = '#38bdf8';
+    } else {
+      camerasDownVal.textContent = '0.0s';
+      camerasDownVal.style.color = '#94a3b8';
+    }
+  }
+
+  if (lockdownVal) {
+    if (lockdown_active) {
+      lockdownVal.textContent = 'ACTIVE';
+      lockdownVal.className = 'status-val status-alert';
+    } else {
+      lockdownVal.textContent = 'INACTIVE';
+      lockdownVal.className = 'status-val';
+      lockdownVal.style.color = '#10b981';
+    }
+  }
+
+  if (openExitsVal) {
+    openExitsVal.textContent = `${exits_open_count} / 3`;
+    openExitsVal.style.color = exits_open_count === 0 ? '#ef4444' : exits_open_count === 1 ? '#f59e0b' : '#10b981';
+  }
+
+  const lootVal = document.getElementById('loot-val');
+  const speedVal = document.getElementById('speed-val');
+  const escapedVal = document.getElementById('escaped-val');
+  const scoreVal = document.getElementById('score-val');
+
+  if (lootVal) lootVal.textContent = `$${loot_value} (${loot_count} items)`;
+  if (speedVal) speedVal.textContent = move_speed.toFixed(2);
+  if (escapedVal) {
+    if (escaped) {
+      escapedVal.textContent = 'YES (ESCAPED!)';
+      escapedVal.style.color = '#10b981';
+    } else {
+      escapedVal.textContent = 'NO';
+      escapedVal.style.color = '#94a3b8';
+    }
+  }
+  if (scoreVal) {
+    scoreVal.textContent = `${score}`;
+    scoreVal.style.color = score > 0 ? '#10b981' : '#38bdf8';
+  }
+  
+  let stanceText = running ? 'Sprinting' : 'Standing';
+  stanceVal.textContent = stanceText;
+
+  guardPosVal.textContent = `X: ${guard_x.toFixed(1)}, Z: ${guard_z.toFixed(1)}`;
+  if (guard_alert) {
+    guardAlertVal.textContent = 'ALERT (INVESTIGATING)';
+    guardAlertVal.style.color = '#f59e0b';
+  } else {
+    guardAlertVal.textContent = 'Normal';
+    guardAlertVal.style.color = '#10b981';
+  }
+
+  // Render Frame
+  renderer.render(scene, camera);
+
+  // STATE CONTRACT: Plain object assigned every animation frame
+  window.__arena_state = {
+    player_x,
+    player_z,
+    detection,
+    guard_x,
+    guard_z,
+    spotted,
+    noise_level,
+    guard_alert,
+    alarm_active,
+    escape_timer,
+    camera_detecting,
+    camera_hack_cooldown,
+    laser_tripped,
+    emp_charges,
+    cameras_down_remaining,
+    lockdown_active,
+    exits_open_count,
+    loot_value,
+    loot_count,
+    move_speed,
+    escaped,
+    score,
+  };
+}
+
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

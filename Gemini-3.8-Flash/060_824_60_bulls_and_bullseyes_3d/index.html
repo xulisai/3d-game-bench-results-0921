@@ -1,0 +1,3384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bulls & Bullseyes — 3D Darts 501 Match</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      margin: 0;
+      padding: 0;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #110d0a;
+      font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
+      color: #f7e7ce;
+    }
+    #canvas-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* HUD overlay */
+    #hud-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 16px;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    }
+
+    /* Match remaining scoreboard header */
+    .match-header-box {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .score-card {
+      background: linear-gradient(135deg, rgba(65, 30, 12, 0.94), rgba(28, 12, 5, 0.98));
+      border: 3px solid #775c40;
+      border-radius: 12px;
+      padding: 8px 18px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.7);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 140px;
+      transition: all 0.25s ease;
+    }
+    .score-card.active-turn {
+      border-color: #f0c040;
+      box-shadow: 0 0 16px rgba(240, 192, 64, 0.5), 0 6px 20px rgba(0,0,0,0.8);
+      transform: scale(1.03);
+    }
+    .score-card .side-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: #e5b358;
+      font-weight: 800;
+    }
+    .score-card .big-num {
+      font-size: 42px;
+      font-weight: 900;
+      color: #ffffff;
+      line-height: 1.05;
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+    }
+    .score-card .sub-info {
+      font-size: 11px;
+      color: #c9b195;
+    }
+
+    /* Turn indicator & pips */
+    .turn-box {
+      background: linear-gradient(135deg, rgba(50, 24, 10, 0.9), rgba(25, 12, 5, 0.95));
+      border: 2px solid #c8963e;
+      border-radius: 10px;
+      padding: 8px 16px;
+      text-align: right;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+      min-width: 150px;
+    }
+    .active-thrower-banner {
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #4cd137;
+      text-shadow: 0 0 8px rgba(76, 209, 55, 0.5);
+    }
+    .active-thrower-banner.rob {
+      color: #ff9f43;
+      text-shadow: 0 0 8px rgba(255, 159, 67, 0.5);
+    }
+    .dart-pips {
+      display: flex;
+      gap: 6px;
+      justify-content: flex-end;
+      margin-top: 6px;
+    }
+    .pip {
+      width: 12px;
+      height: 20px;
+      background: #3a2e24;
+      border: 1px solid #775c40;
+      border-radius: 3px;
+    }
+    .pip.filled {
+      background: linear-gradient(to bottom, #f0c040, #b27318);
+      border-color: #ffe680;
+      box-shadow: 0 0 8px rgba(240, 192, 64, 0.6);
+    }
+
+    /* Two-Sided Turn-by-Turn Scoreboard panel */
+    .middle-layer {
+      position: absolute;
+      top: 96px;
+      right: 16px;
+      pointer-events: none;
+      z-index: 12;
+    }
+    #scoreboard-panel {
+      width: 380px;
+      background: rgba(18, 10, 5, 0.94);
+      border: 2px solid #a67c3b;
+      border-radius: 10px;
+      padding: 8px 12px;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.75);
+      font-size: 11.5px;
+    }
+    .sb-title-bar {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 2px solid #5a3d1e;
+      padding-bottom: 4px;
+      margin-bottom: 4px;
+      font-weight: 800;
+      color: #e5b358;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      font-size: 11px;
+    }
+    .sb-cols-header {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid #4a2f16;
+      padding-bottom: 3px;
+      font-size: 10px;
+      color: #a89f91;
+      font-weight: bold;
+    }
+    .sb-side-header {
+      width: 48%;
+      display: flex;
+      justify-content: space-between;
+    }
+    .sb-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(90, 61, 30, 0.3);
+      font-family: 'Lucida Console', Monaco, monospace;
+      font-size: 11px;
+    }
+    .sb-half {
+      width: 48%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .sb-sep {
+      width: 1px;
+      height: 14px;
+      background: #5a3d1e;
+    }
+    .sb-half.current {
+      background: rgba(200, 150, 62, 0.2);
+      border-radius: 3px;
+      padding: 0 2px;
+      font-weight: bold;
+      color: #ffe6a3;
+    }
+    .sb-half.busted {
+      color: #ff6b6b;
+    }
+    .void-score {
+      text-decoration: line-through;
+      opacity: 0.6;
+    }
+    .sb-rem {
+      color: #ffeb3b;
+      font-weight: 700;
+    }
+
+    /* Power meter bottom right */
+    .bottom-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      align-self: flex-end;
+      gap: 6px;
+      margin-bottom: 4px;
+      margin-right: 4px;
+    }
+    #power-container {
+      width: 330px;
+      background: rgba(20, 12, 6, 0.92);
+      border: 2px solid #c8963e;
+      border-radius: 10px;
+      padding: 8px 14px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.7);
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .power-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .meter-bar-frame {
+      width: 100%;
+      height: 18px;
+      background: #20150d;
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid #5a3d1e;
+    }
+    #meter-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(to right, #4caf50 0%, #ffeb3b 60%, #ff9800 75%, #f44336 100%);
+    }
+    .meter-ideal-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 70%;
+      width: 3px;
+      background: #00ffff;
+      box-shadow: 0 0 6px #00ffff;
+      z-index: 2;
+    }
+    .scatter-text {
+      text-align: center;
+      font-size: 11px;
+      color: #f7ca72;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    #breath-status {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      text-align: center;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid #5a3d1e;
+      color: #4cd137;
+    }
+    #breath-status.ready { color: #4cd137; border-color: #2ed573; }
+    #breath-status.held { color: #00d2d3; border-color: #00d2d3; background: rgba(0, 210, 211, 0.15); }
+    #breath-status.cooldown { color: #ff9f43; border-color: #ff9f43; }
+
+    /* Controls tip */
+    .controls-bar {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      font-size: 11.5px;
+      color: #d1b894;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+      background: rgba(0,0,0,0.65);
+      padding: 4px 14px;
+      border-radius: 20px;
+    }
+    .key-badge {
+      background: #422a15;
+      color: #ffe6a3;
+      padding: 1px 5px;
+      border-radius: 4px;
+      border: 1px solid #7c572b;
+      font-family: monospace;
+      font-weight: bold;
+    }
+
+    /* Popups and banners */
+    #score-popup {
+      position: absolute;
+      top: 38%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.6);
+      background: rgba(18, 10, 4, 0.96);
+      border: 3px solid #ffc107;
+      border-radius: 12px;
+      padding: 16px 36px;
+      text-align: center;
+      box-shadow: 0 0 30px rgba(255, 193, 7, 0.5), inset 0 0 20px rgba(0,0,0,0.8);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.2s ease;
+      z-index: 30;
+    }
+    #score-popup.active { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    #score-popup .zone-name { font-size: 32px; font-weight: 900; color: #ffeb3b; letter-spacing: 2px; }
+    #score-popup .zone-val { font-size: 20px; color: #f7ca72; margin-top: 4px; font-weight: 700; }
+
+    #bust-banner {
+      position: absolute;
+      top: 42%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.7);
+      background: linear-gradient(135deg, rgba(140, 20, 20, 0.98), rgba(60, 10, 10, 0.98));
+      border: 4px solid #ff4444;
+      border-radius: 14px;
+      padding: 22px 55px;
+      text-align: center;
+      box-shadow: 0 0 40px rgba(255, 50, 50, 0.75);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.22s ease;
+      z-index: 36;
+    }
+    #bust-banner.active { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    #bust-banner .bb-title { font-size: 44px; font-weight: 900; color: #fff; letter-spacing: 4px; }
+    #bust-banner .bb-desc { font-size: 15px; color: #ffcccc; margin-top: 4px; }
+
+    #turn-banner {
+      position: absolute;
+      top: 45%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.8);
+      background: linear-gradient(135deg, rgba(66, 32, 12, 0.96), rgba(28, 14, 5, 0.96));
+      border: 3px solid #e5a93b;
+      border-radius: 14px;
+      padding: 18px 44px;
+      text-align: center;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.85);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+      z-index: 35;
+    }
+    #turn-banner.active { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    #turn-banner .tb-title { font-size: 16px; text-transform: uppercase; letter-spacing: 3px; color: #d8a243; }
+    #turn-banner .tb-score { font-size: 42px; font-weight: 900; color: #fff; margin: 4px 0; }
+    #turn-banner .tb-detail { font-size: 13px; color: #bfa382; }
+
+    /* Round 5 Big-Turn Tier Banners */
+    #turn-banner.tier-180 {
+      background: linear-gradient(135deg, rgba(90, 65, 8, 0.98), rgba(45, 30, 4, 0.98));
+      border: 4px solid #ffd700;
+      box-shadow: 0 0 50px rgba(255, 215, 0, 0.85), inset 0 0 30px rgba(255, 215, 0, 0.35);
+      animation: bannerGlow180 0.75s infinite alternate ease-in-out;
+    }
+    @keyframes bannerGlow180 {
+      from { box-shadow: 0 0 35px rgba(255, 215, 0, 0.7); }
+      to { box-shadow: 0 0 65px rgba(255, 215, 0, 0.98), 0 0 25px #ffffff; }
+    }
+    #turn-banner.tier-180 .tb-title {
+      font-size: 26px;
+      font-weight: 900;
+      color: #ffffff;
+      text-shadow: 0 0 16px #ffd700, 0 2px 4px #000;
+      letter-spacing: 2px;
+    }
+    #turn-banner.tier-180 .tb-score {
+      font-size: 54px;
+      font-weight: 900;
+      color: #ffd700;
+      text-shadow: 0 0 24px rgba(255, 215, 0, 0.95);
+    }
+    #turn-banner.tier-180 .tb-detail {
+      color: #fff3c4;
+      font-weight: 700;
+    }
+
+    #turn-banner.tier-big-ton {
+      background: linear-gradient(135deg, rgba(75, 32, 10, 0.98), rgba(36, 14, 5, 0.98));
+      border: 3px solid #ff9f43;
+      box-shadow: 0 0 40px rgba(255, 159, 67, 0.7), inset 0 0 20px rgba(255, 159, 67, 0.25);
+    }
+    #turn-banner.tier-big-ton .tb-title {
+      font-size: 24px;
+      font-weight: 900;
+      color: #ff9f43;
+      letter-spacing: 2.5px;
+      text-shadow: 0 0 12px rgba(255, 159, 67, 0.7);
+    }
+    #turn-banner.tier-big-ton .tb-score {
+      font-size: 48px;
+      color: #ffffff;
+    }
+
+    #turn-banner.tier-ton {
+      background: linear-gradient(135deg, rgba(56, 38, 14, 0.98), rgba(28, 18, 7, 0.98));
+      border: 3px solid #fbc531;
+      box-shadow: 0 0 35px rgba(251, 197, 49, 0.6), inset 0 0 20px rgba(251, 197, 49, 0.2);
+    }
+    #turn-banner.tier-ton .tb-title {
+      font-size: 22px;
+      font-weight: 900;
+      color: #fbc531;
+      letter-spacing: 2px;
+      text-shadow: 0 0 10px rgba(251, 197, 49, 0.6);
+    }
+    #turn-banner.tier-ton .tb-score {
+      font-size: 46px;
+      color: #ffffff;
+    }
+
+    /* Match End Screen */
+    #match-end-banner {
+      position: absolute;
+      top: 42%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.7);
+      background: linear-gradient(135deg, rgba(30, 20, 10, 0.98), rgba(12, 8, 4, 0.98));
+      border: 4px solid #f0c040;
+      border-radius: 16px;
+      padding: 28px 56px;
+      text-align: center;
+      box-shadow: 0 0 50px rgba(240, 192, 64, 0.6), inset 0 0 30px rgba(0,0,0,0.85);
+      opacity: 0;
+      pointer-events: auto;
+      transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.3s ease;
+      z-index: 45;
+    }
+    #match-end-banner.active { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    #match-end-banner.win-rob { border-color: #ff9f43; box-shadow: 0 0 50px rgba(255, 159, 67, 0.6); }
+    #match-end-title { font-size: 48px; font-weight: 900; letter-spacing: 4px; text-transform: uppercase; color: #f5cd79; }
+    #match-end-stats { font-size: 16px; color: #ffffff; margin: 12px 0 16px 0; line-height: 1.6; }
+    #match-end-prompt { font-size: 15px; color: #d1b894; letter-spacing: 1px; }
+
+    /* Round 7 League Night Banners & Table */
+    #match-intro-banner {
+      position: absolute;
+      top: 42%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.7);
+      background: linear-gradient(135deg, rgba(32, 18, 8, 0.98), rgba(16, 8, 3, 0.98));
+      border: 4px solid #f0c040;
+      border-radius: 16px;
+      padding: 30px 60px;
+      text-align: center;
+      box-shadow: 0 0 50px rgba(240, 192, 64, 0.65), inset 0 0 30px rgba(0,0,0,0.85);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.3s ease;
+      z-index: 48;
+    }
+    #match-intro-banner.active { transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: auto; }
+    .intro-match-num { font-size: 16px; font-weight: 800; letter-spacing: 3px; color: #ffeb3b; text-transform: uppercase; }
+    .intro-opp-name { font-size: 42px; font-weight: 900; letter-spacing: 3px; color: #ffffff; text-transform: uppercase; margin: 8px 0; text-shadow: 0 0 20px rgba(240, 192, 64, 0.8); }
+    .intro-opp-desc { font-size: 15px; color: #e5b358; margin-bottom: 18px; }
+    .intro-prompt { font-size: 16px; color: #d1b894; letter-spacing: 1px; }
+
+    #league-panel {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.7);
+      background: linear-gradient(135deg, rgba(26, 15, 6, 0.98), rgba(13, 7, 3, 0.98));
+      border: 3px solid #c8963e;
+      border-radius: 16px;
+      padding: 24px 34px;
+      min-width: 460px;
+      text-align: center;
+      box-shadow: 0 10px 45px rgba(0,0,0,0.92);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+      z-index: 46;
+    }
+    #league-panel.active { transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: auto; }
+    .league-title { font-size: 24px; font-weight: 900; letter-spacing: 2px; color: #f0c040; margin-bottom: 12px; text-transform: uppercase; }
+    .league-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
+    .league-table th { background: rgba(80, 50, 20, 0.65); color: #ffe6a3; padding: 7px 10px; font-weight: 800; border-bottom: 2px solid #775c40; text-align: center; }
+    .league-table th:first-child, .league-table td:first-child { text-align: left; }
+    .league-table td { padding: 8px 10px; border-bottom: 1px solid rgba(120, 90, 50, 0.3); color: #f7e7ce; text-align: center; }
+    .league-table tr.highlight td { background: rgba(240, 192, 64, 0.16); color: #ffffff; font-weight: bold; }
+    .league-table tr:last-child td { border-bottom: none; }
+    .league-close-btn { background: #4a2f16; border: 1px solid #7c572b; color: #ffe6a3; padding: 5px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; display: inline-block; }
+
+    #league-complete-banner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.7);
+      background: linear-gradient(135deg, rgba(32, 18, 8, 0.99), rgba(14, 7, 3, 0.99));
+      border: 4px solid #ffd700;
+      border-radius: 18px;
+      padding: 30px 48px;
+      min-width: 520px;
+      text-align: center;
+      box-shadow: 0 0 60px rgba(255, 215, 0, 0.75), inset 0 0 35px rgba(0,0,0,0.9);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.3s ease;
+      z-index: 49;
+    }
+    #league-complete-banner.active { transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: auto; }
+    .lc-title { font-size: 38px; font-weight: 900; letter-spacing: 3px; color: #ffd700; text-transform: uppercase; text-shadow: 0 0 20px rgba(255, 215, 0, 0.8); }
+    .lc-stats { margin: 14px 0; font-size: 14px; line-height: 1.8; color: #e5d1b8; text-align: left; background: rgba(0,0,0,0.55); padding: 12px 18px; border-radius: 8px; border: 1px solid #5a3d1e; }
+    .lc-prompt { font-size: 16px; color: #f0c040; letter-spacing: 1px; font-weight: bold; margin-top: 14px; }
+
+    /* Championship Settlement Banner (Round 10) */
+    #settlement-banner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.7);
+      background: linear-gradient(135deg, rgba(30, 16, 6, 0.99), rgba(12, 6, 2, 0.99));
+      border: 4px solid #ffd700;
+      border-radius: 18px;
+      padding: 24px 40px;
+      min-width: 520px;
+      max-width: 580px;
+      text-align: center;
+      box-shadow: 0 0 65px rgba(255, 215, 0, 0.85), inset 0 0 35px rgba(0,0,0,0.9);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.3s ease;
+      z-index: 52;
+    }
+    #settlement-banner.active { transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: auto; }
+    .settle-headline { font-size: 32px; font-weight: 900; letter-spacing: 2px; color: #ffd700; text-transform: uppercase; text-shadow: 0 0 20px rgba(255, 215, 0, 0.8); }
+    .settle-rating { font-size: 22px; font-weight: 900; letter-spacing: 4px; color: #ffffff; text-transform: uppercase; background: linear-gradient(90deg, #d35400, #f39c12); display: inline-block; padding: 4px 18px; border-radius: 12px; margin: 8px 0 10px 0; border: 2px solid #ffd700; box-shadow: 0 0 15px rgba(243, 156, 18, 0.6); }
+    .settle-stats { font-size: 13.5px; line-height: 1.6; color: #f7e7ce; text-align: left; background: rgba(0,0,0,0.6); padding: 10px 16px; border-radius: 8px; border: 1px solid #5a3d1e; margin-bottom: 10px; }
+    .settle-prompt { font-size: 15px; color: #f0c040; letter-spacing: 1px; font-weight: bold; }
+
+    /* Start screen overlay */
+    #start-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at center, rgba(30, 16, 8, 0.85) 0%, rgba(10, 5, 2, 0.97) 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 50;
+      pointer-events: auto;
+    }
+    .splash-card {
+      background: linear-gradient(180deg, #2a1608 0%, #150b04 100%);
+      border: 3px solid #c8963e;
+      border-radius: 16px;
+      padding: 36px 56px;
+      text-align: center;
+      box-shadow: 0 15px 50px rgba(0,0,0,0.9), inset 0 0 30px rgba(200, 150, 62, 0.15);
+      max-width: 620px;
+    }
+    .splash-title { font-size: 40px; font-weight: 900; letter-spacing: 3px; color: #ffc107; text-transform: uppercase; }
+    .splash-sub { font-size: 15px; letter-spacing: 2px; color: #d1b894; text-transform: uppercase; margin-bottom: 20px; }
+    .splash-rules {
+      text-align: left;
+      background: rgba(15, 8, 3, 0.7);
+      border: 1px solid #4a2e14;
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      font-size: 13.5px;
+      line-height: 1.55;
+      color: #e5d1b8;
+    }
+    .splash-rules strong { color: #ffc107; }
+    .splash-prompt {
+      font-size: 20px;
+      font-weight: bold;
+      color: #ffffff;
+      background: linear-gradient(to right, #b27318, #f0c040, #b27318);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: pulse 1.6s infinite ease-in-out;
+      letter-spacing: 1.5px;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.6; transform: scale(0.98); }
+      50% { opacity: 1.0; transform: scale(1.02); }
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div id="hud-layer">
+    <div class="top-bar">
+      <!-- 501 Remaining Scoreboard for Both Players -->
+      <div class="match-header-box">
+        <div class="score-card active-turn" id="card-player">
+          <div class="side-label">YOU</div>
+          <div class="big-num" id="hud-player-rem">501</div>
+          <div class="sub-info">Darts: <span id="hud-player-darts">0</span></div>
+        </div>
+
+        <div style="font-size: 22px; font-weight: 900; color: #887258;">VS</div>
+
+        <div class="score-card" id="card-rob">
+          <div class="side-label" id="hud-opponent-name">ROOKIE ROB</div>
+          <div class="big-num" id="hud-rob-rem">501</div>
+          <div class="sub-info">Darts: <span id="hud-rob-darts">0</span></div>
+        </div>
+      </div>
+
+      <div class="turn-box">
+        <div class="active-thrower-banner" id="hud-thrower-banner">YOUR THROW</div>
+        <div style="font-size: 13px; color: #ffe6a3; margin-top: 2px;">
+          Turn <span id="hud-turn-num">1</span> &bull; Dart <span id="hud-dart-num">1</span> / 3
+        </div>
+        <div id="hud-leg-indicator" style="display:none; font-size:12px; font-weight:800; color:#ffd700; background:rgba(0,0,0,0.65); padding:2px 10px; border-radius:10px; border:1px solid #f0c040; margin-top:3px;">LEG 1 &bull; LEGS 0–0</div>
+        <div class="dart-pips">
+          <div class="pip filled" id="pip-1"></div>
+          <div class="pip" id="pip-2"></div>
+          <div class="pip" id="pip-3"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Two-Sided Turn-by-Turn Scoreboard panel -->
+    <div class="middle-layer">
+      <div id="scoreboard-panel">
+        <div class="sb-title-bar">
+          <span id="sb-title-text">MATCH SCOREBOARD</span>
+          <span style="color:#d1b894; font-size:10px;">501 DOUBLE OUT</span>
+        </div>
+        <div class="sb-cols-header">
+          <div class="sb-side-header">
+            <span>YOU (DARTS)</span>
+            <span>TOT LEFT</span>
+          </div>
+          <div class="sb-side-header">
+            <span id="sb-opponent-hdr">ROB (DARTS)</span>
+            <span>TOT LEFT</span>
+          </div>
+        </div>
+        <div id="scoreboard-body">
+          <!-- Dynamically populated rows -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Center score popup -->
+    <div id="score-popup">
+      <div class="zone-name" id="popup-zone">T20 — 60</div>
+      <div class="zone-val" id="popup-val">REMAINING 441</div>
+    </div>
+
+    <!-- Bust Banner -->
+    <div id="bust-banner">
+      <div class="bb-title">BUST!</div>
+      <div class="bb-desc" id="bust-reason">Score Reverted</div>
+    </div>
+
+    <!-- Turn End Banner -->
+    <div id="turn-banner">
+      <div class="tb-title" id="banner-title">Turn Complete</div>
+      <div class="tb-score" id="banner-score">+0</div>
+      <div class="tb-detail" id="banner-detail">Darts: 0, 0, 0</div>
+    </div>
+
+    <!-- Match End Banner (Win / Loss) -->
+    <div id="match-end-banner">
+      <div id="match-end-title">YOU WIN</div>
+      <div id="match-end-stats">Stats loading...</div>
+      <div id="match-end-prompt">Press <strong>Enter</strong> to Continue</div>
+    </div>
+
+    <!-- Match Intro Banner (Round 7 League Night & Round 10 Final) -->
+    <div id="match-intro-banner">
+      <div class="intro-match-num" id="intro-match-num">MATCH 1 OF 3</div>
+      <div class="intro-opp-name" id="intro-opp-name">vs. ROOKIE ROB</div>
+      <div class="intro-opp-desc" id="intro-opp-desc">Green Sweater &bull; 501 Double Out</div>
+      <div class="intro-prompt" id="intro-prompt-text">Press <strong>Enter</strong> to Begin Match</div>
+    </div>
+
+    <!-- League Table Panel (Round 7 League Night) -->
+    <div id="league-panel">
+      <div class="league-title">League Night Standings</div>
+      <table class="league-table">
+        <thead>
+          <tr>
+            <th>PARTICIPANT</th>
+            <th>W</th>
+            <th>L</th>
+            <th>PTS</th>
+          </tr>
+        </thead>
+        <tbody id="league-table-body">
+          <!-- Populated dynamically -->
+        </tbody>
+      </table>
+      <div class="league-close-btn" id="league-close-btn">Close (L)</div>
+    </div>
+
+    <!-- League Complete Banner -->
+    <div id="league-complete-banner">
+      <div class="lc-title">LEAGUE COMPLETE</div>
+      <div class="lc-stats" id="league-complete-stats">Loading...</div>
+      <div class="lc-prompt">Proceeding to Championship Final...</div>
+    </div>
+
+    <!-- Championship Settlement Banner (Round 10) -->
+    <div id="settlement-banner">
+      <div class="settle-headline" id="settle-headline">YOU ARE THE CHAMPION!</div>
+      <div class="settle-rating" id="settle-rating">PUB LEGEND</div>
+      <div class="settle-stats" id="settle-stats">
+        <!-- Darts per leg, highest turn, busts, final league table recap -->
+      </div>
+      <div class="settle-prompt">Press <strong>R</strong> to Reset Everything</div>
+    </div>
+
+    <!-- Bottom Right Throw Power & Controls -->
+    <div class="bottom-panel">
+      <div id="power-container">
+        <div class="power-header">
+          <span style="color:#e5b358;">Throw Power</span>
+          <span id="power-value-text" style="color:#ffffff;">0%</span>
+        </div>
+        <div class="meter-bar-frame">
+          <div class="meter-ideal-line" title="70% Sweet Spot"></div>
+          <div id="meter-fill"></div>
+        </div>
+        <div class="scatter-text" id="scatter-readout">SCATTER ±3.0 mm</div>
+        <div id="breath-status" class="ready">BREATH: READY</div>
+      </div>
+
+      <div class="controls-bar">
+        <div><span class="key-badge">▲▼◄►</span> Aim (5mm)</div>
+        <div>Hold <span class="key-badge">SPACE</span> Power</div>
+        <div><span class="key-badge">B</span> Breath</div>
+        <div><span class="key-badge">L</span> Table</div>
+        <div><span class="key-badge">R</span> Reset</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="start-overlay">
+    <div class="splash-card">
+      <div class="splash-title">Bulls & Bullseyes</div>
+      <div class="splash-sub">League Night &amp; Championship Final</div>
+      <div class="splash-rules">
+        • <strong>League Night</strong>: Three 501 matches vs. Rookie Rob, Veteran Val, Champion Chelsea.<br>
+        • <strong>Championship Final</strong>: Top league opponent advances to best-of-3 legs final (first to 2 legs).<br>
+        • <strong>Leg Order</strong>: You throw first in Legs 1 &amp; 3; Opponent throws first in Leg 2.<br>
+        • <strong>Double Out</strong>: First to reach exactly 0 on Double or Inner Bull wins immediately!<br>
+        • <strong>Breathing Sway</strong>: Hand sways while aiming. Base 5.2mm (+2.6mm/s, max 20.8mm). B holds breath (8.0s cooldown).<br>
+        • <strong>DISTRACTIONS</strong>: lights flicker 1.5s into your turns 2, 4, 6 — sway doubles for 0.5s.<br>
+        • <strong>Controls</strong>: Arrow keys aim. Space charges power. B holds breath. L shows League Table.
+      </div>
+      <div class="splash-prompt">Press Enter to Start League Night</div>
+    </div>
+  </div>
+
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+  <script>
+    // --- AUDIO SYNTHESIZER (WebAudio API, deterministic fixed constants) ---
+    class DartAudio {
+      constructor() {
+        this.ctx = null;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            this.ctx = new AudioContext();
+          }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume().catch(() => {});
+        }
+      }
+      playWhoosh() {
+        if (!this.ctx) return;
+        try {
+          const t = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(420, t);
+          osc.frequency.exponentialRampToValueAtTime(140, t + 0.35);
+          gain.gain.setValueAtTime(0.25, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.36);
+        } catch (e) {}
+      }
+      playThud() {
+        if (!this.ctx) return;
+        try {
+          const t = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(120, t);
+          osc.frequency.exponentialRampToValueAtTime(35, t + 0.15);
+          gain.gain.setValueAtTime(0.5, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.17);
+        } catch (e) {}
+      }
+      playScoreChime() {
+        if (!this.ctx) return;
+        try {
+          const t = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(880, t);
+          gain.gain.setValueAtTime(0.3, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.46);
+        } catch (e) {}
+      }
+      playBuzz() {
+        if (!this.ctx) return;
+        try {
+          const t = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(85, t);
+          gain.gain.setValueAtTime(0.35, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.36);
+        } catch (e) {}
+      }
+      playBustBuzz() {
+        if (!this.ctx) return;
+        try {
+          const t = this.ctx.currentTime;
+          const osc1 = this.ctx.createOscillator();
+          const osc2 = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc1.type = 'sawtooth';
+          osc2.type = 'square';
+          osc1.frequency.setValueAtTime(75, t);
+          osc2.frequency.setValueAtTime(78.5, t);
+          gain.gain.setValueAtTime(0.4, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
+          osc1.connect(gain);
+          osc2.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc1.start(t);
+          osc2.start(t);
+          osc1.stop(t + 0.66);
+          osc2.stop(t + 0.66);
+        } catch (e) {}
+      }
+      playLegWinningSound() {
+        if (!this.ctx) return;
+        try {
+          const t = this.ctx.currentTime;
+          const notes = [523.25, 659.25, 783.99, 1046.50];
+          notes.forEach((freq, idx) => {
+            const noteStart = t + idx * 0.12;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, noteStart);
+            gain.gain.setValueAtTime(0.35, noteStart);
+            gain.gain.exponentialRampToValueAtTime(0.001, noteStart + 0.35);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(noteStart);
+            osc.stop(noteStart + 0.36);
+          });
+        } catch (e) {}
+      }
+      playInhaleHoldCue() {
+        if (!this.ctx) return;
+        try {
+          const t = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(220, t);
+          osc.frequency.exponentialRampToValueAtTime(440, t + 0.22);
+          gain.gain.setValueAtTime(0.01, t);
+          gain.gain.linearRampToValueAtTime(0.18, t + 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.25);
+        } catch (e) {}
+      }
+      playReleaseCue() {
+        if (!this.ctx) return;
+        try {
+          const t = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(380, t);
+          osc.frequency.exponentialRampToValueAtTime(180, t + 0.25);
+          gain.gain.setValueAtTime(0.16, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.26);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.27);
+        } catch (e) {}
+      }
+      playFanfare180() {
+        if (!this.ctx) return;
+        try {
+          const t = this.ctx.currentTime;
+          // Rising 3-note fanfare: C5 (523.25 Hz), E5 (659.25 Hz), G5 (783.99 Hz)
+          const notes = [523.25, 659.25, 783.99];
+          notes.forEach((freq, idx) => {
+            const noteStart = t + idx * 0.16;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, noteStart);
+            gain.gain.setValueAtTime(0.35, noteStart);
+            gain.gain.exponentialRampToValueAtTime(0.001, noteStart + 0.38);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(noteStart);
+            osc.stop(noteStart + 0.40);
+          });
+        } catch (e) {}
+      }
+      playCrowdNoiseBurst() {
+        if (!this.ctx) return;
+        try {
+          const t = this.ctx.currentTime;
+          // Deterministic multi-frequency rowdy crowd burst (0.5s duration)
+          const freqs = [120, 155, 195, 245, 310, 420, 560];
+          freqs.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.setValueAtTime(freq, t);
+            filter.Q.setValueAtTime(2.5, t);
+
+            osc.type = (idx % 2 === 0) ? 'sawtooth' : 'triangle';
+            osc.frequency.setValueAtTime(freq, t);
+            osc.frequency.linearRampToValueAtTime(freq * (1.0 + 0.08 * ((idx % 3) - 1)), t + 0.50);
+
+            gain.gain.setValueAtTime(0.01, t);
+            gain.gain.linearRampToValueAtTime(0.14, t + 0.08);
+            gain.gain.setValueAtTime(0.11, t + 0.38);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.50);
+
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.ctx.destination);
+
+            osc.start(t);
+            osc.stop(t + 0.52);
+          });
+        } catch (e) {}
+      }
+    }
+    const audio = new DartAudio();
+
+    // --- BOARD GEOMETRY & RULES ---
+    const SEGMENTS = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
+    const SEGMENT_ANGLE = (2 * Math.PI) / 20;
+
+    const R_INNER_BULL = 6.35;
+    const R_OUTER_BULL = 15.9;
+    const R_TRIPLE_INNER = 99.0;
+    const R_TRIPLE_OUTER = 107.0;
+    const R_DOUBLE_INNER = 162.0;
+    const R_DOUBLE_OUTER = 170.0;
+
+    const SCALE = 0.01;
+    const BOARD_POS = new THREE.Vector3(0, 17.3, 0);
+    const OCHE_Z = 23.7;
+
+    function getSegmentAngle(num) {
+      const idx = SEGMENTS.indexOf(num);
+      return idx * SEGMENT_ANGLE;
+    }
+
+    function polarToBoardXY(rMm, thetaRad) {
+      return {
+        x: rMm * Math.sin(thetaRad),
+        y: rMm * Math.cos(thetaRad)
+      };
+    }
+
+    // --- ROB'S HARDCODED 36-DART LANDING TABLE ---
+    const ROB_SCRIPT = [
+      // Turn 1: S20, S20, off-board (40 -> 461)
+      { seg: 20, ring: 'SINGLE', r: 55 },
+      { seg: 20, ring: 'SINGLE', r: 55 },
+      { seg: 0, ring: 'OFF_BOARD', r: 195, theta: 0.8 },
+      // Turn 2: S20, S5, S12 (37 -> 424)
+      { seg: 20, ring: 'SINGLE', r: 55 },
+      { seg: 5, ring: 'SINGLE', r: 55 },
+      { seg: 12, ring: 'SINGLE', r: 55 },
+      // Turn 3: S19, off-board, S17 (36 -> 388)
+      { seg: 19, ring: 'SINGLE', r: 55 },
+      { seg: 0, ring: 'OFF_BOARD', r: 195, theta: 2.2 },
+      { seg: 17, ring: 'SINGLE', r: 55 },
+      // Turn 4: S20, S20, S18 (58 -> 330)
+      { seg: 20, ring: 'SINGLE', r: 55 },
+      { seg: 20, ring: 'SINGLE', r: 55 },
+      { seg: 18, ring: 'SINGLE', r: 55 },
+      // Turn 5: S18, S7, S20 (45 -> 285)
+      { seg: 18, ring: 'SINGLE', r: 55 },
+      { seg: 7, ring: 'SINGLE', r: 55 },
+      { seg: 20, ring: 'SINGLE', r: 55 },
+      // Turn 6: S19, S16, S1 (36 -> 249)
+      { seg: 19, ring: 'SINGLE', r: 55 },
+      { seg: 16, ring: 'SINGLE', r: 55 },
+      { seg: 1, ring: 'SINGLE', r: 55 },
+      // Turn 7: S20, S14, S18 (52 -> 197)
+      { seg: 20, ring: 'SINGLE', r: 55 },
+      { seg: 14, ring: 'SINGLE', r: 55 },
+      { seg: 18, ring: 'SINGLE', r: 55 },
+      // Turn 8: S20, S19, off-board (39 -> 158)
+      { seg: 20, ring: 'SINGLE', r: 55 },
+      { seg: 19, ring: 'SINGLE', r: 55 },
+      { seg: 0, ring: 'OFF_BOARD', r: 195, theta: 4.5 },
+      // Turn 9: S20, S17, S13 (50 -> 108)
+      { seg: 20, ring: 'SINGLE', r: 55 },
+      { seg: 17, ring: 'SINGLE', r: 55 },
+      { seg: 13, ring: 'SINGLE', r: 55 },
+      // Turn 10: S20, S16, S8 (44 -> 64)
+      { seg: 20, ring: 'SINGLE', r: 55 },
+      { seg: 16, ring: 'SINGLE', r: 55 },
+      { seg: 8, ring: 'SINGLE', r: 55 },
+      // Turn 11: S16, S16, D8 (48 -> 16)
+      { seg: 16, ring: 'SINGLE', r: 55 },
+      { seg: 16, ring: 'SINGLE', r: 55 },
+      { seg: 8, ring: 'DOUBLE', r: 166 },
+      // Turn 12: S4, S2, D5 (16 -> 0 — double out)
+      { seg: 4, ring: 'SINGLE', r: 55 },
+      { seg: 2, ring: 'SINGLE', r: 55 },
+      { seg: 5, ring: 'DOUBLE', r: 166 }
+    ].map(item => {
+      let theta = item.theta;
+      if (theta === undefined) {
+        theta = getSegmentAngle(item.seg);
+      }
+      const coords = polarToBoardXY(item.r, theta);
+      return {
+        targetX: coords.x,
+        targetY: coords.y
+      };
+    });
+
+    // --- VETERAN VAL HARDCODED 14-DART LANDING TABLE (C9 UPGRADED ROUTE) ---
+    const VAL_SCRIPT = [
+      // Turn 1: T19, T19, S19 (133 -> 368)
+      { seg: 19, ring: 'TRIPLE', r: 103 },
+      { seg: 19, ring: 'TRIPLE', r: 103 },
+      { seg: 19, ring: 'SINGLE', r: 55 },
+      // Turn 2: T20, S20, S20 (100 -> 268)
+      { seg: 20, ring: 'TRIPLE', r: 103 },
+      { seg: 20, ring: 'SINGLE', r: 55 },
+      { seg: 20, ring: 'SINGLE', r: 55 },
+      // Turn 3: T20, S20, S18 (98 -> 170)
+      { seg: 20, ring: 'TRIPLE', r: 103 },
+      { seg: 20, ring: 'SINGLE', r: 55 },
+      { seg: 18, ring: 'SINGLE', r: 55 },
+      // Turn 4: T18, T18, S14 (122 -> 48)
+      { seg: 18, ring: 'TRIPLE', r: 103 },
+      { seg: 18, ring: 'TRIPLE', r: 103 },
+      { seg: 14, ring: 'SINGLE', r: 55 },
+      // Turn 5: S16, D16 (48 -> 0 — double out)
+      { seg: 16, ring: 'SINGLE', r: 55 },
+      { seg: 16, ring: 'DOUBLE', r: 166 }
+    ].map(item => {
+      let theta = item.theta;
+      if (theta === undefined) {
+        theta = getSegmentAngle(item.seg);
+      }
+      const coords = polarToBoardXY(item.r, theta);
+      return {
+        targetX: coords.x,
+        targetY: coords.y
+      };
+    });
+
+    // --- CHAMPION CHELSEA HARDCODED 12-DART LANDING TABLE (C9 UPGRADED ROUTE) ---
+    const CHELSEA_SCRIPT = [
+      // Turn 1: T20, T20, T20 (180 -> 321)
+      { seg: 20, ring: 'TRIPLE', r: 103 },
+      { seg: 20, ring: 'TRIPLE', r: 103 },
+      { seg: 20, ring: 'TRIPLE', r: 103 },
+      // Turn 2: T20, T20, S17 (137 -> 184)
+      { seg: 20, ring: 'TRIPLE', r: 103 },
+      { seg: 20, ring: 'TRIPLE', r: 103 },
+      { seg: 17, ring: 'SINGLE', r: 55 },
+      // Turn 3: S20, T20, T16 (128 -> 56)
+      { seg: 20, ring: 'SINGLE', r: 55 },
+      { seg: 20, ring: 'TRIPLE', r: 103 },
+      { seg: 16, ring: 'TRIPLE', r: 103 },
+      // Turn 4: S8, S16, D16 (56 -> 0 — double out)
+      { seg: 8, ring: 'SINGLE', r: 55 },
+      { seg: 16, ring: 'SINGLE', r: 55 },
+      { seg: 16, ring: 'DOUBLE', r: 166 }
+    ].map(item => {
+      let theta = item.theta;
+      if (theta === undefined) {
+        theta = getSegmentAngle(item.seg);
+      }
+      const coords = polarToBoardXY(item.r, theta);
+      return {
+        targetX: coords.x,
+        targetY: coords.y
+      };
+    });
+
+    // --- LEAGUE OPPONENTS ROSTER ---
+    const OPPONENTS = [
+      {
+        name: 'Rookie Rob',
+        shortName: 'ROB',
+        desc: 'Green Sweater &bull; 501 Double Out',
+        script: ROB_SCRIPT
+      },
+      {
+        name: 'Veteran Val',
+        shortName: 'VAL',
+        desc: 'Blue Waistcoat &bull; 501 Double Out',
+        script: VAL_SCRIPT
+      },
+      {
+        name: 'Champion Chelsea',
+        shortName: 'CHELSEA',
+        desc: 'Red Jacket &bull; 501 Double Out',
+        script: CHELSEA_SCRIPT
+      }
+    ];
+
+    // --- THREE.JS SCENE SETUP ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x160f0a);
+    scene.fog = new THREE.FogExp2(0x1a120b, 0.01);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 150);
+
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+    } catch (e) {
+      console.warn("WebGL fallback used:", e);
+      renderer = { render: () => {}, setSize: () => {}, setPixelRatio: () => {}, domElement: document.createElement('canvas') };
+      container.appendChild(renderer.domElement);
+    }
+
+    const CAM_OVER_SHOULDER = {
+      pos: new THREE.Vector3(2.5, 13.8, 32.5),
+      lookAt: new THREE.Vector3(-0.3, 14.5, 0.28),
+      fov: 48
+    };
+    const CAM_ZOOM = {
+      pos: new THREE.Vector3(0.9, 17.3, 11.0),
+      lookAt: new THREE.Vector3(0, 17.3, 0.28),
+      fov: 34
+    };
+
+    let camCurrentPos = CAM_OVER_SHOULDER.pos.clone();
+    let camCurrentLook = CAM_OVER_SHOULDER.lookAt.clone();
+    let camCurrentFov = CAM_OVER_SHOULDER.fov;
+    camera.position.copy(camCurrentPos);
+    camera.lookAt(camCurrentLook);
+
+    // --- LIGHTING ---
+    const ambientLight = new THREE.AmbientLight(0xffecd0, 0.65);
+    scene.add(ambientLight);
+
+    const boardSpot = new THREE.SpotLight(0xfff5e6, 3.8, 35, Math.PI / 4, 0.35, 1.2);
+    boardSpot.position.set(0, 24.0, 7.5);
+    boardSpot.target.position.set(0, 17.3, 0.28);
+    boardSpot.castShadow = true;
+    boardSpot.shadow.mapSize.width = 1024;
+    boardSpot.shadow.mapSize.height = 1024;
+    scene.add(boardSpot);
+    scene.add(boardSpot.target);
+
+    const pubLight = new THREE.PointLight(0xffa147, 1.8, 45, 1.4);
+    pubLight.position.set(-8, 22, 15);
+    scene.add(pubLight);
+
+    const playerLight = new THREE.PointLight(0xffd5b0, 2.0, 32, 1.4);
+    playerLight.position.set(3.5, 18.0, 25.0);
+    scene.add(playerLight);
+
+    // --- PUB PROPS ---
+    const lampGroup = new THREE.Group();
+    lampGroup.position.set(0, 26, 8.5);
+
+    const wireMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 4.5, 8), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+    wireMesh.position.y = -2.25;
+    lampGroup.add(wireMesh);
+
+    const shadeMesh = new THREE.Mesh(new THREE.ConeGeometry(1.6, 1.1, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0x1e3f20, roughness: 0.3, side: THREE.DoubleSide }));
+    shadeMesh.position.y = -4.5;
+    lampGroup.add(shadeMesh);
+
+    const bulbMesh = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 12), new THREE.MeshBasicMaterial({ color: 0xfff0aa }));
+    bulbMesh.position.y = -4.8;
+    lampGroup.add(bulbMesh);
+    scene.add(lampGroup);
+
+    // Floor
+    const floorCanvas = document.createElement('canvas');
+    floorCanvas.width = 512; floorCanvas.height = 512;
+    const fctx = floorCanvas.getContext('2d');
+    fctx.fillStyle = '#3a2113'; fctx.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 512; i += 32) {
+      fctx.fillStyle = i % 64 === 0 ? '#432617' : '#331c10';
+      fctx.fillRect(0, i, 512, 30);
+      fctx.fillStyle = '#1c0f08';
+      fctx.fillRect(0, i + 30, 512, 2);
+    }
+    const floorTex = new THREE.CanvasTexture(floorCanvas);
+    floorTex.wrapS = THREE.RepeatWrapping; floorTex.wrapT = THREE.RepeatWrapping; floorTex.repeat.set(8, 8);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.7 }));
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    // Back & Side walls
+    const wallCanvas = document.createElement('canvas');
+    wallCanvas.width = 512; wallCanvas.height = 512;
+    const wctx = wallCanvas.getContext('2d');
+    wctx.fillStyle = '#26180f'; wctx.fillRect(0, 0, 512, 512);
+    for (let x = 0; x < 512; x += 48) {
+      wctx.fillStyle = x % 96 === 0 ? '#2e1c12' : '#22150d';
+      wctx.fillRect(x, 0, 46, 512);
+      wctx.fillStyle = '#130a06';
+      wctx.fillRect(x + 46, 0, 2, 512);
+    }
+    const wallTex = new THREE.CanvasTexture(wallCanvas);
+    wallTex.wrapS = THREE.RepeatWrapping; wallTex.wrapT = THREE.RepeatWrapping; wallTex.repeat.set(6, 4);
+    const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.8 });
+    const backWall = new THREE.Mesh(new THREE.PlaneGeometry(60, 40), wallMat);
+    backWall.position.set(0, 18, -0.2);
+    scene.add(backWall);
+
+    const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(60, 40), wallMat);
+    leftWall.rotation.y = Math.PI / 2;
+    leftWall.position.set(-22, 18, 20);
+    scene.add(leftWall);
+
+    // Cabinet & Board
+    const cabinet = new THREE.Mesh(new THREE.BoxGeometry(6.4, 7.2, 0.4), new THREE.MeshStandardMaterial({ color: 0x1f120a, roughness: 0.65 }));
+    cabinet.position.set(0, 17.3, 0.0);
+    scene.add(cabinet);
+
+    const surround = new THREE.Mesh(new THREE.CylinderGeometry(2.3, 2.3, 0.18, 48), new THREE.MeshStandardMaterial({ color: 0xa82020, roughness: 0.8 }));
+    surround.rotation.x = Math.PI / 2;
+    surround.position.set(0, 17.3, 0.16);
+    scene.add(surround);
+
+    // Oche Line
+    const ocheLineGroup = new THREE.Group();
+    ocheLineGroup.position.set(0, 0, OCHE_Z);
+    const ocheMesh = new THREE.Mesh(new THREE.BoxGeometry(8.0, 0.08, 0.35), new THREE.MeshStandardMaterial({ color: 0xd4a038, roughness: 0.4, metalness: 0.4 }));
+    ocheMesh.position.y = 0.04;
+    ocheLineGroup.add(ocheMesh);
+    const toeBoard = new THREE.Mesh(new THREE.BoxGeometry(6.0, 0.22, 0.15), new THREE.MeshStandardMaterial({ color: 0x5a3418, roughness: 0.6 }));
+    toeBoard.position.set(0, 0.11, 0.22);
+    ocheLineGroup.add(toeBoard);
+    scene.add(ocheLineGroup);
+
+    // Bar counter & stools
+    const barCounter = new THREE.Mesh(new THREE.BoxGeometry(5.0, 4.2, 28), new THREE.MeshStandardMaterial({ color: 0x301a0d, roughness: 0.4 }));
+    barCounter.position.set(-16, 2.1, 14);
+    scene.add(barCounter);
+
+    const barTop = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.3, 28.4), new THREE.MeshStandardMaterial({ color: 0x482714, roughness: 0.2 }));
+    barTop.position.set(-16, 4.35, 14);
+    scene.add(barTop);
+
+    for (let z = 4; z <= 24; z += 6) {
+      const stoolGroup = new THREE.Group();
+      stoolGroup.position.set(-12.5, 0, z);
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 2.8, 8), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+      leg.position.y = 1.4;
+      stoolGroup.add(leg);
+      const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.35, 16), new THREE.MeshStandardMaterial({ color: 0x821c1c }));
+      seat.position.y = 2.9;
+      stoolGroup.add(seat);
+      scene.add(stoolGroup);
+    }
+
+    for (let z = 6; z <= 22; z += 3.5) {
+      const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.14, 0.65, 12), new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 }));
+      glass.position.set(-15.5, 4.8, z);
+      scene.add(glass);
+      const beer = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.13, 0.5, 12), new THREE.MeshStandardMaterial({ color: 0xdf9824 }));
+      beer.position.set(-15.5, 4.75, z);
+      scene.add(beer);
+    }
+
+    // Chalkboard plaque
+    const plaque = new THREE.Mesh(new THREE.BoxGeometry(4.0, 6.0, 0.15), new THREE.MeshStandardMaterial({ color: 0x181818 }));
+    plaque.position.set(6.0, 17.3, 0.05);
+    scene.add(plaque);
+
+    const chalkCanvas = document.createElement('canvas');
+    chalkCanvas.width = 256; chalkCanvas.height = 384;
+    const cctx = chalkCanvas.getContext('2d');
+    cctx.fillStyle = '#1c221e'; cctx.fillRect(0, 0, 256, 384);
+    cctx.fillStyle = '#e8eee9'; cctx.font = 'bold 22px monospace';
+    cctx.fillText("BULLS & EYES", 30, 42);
+    cctx.font = '15px monospace';
+    cctx.fillText("501 MATCH PLAY", 38, 70);
+    cctx.strokeStyle = '#889988'; cctx.lineWidth = 2;
+    cctx.beginPath(); cctx.moveTo(20, 84); cctx.lineTo(236, 84); cctx.stroke();
+    cctx.fillText("YOU  vs  ROB", 46, 120);
+    cctx.fillText("ROB AVG: 41.8", 30, 158);
+    cctx.fillText("DOUBLE FINISH", 30, 196);
+    cctx.fillText("BEST OF 1 LEG", 30, 234);
+    const chalkFace = new THREE.Mesh(new THREE.PlaneGeometry(3.8, 5.7), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(chalkCanvas) }));
+    chalkFace.position.set(6.0, 17.3, 0.14);
+    scene.add(chalkFace);
+
+    // --- DARTBOARD TEXTURE & WIRE SPIDER ---
+    const boardDiscRadius = 2.25;
+
+    function createDartboardTexture() {
+      const size = 1024;
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      const cx = size / 2, cy = size / 2;
+
+      ctx.fillStyle = '#0d0d0d'; ctx.fillRect(0, 0, size, size);
+
+      const rTotalMm = 225.0;
+      const pxPerMm = (size * 0.48) / rTotalMm;
+
+      const pxInnerBull = R_INNER_BULL * pxPerMm;
+      const pxOuterBull = R_OUTER_BULL * pxPerMm;
+      const pxTripleIn = R_TRIPLE_INNER * pxPerMm;
+      const pxTripleOut = R_TRIPLE_OUTER * pxPerMm;
+      const pxDoubleIn = R_DOUBLE_INNER * pxPerMm;
+      const pxDoubleOut = R_DOUBLE_OUTER * pxPerMm;
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, pxDoubleOut + 35 * pxPerMm, 0, Math.PI * 2);
+      ctx.fillStyle = '#0f0f0f'; ctx.fill();
+
+      const colCream = '#f4e7c5', colBlack = '#191817', colRed = '#d31b26', colGreen = '#1e7838';
+      const halfSeg = SEGMENT_ANGLE / 2;
+
+      for (let i = 0; i < 20; i++) {
+        const startAng = -Math.PI / 2 + i * SEGMENT_ANGLE - halfSeg;
+        const endAng = startAng + SEGMENT_ANGLE;
+        const isRedGreen = (i % 2 === 0);
+        const singleColor = isRedGreen ? colBlack : colCream;
+        const ringColor = isRedGreen ? colRed : colGreen;
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, pxDoubleIn, startAng, endAng);
+        ctx.arc(cx, cy, pxTripleOut, endAng, startAng, true);
+        ctx.closePath();
+        ctx.fillStyle = singleColor; ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, pxDoubleOut, startAng, endAng);
+        ctx.arc(cx, cy, pxDoubleIn, endAng, startAng, true);
+        ctx.closePath();
+        ctx.fillStyle = ringColor; ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, pxTripleOut, startAng, endAng);
+        ctx.arc(cx, cy, pxTripleIn, endAng, startAng, true);
+        ctx.closePath();
+        ctx.fillStyle = ringColor; ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, pxTripleIn, startAng, endAng);
+        ctx.arc(cx, cy, pxOuterBull, endAng, startAng, true);
+        ctx.closePath();
+        ctx.fillStyle = singleColor; ctx.fill();
+      }
+
+      ctx.beginPath(); ctx.arc(cx, cy, pxOuterBull, 0, Math.PI * 2); ctx.fillStyle = colGreen; ctx.fill();
+      ctx.beginPath(); ctx.arc(cx, cy, pxInnerBull, 0, Math.PI * 2); ctx.fillStyle = colRed; ctx.fill();
+
+      ctx.strokeStyle = '#c8ccd0'; ctx.lineWidth = 2.4;
+      [pxInnerBull, pxOuterBull, pxTripleIn, pxTripleOut, pxDoubleIn, pxDoubleOut].forEach(r => {
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+      });
+
+      for (let i = 0; i < 20; i++) {
+        const ang = -Math.PI / 2 + i * SEGMENT_ANGLE - halfSeg;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(ang) * pxOuterBull, cy + Math.sin(ang) * pxOuterBull);
+        ctx.lineTo(cx + Math.cos(ang) * pxDoubleOut, cy + Math.sin(ang) * pxDoubleOut);
+        ctx.stroke();
+      }
+
+      ctx.font = 'bold 32px "Trebuchet MS", sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#f0e6da';
+      const numRadius = pxDoubleOut + 18 * pxPerMm;
+      for (let i = 0; i < 20; i++) {
+        const ang = -Math.PI / 2 + i * SEGMENT_ANGLE;
+        ctx.fillText(SEGMENTS[i].toString(), cx + Math.cos(ang) * numRadius, cy + Math.sin(ang) * numRadius);
+      }
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    const boardBack = new THREE.Mesh(new THREE.CylinderGeometry(boardDiscRadius, boardDiscRadius, 0.16, 48), new THREE.MeshStandardMaterial({ color: 0x121212 }));
+    boardBack.rotation.x = Math.PI / 2;
+    boardBack.position.copy(BOARD_POS);
+    boardBack.position.z = 0.20;
+    scene.add(boardBack);
+
+    const dartboard = new THREE.Mesh(new THREE.CircleGeometry(boardDiscRadius, 64), new THREE.MeshStandardMaterial({ map: createDartboardTexture(), roughness: 0.65 }));
+    dartboard.position.copy(BOARD_POS);
+    dartboard.position.z = 0.281;
+    scene.add(dartboard);
+
+    // 3D Spider Wires
+    const wire3DMat = new THREE.MeshStandardMaterial({ color: 0xdcdcdc, metalness: 0.95, roughness: 0.2 });
+    [R_INNER_BULL, R_OUTER_BULL, R_TRIPLE_INNER, R_TRIPLE_OUTER, R_DOUBLE_INNER, R_DOUBLE_OUTER].forEach(rMm => {
+      const ringMesh = new THREE.Mesh(new THREE.TorusGeometry(rMm * SCALE, 0.012, 6, 48), wire3DMat);
+      ringMesh.position.set(BOARD_POS.x, BOARD_POS.y, dartboard.position.z + 0.01);
+      scene.add(ringMesh);
+    });
+
+    const spokeHalfSeg = SEGMENT_ANGLE / 2;
+    const spokeLen = (R_DOUBLE_OUTER - R_OUTER_BULL) * SCALE;
+    const spokeMidR = ((R_DOUBLE_OUTER + R_OUTER_BULL) / 2) * SCALE;
+    for (let i = 0; i < 20; i++) {
+      const ang = Math.PI / 2 + i * SEGMENT_ANGLE - spokeHalfSeg;
+      const spokeMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, spokeLen, 6), wire3DMat);
+      spokeMesh.position.set(BOARD_POS.x + Math.sin(ang) * spokeMidR, BOARD_POS.y + Math.cos(ang) * spokeMidR, dartboard.position.z + 0.01);
+      spokeMesh.rotation.z = -ang;
+      scene.add(spokeMesh);
+    }
+
+    // --- RECOGNIZABLE CHARACTER BUILDER (NEVER plain boxes or capsules) ---
+    function buildCharacterModel(type) {
+      const g = new THREE.Group();
+
+      let skinCol = 0xdfad85, shirtCol = 0x1d3557, accentCol = 0xc92a2a;
+      let pantsCol = 0x343a40, shoeCol = 0x212529, hairCol = 0x2b1d0c;
+
+      if (type === 'ROB' || type === true) {
+        // Rob: green sweater, gold stripe, brown chinos, sandy hair
+        skinCol = 0xd89f74;
+        shirtCol = 0x2e7d32;
+        accentCol = 0xfbc02d;
+        pantsCol = 0x4e342e;
+        shoeCol = 0x3e2723;
+        hairCol = 0xb7791f;
+      } else if (type === 'VAL') {
+        // Val: blue waistcoat, silver stripe, charcoal trousers, silver/grey hair
+        skinCol = 0xd5a07c;
+        shirtCol = 0x1565c0;
+        accentCol = 0xdfe6e9;
+        pantsCol = 0x2c3e50;
+        shoeCol = 0x1e272e;
+        hairCol = 0x8395a7;
+      } else if (type === 'CHELSEA') {
+        // Chelsea: red jacket, gold collar/stripe, black trousers, dark chestnut hair
+        skinCol = 0xe0ac87;
+        shirtCol = 0xc0392b;
+        accentCol = 0xf1c40f;
+        pantsCol = 0x1e272e;
+        shoeCol = 0x0a0a0a;
+        hairCol = 0x3d1c06;
+      }
+
+      const isOpponent = (type === 'ROB' || type === 'VAL' || type === 'CHELSEA' || type === true);
+
+      const skinMat = new THREE.MeshStandardMaterial({ color: skinCol, roughness: 0.5 });
+      const shirtMat = new THREE.MeshStandardMaterial({ color: shirtCol, roughness: 0.6 });
+      const accentMat = new THREE.MeshStandardMaterial({ color: accentCol, roughness: 0.6 });
+      const collarMat = new THREE.MeshStandardMaterial({ color: 0xf1f3f5, roughness: 0.6 });
+      const pantsMat = new THREE.MeshStandardMaterial({ color: pantsCol, roughness: 0.7 });
+      const shoeMat = new THREE.MeshStandardMaterial({ color: shoeCol, roughness: 0.5 });
+      const soleMat = new THREE.MeshStandardMaterial({ color: 0xe9ecef, roughness: 0.4 });
+      const hairMat = new THREE.MeshStandardMaterial({ color: hairCol, roughness: 0.8 });
+
+      function makeShoe() {
+        const sg = new THREE.Group();
+        const sole = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 1.8), soleMat);
+        sole.position.y = 0.1;
+        sg.add(sole);
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.45, 1.7), shoeMat);
+        body.position.set(0, 0.35, -0.05);
+        sg.add(body);
+        const toeCap = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.45, 12), shoeMat);
+        toeCap.position.set(0, 0.35, -0.7);
+        sg.add(toeCap);
+        return sg;
+      }
+
+      const leftShoe = makeShoe();
+      leftShoe.position.set(-0.85, 0, 0.5); leftShoe.rotation.y = -0.25;
+      g.add(leftShoe);
+      const rightShoe = makeShoe();
+      rightShoe.position.set(0.6, 0, -0.2); rightShoe.rotation.y = 0.1;
+      g.add(rightShoe);
+
+      function makeLeg() {
+        const lg = new THREE.Group();
+        const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.36, 4.0, 14), pantsMat);
+        thigh.position.y = 5.8;
+        lg.add(thigh);
+        const knee = new THREE.Mesh(new THREE.SphereGeometry(0.36, 12, 12), pantsMat);
+        knee.position.y = 3.8;
+        lg.add(knee);
+        const calf = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.30, 3.4, 14), pantsMat);
+        calf.position.y = 2.1;
+        lg.add(calf);
+        const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.05, 8, 16), pantsMat);
+        cuff.rotation.x = Math.PI / 2; cuff.position.y = 0.5;
+        lg.add(cuff);
+        return lg;
+      }
+      g.add(makeLeg());
+      const rLeg = makeLeg(); rLeg.position.set(0.6, 0, -0.2);
+      g.add(rLeg);
+
+      // Pelvis & Belt
+      const hipMesh = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.15, 1.2, 16), pantsMat);
+      hipMesh.position.set(-0.1, 8.0, 0.1);
+      g.add(hipMesh);
+
+      const belt = new THREE.Mesh(new THREE.CylinderGeometry(1.27, 1.27, 0.35, 16), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+      belt.position.set(-0.1, 8.65, 0.1);
+      g.add(belt);
+
+      // Torso
+      const torsoGroup = new THREE.Group();
+      torsoGroup.position.set(-0.1, 8.8, 0.1);
+      const midriff = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.24, 2.2, 16), shirtMat);
+      midriff.position.y = 1.1; torsoGroup.add(midriff);
+      const chest = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.35, 2.4, 16), shirtMat);
+      chest.position.y = 3.3; torsoGroup.add(chest);
+      const stripe = new THREE.Mesh(new THREE.CylinderGeometry(1.51, 1.45, 0.6, 16), accentMat);
+      stripe.position.y = 3.5; torsoGroup.add(stripe);
+      const collar = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.15, 8, 16), collarMat);
+      collar.rotation.x = Math.PI / 2; collar.position.set(0, 4.4, 0); torsoGroup.add(collar);
+      g.add(torsoGroup);
+
+      // Neck & Head
+      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.42, 0.9, 14), skinMat);
+      neck.position.set(-0.1, 13.4, 0.1); g.add(neck);
+
+      const headGroup = new THREE.Group();
+      headGroup.position.set(-0.1, 14.6, 0.1);
+      headGroup.rotation.y = isOpponent ? 0.5 : -0.45;
+      const skull = new THREE.Mesh(new THREE.SphereGeometry(0.95, 16, 16), skinMat);
+      skull.scale.set(0.92, 1.15, 1.0); headGroup.add(skull);
+      const nose = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.35, 8), skinMat);
+      nose.rotation.x = Math.PI / 2; nose.position.set(0, -0.05, -0.98); headGroup.add(nose);
+      const earL = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), skinMat);
+      earL.scale.set(0.3, 1.0, 0.7); earL.position.set(-0.95, 0, 0); headGroup.add(earL);
+      const earR = earL.clone(); earR.position.x = 0.95; headGroup.add(earR);
+      const hairCap = new THREE.Mesh(new THREE.SphereGeometry(1.0, 16, 16), hairMat);
+      hairCap.scale.set(0.95, 1.05, 1.05); hairCap.position.set(0, 0.22, 0.05); headGroup.add(hairCap);
+      g.add(headGroup);
+
+      // Left Arm
+      const leftArm = new THREE.Group();
+      leftArm.position.set(-1.6, 13.0, 0.1);
+      const lSleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.34, 1.6, 12), shirtMat);
+      lSleeve.position.y = -0.8; leftArm.add(lSleeve);
+      const lForearm = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.24, 2.6, 10), skinMat);
+      lForearm.position.set(0, -2.6, 0.2); leftArm.add(lForearm);
+      g.add(leftArm);
+
+      // Right Arm (Throwing Arm)
+      const rightArmGroup = new THREE.Group();
+      rightArmGroup.position.set(1.5, 13.0, 0.1);
+      const rSleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.40, 0.36, 1.4, 12), shirtMat);
+      rSleeve.position.y = -0.7; rightArmGroup.add(rSleeve);
+
+      const throwingShoulder = new THREE.Group();
+      rightArmGroup.add(throwingShoulder);
+      const rUpperArm = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.30, 2.4, 12), skinMat);
+      rUpperArm.position.set(0, 0, -1.2); rUpperArm.rotation.x = Math.PI / 2;
+      throwingShoulder.add(rUpperArm);
+
+      const throwingElbow = new THREE.Group();
+      throwingElbow.position.set(0, 0, -2.4);
+      throwingShoulder.add(throwingElbow);
+
+      const rForearm = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.24, 2.4, 12), skinMat);
+      rForearm.position.set(0, 1.1, 0.3); rForearm.rotation.x = -0.35;
+      throwingElbow.add(rForearm);
+
+      const rHand = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 10), skinMat);
+      rHand.position.set(0, 2.3, 0.6);
+      throwingElbow.add(rHand);
+
+      const heldDartMesh = createDartMesh();
+      heldDartMesh.rotation.x = Math.PI / 2;
+      heldDartMesh.position.set(0, 2.4, -0.1);
+      throwingElbow.add(heldDartMesh);
+
+      g.add(rightArmGroup);
+
+      return {
+        group: g,
+        headGroup: headGroup,
+        throwingShoulder: throwingShoulder,
+        throwingElbow: throwingElbow,
+        heldDart: heldDartMesh
+      };
+    }
+
+    function createDartMesh() {
+      const g = new THREE.Group();
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.45, 8), new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.95 }));
+      tip.rotation.x = Math.PI; tip.position.z = -0.55; g.add(tip);
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.6, 12), new THREE.MeshStandardMaterial({ color: 0xdfb03b, metalness: 0.85 }));
+      barrel.rotation.x = Math.PI / 2; barrel.position.z = -0.15; g.add(barrel);
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.7, 8), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+      shaft.rotation.x = Math.PI / 2; shaft.position.z = 0.45; g.add(shaft);
+
+      const flightShape = new THREE.Shape();
+      flightShape.moveTo(0, 0); flightShape.lineTo(0.28, 0.2); flightShape.lineTo(0.24, 0.65); flightShape.lineTo(0, 0.6); flightShape.closePath();
+      const flightMat = new THREE.MeshStandardMaterial({ color: 0xcc1111, side: THREE.DoubleSide, roughness: 0.5 });
+      const flightGeo = new THREE.ShapeGeometry(flightShape);
+      for (let i = 0; i < 4; i++) {
+        const wing = new THREE.Mesh(flightGeo, flightMat);
+        wing.rotation.y = (i * Math.PI) / 2; wing.rotation.x = Math.PI / 2; wing.position.z = 0.8; g.add(wing);
+      }
+      g.scale.set(1.4, 1.4, 1.4);
+      return g;
+    }
+
+    // Player Model at oche
+    const playerChar = buildCharacterModel('PLAYER');
+    playerChar.group.position.set(-1.0, 0, OCHE_Z);
+    playerChar.group.rotation.y = 0.45;
+    scene.add(playerChar.group);
+
+    // League Opponent Models (Rob, Val, Chelsea at side of oche by the bar)
+    const robChar = buildCharacterModel('ROB');
+    robChar.group.position.set(-6.5, 0, 23.5);
+    robChar.group.rotation.y = 0.85;
+    robChar.headGroup.rotation.y = 0.5;
+    scene.add(robChar.group);
+
+    const valChar = buildCharacterModel('VAL');
+    valChar.group.position.set(-6.5, 0, 23.5);
+    valChar.group.rotation.y = 0.85;
+    valChar.headGroup.rotation.y = 0.5;
+    valChar.group.visible = false;
+    scene.add(valChar.group);
+
+    const chelseaChar = buildCharacterModel('CHELSEA');
+    chelseaChar.group.position.set(-6.5, 0, 23.5);
+    chelseaChar.group.rotation.y = 0.85;
+    chelseaChar.headGroup.rotation.y = 0.5;
+    chelseaChar.group.visible = false;
+    scene.add(chelseaChar.group);
+
+    const opponentChars = [robChar, valChar, chelseaChar];
+    let currentOpponentChar = robChar;
+
+    function setOpponentModel(matchIdx) {
+      opponentChars.forEach((ch, idx) => {
+        ch.group.visible = (idx === matchIdx);
+        ch.heldDart.visible = false;
+      });
+      currentOpponentChar = opponentChars[matchIdx];
+    }
+
+    // Reticle
+    const reticleGroup = new THREE.Group();
+    const retMat = new THREE.MeshBasicMaterial({ color: 0xff2222, side: THREE.DoubleSide, depthTest: false, transparent: true, opacity: 0.95 });
+    reticleGroup.add(new THREE.Mesh(new THREE.RingGeometry(0.12, 0.14, 24), retMat));
+    reticleGroup.add(new THREE.Mesh(new THREE.CircleGeometry(0.03, 12), retMat));
+    reticleGroup.add(new THREE.Mesh(new THREE.PlaneGeometry(0.02, 0.45), retMat));
+    reticleGroup.add(new THREE.Mesh(new THREE.PlaneGeometry(0.45, 0.02), retMat));
+    reticleGroup.position.set(0, 17.3, dartboard.position.z + 0.05);
+    reticleGroup.renderOrder = 999;
+    reticleGroup.visible = false;
+    scene.add(reticleGroup);
+
+    // --- GAME STATE ---
+    let internalClock = 0;
+
+    let gameState = {
+      phase: 'READY',
+      turnNumber: 1,
+      dartInTurn: 1,
+      aimX: 0.0,
+      aimY: 0.0,
+      charging: false,
+      power: null,
+      powerSweep: 0.0,
+      powerDirection: 1,
+      scatterMm: 3.0,
+      lastDart: null,
+      turnScores: [],
+      turnDartNames: [],
+      cumulativeTotal: 0,
+
+      // Match 501 State
+      remaining: 501,
+      turnStartRemaining: 501,
+      bustThisTurn: false,
+      dartsUsed: 0,
+      legComplete: false,
+      history: [],
+
+      // Active AI Opponent Match State
+      activeThrower: 'PLAYER',
+      aiRemaining: 501,
+      aiTurnStartRemaining: 501,
+      aiScriptIndex: 0,
+      aiTurnHistory: [],
+      matchOver: false,
+      winner: null,
+
+      // Breathing Sway
+      swayClock: 0.0,
+      swayAmplitude: 5.2,
+      swayOffsetX: 0.0,
+      swayOffsetY: 0.0,
+
+      // Breath Hold
+      breath: {
+        state: 'READY',
+        holdRemaining: 0.0,
+        cooldownRemaining: 0.0
+      },
+
+      // C7 League Night Tournament State
+      matchIndex: 0,
+      opponentName: 'Rookie Rob',
+      leagueStandings: [
+        { name: 'You', player: 'You', participant: 'You', wins: 0, losses: 0, points: 0 },
+        { name: 'Rookie Rob', player: 'Rookie Rob', participant: 'Rookie Rob', wins: 0, losses: 0, points: 0 },
+        { name: 'Veteran Val', player: 'Veteran Val', participant: 'Veteran Val', wins: 0, losses: 0, points: 0 },
+        { name: 'Champion Chelsea', player: 'Champion Chelsea', participant: 'Champion Chelsea', wins: 0, losses: 0, points: 0 }
+      ],
+      leagueDartsUsed: [],
+
+      // C8 Pub Distractions State
+      turnControlTime: 0.0,
+      flickerActive: false,
+
+      // C10 Championship Final State
+      inFinal: false,
+      legNumber: 1,
+      legsWonPlayer: 0,
+      legsWonOpponent: 0,
+      finalOpponent: null,
+      finalDartsUsed: [],
+      finalTurnScores: [],
+      finalBusts: 0,
+      dartsPerLeg: null,
+      highestTurn: null,
+      busts: 0,
+      rating: null
+    };
+
+    function getStandingsExport() {
+      const arr = gameState.leagueStandings.map(s => ({ ...s }));
+      arr['You'] = arr[0];
+      arr['Player'] = arr[0];
+      arr['Rookie Rob'] = arr[1];
+      arr['Veteran Val'] = arr[2];
+      arr['Champion Chelsea'] = arr[3];
+      return arr;
+    }
+
+    function updateArenaStateExport() {
+      window.__arena_state = {
+        phase: gameState.phase,
+        turnNumber: gameState.turnNumber,
+        dartInTurn: gameState.dartInTurn,
+        aimX: gameState.aimX,
+        aimY: gameState.aimY,
+        charging: gameState.charging,
+        power: gameState.phase === 'CHARGING' ? gameState.powerSweep : null,
+        scatterMm: gameState.scatterMm,
+        lastDart: gameState.lastDart ? { ...gameState.lastDart } : null,
+        turnScores: [...gameState.turnScores],
+        cumulativeTotal: gameState.cumulativeTotal,
+
+        // Player 501
+        remaining: gameState.remaining,
+        turnStartRemaining: gameState.turnStartRemaining,
+        bustThisTurn: gameState.bustThisTurn,
+        dartsUsed: gameState.dartsUsed,
+        legComplete: gameState.legComplete,
+        history: gameState.history.map(h => ({ ...h, darts: [...h.darts] })),
+        turnHistory: gameState.history.map(h => ({ ...h, darts: [...h.darts] })),
+
+        // C4 Opponent & Match Telemetry
+        activeThrower: gameState.activeThrower,
+        aiRemaining: gameState.aiRemaining,
+        aiScriptIndex: gameState.aiScriptIndex,
+        aiTurnHistory: gameState.aiTurnHistory.map(h => ({ ...h, darts: [...h.darts] })),
+        matchOver: gameState.matchOver,
+        winner: gameState.winner,
+
+        // C3 Sway & Breath
+        swayOffsetX: gameState.swayOffsetX,
+        swayOffsetY: gameState.swayOffsetY,
+        swayAmplitude: (gameState.flickerActive && gameState.breath.state !== 'HELD') ? gameState.swayAmplitude * 2.0 : gameState.swayAmplitude,
+        swayClock: gameState.swayClock,
+        breath: { ...gameState.breath },
+
+        // C7 League Night Telemetry
+        matchIndex: gameState.matchIndex,
+        matchNumber: gameState.matchIndex + 1,
+        opponentName: gameState.opponentName,
+        leagueStandings: getStandingsExport(),
+        leagueDartsUsed: [...gameState.leagueDartsUsed],
+
+        // C8 Pub Distractions Telemetry
+        turnControlTime: gameState.turnControlTime,
+        flickerActive: gameState.flickerActive,
+
+        // C10 Championship Final Telemetry
+        legNumber: gameState.legNumber,
+        legsWonPlayer: gameState.legsWonPlayer,
+        legsWonOpponent: gameState.legsWonOpponent,
+        finalOpponent: gameState.finalOpponent,
+        dartsPerLeg: gameState.dartsPerLeg,
+        highestTurn: gameState.highestTurn,
+        busts: gameState.busts,
+        rating: gameState.rating,
+        finalStatistics: {
+          dartsPerLeg: gameState.dartsPerLeg,
+          highestTurn: gameState.highestTurn,
+          busts: gameState.busts,
+          rating: gameState.rating
+        }
+      };
+    }
+    updateArenaStateExport();
+
+    const stuckDarts = [];
+    let flyingDartMesh = null;
+    let flightProgress = 0;
+    const FLIGHT_DURATION = 0.6;
+    let flightStartPos = new THREE.Vector3();
+    let flightEndPos = new THREE.Vector3();
+    let landingResult = null;
+
+    let turnBannerTimer = 0;
+    const TURN_BANNER_DURATION = 1.2;
+    let currentTurnBannerDuration = 1.2;
+    let popupTimer = 0;
+    let bustBannerTimer = 0;
+    const BUST_BANNER_DURATION = 1.2;
+
+    let robThrowTimer = 0;
+    const ROB_THROW_INTERVAL = 1.5;
+
+    // --- UI ELEMENTS ---
+    const hudPlayerRem = document.getElementById('hud-player-rem');
+    const hudPlayerDarts = document.getElementById('hud-player-darts');
+    const hudRobRem = document.getElementById('hud-rob-rem');
+    const hudRobDarts = document.getElementById('hud-rob-darts');
+    const cardPlayer = document.getElementById('card-player');
+    const cardRob = document.getElementById('card-rob');
+    const hudThrowerBanner = document.getElementById('hud-thrower-banner');
+    const hudTurnNum = document.getElementById('hud-turn-num');
+    const hudDartNum = document.getElementById('hud-dart-num');
+    const pips = [
+      document.getElementById('pip-1'),
+      document.getElementById('pip-2'),
+      document.getElementById('pip-3')
+    ];
+    const scoreboardBody = document.getElementById('scoreboard-body');
+    const powerFill = document.getElementById('meter-fill');
+    const powerText = document.getElementById('power-value-text');
+    const scatterReadout = document.getElementById('scatter-readout');
+    const breathStatusEl = document.getElementById('breath-status');
+    const scorePopup = document.getElementById('score-popup');
+    const popupZone = document.getElementById('popup-zone');
+    const popupVal = document.getElementById('popup-val');
+    const bustBanner = document.getElementById('bust-banner');
+    const bustReason = document.getElementById('bust-reason');
+    const turnBanner = document.getElementById('turn-banner');
+    const bannerTitle = document.getElementById('banner-title');
+    const bannerScore = document.getElementById('banner-score');
+    const bannerDetail = document.getElementById('banner-detail');
+    const matchEndBanner = document.getElementById('match-end-banner');
+    const matchEndTitle = document.getElementById('match-end-title');
+    const matchEndStats = document.getElementById('match-end-stats');
+    const matchEndPrompt = document.getElementById('match-end-prompt');
+    const startOverlay = document.getElementById('start-overlay');
+
+    // Round 7 League Night & Round 10 Final UI Elements
+    const hudOpponentName = document.getElementById('hud-opponent-name');
+    const hudLegIndicator = document.getElementById('hud-leg-indicator');
+    const sbTitleText = document.getElementById('sb-title-text');
+    const sbOpponentHdr = document.getElementById('sb-opponent-hdr');
+    const matchIntroBanner = document.getElementById('match-intro-banner');
+    const introMatchNum = document.getElementById('intro-match-num');
+    const introOppName = document.getElementById('intro-opp-name');
+    const introOppDesc = document.getElementById('intro-opp-desc');
+    const introPromptText = document.getElementById('intro-prompt-text');
+    const leaguePanel = document.getElementById('league-panel');
+    const leagueTableBody = document.getElementById('league-table-body');
+    const leagueCloseBtn = document.getElementById('league-close-btn');
+    const leagueCompleteBanner = document.getElementById('league-complete-banner');
+    const leagueCompleteStats = document.getElementById('league-complete-stats');
+    const settlementBanner = document.getElementById('settlement-banner');
+    const settleHeadline = document.getElementById('settle-headline');
+    const settleRating = document.getElementById('settle-rating');
+    const settleStats = document.getElementById('settle-stats');
+
+    let leagueRecapTimer = 0.0;
+
+    // --- AUDITED DART ATTRIBUTION ENGINE (Single Attribution Function) ---
+    // Rules:
+    // 1. Ring boundaries are closed toward the ring (wire cutter takes the ring closer to the bullseye):
+    //    - inner bullseye owns its 6.35 mm boundary (d <= 6.35)
+    //    - outer bull owns its 15.9 mm boundary (6.35 < d <= 15.9)
+    //    - inner single: 15.9 < d < 99.0
+    //    - triple ring owns both its 99 mm and 107 mm boundaries (99.0 <= d <= 107.0)
+    //    - outer single: 107.0 < d < 162.0
+    //    - double ring owns both its 162 mm and 170 mm boundaries (162.0 <= d <= 170.0)
+    //    - off-board: d > 170.0 mm
+    // 2. Spoke boundaries are half-open in clockwise order:
+    //    measured clockwise from the spoke immediately counter-clockwise of the 20 segment (at 351° from top),
+    //    segment k of the standard order [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
+    //    owns angles [k * 18°, (k + 1) * 18°).
+    function scoreHit(x, y) {
+      const dRaw = Math.hypot(x, y);
+      const d = Math.round(dRaw * 1e9) / 1e9;
+
+      // Landing angle measured clockwise from the top of the board (12 o'clock: x=0, y>0) in degrees [0, 360)
+      let angleRad = Math.atan2(x, y);
+      if (angleRad < 0) angleRad += 2 * Math.PI;
+      let rawAngleDeg = (angleRad * 180) / Math.PI;
+      rawAngleDeg = ((rawAngleDeg % 360) + 360) % 360;
+      const angleDeg = Math.round(rawAngleDeg * 1e9) / 1e9;
+
+      // Spoke immediately counter-clockwise of the 20 segment is at 351° (i.e. -9° from top 0°).
+      // Measured clockwise from this CCW spoke:
+      const relAngle = ((angleDeg + 9.0) % 360 + 360) % 360;
+      let segIndex = Math.floor(relAngle / 18.0);
+      if (segIndex >= 20) segIndex = 19;
+      if (segIndex < 0) segIndex = 0;
+      const segNumber = SEGMENTS[segIndex];
+
+      let ring, value, segment, name;
+
+      if (d <= R_INNER_BULL) {
+        ring = 'INNER_BULL';
+        segment = 0;
+        value = 50;
+        name = 'BULL';
+      } else if (d <= R_OUTER_BULL) {
+        ring = 'OUTER_BULL';
+        segment = 0;
+        value = 25;
+        name = '25';
+      } else if (d < R_TRIPLE_INNER) {
+        ring = 'SINGLE';
+        segment = segNumber;
+        value = segNumber;
+        name = `S${segNumber}`;
+      } else if (d <= R_TRIPLE_OUTER) {
+        ring = 'TRIPLE';
+        segment = segNumber;
+        value = 3 * segNumber;
+        name = `T${segNumber}`;
+      } else if (d < R_DOUBLE_INNER) {
+        ring = 'SINGLE';
+        segment = segNumber;
+        value = segNumber;
+        name = `S${segNumber}`;
+      } else if (d <= R_DOUBLE_OUTER) {
+        ring = 'DOUBLE';
+        segment = segNumber;
+        value = 2 * segNumber;
+        name = `D${segNumber}`;
+      } else {
+        ring = 'OFF_BOARD';
+        segment = 0;
+        value = 0;
+        name = 'off-board';
+      }
+
+      return {
+        x,
+        y,
+        distanceFromCenter: d,
+        angleDeg,
+        segment,
+        ring,
+        value,
+        name
+      };
+    }
+    window.scoreHit = scoreHit;
+    window.getLandingZone = scoreHit;
+
+    function showTurnBanner(who, turnTotal, remaining, dartNames) {
+      gameState.phase = 'TURN_SUMMARY';
+      turnBannerTimer = 0;
+      turnBanner.className = 'active';
+
+      if (turnTotal === 180) {
+        currentTurnBannerDuration = 1.5;
+        turnBanner.classList.add('tier-180');
+        bannerTitle.textContent = 'ONE HUNDRED AND EIGHTY!';
+        bannerScore.textContent = '180';
+        bannerDetail.textContent = `Darts: ${dartNames.join(', ')} | Remaining: ${remaining}`;
+        audio.playFanfare180();
+      } else if (turnTotal >= 140 && turnTotal <= 179) {
+        currentTurnBannerDuration = 1.2;
+        turnBanner.classList.add('tier-big-ton');
+        bannerTitle.textContent = 'BIG TON!';
+        bannerScore.textContent = `-${turnTotal}`;
+        bannerDetail.textContent = `Darts: ${dartNames.join(', ')} | Remaining: ${remaining}`;
+      } else if (turnTotal >= 100 && turnTotal <= 139) {
+        currentTurnBannerDuration = 1.2;
+        turnBanner.classList.add('tier-ton');
+        bannerTitle.textContent = 'TON!';
+        bannerScore.textContent = `-${turnTotal}`;
+        bannerDetail.textContent = `Darts: ${dartNames.join(', ')} | Remaining: ${remaining}`;
+      } else {
+        currentTurnBannerDuration = 1.2;
+        bannerTitle.textContent = (who === 'PLAYER' ? 'Your' : `${who}'s`) + ' Turn Complete';
+        bannerScore.textContent = `-${turnTotal}`;
+        bannerDetail.textContent = `Darts: ${dartNames.join(', ')} | Remaining: ${remaining}`;
+      }
+    }
+
+    // --- LEAGUE NIGHT FUNCTIONS ---
+    function renderLeagueTable() {
+      if (!leagueTableBody) return;
+      let html = '';
+      gameState.leagueStandings.forEach((st) => {
+        const isUser = (st.name === 'You');
+        html += `
+          <tr class="${isUser ? 'highlight' : ''}">
+            <td>${st.name}</td>
+            <td>${st.wins}</td>
+            <td>${st.losses}</td>
+            <td><strong>${st.points}</strong></td>
+          </tr>
+        `;
+      });
+      leagueTableBody.innerHTML = html;
+    }
+
+    function toggleLeaguePanel(show) {
+      if (!leaguePanel) return;
+      if (show === undefined) {
+        leaguePanel.classList.toggle('active');
+      } else if (show) {
+        leaguePanel.classList.add('active');
+      } else {
+        leaguePanel.classList.remove('active');
+      }
+      if (leaguePanel.classList.contains('active')) {
+        renderLeagueTable();
+      }
+    }
+    if (leagueCloseBtn) {
+      leagueCloseBtn.addEventListener('click', () => toggleLeaguePanel(false));
+    }
+
+    function showMatchIntro(matchIdx) {
+      gameState.matchIndex = matchIdx;
+      const opp = OPPONENTS[matchIdx];
+      gameState.opponentName = opp.name;
+      gameState.phase = 'MATCH_INTRO';
+
+      introMatchNum.textContent = `MATCH ${matchIdx + 1} OF 3`;
+      introOppName.textContent = `vs. ${opp.name.toUpperCase()}`;
+      introOppDesc.innerHTML = opp.desc;
+
+      setOpponentModel(matchIdx);
+      currentOpponentChar.heldDart.visible = false;
+
+      matchEndBanner.classList.remove('active');
+      matchIntroBanner.classList.add('active');
+      leaguePanel.classList.remove('active');
+      startOverlay.style.display = 'none';
+
+      updateHUD();
+      updateArenaStateExport();
+    }
+
+    function startMatch(matchIdx) {
+      audio.init();
+      gameState.matchIndex = matchIdx;
+      const opp = OPPONENTS[matchIdx];
+      gameState.opponentName = opp.name;
+
+      matchIntroBanner.classList.remove('active');
+      matchEndBanner.classList.remove('active');
+      leagueCompleteBanner.classList.remove('active');
+      leaguePanel.classList.remove('active');
+      startOverlay.style.display = 'none';
+      bustBanner.classList.remove('active');
+      turnBanner.className = '';
+      currentTurnBannerDuration = 1.2;
+
+      stuckDarts.forEach(d => scene.remove(d));
+      stuckDarts.length = 0;
+      if (flyingDartMesh) {
+        scene.remove(flyingDartMesh);
+        flyingDartMesh = null;
+      }
+
+      setOpponentModel(matchIdx);
+
+      // Player fresh match state
+      gameState.remaining = 501;
+      gameState.turnStartRemaining = 501;
+      gameState.bustThisTurn = false;
+      gameState.dartsUsed = 0;
+      gameState.legComplete = false;
+      gameState.history = [];
+      gameState.turnScores = [];
+      gameState.turnDartNames = [];
+      gameState.turnNumber = 1;
+      gameState.dartInTurn = 1;
+
+      // Opponent fresh match state
+      gameState.activeThrower = 'PLAYER';
+      gameState.aiRemaining = 501;
+      gameState.aiTurnStartRemaining = 501;
+      gameState.aiScriptIndex = 0;
+      gameState.aiTurnHistory = [];
+      gameState.matchOver = false;
+      gameState.winner = null;
+
+      // Sway & Breath
+      gameState.swayClock = 0.0;
+      gameState.swayAmplitude = 5.2;
+      gameState.aimX = 0.0;
+      gameState.aimY = 0.0;
+      gameState.charging = false;
+      gameState.power = null;
+      gameState.powerSweep = 0.0;
+      gameState.powerDirection = 1;
+      gameState.breath.state = 'READY';
+      gameState.breath.holdRemaining = 0.0;
+      gameState.breath.cooldownRemaining = 0.0;
+
+      playerChar.heldDart.visible = true;
+      currentOpponentChar.heldDart.visible = false;
+
+      // C8 Distractions
+      gameState.turnControlTime = 0.0;
+      gameState.flickerActive = false;
+
+      if (hudOpponentName) hudOpponentName.textContent = opp.name.toUpperCase();
+      if (sbOpponentHdr) sbOpponentHdr.textContent = opp.shortName + ' (DARTS)';
+
+      gameState.phase = 'AIMING';
+
+      updateHUD();
+      updateScoreboard();
+      updateArenaStateExport();
+    }
+
+    // --- RESET FUNCTION ---
+    function resetGame() {
+      stuckDarts.forEach(d => scene.remove(d));
+      stuckDarts.length = 0;
+
+      if (flyingDartMesh) {
+        scene.remove(flyingDartMesh);
+        flyingDartMesh = null;
+      }
+
+      internalClock = 0;
+      gameState.phase = 'READY';
+      gameState.turnNumber = 1;
+      gameState.dartInTurn = 1;
+      gameState.aimX = 0.0;
+      gameState.aimY = 0.0;
+      gameState.charging = false;
+      gameState.power = null;
+      gameState.powerSweep = 0.0;
+      gameState.powerDirection = 1;
+      gameState.scatterMm = 3.0;
+      gameState.lastDart = null;
+      gameState.turnScores = [];
+      gameState.turnDartNames = [];
+      gameState.cumulativeTotal = 0;
+
+      // Player 501
+      gameState.remaining = 501;
+      gameState.turnStartRemaining = 501;
+      gameState.bustThisTurn = false;
+      gameState.dartsUsed = 0;
+      gameState.legComplete = false;
+      gameState.history = [];
+
+      // AI Match State
+      gameState.activeThrower = 'PLAYER';
+      gameState.aiRemaining = 501;
+      gameState.aiTurnStartRemaining = 501;
+      gameState.aiScriptIndex = 0;
+      gameState.aiTurnHistory = [];
+      gameState.matchOver = false;
+      gameState.winner = null;
+
+      // League Night Reset
+      gameState.matchIndex = 0;
+      gameState.opponentName = 'Rookie Rob';
+      gameState.leagueStandings = [
+        { name: 'You', player: 'You', participant: 'You', wins: 0, losses: 0, points: 0 },
+        { name: 'Rookie Rob', player: 'Rookie Rob', participant: 'Rookie Rob', wins: 0, losses: 0, points: 0 },
+        { name: 'Veteran Val', player: 'Veteran Val', participant: 'Veteran Val', wins: 0, losses: 0, points: 0 },
+        { name: 'Champion Chelsea', player: 'Champion Chelsea', participant: 'Champion Chelsea', wins: 0, losses: 0, points: 0 }
+      ];
+      gameState.leagueDartsUsed = [];
+      setOpponentModel(0);
+      if (hudOpponentName) hudOpponentName.textContent = 'ROOKIE ROB';
+      if (sbOpponentHdr) sbOpponentHdr.textContent = 'ROB (DARTS)';
+      if (sbTitleText) sbTitleText.textContent = 'MATCH SCOREBOARD';
+      if (hudLegIndicator) hudLegIndicator.style.display = 'none';
+
+      // C10 Championship Final Reset
+      gameState.inFinal = false;
+      gameState.legNumber = 1;
+      gameState.legsWonPlayer = 0;
+      gameState.legsWonOpponent = 0;
+      gameState.finalOpponent = null;
+      gameState.finalDartsUsed = [];
+      gameState.finalTurnScores = [];
+      gameState.finalBusts = 0;
+      gameState.dartsPerLeg = null;
+      gameState.highestTurn = null;
+      gameState.busts = 0;
+      gameState.rating = null;
+
+      // Sway & Breath
+      gameState.swayClock = 0.0;
+      gameState.swayAmplitude = 5.2;
+      gameState.swayOffsetX = 0.0;
+      gameState.swayOffsetY = 0.0;
+      gameState.breath.state = 'READY';
+      gameState.breath.holdRemaining = 0.0;
+      gameState.breath.cooldownRemaining = 0.0;
+
+      // Distractions
+      gameState.turnControlTime = 0.0;
+      gameState.flickerActive = false;
+
+      playerChar.heldDart.visible = true;
+      currentOpponentChar.heldDart.visible = false;
+      startOverlay.style.display = 'flex';
+      scorePopup.classList.remove('active');
+      bustBanner.classList.remove('active');
+      turnBanner.className = '';
+      currentTurnBannerDuration = 1.2;
+      matchEndBanner.classList.remove('active');
+      matchIntroBanner.classList.remove('active');
+      leaguePanel.classList.remove('active');
+      leagueCompleteBanner.classList.remove('active');
+      settlementBanner.classList.remove('active');
+
+      updateHUD();
+      updateScoreboard();
+      updateArenaStateExport();
+    }
+
+    // --- TRANSITION TURNS ---
+    function switchTurn() {
+      stuckDarts.forEach(d => scene.remove(d));
+      stuckDarts.length = 0;
+
+      gameState.dartInTurn = 1;
+      gameState.turnScores = [];
+      gameState.turnDartNames = [];
+      bustBanner.classList.remove('active');
+      turnBanner.className = '';
+      currentTurnBannerDuration = 1.2;
+
+      const opp = OPPONENTS[gameState.matchIndex];
+      if (gameState.activeThrower === 'PLAYER') {
+        gameState.activeThrower = opp.shortName;
+        gameState.phase = 'ROB_TURN';
+        gameState.turnControlTime = 0.0;
+        gameState.flickerActive = false;
+        gameState.aiTurnStartRemaining = gameState.aiRemaining;
+        playerChar.heldDart.visible = false;
+        currentOpponentChar.heldDart.visible = true;
+        robThrowTimer = 0.8;
+      } else {
+        gameState.turnNumber += 1;
+        gameState.activeThrower = 'PLAYER';
+        gameState.phase = 'AIMING';
+        gameState.turnControlTime = 0.0;
+        gameState.flickerActive = false;
+        gameState.turnStartRemaining = gameState.remaining;
+        gameState.bustThisTurn = false;
+        gameState.swayAmplitude = 5.2;
+        playerChar.heldDart.visible = true;
+        currentOpponentChar.heldDart.visible = false;
+      }
+
+      updateHUD();
+      updateScoreboard();
+      updateArenaStateExport();
+    }
+
+    function advanceToNextPlayerDart() {
+      if (gameState.dartInTurn < 3) {
+        gameState.dartInTurn += 1;
+        gameState.phase = 'AIMING';
+        gameState.charging = false;
+        gameState.power = null;
+        gameState.powerSweep = 0.0;
+        gameState.powerDirection = 1;
+        gameState.swayAmplitude = 5.2;
+        playerChar.heldDart.visible = true;
+        updateHUD();
+        updateScoreboard();
+        updateArenaStateExport();
+      } else {
+        finishPlayerTurn(false);
+      }
+    }
+
+    function finishPlayerTurn(isBust) {
+      if (isBust) {
+        if (gameState.inFinal) gameState.finalBusts += 1;
+        gameState.remaining = gameState.turnStartRemaining;
+        gameState.bustThisTurn = true;
+        gameState.phase = 'BUSTED';
+        bustBannerTimer = 0;
+        audio.playBustBuzz();
+
+        gameState.history.push({
+          turn: gameState.turnNumber,
+          darts: [...gameState.turnDartNames],
+          total: 'BUST',
+          remaining: gameState.remaining,
+          bust: true
+        });
+
+        bustBanner.classList.add('active');
+        updateHUD();
+        updateScoreboard();
+        updateArenaStateExport();
+      } else {
+        const turnTotal = gameState.turnScores.reduce((a, b) => a + b, 0);
+        gameState.cumulativeTotal += turnTotal;
+        if (gameState.inFinal) gameState.finalTurnScores.push(turnTotal);
+
+        gameState.history.push({
+          turn: gameState.turnNumber,
+          darts: [...gameState.turnDartNames],
+          total: turnTotal,
+          remaining: gameState.remaining,
+          bust: false
+        });
+
+        showTurnBanner('PLAYER', turnTotal, gameState.remaining, gameState.turnDartNames);
+        updateHUD();
+        updateScoreboard();
+        updateArenaStateExport();
+      }
+    }
+
+    function finishRobTurn() {
+      const turnTotal = gameState.turnScores.reduce((a, b) => a + b, 0);
+
+      gameState.aiTurnHistory.push({
+        turn: gameState.turnNumber,
+        darts: [...gameState.turnDartNames],
+        total: turnTotal,
+        remaining: gameState.aiRemaining,
+        bust: false
+      });
+
+      const opp = OPPONENTS[gameState.matchIndex];
+      showTurnBanner(opp.shortName, turnTotal, gameState.aiRemaining, gameState.turnDartNames);
+      updateHUD();
+      updateScoreboard();
+      updateArenaStateExport();
+    }
+
+    // --- C10 CHAMPIONSHIP FINAL LOGIC ---
+    function determineFinalOpponent() {
+      const chelseaPts = gameState.leagueStandings.find(s => s.name === 'Champion Chelsea').points;
+      const valPts = gameState.leagueStandings.find(s => s.name === 'Veteran Val').points;
+      const robPts = gameState.leagueStandings.find(s => s.name === 'Rookie Rob').points;
+      const list = [
+        { name: 'Champion Chelsea', points: chelseaPts, prec: 3 },
+        { name: 'Veteran Val', points: valPts, prec: 2 },
+        { name: 'Rookie Rob', points: robPts, prec: 1 }
+      ];
+      list.sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        return b.prec - a.prec;
+      });
+      return list[0].name;
+    }
+
+    function showFinalIntro() {
+      const finalOppName = determineFinalOpponent();
+      gameState.finalOpponent = finalOppName;
+      gameState.inFinal = true;
+      gameState.legNumber = 1;
+      gameState.legsWonPlayer = 0;
+      gameState.legsWonOpponent = 0;
+      gameState.finalDartsUsed = [];
+      gameState.finalTurnScores = [];
+      gameState.finalBusts = 0;
+      gameState.phase = 'FINAL_INTRO';
+
+      const oppIdx = OPPONENTS.findIndex(o => o.name === finalOppName);
+      gameState.matchIndex = oppIdx;
+      gameState.opponentName = finalOppName;
+      const opp = OPPONENTS[oppIdx];
+
+      introMatchNum.textContent = 'CHAMPIONSHIP FINAL';
+      introOppName.textContent = `vs. ${finalOppName.toUpperCase()}`;
+      introOppDesc.innerHTML = `Best of 3 Legs &bull; First to 2 Legs Wins &bull; ${opp.desc}`;
+      introPromptText.innerHTML = 'Press <strong>Enter</strong> to Begin the Final';
+
+      setOpponentModel(oppIdx);
+      currentOpponentChar.heldDart.visible = false;
+
+      leaguePanel.classList.remove('active');
+      matchEndBanner.classList.remove('active');
+      matchIntroBanner.classList.add('active');
+
+      updateHUD();
+      updateArenaStateExport();
+    }
+
+    function startFinalLeg(legNum) {
+      audio.init();
+      gameState.inFinal = true;
+      gameState.legNumber = legNum;
+      const oppIdx = OPPONENTS.findIndex(o => o.name === gameState.finalOpponent);
+      gameState.matchIndex = oppIdx;
+      gameState.opponentName = gameState.finalOpponent;
+      const opp = OPPONENTS[oppIdx];
+
+      matchIntroBanner.classList.remove('active');
+      matchEndBanner.classList.remove('active');
+      settlementBanner.classList.remove('active');
+      leaguePanel.classList.remove('active');
+      startOverlay.style.display = 'none';
+      bustBanner.classList.remove('active');
+      turnBanner.className = '';
+      currentTurnBannerDuration = 1.2;
+
+      stuckDarts.forEach(d => scene.remove(d));
+      stuckDarts.length = 0;
+      if (flyingDartMesh) {
+        scene.remove(flyingDartMesh);
+        flyingDartMesh = null;
+      }
+
+      setOpponentModel(oppIdx);
+
+      // Fresh 501 for this leg
+      gameState.remaining = 501;
+      gameState.turnStartRemaining = 501;
+      gameState.bustThisTurn = false;
+      gameState.dartsUsed = 0;
+      gameState.legComplete = false;
+      gameState.history = [];
+      gameState.turnScores = [];
+      gameState.turnDartNames = [];
+      gameState.turnNumber = 1;
+      gameState.dartInTurn = 1;
+
+      // Leg starting thrower: player in legs 1 and 3, opponent in leg 2
+      const isPlayerFirst = (legNum === 1 || legNum === 3);
+      gameState.activeThrower = isPlayerFirst ? 'PLAYER' : opp.shortName;
+      gameState.aiRemaining = 501;
+      gameState.aiTurnStartRemaining = 501;
+      gameState.aiScriptIndex = 0;
+      gameState.aiTurnHistory = [];
+      gameState.matchOver = false;
+      gameState.winner = null;
+
+      // Sway & Breath
+      gameState.swayClock = 0.0;
+      gameState.swayAmplitude = 5.2;
+      gameState.aimX = 0.0;
+      gameState.aimY = 0.0;
+      gameState.charging = false;
+      gameState.power = null;
+      gameState.powerSweep = 0.0;
+      gameState.powerDirection = 1;
+      gameState.breath.state = 'READY';
+      gameState.breath.holdRemaining = 0.0;
+      gameState.breath.cooldownRemaining = 0.0;
+
+      // Distractions
+      gameState.turnControlTime = 0.0;
+      gameState.flickerActive = false;
+
+      playerChar.heldDart.visible = isPlayerFirst;
+      currentOpponentChar.heldDart.visible = !isPlayerFirst;
+      if (!isPlayerFirst) {
+        robThrowTimer = 0.8;
+        gameState.phase = 'ROB_TURN';
+      } else {
+        gameState.phase = 'AIMING';
+      }
+
+      if (hudOpponentName) hudOpponentName.textContent = opp.name.toUpperCase();
+      if (sbOpponentHdr) sbOpponentHdr.textContent = opp.shortName + ' (DARTS)';
+      if (sbTitleText) sbTitleText.textContent = `FINAL — LEG ${legNum}`;
+
+      updateHUD();
+      updateScoreboard();
+      updateArenaStateExport();
+    }
+
+    function handleFinalLegEnd(winnerName) {
+      gameState.legComplete = true;
+      audio.playLegWinningSound();
+
+      // Record player darts used in this leg
+      gameState.finalDartsUsed.push(gameState.dartsUsed);
+
+      const oppIdx = OPPONENTS.findIndex(o => o.name === gameState.finalOpponent);
+      const opp = OPPONENTS[oppIdx];
+
+      if (winnerName === 'PLAYER') {
+        gameState.legsWonPlayer += 1;
+        const turnTotal = gameState.turnScores.reduce((a, b) => a + b, 0);
+        gameState.cumulativeTotal += turnTotal;
+        gameState.finalTurnScores.push(turnTotal);
+        gameState.history.push({
+          turn: gameState.turnNumber,
+          darts: [...gameState.turnDartNames],
+          total: turnTotal,
+          remaining: 0,
+          bust: false
+        });
+      } else {
+        gameState.legsWonOpponent += 1;
+        const turnTotal = gameState.turnScores.reduce((a, b) => a + b, 0);
+        gameState.aiTurnHistory.push({
+          turn: gameState.turnNumber,
+          darts: [...gameState.turnDartNames],
+          total: turnTotal,
+          remaining: 0,
+          bust: false
+        });
+      }
+
+      playerChar.heldDart.visible = false;
+      currentOpponentChar.heldDart.visible = false;
+
+      // Check if a side won 2 legs
+      if (gameState.legsWonPlayer === 2 || gameState.legsWonOpponent === 2) {
+        gameState.matchOver = true;
+        gameState.winner = (gameState.legsWonPlayer === 2) ? 'PLAYER' : gameState.finalOpponent;
+        showChampionshipSettlement();
+      } else {
+        gameState.phase = 'FINAL_LEG_END';
+        matchEndTitle.textContent = (winnerName === 'PLAYER') ? 'LEG WON!' : `${opp.shortName} WINS LEG!`;
+        matchEndBanner.className = 'active' + (winnerName !== 'PLAYER' ? ' win-rob' : '');
+        matchEndStats.innerHTML = `
+          <strong>Score:</strong> You ${gameState.legsWonPlayer} – ${gameState.legsWonOpponent} ${opp.shortName}<br>
+          <strong>Leg ${gameState.legNumber} Darts:</strong> ${gameState.dartsUsed}
+        `;
+        matchEndPrompt.innerHTML = `Press <strong>Enter</strong> to Start Leg ${gameState.legNumber + 1}`;
+      }
+
+      updateHUD();
+      updateScoreboard();
+      updateArenaStateExport();
+    }
+
+    function showChampionshipSettlement() {
+      const legsPlayed = gameState.finalDartsUsed.length;
+      const totalDarts = gameState.finalDartsUsed.reduce((a, b) => a + b, 0);
+      const dartsPerLeg = legsPlayed > 0 ? Number((totalDarts / legsPlayed).toFixed(1)) : 0.0;
+      const highestTurn = gameState.finalTurnScores.length > 0 ? Math.max(...gameState.finalTurnScores) : 0;
+      const busts = gameState.finalBusts;
+
+      const wonFinal = (gameState.legsWonPlayer === 2);
+      let rating = 'RUNNER-UP';
+      if (wonFinal) {
+        if (busts === 0 && highestTurn >= 140) {
+          rating = 'PUB LEGEND';
+        } else if (busts === 0) {
+          rating = 'SHARPSHOOTER';
+        } else {
+          rating = 'CHAMPION';
+        }
+      } else {
+        rating = 'RUNNER-UP';
+      }
+
+      gameState.dartsPerLeg = dartsPerLeg;
+      gameState.highestTurn = highestTurn;
+      gameState.busts = busts;
+      gameState.rating = rating;
+      gameState.phase = 'SETTLEMENT';
+
+      settleHeadline.textContent = wonFinal ? 'YOU ARE THE CHAMPION!' : `${gameState.finalOpponent.toUpperCase()} WINS THE FINAL`;
+      settleRating.textContent = rating;
+
+      let leagueRows = '';
+      gameState.leagueStandings.forEach((st) => {
+        const isUser = (st.name === 'You');
+        leagueRows += `
+          <tr class="${isUser ? 'highlight' : ''}">
+            <td>${st.name}</td>
+            <td>${st.wins}</td>
+            <td>${st.losses}</td>
+            <td><strong>${st.points}</strong></td>
+          </tr>
+        `;
+      });
+
+      settleStats.innerHTML = `
+        <div style="margin-bottom:8px;">
+          <strong>Final Result:</strong> You ${gameState.legsWonPlayer} – ${gameState.legsWonOpponent} ${gameState.finalOpponent}<br>
+          <strong>Darts per Leg:</strong> ${dartsPerLeg.toFixed(1)} &bull; <strong>Highest Turn:</strong> ${highestTurn} &bull; <strong>Busts:</strong> ${busts}
+        </div>
+        <div style="font-weight:bold; color:#ffd700; margin:10px 0 4px 0;">FINAL LEAGUE TABLE RECAP</div>
+        <table class="league-table">
+          <thead><tr><th>PARTICIPANT</th><th>W</th><th>L</th><th>PTS</th></tr></thead>
+          <tbody>${leagueRows}</tbody>
+        </table>
+      `;
+
+      matchEndBanner.classList.remove('active');
+      settlementBanner.classList.add('active');
+    }
+
+    function handleMatchEnd(winnerName) {
+      if (gameState.inFinal) {
+        handleFinalLegEnd(winnerName);
+        return;
+      }
+
+      gameState.matchOver = true;
+      gameState.legComplete = true;
+      gameState.winner = winnerName;
+
+      playerChar.heldDart.visible = false;
+      currentOpponentChar.heldDart.visible = false;
+      audio.playLegWinningSound();
+
+      // Record darts used by player in this match
+      gameState.leagueDartsUsed[gameState.matchIndex] = gameState.dartsUsed;
+
+      const opp = OPPONENTS[gameState.matchIndex];
+
+      if (winnerName === 'PLAYER') {
+        const turnTotal = gameState.turnScores.reduce((a, b) => a + b, 0);
+        gameState.cumulativeTotal += turnTotal;
+        gameState.history.push({
+          turn: gameState.turnNumber,
+          darts: [...gameState.turnDartNames],
+          total: turnTotal,
+          remaining: 0,
+          bust: false
+        });
+        gameState.leagueStandings[0].wins += 1;
+        gameState.leagueStandings[0].points += 2;
+        gameState.leagueStandings[gameState.matchIndex + 1].losses += 1;
+        matchEndTitle.textContent = 'YOU WIN';
+        matchEndBanner.className = 'active';
+      } else {
+        const turnTotal = gameState.turnScores.reduce((a, b) => a + b, 0);
+        gameState.aiTurnHistory.push({
+          turn: gameState.turnNumber,
+          darts: [...gameState.turnDartNames],
+          total: turnTotal,
+          remaining: 0,
+          bust: false
+        });
+        gameState.leagueStandings[0].losses += 1;
+        gameState.leagueStandings[gameState.matchIndex + 1].wins += 1;
+        gameState.leagueStandings[gameState.matchIndex + 1].points += 2;
+        matchEndTitle.textContent = `${opp.name.toUpperCase()} WINS THE MATCH`;
+        matchEndBanner.className = 'active win-rob';
+      }
+
+      renderLeagueTable();
+
+      const playerAvg = gameState.dartsUsed > 0 ? (501 / gameState.dartsUsed).toFixed(1) : '0.0';
+      const oppAvg = gameState.aiScriptIndex > 0 ? (501 / gameState.aiScriptIndex).toFixed(1) : '0.0';
+      matchEndStats.innerHTML = `
+        <strong>Your Darts:</strong> ${gameState.dartsUsed} &bull; <strong>Average:</strong> ${playerAvg}<br>
+        <strong>${opp.name}'s Darts:</strong> ${gameState.aiScriptIndex} &bull; <strong>Average:</strong> ${oppAvg}
+      `;
+
+      if (gameState.matchIndex < 2) {
+        gameState.phase = 'MATCH_END';
+        matchEndPrompt.innerHTML = `Press <strong>Enter</strong> for Match ${gameState.matchIndex + 2} (${OPPONENTS[gameState.matchIndex + 1].name}) &bull; <span class="key-badge">L</span> Standings`;
+      } else {
+        // Match 3 complete: show final league table for 2s, then proceed to Championship Final intro banner
+        gameState.phase = 'LEAGUE_RECAP';
+        leagueRecapTimer = 2.0;
+        matchEndBanner.classList.remove('active');
+        toggleLeaguePanel(true);
+      }
+
+      updateHUD();
+      updateScoreboard();
+      updateArenaStateExport();
+    }
+
+    // --- HUD & SCOREBOARD UPDATE ---
+    function updateHUD() {
+      hudPlayerRem.textContent = gameState.remaining;
+      hudPlayerDarts.textContent = gameState.dartsUsed;
+      hudRobRem.textContent = gameState.aiRemaining;
+      hudRobDarts.textContent = gameState.aiScriptIndex;
+
+      const opp = OPPONENTS[gameState.matchIndex];
+      if (gameState.activeThrower === 'PLAYER') {
+        cardPlayer.classList.add('active-turn');
+        cardRob.classList.remove('active-turn');
+        hudThrowerBanner.className = 'active-thrower-banner';
+        hudThrowerBanner.textContent = 'YOUR THROW';
+      } else {
+        cardPlayer.classList.remove('active-turn');
+        cardRob.classList.add('active-turn');
+        hudThrowerBanner.className = 'active-thrower-banner rob';
+        hudThrowerBanner.textContent = `${opp.shortName}'S THROW`;
+      }
+
+      hudTurnNum.textContent = gameState.turnNumber;
+      hudDartNum.textContent = gameState.dartInTurn;
+
+      for (let i = 0; i < 3; i++) {
+        if (i < gameState.dartInTurn) {
+          pips[i].classList.add('filled');
+        } else {
+          pips[i].classList.remove('filled');
+        }
+      }
+
+      const isPlayerAiming = (gameState.activeThrower === 'PLAYER' && (gameState.phase === 'AIMING' || gameState.phase === 'CHARGING'));
+      reticleGroup.visible = isPlayerAiming;
+      if (isPlayerAiming) {
+        const effectiveX = gameState.aimX + gameState.swayOffsetX;
+        const effectiveY = gameState.aimY + gameState.swayOffsetY;
+        reticleGroup.position.x = BOARD_POS.x + (effectiveX * SCALE);
+        reticleGroup.position.y = BOARD_POS.y + (effectiveY * SCALE);
+      }
+
+      if (gameState.phase === 'CHARGING') {
+        const p = Math.round(gameState.powerSweep);
+        powerFill.style.width = `${gameState.powerSweep}%`;
+        powerText.textContent = `${p}%`;
+        scatterReadout.textContent = `SCATTER ±${gameState.scatterMm.toFixed(1)} mm`;
+      } else {
+        powerFill.style.width = '0%';
+        powerText.textContent = '0%';
+        scatterReadout.textContent = `SCATTER ±3.0 mm`;
+      }
+
+      if (gameState.breath.state === 'HELD') {
+        breathStatusEl.className = 'held';
+        breathStatusEl.textContent = `BREATH: HELD ${gameState.breath.holdRemaining.toFixed(1)}s`;
+      } else if (gameState.breath.state === 'COOLDOWN') {
+        breathStatusEl.className = 'cooldown';
+        breathStatusEl.textContent = `BREATH: COOLDOWN ${gameState.breath.cooldownRemaining.toFixed(1)}s`;
+      } else {
+        breathStatusEl.className = 'ready';
+        breathStatusEl.textContent = 'BREATH: READY';
+      }
+
+      if (hudLegIndicator) {
+        if (gameState.inFinal) {
+          hudLegIndicator.style.display = 'block';
+          hudLegIndicator.textContent = `LEG ${gameState.legNumber} \u2022 LEGS ${gameState.legsWonPlayer}–${gameState.legsWonOpponent}`;
+        } else {
+          hudLegIndicator.style.display = 'none';
+        }
+      }
+    }
+
+    function updateScoreboard() {
+      let html = '';
+      const maxTurns = Math.max(gameState.history.length, gameState.aiTurnHistory.length);
+      const startTurn = Math.max(0, maxTurns - 8);
+
+      for (let i = startTurn; i < maxTurns; i++) {
+        const pRow = gameState.history[i];
+        const rRow = gameState.aiTurnHistory[i];
+
+        let pHtml = '—';
+        if (pRow) {
+          if (pRow.bust) {
+            const dHtml = pRow.darts.map(d => `<span class="void-score">${d}</span>`).join(' ');
+            pHtml = `<span>${dHtml}</span> <span style="color:#ff4444;font-weight:bold;">BST</span> <span class="sb-rem">${pRow.remaining}</span>`;
+          } else {
+            pHtml = `<span>${pRow.darts.join(' ')}</span> <span>+${pRow.total}</span> <span class="sb-rem">${pRow.remaining}</span>`;
+          }
+        }
+
+        let rHtml = '—';
+        if (rRow) {
+          rHtml = `<span>${rRow.darts.join(' ')}</span> <span>+${rRow.total}</span> <span class="sb-rem">${rRow.remaining}</span>`;
+        }
+
+        html += `
+          <div class="sb-row">
+            <div class="sb-half">${pHtml}</div>
+            <div class="sb-sep"></div>
+            <div class="sb-half">${rHtml}</div>
+          </div>
+        `;
+      }
+
+      if (!gameState.matchOver && gameState.phase !== 'READY') {
+        let pLive = '...', rLive = '...';
+        if (gameState.activeThrower === 'PLAYER') {
+          const liveDarts = gameState.turnDartNames.join(' ');
+          const liveTotal = gameState.turnScores.reduce((a, b) => a + b, 0);
+          pLive = `<span>${liveDarts || '...'}</span> <span>${liveTotal > 0 ? '+' + liveTotal : ''}</span> <span class="sb-rem">${gameState.remaining}</span>`;
+        } else {
+          const liveDarts = gameState.turnDartNames.join(' ');
+          const liveTotal = gameState.turnScores.reduce((a, b) => a + b, 0);
+          rLive = `<span>${liveDarts || '...'}</span> <span>${liveTotal > 0 ? '+' + liveTotal : ''}</span> <span class="sb-rem">${gameState.aiRemaining}</span>`;
+        }
+        const isOppCurrent = (gameState.activeThrower !== 'PLAYER');
+        html += `
+          <div class="sb-row">
+            <div class="sb-half ${gameState.activeThrower === 'PLAYER' ? 'current' : ''}">${pLive}</div>
+            <div class="sb-sep"></div>
+            <div class="sb-half ${isOppCurrent ? 'current' : ''}">${rLive}</div>
+          </div>
+        `;
+      }
+
+      scoreboardBody.innerHTML = html;
+    }
+
+    // --- HOLD BREATH ---
+    function tryHoldBreath() {
+      const canHold = (gameState.activeThrower === 'PLAYER' && (gameState.phase === 'AIMING' || gameState.phase === 'CHARGING'));
+      if (canHold && gameState.breath.state === 'READY') {
+        gameState.breath.state = 'HELD';
+        gameState.breath.holdRemaining = 3.0;
+        gameState.breath.cooldownRemaining = 8.0;
+        audio.playInhaleHoldCue();
+        updateHUD();
+        updateArenaStateExport();
+      }
+    }
+
+    // --- INPUT HANDLING ---
+    window.addEventListener('keydown', (e) => {
+      audio.init();
+
+      if (e.code === 'KeyR') {
+        resetGame();
+        return;
+      }
+
+      if (e.code === 'KeyL') {
+        toggleLeaguePanel();
+        return;
+      }
+
+      if (gameState.phase === 'READY') {
+        if (e.code === 'Enter') {
+          showMatchIntro(0);
+        }
+        return;
+      }
+
+      if (gameState.phase === 'MATCH_INTRO') {
+        if (e.code === 'Enter') {
+          startMatch(gameState.matchIndex);
+        }
+        return;
+      }
+
+      if (gameState.phase === 'MATCH_END') {
+        if (e.code === 'Enter') {
+          if (gameState.matchIndex < 2) {
+            showMatchIntro(gameState.matchIndex + 1);
+          }
+        }
+        return;
+      }
+
+      if (gameState.phase === 'FINAL_INTRO') {
+        if (e.code === 'Enter') {
+          startFinalLeg(1);
+        }
+        return;
+      }
+
+      if (gameState.phase === 'FINAL_LEG_END') {
+        if (e.code === 'Enter') {
+          startFinalLeg(gameState.legNumber + 1);
+        }
+        return;
+      }
+
+      if (gameState.phase === 'SETTLEMENT' || gameState.phase === 'LEAGUE_COMPLETE') {
+        if (e.code === 'Enter' || e.code === 'KeyR') {
+          resetGame();
+        }
+        return;
+      }
+
+      if (e.code === 'KeyB') {
+        tryHoldBreath();
+        return;
+      }
+
+      if (gameState.activeThrower === 'PLAYER' && gameState.phase === 'AIMING') {
+        const STEP = 5.0;
+        const LIMIT = 170.0;
+        let changed = false;
+
+        if (e.code === 'ArrowLeft') {
+          gameState.aimX = Math.max(-LIMIT, gameState.aimX - STEP);
+          changed = true;
+          e.preventDefault();
+        } else if (e.code === 'ArrowRight') {
+          gameState.aimX = Math.min(LIMIT, gameState.aimX + STEP);
+          changed = true;
+          e.preventDefault();
+        } else if (e.code === 'ArrowDown') {
+          gameState.aimY = Math.max(-LIMIT, gameState.aimY - STEP);
+          changed = true;
+          e.preventDefault();
+        } else if (e.code === 'ArrowUp') {
+          gameState.aimY = Math.min(LIMIT, gameState.aimY + STEP);
+          changed = true;
+          e.preventDefault();
+        }
+
+        if (e.code === 'Space' && !e.repeat) {
+          gameState.phase = 'CHARGING';
+          gameState.charging = true;
+          gameState.powerSweep = 0.0;
+          gameState.powerDirection = 1;
+          gameState.power = 0.0;
+          changed = true;
+          e.preventDefault();
+        }
+
+        if (changed) {
+          updateHUD();
+          updateArenaStateExport();
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (gameState.activeThrower === 'PLAYER' && e.code === 'Space' && gameState.phase === 'CHARGING') {
+        const P = Math.min(100, Math.max(0, gameState.powerSweep));
+        gameState.charging = false;
+        gameState.power = P;
+        executePlayerThrow(P);
+      }
+    });
+
+    // --- PLAYER THROW ---
+    function executePlayerThrow(P) {
+      gameState.phase = 'FLYING';
+      playerChar.heldDart.visible = false;
+      gameState.dartsUsed += 1;
+      audio.playWhoosh();
+
+      const verticalShift = (P - 70.0) * 1.2;
+      const landingX = gameState.aimX + gameState.swayOffsetX;
+      const landingY = gameState.aimY + gameState.swayOffsetY + verticalShift;
+
+      gameState.swayAmplitude = 5.2;
+
+      landingResult = scoreHit(landingX, landingY);
+
+      flyingDartMesh = createDartMesh();
+      scene.add(flyingDartMesh);
+
+      flightStartPos.set(playerChar.group.position.x + 0.8, 15.4, playerChar.group.position.z - 2.0);
+      flightEndPos.set(BOARD_POS.x + (landingResult.x * SCALE), BOARD_POS.y + (landingResult.y * SCALE), dartboard.position.z + 0.1);
+
+      flightProgress = 0;
+      updateHUD();
+      updateArenaStateExport();
+    }
+
+    // --- OPPONENT SCRIPTED THROW ---
+    function executeRobThrow() {
+      const activeScript = OPPONENTS[gameState.matchIndex].script;
+      if (gameState.aiScriptIndex >= activeScript.length) return;
+
+      const scriptItem = activeScript[gameState.aiScriptIndex];
+      gameState.aiScriptIndex += 1;
+
+      gameState.phase = 'FLYING';
+      currentOpponentChar.heldDart.visible = false;
+      audio.playWhoosh();
+
+      landingResult = scoreHit(scriptItem.targetX, scriptItem.targetY);
+
+      flyingDartMesh = createDartMesh();
+      scene.add(flyingDartMesh);
+
+      flightStartPos.set(currentOpponentChar.group.position.x + 0.2, 15.2, currentOpponentChar.group.position.z - 1.5);
+      flightEndPos.set(BOARD_POS.x + (landingResult.x * SCALE), BOARD_POS.y + (landingResult.y * SCALE), dartboard.position.z + 0.1);
+
+      currentOpponentChar.throwingElbow.rotation.x = 0.5;
+      flightProgress = 0;
+
+      updateHUD();
+      updateArenaStateExport();
+    }
+
+    // --- GAME LOOP & ANIMATION ---
+    const DT = 1.0 / 60.0;
+
+    function gameUpdate() {
+      if (gameState.phase !== 'READY' && gameState.phase !== 'GAME_SHOT' && gameState.phase !== 'MATCH_INTRO' && gameState.phase !== 'MATCH_END' && gameState.phase !== 'LEAGUE_COMPLETE' && gameState.phase !== 'FINAL_INTRO' && gameState.phase !== 'FINAL_LEG_END' && gameState.phase !== 'SETTLEMENT') {
+        internalClock += DT;
+      }
+
+      // League recap countdown to Championship Final
+      if (gameState.phase === 'LEAGUE_RECAP') {
+        leagueRecapTimer -= DT;
+        if (leagueRecapTimer <= 0) {
+          toggleLeaguePanel(false);
+          showFinalIntro();
+        }
+      }
+
+      // Pub Distractions (Turns 2, 4, 6 only at 1.5s - 2.0s into player turn)
+      const isPlayerTurn = (gameState.activeThrower === 'PLAYER' && !gameState.matchOver && gameState.phase !== 'READY' && gameState.phase !== 'MATCH_INTRO' && gameState.phase !== 'MATCH_END' && gameState.phase !== 'LEAGUE_COMPLETE' && gameState.phase !== 'FINAL_INTRO' && gameState.phase !== 'FINAL_LEG_END' && gameState.phase !== 'SETTLEMENT');
+
+      if (isPlayerTurn) {
+        gameState.turnControlTime += DT;
+
+        const isFlickerTurn = (gameState.turnNumber === 2 || gameState.turnNumber === 4 || gameState.turnNumber === 6);
+        const inFlickerWindow = (gameState.turnControlTime >= 1.5 && gameState.turnControlTime < 2.0);
+        const shouldFlicker = (isFlickerTurn && inFlickerWindow);
+
+        const wasFlicker = gameState.flickerActive;
+        gameState.flickerActive = shouldFlicker;
+
+        if (!wasFlicker && gameState.flickerActive) {
+          audio.playCrowdNoiseBurst();
+        }
+      } else {
+        gameState.turnControlTime = 0.0;
+        gameState.flickerActive = false;
+      }
+
+      // 1. Lamp Sway & Pub Strobe / Dimming
+      lampGroup.rotation.z = Math.sin(internalClock * 1.96) * 0.055;
+      lampGroup.rotation.x = Math.cos(internalClock * 1.45) * 0.035;
+
+      if (gameState.flickerActive) {
+        const strobe = (Math.sin(internalClock * 62.8) > 0.0) ? 0.22 : 0.85;
+        boardSpot.intensity = 3.8 * strobe;
+        pubLight.intensity = 1.8 * (0.3 + 0.7 * Math.cos(internalClock * 45.0));
+        ambientLight.intensity = 0.65 * strobe;
+        bulbMesh.material.color.setHex(strobe < 0.5 ? 0x443311 : 0xfff0aa);
+      } else {
+        boardSpot.intensity = 3.8;
+        pubLight.intensity = 1.8;
+        ambientLight.intensity = 0.65;
+        bulbMesh.material.color.setHex(0xfff0aa);
+      }
+
+      // 2. Active Opponent subtle idle weight-shift animation
+      currentOpponentChar.group.position.y = Math.sin(internalClock * 1.8) * 0.06;
+      currentOpponentChar.headGroup.rotation.y = 0.5 + Math.sin(internalClock * 1.2) * 0.08;
+
+      // 3. Breath Hold Timers
+      if (gameState.breath.state === 'HELD') {
+        gameState.breath.holdRemaining -= DT;
+        gameState.breath.cooldownRemaining -= DT;
+        if (gameState.breath.holdRemaining <= 0) {
+          gameState.breath.holdRemaining = 0.0;
+          gameState.breath.state = 'COOLDOWN';
+          audio.playReleaseCue();
+        }
+      } else if (gameState.breath.state === 'COOLDOWN') {
+        gameState.breath.cooldownRemaining -= DT;
+        if (gameState.breath.cooldownRemaining <= 0) {
+          gameState.breath.cooldownRemaining = 0.0;
+          gameState.breath.state = 'READY';
+        }
+      }
+
+      // 4. Player Breathing Sway
+      const isPlayerAiming = (gameState.activeThrower === 'PLAYER' && (gameState.phase === 'AIMING' || gameState.phase === 'CHARGING'));
+      if (isPlayerAiming) {
+        if (gameState.breath.state !== 'HELD') {
+          gameState.swayClock += DT;
+          if (gameState.phase === 'CHARGING') {
+            gameState.swayAmplitude = Math.min(20.8, gameState.swayAmplitude + 2.6 * DT);
+          }
+          const t = gameState.swayClock;
+          let A = gameState.swayAmplitude;
+          if (gameState.flickerActive) {
+            A *= 2.0;
+          }
+          gameState.swayOffsetX = A * Math.sin(2.0 * Math.PI * t / 1.6);
+          gameState.swayOffsetY = A * Math.sin(2.0 * Math.PI * t / 2.2 + 0.9);
+        }
+      } else {
+        if (gameState.phase !== 'READY' && gameState.phase !== 'GAME_SHOT' && gameState.phase !== 'MATCH_INTRO' && gameState.phase !== 'MATCH_END' && gameState.phase !== 'LEAGUE_COMPLETE' && gameState.phase !== 'FINAL_INTRO' && gameState.phase !== 'FINAL_LEG_END' && gameState.phase !== 'SETTLEMENT') {
+          gameState.swayClock += DT;
+        }
+      }
+
+      // 5. Player Power Meter (oscillates at fixed 80 units/sec)
+      if (gameState.activeThrower === 'PLAYER' && gameState.phase === 'CHARGING') {
+        const rate = 80.0 * DT;
+        gameState.powerSweep += gameState.powerDirection * rate;
+        if (gameState.powerSweep >= 100.0) {
+          gameState.powerSweep = 100.0;
+          gameState.powerDirection = -1;
+        } else if (gameState.powerSweep <= 0.0) {
+          gameState.powerSweep = 0.0;
+          gameState.powerDirection = 1;
+        }
+        gameState.power = gameState.powerSweep;
+        gameState.scatterMm = Math.max(3.0, 2.0 * Math.abs(gameState.powerSweep - 70.0));
+        updateHUD();
+      }
+
+      // 6. Player Arm Pose
+      if (gameState.activeThrower === 'PLAYER') {
+        if (gameState.phase === 'CHARGING') {
+          const pull = gameState.powerSweep / 100.0;
+          playerChar.throwingElbow.rotation.x = -pull * 0.65;
+          playerChar.throwingElbow.position.z = -2.4 + pull * 0.4;
+        } else if (gameState.phase === 'FLYING') {
+          playerChar.throwingElbow.rotation.x = 0.45;
+          playerChar.throwingElbow.position.z = -2.6;
+        } else {
+          playerChar.throwingElbow.rotation.x = 0;
+          playerChar.throwingElbow.position.z = -2.4;
+        }
+      }
+
+      // 7. Camera Zooming / Framing
+      const isPlayerCharging = (gameState.activeThrower === 'PLAYER' && gameState.phase === 'CHARGING');
+      const targetCam = isPlayerCharging ? CAM_ZOOM : CAM_OVER_SHOULDER;
+      const camLerpSpeed = 4.5 * DT;
+      camCurrentPos.lerp(targetCam.pos, camLerpSpeed);
+      camCurrentFov += (targetCam.fov - camCurrentFov) * camLerpSpeed;
+
+      const targetLook = targetCam.lookAt.clone();
+      if (isPlayerCharging) {
+        targetLook.x = BOARD_POS.x + ((gameState.aimX + gameState.swayOffsetX) * SCALE) * 0.4;
+        targetLook.y = BOARD_POS.y + ((gameState.aimY + gameState.swayOffsetY) * SCALE) * 0.4;
+      }
+      camCurrentLook.lerp(targetLook, camLerpSpeed);
+
+      camera.position.copy(camCurrentPos);
+      camera.fov = camCurrentFov;
+      camera.updateProjectionMatrix();
+      camera.lookAt(camCurrentLook);
+
+      // 8. Active Opponent AI Throw Timer
+      if (gameState.activeThrower !== 'PLAYER' && gameState.phase === 'ROB_TURN' && !gameState.matchOver) {
+        robThrowTimer -= DT;
+        if (robThrowTimer <= 0) {
+          executeRobThrow();
+        }
+      }
+
+      // 9. Dart Flight Physics (0.6 seconds deterministic trajectory)
+      if (gameState.phase === 'FLYING' && flyingDartMesh) {
+        flightProgress += DT / FLIGHT_DURATION;
+        const u = Math.min(1.0, flightProgress);
+
+        const currentX = flightStartPos.x + (flightEndPos.x - flightStartPos.x) * u;
+        const currentZ = flightStartPos.z + (flightEndPos.z - flightStartPos.z) * u;
+        const linearY = flightStartPos.y + (flightEndPos.y - flightStartPos.y) * u;
+        const arcY = Math.sin(u * Math.PI) * 0.45;
+        const currentY = linearY + arcY;
+
+        flyingDartMesh.position.set(currentX, currentY, currentZ);
+
+        const lookT = Math.min(1.0, u + 0.05);
+        const nextX = flightStartPos.x + (flightEndPos.x - flightStartPos.x) * lookT;
+        const nextZ = flightStartPos.z + (flightEndPos.z - flightStartPos.z) * lookT;
+        const nextY = (flightStartPos.y + (flightEndPos.y - flightStartPos.y) * lookT) + Math.sin(lookT * Math.PI) * 0.45;
+        flyingDartMesh.lookAt(nextX, nextY, nextZ);
+
+        if (u >= 1.0) {
+          audio.playThud();
+
+          flyingDartMesh.position.copy(flightEndPos);
+          flyingDartMesh.rotation.set(0, 0, 0);
+          flyingDartMesh.rotation.x = 0.06;
+
+          stuckDarts.push(flyingDartMesh);
+          flyingDartMesh = null;
+
+          gameState.lastDart = {
+            x: landingResult.x,
+            y: landingResult.y,
+            distanceFromCenter: landingResult.distanceFromCenter,
+            angleDeg: landingResult.angleDeg,
+            segment: landingResult.segment,
+            ring: landingResult.ring,
+            value: landingResult.value
+          };
+
+          const dartVal = landingResult.value;
+          const dartRing = landingResult.ring;
+          const isDoubleOut = (dartRing === 'DOUBLE' || dartRing === 'INNER_BULL');
+
+          if (gameState.activeThrower === 'PLAYER') {
+            const projectedRemaining = gameState.remaining - dartVal;
+            gameState.turnScores.push(dartVal);
+            gameState.turnDartNames.push(landingResult.name);
+
+            const isBust = (projectedRemaining < 0) || (projectedRemaining === 1) || (projectedRemaining === 0 && !isDoubleOut);
+
+            if (isBust) {
+              gameState.phase = 'BUSTED';
+              bustReason.textContent = projectedRemaining < 0 ? `Below Zero (${projectedRemaining})` :
+                                       projectedRemaining === 1 ? `Left On 1 (Impossible Double)` :
+                                       `Reached 0 Without Double`;
+              finishPlayerTurn(true);
+            } else if (projectedRemaining === 0 && isDoubleOut) {
+              gameState.remaining = 0;
+              handleMatchEnd('PLAYER');
+            } else {
+              gameState.phase = 'STUCK';
+              gameState.remaining = projectedRemaining;
+
+              if (dartVal > 0) audio.playScoreChime();
+              else audio.playBuzz();
+
+              popupZone.textContent = `${landingResult.name} — ${dartVal}`;
+              popupVal.textContent = `REMAINING ${gameState.remaining}`;
+              scorePopup.classList.add('active');
+              popupTimer = 0.85;
+
+              updateHUD();
+              updateScoreboard();
+            }
+          } else {
+            const projectedRemaining = gameState.aiRemaining - dartVal;
+            gameState.turnScores.push(dartVal);
+            gameState.turnDartNames.push(landingResult.name);
+
+            const opp = OPPONENTS[gameState.matchIndex];
+            if (projectedRemaining === 0 && isDoubleOut) {
+              gameState.aiRemaining = 0;
+              handleMatchEnd(opp.name);
+            } else {
+              gameState.phase = 'STUCK';
+              gameState.aiRemaining = projectedRemaining;
+
+              if (dartVal > 0) audio.playScoreChime();
+              else audio.playBuzz();
+
+              popupZone.textContent = `${opp.shortName}: ${landingResult.name} — ${dartVal}`;
+              popupVal.textContent = `REMAINING ${gameState.aiRemaining}`;
+              scorePopup.classList.add('active');
+              popupTimer = 0.85;
+
+              updateHUD();
+              updateScoreboard();
+            }
+          }
+        }
+      }
+
+      // 10. Score popup countdown & Dart progression
+      if (popupTimer > 0) {
+        popupTimer -= DT;
+        if (popupTimer <= 0) {
+          scorePopup.classList.remove('active');
+          if (gameState.phase === 'STUCK') {
+            if (gameState.activeThrower === 'PLAYER') {
+              advanceToNextPlayerDart();
+            } else {
+              if (gameState.dartInTurn < 3) {
+                gameState.dartInTurn += 1;
+                gameState.phase = 'ROB_TURN';
+                currentOpponentChar.heldDart.visible = true;
+                robThrowTimer = ROB_THROW_INTERVAL;
+                updateHUD();
+              } else {
+                finishRobTurn();
+              }
+            }
+          }
+        }
+      }
+
+      // 11. Busted banner countdown
+      if (gameState.phase === 'BUSTED') {
+        bustBannerTimer += DT;
+        if (bustBannerTimer >= BUST_BANNER_DURATION) {
+          switchTurn();
+        }
+      }
+
+      // 12. Turn summary banner countdown
+      if (gameState.phase === 'TURN_SUMMARY') {
+        turnBannerTimer += DT;
+        if (turnBannerTimer >= currentTurnBannerDuration) {
+          switchTurn();
+        }
+      }
+
+      // 13. State Export
+      updateArenaStateExport();
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      gameUpdate();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>

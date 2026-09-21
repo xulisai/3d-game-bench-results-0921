@@ -1,0 +1,4818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fogwharf Fishing</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #03080e;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+    /* HUD Overlays */
+    #hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 24px;
+      color: #e2f1f8;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+      z-index: 10;
+    }
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      width: 100%;
+    }
+    .spot-card {
+      background: rgba(7, 24, 38, 0.75);
+      border: 1px solid rgba(80, 160, 200, 0.4);
+      padding: 10px 18px;
+      border-radius: 6px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    .spot-title {
+      font-size: 11px;
+      letter-spacing: 2px;
+      color: #79a6be;
+      text-transform: uppercase;
+    }
+    .spot-name {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: #e9f6fc;
+      margin-top: 2px;
+    }
+    .top-center-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .counters-bar {
+      background: rgba(7, 24, 38, 0.85);
+      border: 1px solid rgba(80, 160, 200, 0.4);
+      padding: 6px 16px;
+      border-radius: 20px;
+      display: flex;
+      gap: 14px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    .counter-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .counter-val {
+      font-weight: 800;
+      font-size: 13px;
+    }
+    .counter-hooks { color: #5ce6b4; }
+    .counter-early { color: #ffb85c; }
+    .counter-late  { color: #ff5c5c; }
+    .counter-snaps { color: #e63946; }
+
+    .bite-status-badge {
+      background: rgba(7, 24, 38, 0.9);
+      border: 1px solid rgba(80, 160, 200, 0.5);
+      padding: 6px 20px;
+      border-radius: 14px;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #8fb1c2;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    }
+    .bite-status-badge.waiting {
+      color: #8fb1c2;
+      border-color: rgba(80, 160, 200, 0.4);
+    }
+    .bite-status-badge.nibble {
+      color: #ffcc00;
+      border-color: #ffcc00;
+      box-shadow: 0 0 15px rgba(255, 204, 0, 0.4);
+      animation: pulseBite 0.6s infinite alternate;
+    }
+    .bite-status-badge.take {
+      color: #ff3344;
+      border-color: #ff3344;
+      font-size: 18px;
+      box-shadow: 0 0 25px rgba(255, 51, 68, 0.8);
+      animation: takeShake 0.15s infinite alternate;
+    }
+    .bite-status-badge.fight {
+      color: #70d6ff;
+      border-color: #70d6ff;
+      box-shadow: 0 0 20px rgba(112, 214, 255, 0.6);
+    }
+    .bite-status-badge.hooked {
+      color: #5ce6b4;
+      border-color: #5ce6b4;
+      box-shadow: 0 0 20px rgba(92, 230, 180, 0.6);
+    }
+    .bite-status-badge.spooked {
+      color: #ffb85c;
+      border-color: #ffb85c;
+    }
+    .bite-status-badge.missed {
+      color: #ff5c5c;
+      border-color: #ff5c5c;
+    }
+    @keyframes pulseBite {
+      from { transform: scale(1); }
+      to { transform: scale(1.06); }
+    }
+    @keyframes takeShake {
+      from { transform: scale(1.1) rotate(-1deg); }
+      to { transform: scale(1.1) rotate(1deg); }
+    }
+
+    .dex-card {
+      background: rgba(7, 24, 38, 0.75);
+      border: 1px solid rgba(80, 160, 200, 0.4);
+      padding: 10px 18px;
+      border-radius: 6px;
+      text-align: right;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      min-width: 280px;
+    }
+    .dex-count {
+      font-size: 20px;
+      font-weight: 700;
+      color: #5ce6b4;
+      letter-spacing: 1px;
+    }
+    .dex-list {
+      font-size: 11px;
+      color: #a0c2d3;
+      margin-top: 6px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: flex-end;
+      max-width: 290px;
+    }
+    .dex-item.caught {
+      color: #5ce6b4;
+      font-weight: 600;
+    }
+    .dex-item.uncaught {
+      color: #436375;
+      text-decoration: line-through;
+    }
+
+    /* Sinker Selection & Depth Gauge (Round 4) */
+    .sinker-card {
+      margin-top: 8px;
+      border-top: 1px solid rgba(80, 160, 200, 0.3);
+      padding-top: 6px;
+    }
+    .sinker-title {
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      color: #79a6be;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .sinker-selector {
+      display: flex;
+      gap: 6px;
+      margin-top: 5px;
+    }
+    .sinker-badge {
+      padding: 3px 8px;
+      font-size: 11px;
+      border-radius: 4px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: rgba(8, 28, 44, 0.85);
+      border: 1px solid rgba(80, 160, 200, 0.4);
+      color: #8fb1c2;
+      cursor: pointer;
+      pointer-events: auto;
+      transition: all 0.2s ease;
+    }
+    .sinker-badge:hover {
+      border-color: #70d6ff;
+      color: #fff;
+    }
+    .sinker-badge.active {
+      background: #2a9d8f;
+      border-color: #5ce6b4;
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(92, 230, 180, 0.5);
+    }
+    .depth-gauge-container {
+      margin-top: 8px;
+      background: rgba(4, 16, 26, 0.9);
+      border: 1px solid rgba(80, 160, 200, 0.5);
+      border-radius: 5px;
+      padding: 6px 10px;
+      display: none;
+    }
+    .depth-gauge-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #70d6ff;
+    }
+    .depth-gauge-val {
+      color: #5ce6b4;
+    }
+    .depth-gauge-bar {
+      width: 100%;
+      height: 6px;
+      background: rgba(2, 10, 18, 0.95);
+      border: 1px solid rgba(120, 200, 240, 0.4);
+      border-radius: 3px;
+      margin-top: 4px;
+      overflow: hidden;
+    }
+    .depth-gauge-fill {
+      width: 0%;
+      height: 100%;
+      background: #5ce6b4;
+      transition: width 0.05s linear;
+    }
+
+    /* Lure Box HUD (Round 5) */
+    .lure-card {
+      margin-top: 8px;
+      border-top: 1px solid rgba(80, 160, 200, 0.3);
+      padding-top: 6px;
+    }
+    .lure-title {
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      color: #79a6be;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .lure-display {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .lure-nav-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      background: rgba(14, 42, 64, 0.85);
+      border: 1px solid rgba(80, 160, 200, 0.4);
+      border-radius: 3px;
+      font-size: 10px;
+      color: #70d6ff;
+      cursor: pointer;
+      pointer-events: auto;
+      transition: all 0.15s ease;
+    }
+    .lure-nav-btn:hover {
+      background: #2a9d8f;
+      color: #ffffff;
+      border-color: #5ce6b4;
+    }
+    .lure-name-badge {
+      padding: 3px 10px;
+      background: rgba(6, 26, 42, 0.9);
+      border: 1px solid #2a9d8f;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #e9c46a;
+      letter-spacing: 0.5px;
+      box-shadow: 0 0 8px rgba(233, 196, 106, 0.25);
+    }
+
+    /* DEX Overlay Modal (Round 5) */
+    #dex-modal-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(2, 10, 18, 0.88);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 180;
+    }
+    #dex-modal-overlay.show {
+      display: flex;
+    }
+    .dex-modal-content {
+      background: rgba(5, 22, 35, 0.96);
+      border: 2px solid rgba(80, 190, 230, 0.6);
+      border-radius: 12px;
+      width: 92%;
+      max-width: 820px;
+      padding: 20px 24px;
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.85);
+      color: #e2f1f8;
+    }
+    .dex-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(80, 160, 200, 0.4);
+      padding-bottom: 10px;
+      margin-bottom: 14px;
+    }
+    .dex-modal-title {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: #5ce6b4;
+      text-transform: uppercase;
+    }
+    .dex-modal-close {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #70d6ff;
+      background: rgba(14, 42, 64, 0.85);
+      border: 1px solid rgba(80, 160, 200, 0.4);
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .dex-modal-close:hover {
+      background: #e63946;
+      border-color: #ff5c5c;
+      color: #ffffff;
+    }
+    /* Day Cycle & Lighthouse HUD (Round 6) */
+    .clock-card {
+      background: rgba(6, 22, 34, 0.85);
+      border: 1px solid rgba(80, 160, 200, 0.5);
+      border-radius: 6px;
+      padding: 5px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .clock-time {
+      font-size: 16px;
+      font-weight: 800;
+      color: #e2f1f8;
+      font-family: monospace;
+      letter-spacing: 1px;
+    }
+    .segment-badge {
+      padding: 2px 7px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1px;
+    }
+    .segment-badge.dusk { background: #b05a3b; color: #fff; }
+    .segment-badge.night { background: #1e3a5f; color: #70d6ff; }
+    .segment-badge.midnight { background: #7209b7; color: #ffffff; box-shadow: 0 0 10px rgba(114, 9, 183, 0.8); }
+    .segment-badge.dawn { background: #4a7c8b; color: #fff; }
+    .segment-badge.day { background: #2a9d8f; color: #fff; }
+
+    /* Fog Level Badge (Round 7) */
+    .fog-badge {
+      padding: 2px 7px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .fog-badge.thin { background: #355c7d; color: #e2f1f8; }
+    .fog-badge.thick { background: #6c5b7b; color: #fff; }
+    .fog-badge.dense { background: #c06c84; color: #fff; box-shadow: 0 0 8px rgba(192, 108, 132, 0.6); }
+
+    .lit-badge {
+      display: none;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      background: #ffb703;
+      color: #020810;
+      box-shadow: 0 0 10px #ffb703;
+      animation: pulseLit 0.5s infinite alternate;
+    }
+    .lit-badge.show {
+      display: inline-block;
+    }
+
+    /* Spot Rest Blackout Countdown Badge (Round 9) */
+    .spot-rest-badge {
+      display: inline-block;
+      margin-top: 4px;
+      padding: 2px 8px;
+      background: #e63946;
+      color: #ffffff;
+      border: 1px solid #ff5c5c;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      animation: pulseLit 0.7s infinite alternate;
+    }
+
+    @keyframes pulseLit {
+      0% { opacity: 0.8; }
+      100% { opacity: 1; transform: scale(1.05); }
+    }
+
+    .dex-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    .dex-table th {
+      text-align: left;
+      padding: 4px 8px;
+      background: rgba(8, 30, 48, 0.75);
+      color: #79a6be;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      border-bottom: 1px solid rgba(80, 160, 200, 0.3);
+    }
+    .dex-table td {
+      padding: 4px 8px;
+      border-bottom: 1px solid rgba(80, 160, 200, 0.15);
+      vertical-align: middle;
+    }
+    .dex-row-species {
+      font-weight: 700;
+      color: #ffffff;
+      white-space: nowrap;
+    }
+    .dex-status-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 1px;
+    }
+    .dex-status-badge.caught {
+      background: rgba(42, 157, 143, 0.4);
+      border: 1px solid #5ce6b4;
+      color: #5ce6b4;
+    }
+    .dex-status-badge.uncaught {
+      background: rgba(40, 55, 68, 0.4);
+      border: 1px solid #436375;
+      color: #79a6be;
+    }
+    .dex-row-weight {
+      font-family: monospace;
+      font-weight: 700;
+      color: #a0c2d3;
+      white-space: nowrap;
+    }
+    .dex-row-note {
+      color: #b0d4e3;
+      font-size: 12px;
+    }
+    .dex-row-note.landed {
+      color: #5ce6b4;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .dex-modal-footer {
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(80, 160, 200, 0.3);
+      font-size: 11px;
+      color: #79a6be;
+      text-align: right;
+    }
+
+    /* Target List Card (Round 10: Night Gala) */
+    .target-list-card {
+      margin-top: 8px;
+      background: rgba(6, 22, 34, 0.85);
+      border: 1px solid rgba(80, 160, 200, 0.4);
+      border-radius: 6px;
+      padding: 6px 10px;
+    }
+    .target-list-title {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: #5ce6b4;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .target-list-items {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px 8px;
+      font-size: 10px;
+    }
+    .target-item {
+      color: #8fb1c2;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+    }
+    .target-item.checked {
+      color: #5ce6b4;
+      font-weight: 700;
+    }
+    .target-check {
+      display: inline-block;
+      width: 12px;
+      font-weight: 800;
+      color: #436375;
+    }
+    .target-item.checked .target-check {
+      color: #5ce6b4;
+    }
+
+    /* Gala Results Screen (Round 10) */
+    #results-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(3, 10, 18, 0.94);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      z-index: 200;
+    }
+    #results-screen.show {
+      display: flex;
+    }
+    .results-card {
+      background: rgba(6, 24, 38, 0.96);
+      border: 2px solid #5ce6b4;
+      border-radius: 12px;
+      padding: 24px 36px;
+      max-width: 520px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 0 50px rgba(0, 0, 0, 0.9);
+      color: #e2f1f8;
+    }
+    .results-title {
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      color: #5ce6b4;
+      margin-bottom: 4px;
+    }
+    .results-subtitle {
+      font-size: 12px;
+      color: #79a6be;
+      letter-spacing: 1.5px;
+      margin-bottom: 18px;
+      text-transform: uppercase;
+    }
+    .results-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 18px;
+      text-align: left;
+    }
+    .results-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: rgba(8, 30, 48, 0.6);
+      border: 1px solid rgba(80, 160, 200, 0.25);
+      border-radius: 6px;
+    }
+    .results-label {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: #8fb1c2;
+    }
+    .results-val {
+      font-size: 16px;
+      font-weight: 800;
+      color: #ffffff;
+      font-family: monospace;
+    }
+    .results-row.rating-row {
+      background: rgba(14, 42, 64, 0.85);
+      border-color: #5ce6b4;
+    }
+    .rating-badge {
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: #ffb703;
+      text-shadow: 0 0 10px rgba(255, 183, 3, 0.5);
+    }
+    .results-footer {
+      font-size: 12px;
+      color: #79a6be;
+      letter-spacing: 1px;
+    }
+
+    /* Fight HUD (Round 3) */
+    #fight-container {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      background: rgba(4, 18, 30, 0.9);
+      border: 2px solid rgba(80, 180, 230, 0.6);
+      border-radius: 12px;
+      padding: 14px 24px;
+      box-shadow: 0 0 25px rgba(0, 0, 0, 0.7);
+      margin-bottom: 12px;
+      pointer-events: none;
+      min-width: 360px;
+    }
+    .fight-header {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .phase-badge {
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+    }
+    .phase-badge.struggle {
+      background: #e63946;
+      color: #ffffff;
+      animation: pulseBite 0.4s infinite alternate;
+    }
+    .phase-badge.rest {
+      background: #2a9d8f;
+      color: #ffffff;
+    }
+    .distance-text {
+      color: #70d6ff;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    /* Tension Bar with Danger Zone > 80 */
+    .tension-bar-wrapper {
+      position: relative;
+      width: 100%;
+      height: 22px;
+      background: rgba(2, 10, 18, 0.95);
+      border: 2px solid rgba(120, 200, 240, 0.6);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .tension-danger-marker {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 20%; /* 80% to 100% */
+      height: 100%;
+      background: rgba(230, 57, 70, 0.28);
+      border-left: 2px dashed #ff4d4d;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: bold;
+      color: #ff8888;
+      letter-spacing: 1px;
+    }
+    .tension-fill {
+      height: 100%;
+      width: 15%;
+      background: linear-gradient(90deg, #2a9d8f, #e9c46a 75%, #e63946 95%);
+      transition: width 0.04s linear;
+      z-index: 2;
+      position: relative;
+    }
+    .tension-fill.danger {
+      box-shadow: 0 0 15px #e63946;
+    }
+    .tension-value-label {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      color: #ffffff;
+      text-shadow: 0 1px 3px #000;
+      z-index: 3;
+    }
+
+    /* Aim and Power bar */
+    .controls-indicator {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .power-container {
+      width: 320px;
+      height: 18px;
+      background: rgba(3, 15, 25, 0.85);
+      border: 2px solid rgba(80, 160, 200, 0.5);
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+      display: none;
+      box-shadow: 0 0 10px rgba(0, 200, 255, 0.3);
+    }
+    .power-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #2488a6, #38d6b8, #e8a838);
+      border-radius: 8px;
+      transition: width 0.03s linear;
+    }
+    .power-label {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: bold;
+      letter-spacing: 1.5px;
+      color: #ffffff;
+      text-shadow: 0 1px 2px #000;
+    }
+    .prompt-text {
+      font-size: 13px;
+      letter-spacing: 1px;
+      color: #b0d4e3;
+      background: rgba(7, 24, 38, 0.65);
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid rgba(80, 160, 200, 0.25);
+    }
+
+    /* Notification / Catch Banner */
+    #catch-banner {
+      position: absolute;
+      top: 25%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.9);
+      background: rgba(5, 20, 32, 0.94);
+      border: 2px solid #5ce6b4;
+      border-radius: 12px;
+      padding: 20px 36px;
+      text-align: center;
+      box-shadow: 0 0 30px rgba(92, 230, 180, 0.4);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      z-index: 100;
+    }
+    #catch-banner.show {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    #catch-banner.early {
+      border-color: #ffb85c;
+      box-shadow: 0 0 30px rgba(255, 184, 92, 0.4);
+    }
+    #catch-banner.early .catch-header {
+      color: #ffb85c;
+    }
+    #catch-banner.late {
+      border-color: #ff5c5c;
+      box-shadow: 0 0 30px rgba(255, 92, 92, 0.4);
+    }
+    #catch-banner.late .catch-header {
+      color: #ff5c5c;
+    }
+    #catch-banner.snapped {
+      border-color: #e63946;
+      box-shadow: 0 0 35px rgba(230, 57, 70, 0.6);
+    }
+    #catch-banner.snapped .catch-header {
+      color: #e63946;
+    }
+    .catch-header {
+      font-size: 12px;
+      letter-spacing: 3px;
+      color: #5ce6b4;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .catch-species {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: #ffffff;
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    }
+    .catch-weight {
+      font-size: 15px;
+      color: #a7dfcc;
+      margin-top: 4px;
+    }
+
+    /* Start / Overlay Screen */
+    #overlay-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(3, 10, 18, 0.85);
+      backdrop-filter: blur(4px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #e6f3f8;
+      z-index: 200;
+      text-align: center;
+      padding: 30px;
+    }
+    #overlay-screen.hidden {
+      display: none;
+    }
+    .title-main {
+      font-size: 48px;
+      font-weight: 900;
+      letter-spacing: 6px;
+      color: #dcf2fa;
+      text-shadow: 0 0 25px rgba(100, 200, 240, 0.5), 0 4px 8px #000;
+      margin-bottom: 8px;
+    }
+    .title-sub {
+      font-size: 15px;
+      letter-spacing: 3px;
+      color: #6bb0c9;
+      margin-bottom: 36px;
+      text-transform: uppercase;
+    }
+    .instructions-card {
+      background: rgba(7, 28, 44, 0.75);
+      border: 1px solid rgba(80, 170, 210, 0.4);
+      border-radius: 10px;
+      padding: 22px 32px;
+      max-width: 540px;
+      margin-bottom: 30px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+      text-align: left;
+    }
+    .instruction-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+      font-size: 14px;
+      color: #c0d8e4;
+    }
+    .instruction-row:last-child {
+      margin-bottom: 0;
+    }
+    .key-badge {
+      display: inline-block;
+      min-width: 65px;
+      text-align: center;
+      background: rgba(26, 68, 94, 0.9);
+      border: 1px solid #4890af;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 13px;
+      font-weight: bold;
+      color: #e2f8ff;
+      margin-right: 14px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+    }
+    .start-prompt {
+      font-size: 18px;
+      font-weight: bold;
+      letter-spacing: 3px;
+      color: #5ce6b4;
+      animation: pulseText 1.6s infinite ease-in-out;
+      text-transform: uppercase;
+      padding: 10px 24px;
+      border: 1px dashed rgba(92, 230, 180, 0.6);
+      border-radius: 30px;
+    }
+    @keyframes pulseText {
+      0%, 100% { opacity: 0.6; transform: scale(0.98); }
+      50% { opacity: 1; transform: scale(1.02); }
+    }
+
+    /* Pause Overlay */
+    #pause-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(2, 8, 14, 0.7);
+      backdrop-filter: blur(2px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      z-index: 150;
+    }
+    #pause-screen.show {
+      display: flex;
+    }
+    .pause-text {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: 6px;
+      color: #ffffff;
+      text-shadow: 0 0 15px rgba(255,255,255,0.4);
+      margin-bottom: 10px;
+    }
+    .pause-sub {
+      font-size: 14px;
+      letter-spacing: 2px;
+      color: #79a6be;
+    }
+
+    /* Mini status info */
+    .status-badge {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      font-size: 12px;
+      color: #8fb1c2;
+    }
+    .cell-info {
+      font-family: monospace;
+      font-weight: bold;
+      color: #70d6ff;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div id="hud">
+    <div class="top-bar">
+      <div class="spot-card">
+        <div class="spot-title">Current Spot</div>
+        <div class="spot-name" id="hud-spot-name">WEST PIER</div>
+        <div class="spot-rest-badge" id="hud-spot-rest" style="display: none;">SPOT REST 30s</div>
+        <div class="sinker-card">
+          <div class="sinker-title">Sinker Weight & Depth [1, 2, 3]</div>
+          <div class="sinker-selector">
+            <span class="sinker-badge active" id="sinker-opt-1" title="LIGHT 10g - SHALLOW (2m)">1: LIGHT 10g (SHALLOW)</span>
+            <span class="sinker-badge" id="sinker-opt-2" title="MEDIUM 25g - MID (5m)">2: MED 25g (MID)</span>
+            <span class="sinker-badge" id="sinker-opt-3" title="HEAVY 40g - DEEP (9m)">3: HVY 40g (DEEP)</span>
+          </div>
+          <div class="depth-gauge-container" id="hud-depth-gauge-container">
+            <div class="depth-gauge-header">
+              <span>DEPTH GAUGE</span>
+              <span class="depth-gauge-val" id="hud-depth-gauge-text">DEPTH: 2.0m (SHALLOW)</span>
+            </div>
+            <div class="depth-gauge-bar">
+              <div class="depth-gauge-fill" id="hud-depth-gauge-fill"></div>
+            </div>
+          </div>
+        </div>
+        <div class="lure-card">
+          <div class="lure-title">LURE BOX [Q / E]</div>
+          <div class="lure-display">
+            <span class="lure-nav-btn" id="lure-prev" title="Previous Lure [Q]">◄</span>
+            <span class="lure-name-badge" id="hud-lure-name">Brass Spoon</span>
+            <span class="lure-nav-btn" id="lure-next" title="Next Lure [E]">►</span>
+          </div>
+        </div>
+        <div class="target-list-card" id="hud-target-card">
+          <div class="target-list-title" id="hud-target-title">GALA TARGETS (0/8)</div>
+          <div class="target-list-items" id="hud-target-items">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </div>
+      <div class="top-center-card">
+        <div class="clock-card" id="hud-clock-card">
+          <span class="clock-time" id="hud-clock-time">18:00</span>
+          <span class="segment-badge dusk" id="hud-segment-badge">DUSK</span>
+          <span class="fog-badge thin" id="hud-fog-badge">FOG: THIN</span>
+          <span class="lit-badge" id="hud-lit-badge">LIT</span>
+        </div>
+        <div class="counters-bar">
+          <div class="counter-item">
+            <span>HOOKS:</span>
+            <span class="counter-val counter-hooks" id="hud-hooks-count">0</span>
+          </div>
+          <div class="counter-item">
+            <span>EARLY:</span>
+            <span class="counter-val counter-early" id="hud-early-count">0</span>
+          </div>
+          <div class="counter-item">
+            <span>LATE:</span>
+            <span class="counter-val counter-late" id="hud-late-count">0</span>
+          </div>
+          <div class="counter-item">
+            <span>SNAPS:</span>
+            <span class="counter-val counter-snaps" id="hud-snaps-count">0</span>
+          </div>
+        </div>
+        <div class="bite-status-badge waiting" id="hud-bite-status">WAITING</div>
+      </div>
+      <div class="dex-card" id="hud-dex-card" style="cursor: pointer;" title="Press C to view Field Notes">
+        <div class="dex-count" id="hud-dex-count">DEX 0/15</div>
+        <div class="dex-list">
+          <span class="dex-item uncaught" id="dex-smelt">Fog Smelt</span>
+          <span class="dex-item uncaught" id="dex-herring">Brass Herring</span>
+          <span class="dex-item uncaught" id="dex-perch">Lantern Perch</span>
+          <span class="dex-item uncaught" id="dex-cod">Coal Cod</span>
+          <span class="dex-item uncaught" id="dex-grouper">Iron Grouper</span>
+          <span class="dex-item uncaught" id="dex-skate">Rust Skate</span>
+          <span class="dex-item uncaught" id="dex-sardine">Moon Sardine</span>
+          <span class="dex-item uncaught" id="dex-squid">Ghost Squid</span>
+          <span class="dex-item uncaught" id="dex-conger">Ink Conger</span>
+          <span class="dex-item uncaught" id="dex-flounder">Star Flounder</span>
+          <span class="dex-item uncaught" id="dex-sculpin">Velvet Sculpin</span>
+          <span class="dex-item uncaught" id="dex-ray">Bell Ray</span>
+          <span class="dex-item uncaught" id="dex-paleking">★ ???</span>
+          <span class="dex-item uncaught" id="dex-mothqueen">★ ???</span>
+          <span class="dex-item uncaught" id="dex-inkemperor">★ ???</span>
+        </div>
+        <div style="font-size: 10px; color: #70d6ff; margin-top: 4px; font-weight: 700; letter-spacing: 1px;">[C] FIELD NOTES</div>
+      </div>
+    </div>
+
+    <div class="controls-indicator">
+      <!-- Fight Bar (Round 3) -->
+      <div id="fight-container">
+        <div class="fight-header">
+          <div>
+            <span>PHASE: </span>
+            <span class="phase-badge struggle" id="hud-fight-phase">STRUGGLE 1.2s</span>
+          </div>
+          <div>
+            <span>LINE: </span>
+            <span class="distance-text" id="hud-fight-dist">3.2 m</span>
+          </div>
+        </div>
+        <div class="tension-bar-wrapper">
+          <div class="tension-danger-marker">DANGER</div>
+          <div class="tension-fill" id="hud-tension-fill"></div>
+          <div class="tension-value-label" id="hud-tension-label">TENSION 15%</div>
+        </div>
+      </div>
+
+      <div class="status-badge" id="hud-status-badge">
+        <span>Target Cell: <span class="cell-info" id="hud-cell-info">WEST / NEAR</span></span>
+        <span>Aim: <span class="cell-info" id="hud-aim-info">0°</span></span>
+      </div>
+      <div class="power-container" id="hud-power-bar">
+        <div class="power-fill" id="hud-power-fill"></div>
+        <div class="power-label" id="hud-power-label">POWER 0%</div>
+      </div>
+      <div class="prompt-text" id="hud-prompt">Hold [SPACE] to Cast • [Q/E] Lure • [1/2/3] Sinker • [C] Field Notes • [A/D] Aim • [←/→] Walk • [P] Pause</div>
+    </div>
+  </div>
+
+  <div id="catch-banner">
+    <div class="catch-header" id="catch-header-text">Fish Landed!</div>
+    <div class="catch-species" id="catch-species-name">Fog Smelt</div>
+    <div class="catch-weight" id="catch-species-weight">0.4 kg</div>
+  </div>
+
+  <div id="overlay-screen">
+    <div class="title-main">FOGWHARF FISHING</div>
+    <div class="title-sub">Quiet Night Harbor Pier Fishing</div>
+    <div class="instructions-card">
+      <div class="instruction-row">
+        <span class="key-badge">← / →</span>
+        <span>Walk between fishing spots (WEST, MID, EAST)</span>
+      </div>
+      <div class="instruction-row">
+        <span class="key-badge">A / D</span>
+        <span>Adjust casting aim angle (±30°)</span>
+      </div>
+      <div class="instruction-row">
+        <span class="key-badge">1 / 2 / 3</span>
+        <span>Select Sinker: 1 = LIGHT (SHALLOW 2m) • 2 = MED (MID 5m) • 3 = HEAVY (DEEP 9m)</span>
+      </div>
+      <div class="instruction-row">
+        <span class="key-badge">Q / E</span>
+        <span>Cycle Lure: Brass Spoon, Glow Wobbler, Moth Fly, Ink Jig</span>
+      </div>
+      <div class="instruction-row">
+        <span class="key-badge">C</span>
+        <span>Open / Close Field Notes DEX overlay</span>
+      </div>
+      <div class="instruction-row">
+        <span class="key-badge">SPACE</span>
+        <span>Cast / Strike / Hold to Reel line during Fight!</span>
+      </div>
+      <div class="instruction-row">
+        <span class="key-badge">X</span>
+        <span>Reel float back in early (when not hooked)</span>
+      </div>
+      <div class="instruction-row">
+        <span class="key-badge">P</span>
+        <span>Pause / Resume</span>
+      </div>
+      <div class="instruction-row">
+        <span class="key-badge">R</span>
+        <span>Reset game to initial Ready state</span>
+      </div>
+    </div>
+    <div class="start-prompt">Press Enter to Start</div>
+  </div>
+
+  <!-- DEX Field Notes Modal Overlay (Round 5) -->
+  <div id="dex-modal-overlay">
+    <div class="dex-modal-content">
+      <div class="dex-modal-header">
+        <div class="dex-modal-title">Harbor Species DEX</div>
+        <button class="dex-modal-close" id="dex-close-btn">[C] Close</button>
+      </div>
+      <table class="dex-table">
+        <thead>
+          <tr>
+            <th style="width: 48%;">SPECIES</th>
+            <th style="width: 28%;">STATUS</th>
+            <th style="width: 24%;">WEIGHT</th>
+          </tr>
+        </thead>
+        <tbody id="dex-table-body">
+          <!-- Populated dynamically -->
+        </tbody>
+      </table>
+      <div class="dex-modal-footer">Press [C] or click Close to return to fishing</div>
+    </div>
+  </div>
+
+  <div id="pause-screen">
+    <div class="pause-text">PAUSED</div>
+    <div class="pause-sub">Press P to Resume</div>
+  </div>
+
+  <!-- Gala Results Screen (Round 10: Night Gala) -->
+  <div id="results-screen">
+    <div class="results-card">
+      <div class="results-title">GALA RESULTS</div>
+      <div class="results-subtitle">The Night Gala Has Ended</div>
+      <div class="results-rows">
+        <div class="results-row">
+          <span class="results-label">TARGETS CAUGHT</span>
+          <span class="results-val" id="res-targets">0/8</span>
+        </div>
+        <div class="results-row">
+          <span class="results-label">DEX COMPLETION</span>
+          <span class="results-val" id="res-dex">0/15</span>
+        </div>
+        <div class="results-row">
+          <span class="results-label">TOTAL WEIGHT</span>
+          <span class="results-val" id="res-weight">0.0 kg</span>
+        </div>
+        <div class="results-row">
+          <span class="results-label">LINES SNAPPED</span>
+          <span class="results-val" id="res-snaps">0</span>
+        </div>
+        <div class="results-row rating-row">
+          <span class="results-label">RATING</span>
+          <span class="results-val rating-badge" id="res-rating">FOGBOUND</span>
+        </div>
+      </div>
+      <div class="results-footer">Press [R] to Restart Gala</div>
+    </div>
+  </div>
+
+  <!-- Shared Three.js runtime -->
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+
+  <script>
+    /* =========================================================================
+       FOGWHARF FISHING - 3D GAME IMPLEMENTATION (Round 3)
+       ========================================================================= */
+
+    // Strict Determinism: Never use Math.random() or Date.now().
+    // Everything is driven by sessionClock and deterministic step time.
+
+    const FIXED_DT = 1 / 60; // 60 FPS deterministic tick
+
+    // Pier spots along X axis, rail is at Z = 0
+    const SPOTS = [
+      { id: 0, name: "WEST PIER", x: -4.0 },
+      { id: 1, name: "MID PIER",  x:  0.0 },
+      { id: 2, name: "EAST PIER", x:  4.0 }
+    ];
+
+    // Buoy distance boundaries (meters from pier edge Z = 0)
+    const ZONE_NEAR_MAX = 3.5;
+    const ZONE_MID_MAX  = 5.5;
+    const ZONE_FAR_MAX  = 8.0;
+
+    // Sinker definitions & Depth Layers (Round 4):
+    // 1 = LIGHT 10g fishing SHALLOW (2m), sink duration 1.0s
+    // 2 = MEDIUM 25g fishing MID (5m), sink duration 2.0s
+    // 3 = HEAVY 40g fishing DEEP (9m), sink duration 3.0s
+    const SINKERS = {
+      1: { id: 1, name: "LIGHT", weight: "10g", weightG: 10, layer: "SHALLOW", depth: 2, sinkDuration: 1.0 },
+      2: { id: 2, name: "MEDIUM", weight: "25g", weightG: 25, layer: "MID", depth: 5, sinkDuration: 2.0 },
+      3: { id: 3, name: "HEAVY", weight: "40g", weightG: 40, layer: "DEEP", depth: 9, sinkDuration: 3.0 }
+    };
+
+    // Lure Box & Attraction Table (Round 5 & 6):
+    // 4 Lures: Brass Spoon, Glow Wobbler, Moth Fly, Ink Jig
+    const LURES = ["Brass Spoon", "Glow Wobbler", "Moth Fly", "Ink Jig"];
+
+    const ATTRACTION_TABLE = {
+      // 6 All-day Species
+      "Fog Smelt":      { "Brass Spoon": "HIGH", "Glow Wobbler": "LOW",  "Moth Fly": "LOW",  "Ink Jig": "0" },
+      "Brass Herring":  { "Brass Spoon": "LOW",  "Glow Wobbler": "0",    "Moth Fly": "HIGH", "Ink Jig": "LOW" },
+      "Lantern Perch":  { "Brass Spoon": "LOW",  "Glow Wobbler": "HIGH", "Moth Fly": "0",    "Ink Jig": "LOW" },
+      "Coal Cod":       { "Brass Spoon": "0",    "Glow Wobbler": "LOW",  "Moth Fly": "LOW",  "Ink Jig": "HIGH" },
+      "Iron Grouper":   { "Brass Spoon": "LOW",  "Glow Wobbler": "HIGH", "Moth Fly": "0",    "Ink Jig": "LOW" },
+      "Rust Skate":     { "Brass Spoon": "0",    "Glow Wobbler": "LOW",  "Moth Fly": "HIGH", "Ink Jig": "LOW" },
+      // 6 Nocturnal Species (Round 6)
+      "Moon Sardine":   { "Brass Spoon": "HIGH", "Glow Wobbler": "0",    "Moth Fly": "LOW",  "Ink Jig": "LOW" },
+      "Ghost Squid":    { "Brass Spoon": "0",    "Glow Wobbler": "LOW",  "Moth Fly": "LOW",  "Ink Jig": "HIGH" },
+      "Ink Conger":     { "Brass Spoon": "LOW",  "Glow Wobbler": "0",    "Moth Fly": "LOW",  "Ink Jig": "HIGH" },
+      "Star Flounder":  { "Brass Spoon": "HIGH", "Glow Wobbler": "LOW",  "Moth Fly": "0",    "Ink Jig": "LOW" },
+      "Velvet Sculpin": { "Brass Spoon": "LOW",  "Glow Wobbler": "HIGH", "Moth Fly": "LOW",  "Ink Jig": "0" },
+      "Bell Ray":       { "Brass Spoon": "0",    "Glow Wobbler": "HIGH", "Moth Fly": "LOW",  "Ink Jig": "LOW" },
+      // 3 Rare Species (Round 8: Fish Kings)
+      "★ Pale King":    { "Brass Spoon": "0",    "Glow Wobbler": "HIGH", "Moth Fly": "0",    "Ink Jig": "0" },
+      "★ Moth Queen":   { "Brass Spoon": "0",    "Glow Wobbler": "0",    "Moth Fly": "HIGH", "Ink Jig": "0" },
+      "★ Ink Emperor":  { "Brass Spoon": "0",    "Glow Wobbler": "0",    "Moth Fly": "0",    "Ink Jig": "HIGH" }
+    };
+
+    // Fish Species struggle patterns & Field Notes (15 Species):
+    const FISH_DATA = [
+      // 6 All-day Species
+      {
+        id: "smelt",
+        name: "Fog Smelt",
+        column: "WEST",
+        zone: "NEAR",
+        homeLayer: "SHALLOW",
+        homeDepth: 2,
+        weight: "0.4 kg",
+        nibbles: 1,
+        color: 0x5a9cb8,
+        highLure: "Brass Spoon",
+        activeWindow: "00:00–24:00",
+        fieldNote: "WEST column, NEAR zone, 2 m; takes the Brass Spoon",
+        patrolCenter: { x: -4.0, z: 2.75 },
+        patrolRadius: { x: 0.6, z: 0.35 },
+        patrolSpeed: 0.8,
+        strugglePattern: [
+          { type: "STRUGGLE", duration: 1.2 },
+          { type: "REST",     duration: 2.0 },
+          { type: "STRUGGLE", duration: 1.2 },
+          { type: "REST",     duration: 1.5 }
+        ]
+      },
+      {
+        id: "herring",
+        name: "Brass Herring",
+        column: "MID",
+        zone: "MID",
+        homeLayer: "SHALLOW",
+        homeDepth: 2,
+        weight: "0.9 kg",
+        nibbles: 2,
+        color: 0xbfa048,
+        highLure: "Moth Fly",
+        activeWindow: "00:00–24:00",
+        fieldNote: "MID column, MID zone, 2 m; takes the Moth Fly",
+        patrolCenter: { x: 0.0, z: 4.5 },
+        patrolRadius: { x: 0.8, z: 0.4 },
+        patrolSpeed: 0.65,
+        strugglePattern: [
+          { type: "STRUGGLE", duration: 1.5 },
+          { type: "REST",     duration: 1.8 },
+          { type: "STRUGGLE", duration: 1.5 },
+          { type: "REST",     duration: 2.0 }
+        ]
+      },
+      {
+        id: "perch",
+        name: "Lantern Perch",
+        column: "EAST",
+        zone: "NEAR",
+        homeLayer: "SHALLOW",
+        homeDepth: 2,
+        weight: "1.2 kg",
+        nibbles: 2,
+        color: 0x3fb892,
+        highLure: "Glow Wobbler",
+        activeWindow: "00:00–24:00",
+        fieldNote: "EAST column, NEAR zone, 2 m; takes the Glow Wobbler",
+        patrolCenter: { x: 4.0, z: 2.75 },
+        patrolRadius: { x: 0.6, z: 0.35 },
+        patrolSpeed: 0.75,
+        strugglePattern: [
+          { type: "STRUGGLE", duration: 1.4 },
+          { type: "REST",     duration: 1.6 },
+          { type: "STRUGGLE", duration: 1.4 },
+          { type: "REST",     duration: 1.6 }
+        ]
+      },
+      {
+        id: "cod",
+        name: "Coal Cod",
+        column: "WEST",
+        zone: "MID",
+        homeLayer: "DEEP",
+        homeDepth: 9,
+        weight: "2.2 kg",
+        nibbles: 2,
+        color: 0x2e3b48,
+        highLure: "Ink Jig",
+        activeWindow: "00:00–24:00",
+        fieldNote: "WEST column, MID zone, 9 m; takes the Ink Jig",
+        patrolCenter: { x: -4.0, z: 4.5 },
+        patrolRadius: { x: 0.7, z: 0.4 },
+        patrolSpeed: 0.6,
+        strugglePattern: [
+          { type: "STRUGGLE", duration: 1.8 },
+          { type: "REST",     duration: 1.5 },
+          { type: "STRUGGLE", duration: 1.8 },
+          { type: "REST",     duration: 1.8 }
+        ]
+      },
+      {
+        id: "grouper",
+        name: "Iron Grouper",
+        column: "MID",
+        zone: "FAR",
+        homeLayer: "DEEP",
+        homeDepth: 9,
+        weight: "3.5 kg",
+        nibbles: 3,
+        color: 0x3d4b54,
+        highLure: "Glow Wobbler",
+        activeWindow: "00:00–24:00",
+        fieldNote: "MID column, FAR zone, 9 m; takes the Glow Wobbler",
+        patrolCenter: { x: 0.0, z: 6.75 },
+        patrolRadius: { x: 0.9, z: 0.5 },
+        patrolSpeed: 0.5,
+        strugglePattern: [
+          { type: "STRUGGLE", duration: 2.0 },
+          { type: "REST",     duration: 1.4 },
+          { type: "STRUGGLE", duration: 2.0 },
+          { type: "REST",     duration: 1.4 },
+          { type: "STRUGGLE", duration: 2.0 },
+          { type: "REST",     duration: 2.2 }
+        ]
+      },
+      {
+        id: "skate",
+        name: "Rust Skate",
+        column: "EAST",
+        zone: "MID",
+        homeLayer: "DEEP",
+        homeDepth: 9,
+        weight: "2.8 kg",
+        nibbles: 2,
+        color: 0x7c4335,
+        highLure: "Moth Fly",
+        activeWindow: "00:00–24:00",
+        fieldNote: "EAST column, MID zone, 9 m; takes the Moth Fly",
+        patrolCenter: { x: 4.0, z: 4.5 },
+        patrolRadius: { x: 0.75, z: 0.45 },
+        patrolSpeed: 0.55,
+        strugglePattern: [
+          { type: "STRUGGLE", duration: 1.8 },
+          { type: "REST",     duration: 1.6 },
+          { type: "STRUGGLE", duration: 1.8 },
+          { type: "REST",     duration: 2.0 }
+        ]
+      },
+      // 6 Nocturnal Species (Round 6)
+      {
+        id: "sardine",
+        name: "Moon Sardine",
+        column: "WEST",
+        zone: "NEAR",
+        homeLayer: "SHALLOW",
+        homeDepth: 2,
+        weight: "0.5 kg",
+        nibbles: 1,
+        color: 0x88c0d0,
+        highLure: "Brass Spoon",
+        activeWindow: "20:00–04:00",
+        fieldNote: "WEST column, NEAR zone, 2 m; takes the Brass Spoon; active 20:00–04:00",
+        patrolCenter: { x: -4.0, z: 2.75 },
+        patrolRadius: { x: 0.65, z: 0.35 },
+        patrolSpeed: 0.85,
+        strugglePattern: [
+          { type: "STRUGGLE", duration: 1.2 },
+          { type: "REST",     duration: 1.8 },
+          { type: "STRUGGLE", duration: 1.2 },
+          { type: "REST",     duration: 1.6 }
+        ]
+      },
+      {
+        id: "squid",
+        name: "Ghost Squid",
+        column: "MID",
+        zone: "NEAR",
+        homeLayer: "MID",
+        homeDepth: 5,
+        weight: "1.6 kg",
+        nibbles: 2,
+        color: 0xd8dee9,
+        highLure: "Ink Jig",
+        activeWindow: "20:00–04:00",
+        fieldNote: "MID column, NEAR zone, 5 m; takes the Ink Jig; active 20:00–04:00",
+        patrolCenter: { x: 0.0, z: 2.75 },
+        patrolRadius: { x: 0.7, z: 0.35 },
+        patrolSpeed: 0.7,
+        strugglePattern: [
+          { type: "STRUGGLE", duration: 1.6 },
+          { type: "REST",     duration: 1.4 },
+          { type: "STRUGGLE", duration: 1.6 },
+          { type: "REST",     duration: 1.6 }
+        ]
+      },
+      {
+        id: "conger",
+        name: "Ink Conger",
+        column: "EAST",
+        zone: "FAR",
+        homeLayer: "DEEP",
+        homeDepth: 9,
+        weight: "4.0 kg",
+        nibbles: 3,
+        color: 0x1f2d3d,
+        highLure: "Ink Jig",
+        activeWindow: "20:00–04:00",
+        fieldNote: "EAST column, FAR zone, 9 m; takes the Ink Jig; active 20:00–04:00",
+        patrolCenter: { x: 4.0, z: 6.75 },
+        patrolRadius: { x: 0.9, z: 0.5 },
+        patrolSpeed: 0.5,
+        strugglePattern: [
+          { type: "STRUGGLE", duration: 2.0 },
+          { type: "REST",     duration: 1.5 },
+          { type: "STRUGGLE", duration: 2.0 },
+          { type: "REST",     duration: 1.5 },
+          { type: "STRUGGLE", duration: 2.0 },
+          { type: "REST",     duration: 2.0 }
+        ]
+      },
+      {
+        id: "flounder",
+        name: "Star Flounder",
+        column: "MID",
+        zone: "MID",
+        homeLayer: "SHALLOW",
+        homeDepth: 2,
+        weight: "1.1 kg",
+        nibbles: 2,
+        color: 0xebcb8b,
+        highLure: "Brass Spoon",
+        activeWindow: "21:00–05:00",
+        fieldNote: "MID column, MID zone, 2 m; takes the Brass Spoon; active 21:00–05:00",
+        patrolCenter: { x: 0.0, z: 4.5 },
+        patrolRadius: { x: 0.85, z: 0.4 },
+        patrolSpeed: 0.65,
+        strugglePattern: [
+          { type: "STRUGGLE", duration: 1.4 },
+          { type: "REST",     duration: 1.8 },
+          { type: "STRUGGLE", duration: 1.4 },
+          { type: "REST",     duration: 1.8 }
+        ]
+      },
+      {
+        id: "sculpin",
+        name: "Velvet Sculpin",
+        column: "WEST",
+        zone: "FAR",
+        homeLayer: "MID",
+        homeDepth: 5,
+        weight: "1.8 kg",
+        nibbles: 2,
+        color: 0x4c566a,
+        highLure: "Glow Wobbler",
+        activeWindow: "19:00–03:00",
+        fieldNote: "WEST column, FAR zone, 5 m; takes the Glow Wobbler; active 19:00–03:00",
+        patrolCenter: { x: -4.0, z: 6.75 },
+        patrolRadius: { x: 0.8, z: 0.45 },
+        patrolSpeed: 0.6,
+        strugglePattern: [
+          { type: "STRUGGLE", duration: 1.6 },
+          { type: "REST",     duration: 1.6 },
+          { type: "STRUGGLE", duration: 1.6 },
+          { type: "REST",     duration: 1.8 }
+        ]
+      },
+      {
+        id: "ray",
+        name: "Bell Ray",
+        column: "EAST",
+        zone: "MID",
+        homeLayer: "MID",
+        homeDepth: 5,
+        weight: "2.4 kg",
+        nibbles: 2,
+        color: 0x5e81ac,
+        highLure: "Glow Wobbler",
+        activeWindow: "20:00–04:00",
+        fieldNote: "EAST column, MID zone, 5 m; takes the Glow Wobbler; active 20:00–04:00",
+        patrolCenter: { x: 4.0, z: 4.5 },
+        patrolRadius: { x: 0.75, z: 0.45 },
+        patrolSpeed: 0.55,
+        strugglePattern: [
+          { type: "STRUGGLE", duration: 1.8 },
+          { type: "REST",     duration: 1.5 },
+          { type: "STRUGGLE", duration: 1.8 },
+          { type: "REST",     duration: 1.7 }
+        ]
+      },
+      // 3 Rare Species (Round 8: Fish Kings)
+      {
+        id: "paleking",
+        name: "★ Pale King",
+        column: "MID",
+        zone: "FAR",
+        homeLayer: "DEEP",
+        homeDepth: 9,
+        weight: "9.5 kg",
+        nibbles: 3,
+        color: 0xf0f4f8,
+        highLure: "Glow Wobbler",
+        isRare: true,
+        activeWindow: "00:00–02:00",
+        fieldNote: "MID column, FAR zone, 9 m; MIDNIGHT only; takes the Glow Wobbler",
+        patrolCenter: { x: 0.0, z: 6.75 },
+        patrolRadius: { x: 1.0, z: 0.55 },
+        patrolSpeed: 0.45,
+        strugglePattern: [
+          { type: "STRUGGLE", duration: 2.0 },
+          { type: "REST",     duration: 1.0 },
+          { type: "STRUGGLE", duration: 2.0 },
+          { type: "REST",     duration: 1.0 },
+          { type: "STRUGGLE", duration: 2.0 },
+          { type: "REST",     duration: 2.5 }
+        ]
+      },
+      {
+        id: "mothqueen",
+        name: "★ Moth Queen",
+        column: "WEST",
+        zone: "MID",
+        homeLayer: "MID",
+        homeDepth: 5,
+        weight: "6.0 kg",
+        nibbles: 2,
+        color: 0xd4a373,
+        highLure: "Moth Fly",
+        isRare: true,
+        activeWindow: "00:00–02:00",
+        fieldNote: "WEST column, MID zone, 5 m; MIDNIGHT only; takes the Moth Fly",
+        patrolCenter: { x: -4.0, z: 4.5 },
+        patrolRadius: { x: 0.8, z: 0.45 },
+        patrolSpeed: 0.5,
+        strugglePattern: [
+          { type: "STRUGGLE", duration: 1.8 },
+          { type: "REST",     duration: 1.0 },
+          { type: "STRUGGLE", duration: 1.8 },
+          { type: "REST",     duration: 1.0 },
+          { type: "STRUGGLE", duration: 1.8 },
+          { type: "REST",     duration: 2.2 }
+        ]
+      },
+      {
+        id: "inkemperor",
+        name: "★ Ink Emperor",
+        column: "EAST",
+        zone: "NEAR",
+        homeLayer: "DEEP",
+        homeDepth: 9,
+        weight: "7.5 kg",
+        nibbles: 2,
+        color: 0x140d1a,
+        highLure: "Ink Jig",
+        isRare: true,
+        activeWindow: "00:00–02:00",
+        fieldNote: "EAST column, NEAR zone, 9 m; MIDNIGHT only; takes the Ink Jig",
+        patrolCenter: { x: 4.0, z: 2.75 },
+        patrolRadius: { x: 0.7, z: 0.4 },
+        patrolSpeed: 0.5,
+        strugglePattern: [
+          { type: "STRUGGLE", duration: 2.0 },
+          { type: "REST",     duration: 0.9 },
+          { type: "STRUGGLE", duration: 2.0 },
+          { type: "REST",     duration: 0.9 },
+          { type: "STRUGGLE", duration: 2.0 },
+          { type: "REST",     duration: 2.4 }
+        ]
+      }
+    ];
+
+    // Day Cycle Calculation (Round 6 & 8):
+    // 240-second day cycle, starts at 18:00, 10s per hour, wraps at 240s
+    // 00:00–02:00 is MIDNIGHT (t in [60, 80))
+    function computeDayCycle(sessionClock) {
+      const t = ((sessionClock % 240) + 240) % 240;
+      const totalMinutes = Math.floor((1080 + t * 6) % 1440);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = Math.floor(totalMinutes % 60);
+      const clockStr = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+
+      const isMidnight = (t >= 60 && t < 80);
+
+      let segment;
+      if (t < 20) {
+        segment = "DUSK";
+      } else if (t < 100) {
+        segment = isMidnight ? "MIDNIGHT" : "NIGHT";
+      } else if (t < 120) {
+        segment = "DAWN";
+      } else {
+        segment = "DAY";
+      }
+
+      return { clock: clockStr, segment: segment, isMidnight: isMidnight, cycleTime: t };
+    }
+
+    // Fog Schedule (Round 7):
+    // 18:00–22:00: THIN (0-40s)
+    // 22:00–02:00: DENSE (40-80s)
+    // 02:00–06:00: THICK (80-120s)
+    // 06:00–18:00: THIN (120-240s)
+    function computeFogSchedule(sessionClock) {
+      const t = ((sessionClock % 240) + 240) % 240;
+      let level, density;
+      if (t < 40) {
+        level = "THIN";
+        density = 0.042;
+      } else if (t < 80) {
+        level = "DENSE";
+        density = 0.165;
+      } else if (t < 120) {
+        level = "THICK";
+        density = 0.092;
+      } else {
+        level = "THIN";
+        density = 0.042;
+      }
+      return { level, density, t };
+    }
+
+    // WebAudio Bite Bell Synthesis (Round 7)
+    let audioCtx = null;
+    function getAudioContext() {
+      if (!audioCtx && typeof window !== "undefined") {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          try {
+            audioCtx = new AudioCtx();
+          } catch (e) {}
+        }
+      }
+      return audioCtx;
+    }
+
+    function ringBell(type) {
+      const time = state.sessionClock;
+      state.lastBellTime = time;
+      state.lastBellEvent = { type: type, time: time };
+      if (type === "NIBBLE") {
+        state.lastNibbleBellTime = time;
+      } else if (type === "PLUNGE") {
+        state.lastPlungeBellTime = time;
+      }
+      state.recentBellEvents.push({ type: type, time: time });
+      if (state.recentBellEvents.length > 20) {
+        state.recentBellEvents.shift();
+      }
+
+      if (typeof bellMesh !== "undefined" && bellMesh) {
+        bellMesh.rotation.z = type === "PLUNGE" ? 0.35 : 0.18;
+      }
+
+      try {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+        if (ctx.state === "suspended") ctx.resume();
+
+        if (type === "NIBBLE") {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(1480, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.05);
+
+          gain.gain.setValueAtTime(0.12, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.05);
+        } else if (type === "PLUNGE") {
+          [0.0, 0.08].forEach(delay => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = "triangle";
+            osc.frequency.setValueAtTime(1850, ctx.currentTime + delay);
+            osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + delay + 0.12);
+
+            gain.gain.setValueAtTime(0.28, ctx.currentTime + delay);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.12);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + delay);
+            osc.stop(ctx.currentTime + delay + 0.12);
+          });
+        }
+      } catch (e) {}
+    }
+
+    function computeRareConditions(f) {
+      if (!f) return { column: false, zone: false, layer: false, clock: false, lure: false, all_met: false };
+      const colMet = (state.floatState.active && state.floatState.column === f.column);
+      const zoneMet = (state.floatState.active && state.floatState.zone === f.zone);
+      const layerMet = (state.selectedSinker.layer === f.homeLayer);
+      const clockMet = !!state.isMidnight;
+      const lureMet = (state.currentLure === f.highLure);
+      const allMet = (colMet && zoneMet && layerMet && clockMet && lureMet);
+      return {
+        column: colMet,
+        zone: zoneMet,
+        layer: layerMet,
+        clock: clockMet,
+        lure: lureMet,
+        all_met: allMet
+      };
+    }
+
+    // Round 9: Timetable matching helper
+    function isFishActiveAtTime(fish, sessionClock) {
+      if (!fish) return false;
+      const t = ((sessionClock % 240) + 240) % 240;
+      if (!fish.activeWindow || fish.activeWindow === "00:00–24:00") {
+        return true;
+      }
+      if (fish.activeWindow === "20:00–04:00") {
+        return (t >= 20 && t < 100);
+      }
+      if (fish.activeWindow === "21:00–05:00") {
+        return (t >= 30 && t < 110);
+      }
+      if (fish.activeWindow === "19:00–03:00") {
+        return (t >= 10 && t < 90);
+      }
+      if (fish.activeWindow === "00:00–02:00") {
+        return (t >= 60 && t < 80);
+      }
+      return true;
+    }
+
+    // Game state tracking
+    const state = {
+      phase: "READY", // READY, IDLE, CHARGING, FLYING, SETTLED, NIBBLING, PLUNGED, FIGHT, LANDING, CAUGHT, RECOVERING
+      isPaused: false,
+      sessionClock: 0.0,
+
+      // Day Cycle & Lighthouse (Round 6)
+      clock: "18:00",
+      segment: "DUSK",
+      isFloatLit: false,
+
+      // Midnight Window & Rare Species (Round 8)
+      isMidnight: false,
+
+      // Snap Penalty Bite Blackout per Column (Round 9)
+      blackoutUntil: {
+        WEST: 0.0,
+        MID: 0.0,
+        EAST: 0.0
+      },
+
+      // Fog Schedule & Bite Bell (Round 7)
+      fogLevel: "THIN",
+      lastBellTime: null,
+      lastBellEvent: null,
+      lastNibbleBellTime: null,
+      lastPlungeBellTime: null,
+      recentBellEvents: [],
+
+      // Angler navigation
+      currentSpotIndex: 0, // start at WEST PIER
+      currentSpotX: SPOTS[0].x,
+      targetSpotIndex: 0,
+      targetSpotX: SPOTS[0].x,
+      isWalking: false,
+      walkSpeed: 3.5, // meters/sec
+      walkDirection: 0,
+
+      // Aiming
+      aimAngle: 0.0, // radians, clamped to [-30 deg, +30 deg]
+      aimSpeed: 1.2, // rad/sec
+
+      // Power
+      power: 0.0,
+      powerRate: 66.7, // per sec
+      isCharging: false,
+
+      // Float / Line
+      floatState: {
+        active: false,
+        x: 0,
+        y: 0,
+        z: 0,
+        vx: 0,
+        vy: 0,
+        vz: 0,
+        startX: 0,
+        startY: 0,
+        startZ: 0,
+        targetX: 0,
+        targetZ: 0,
+        flightTime: 0,
+        flightDuration: 0.85,
+        settledTimer: 0,
+        distance: 0,
+        column: "NONE",
+        zone: "NONE"
+      },
+
+      // Fish instances in session
+      fishes: [],
+      activeBitingFish: null,
+      nibbleCount: 0,
+      nibbleTimer: 0,
+      landingProgress: 0,
+      landingFish: null,
+
+      // Strike Window mechanics (Round 2 & 6: tightened to ±0.3s)
+      plungeTime: null,
+      biteState: "WAITING",
+      lastStrikeTime: null,
+      lastStrikeOffset: null,
+      lastStrikeResult: null,
+      hooksLanded: 0,
+      tooEarlyEscapes: 0,
+      tooLateMisses: 0,
+      retryTimer: 0,
+      isRetrying: false,
+      strikeAnimTimer: 0,
+
+      // Round 3: Line Fight Mechanics
+      tension: 0.0,          // 0 to 100, starts at 15 on hook
+      lineDistance: 0.0,     // starts equal to cast distance
+      castDistance: 0.0,     // stored cast distance
+      currentSpeciesPattern: [], // current fish's strugglePattern
+      currentPhaseIndex: 0,  // index in pattern
+      remainingPhaseTime: 0.0, // seconds remaining in current struggle/rest phase
+      lineSnaps: 0,          // snaps counter
+      recoveryTimer: 0.0,    // 1.5s recovery after line snap
+
+      // Round 4: Depth Layers & Sinkers
+      selectedSinker: SINKERS[1], // default LIGHT 10g SHALLOW 2m
+      sinkProgress: 0.0,     // 0.0 to 1.0 during sink
+      sinkTimer: 0.0,        // elapsed sink time
+      isSinking: false,      // true while sinking
+      currentDepth: 0.0,     // live depth in meters
+
+      // Round 5: Lure Box & DEX Overlay
+      currentLureIndex: 0,   // default 0 = Brass Spoon
+      currentLure: LURES[0], // "Brass Spoon"
+      activeBiteCandidate: null,
+      effectiveGrade: null,  // "HIGH", "LOW", "0", or null
+      scheduledApproachTime: null, // sessionClock timestamp when approach starts
+      approachDelay: null,   // 4.0s (HIGH) or 10.0s (LOW)
+      isDexOpen: false,      // DEX overlay open/close
+
+      // DEX
+      caughtSpecies: []
+    };
+
+    function computeColumn(x) {
+      if (x < -2.0) return "WEST";
+      if (x <= 2.0) return "MID";
+      return "EAST";
+    }
+
+    function computeZone(z) {
+      if (z < ZONE_NEAR_MAX) return "NEAR";
+      if (z < ZONE_MID_MAX) return "MID";
+      return "FAR";
+    }
+
+    function initFishState() {
+      state.fishes = FISH_DATA.map(data => ({
+        ...data,
+        caught: false,
+        active: true,
+        x: data.patrolCenter.x,
+        y: data.homeLayer === "DEEP" ? -0.42 : -0.22,
+        z: data.patrolCenter.z,
+        rotY: 0,
+        state: "PATROLLING",
+        dartTimer: 0,
+        startledUntil: 0.0, // timestamp until which fish will not approach or bite
+        approachStartX: data.patrolCenter.x,
+        approachStartZ: data.patrolCenter.z
+      }));
+      state.activeBitingFish = null;
+      state.activeBiteCandidate = null;
+      state.effectiveGrade = null;
+      state.scheduledApproachTime = null;
+      state.approachDelay = null;
+      state.nibbleCount = 0;
+      state.nibbleTimer = 0;
+      state.landingFish = null;
+      state.plungeTime = null;
+      state.retryTimer = 0;
+      state.isRetrying = false;
+      state.biteState = "WAITING";
+      state.tension = 0.0;
+      state.lineDistance = 0.0;
+      state.currentSpeciesPattern = [];
+      state.currentPhaseIndex = 0;
+      state.remainingPhaseTime = 0.0;
+      state.recoveryTimer = 0.0;
+      state.sinkProgress = 0.0;
+      state.sinkTimer = 0.0;
+      state.isSinking = false;
+      state.currentDepth = 0.0;
+      state.isFloatLit = false;
+      state.isMidnight = false;
+      state.blackoutUntil = {
+        WEST: 0.0,
+        MID: 0.0,
+        EAST: 0.0
+      };
+    }
+
+    initFishState();
+
+    // Night Gala Targets & Rating (Round 10):
+    const GALA_TARGETS = [
+      "Fog Smelt",
+      "Brass Herring",
+      "Coal Cod",
+      "Moon Sardine",
+      "Ghost Squid",
+      "Star Flounder",
+      "Bell Ray",
+      "Moth Queen"
+    ];
+
+    function isTargetFish(name) {
+      return GALA_TARGETS.some(t => name.includes(t) || t.includes(name));
+    }
+
+    function getTargetsCaughtCount() {
+      let count = 0;
+      GALA_TARGETS.forEach(t => {
+        if (state.caughtSpecies.some(s => s.includes(t) || t.includes(s))) {
+          count++;
+        }
+      });
+      return count;
+    }
+
+    function updateTargetListHUD() {
+      const container = document.getElementById("hud-target-items");
+      const titleEl = document.getElementById("hud-target-title");
+      if (!container) return;
+
+      const caughtCount = getTargetsCaughtCount();
+      if (titleEl) {
+        titleEl.textContent = `GALA TARGETS (${caughtCount}/8)`;
+      }
+
+      container.innerHTML = "";
+      GALA_TARGETS.forEach(t => {
+        const isCaught = state.caughtSpecies.some(s => s.includes(t) || t.includes(s));
+        const itemDiv = document.createElement("div");
+        itemDiv.className = "target-item " + (isCaught ? "checked" : "");
+        itemDiv.innerHTML = `<span class="target-check">${isCaught ? "✓" : "○"}</span><span>${t}</span>`;
+        container.appendChild(itemDiv);
+      });
+    }
+
+    function computeTotalWeight() {
+      let sum = 0.0;
+      state.caughtSpecies.forEach(name => {
+        const f = state.fishes.find(fish => fish.name === name);
+        if (f) {
+          const w = parseFloat(f.weight);
+          if (!isNaN(w)) sum += w;
+        }
+      });
+      return Number(sum.toFixed(1));
+    }
+
+    function computeRating(targetsCaught, linesSnapped) {
+      if (targetsCaught === 8 && linesSnapped === 0) {
+        return "HARBOR MASTER";
+      }
+      if (targetsCaught === 8) {
+        return "GOLDEN HOOK";
+      }
+      if (targetsCaught >= 6) {
+        return "SILVER HOOK";
+      }
+      if (targetsCaught >= 4) {
+        return "BRONZE HOOK";
+      }
+      return "FOGBOUND";
+    }
+
+    function showResultsPage() {
+      state.phase = "RESULTS";
+      const targetsCaught = getTargetsCaughtCount();
+      const dexCount = state.caughtSpecies.length;
+      const totalWeight = computeTotalWeight();
+      const rating = computeRating(targetsCaught, state.lineSnaps);
+
+      document.getElementById("res-targets").textContent = `${targetsCaught}/8`;
+      document.getElementById("res-dex").textContent = `${dexCount}/15`;
+      document.getElementById("res-weight").textContent = `${totalWeight.toFixed(1)} kg`;
+      document.getElementById("res-snaps").textContent = state.lineSnaps;
+      document.getElementById("res-rating").textContent = rating;
+
+      document.getElementById("results-screen").classList.add("show");
+      updateArenaStateExport();
+    }
+
+    function updateArenaStateExport() {
+      const dayCycle = computeDayCycle(state.sessionClock);
+      state.clock = dayCycle.clock;
+      state.segment = dayCycle.segment;
+      state.isMidnight = dayCycle.isMidnight;
+
+      const fogInfo = computeFogSchedule(state.sessionClock);
+      state.fogLevel = fogInfo.level;
+
+      // Round 10: Hints removed from DEX entries
+      const dexEntriesList = state.fishes.map(f => {
+        const isCaught = state.caughtSpecies.includes(f.name);
+        return {
+          name: f.isRare && !isCaught ? "???" : f.name,
+          species: f.name,
+          raw_name: f.name,
+          is_rare: !!f.isRare,
+          status: isCaught ? "CAUGHT" : "UNCAUGHT",
+          caught: isCaught,
+          weight: isCaught ? f.weight : null
+        };
+      });
+
+      const targetsCaught = getTargetsCaughtCount();
+      const totalWeightVal = computeTotalWeight();
+      const ratingStr = computeRating(targetsCaught, state.lineSnaps);
+
+      const targetListExport = GALA_TARGETS.map(t => ({
+        species: t,
+        name: t,
+        caught: state.caughtSpecies.some(s => s.includes(t) || t.includes(s)),
+        check: state.caughtSpecies.some(s => s.includes(t) || t.includes(s))
+      }));
+
+      const paleKingFish = state.fishes.find(f => f.name === "★ Pale King");
+      const mothQueenFish = state.fishes.find(f => f.name === "★ Moth Queen");
+      const inkEmperorFish = state.fishes.find(f => f.name === "★ Ink Emperor");
+
+      const rareCondMap = {
+        "★ Pale King": computeRareConditions(paleKingFish),
+        "★ Moth Queen": computeRareConditions(mothQueenFish),
+        "★ Ink Emperor": computeRareConditions(inkEmperorFish),
+        "Pale King": computeRareConditions(paleKingFish),
+        "Moth Queen": computeRareConditions(mothQueenFish),
+        "Ink Emperor": computeRareConditions(inkEmperorFish),
+        paleking: computeRareConditions(paleKingFish),
+        mothqueen: computeRareConditions(mothQueenFish),
+        inkemperor: computeRareConditions(inkEmperorFish)
+      };
+
+      window.__arena_state = {
+        phase: state.phase,
+        session_clock: state.sessionClock,
+        sessionClock: state.sessionClock,
+
+        // Round 10: Night Gala & Results Page Telemetry
+        gala: true,
+        is_gala: true,
+        gala_complete: (state.phase === "RESULTS"),
+        is_gala_complete: (state.phase === "RESULTS"),
+        target_list: targetListExport,
+        targetList: targetListExport,
+        targets_caught: targetsCaught,
+        targetsCaught: targetsCaught,
+        total_weight: `${totalWeightVal.toFixed(1)} kg`,
+        total_weight_kg: totalWeightVal,
+        totalWeight: `${totalWeightVal.toFixed(1)} kg`,
+        totalWeightKg: totalWeightVal,
+        dex_completion: state.caughtSpecies.length,
+        dexCompletion: state.caughtSpecies.length,
+        lines_snapped: state.lineSnaps,
+        linesSnapped: state.lineSnaps,
+        rating: ratingStr,
+        results: {
+          targets_caught: targetsCaught,
+          dex_completion: state.caughtSpecies.length,
+          total_weight: `${totalWeightVal.toFixed(1)} kg`,
+          total_weight_kg: totalWeightVal,
+          lines_snapped: state.lineSnaps,
+          rating: ratingStr
+        },
+
+        // Round 6: Day Cycle & Lighthouse
+        clock: state.clock,
+        segment: state.segment,
+        float_lit: state.isFloatLit,
+        floatLit: state.isFloatLit,
+        is_lit: state.isFloatLit,
+        isLit: state.isFloatLit,
+
+        // Round 7: Fog Schedule & Bite Bell
+        fog_level: state.fogLevel,
+        fogLevel: state.fogLevel,
+        last_bell_time: state.lastBellTime,
+        lastBellTime: state.lastBellTime,
+        last_bell_event: state.lastBellEvent,
+        lastBellEvent: state.lastBellEvent,
+        last_nibble_bell_time: state.lastNibbleBellTime,
+        last_plunge_bell_time: state.lastPlungeBellTime,
+        recent_bell_events: [...state.recentBellEvents],
+        recentBellEvents: [...state.recentBellEvents],
+        bell_timestamps: state.recentBellEvents.map(e => e.time),
+        bellTimestamps: state.recentBellEvents.map(e => e.time),
+
+        // Round 8: Midnight Window & Rare Species Conditions
+        is_midnight: state.isMidnight,
+        isMidnight: state.isMidnight,
+        midnight: state.isMidnight,
+        rare_conditions: rareCondMap,
+        rareConditions: rareCondMap,
+
+        // Round 9: Snap Penalty & Shifted Timetables
+        blackout_until: { ...state.blackoutUntil },
+        blackoutUntil: { ...state.blackoutUntil },
+        spot_blackout: { ...state.blackoutUntil },
+        star_flounder_window: "21:00–05:00",
+        starFlounderWindow: "21:00–05:00",
+        velvet_sculpin_window: "19:00–03:00",
+        velvetSculpinWindow: "19:00–03:00",
+
+        current_spot: SPOTS[state.currentSpotIndex].name,
+        currentSpot: SPOTS[state.currentSpotIndex].name,
+        aim_angle: state.aimAngle,
+        aimAngle: state.aimAngle,
+        power: state.power,
+        float: {
+          active: state.floatState.active,
+          x: state.floatState.x,
+          y: state.floatState.y,
+          z: state.floatState.z,
+          distance: state.floatState.distance,
+          column: state.floatState.column,
+          zone: state.floatState.zone,
+          state: state.phase
+        },
+        float_active: state.floatState.active,
+        float_distance: state.floatState.distance,
+        float_column: state.floatState.column,
+        float_zone: state.floatState.zone,
+        float_state: state.phase,
+        fishes: state.fishes.map(f => ({
+          species: f.name,
+          column: f.column,
+          zone: f.zone,
+          weight: f.weight,
+          home_layer: f.homeLayer,
+          homeLayer: f.homeLayer,
+          layer: f.homeLayer,
+          home_depth: f.homeDepth,
+          homeDepth: f.homeDepth,
+          active_window: f.activeWindow,
+          activeWindow: f.activeWindow,
+          startled_until: f.startledUntil,
+          startledUntil: f.startledUntil,
+          is_rare: !!f.isRare,
+          isRare: !!f.isRare,
+          conditions: f.isRare ? computeRareConditions(f) : undefined,
+          position: { x: f.x, y: f.y, z: f.z },
+          state: f.state,
+          caught: f.caught
+        })),
+        caught_list: [...state.caughtSpecies],
+        caughtList: [...state.caughtSpecies],
+        caught: [...state.caughtSpecies],
+        is_paused: state.isPaused,
+        isPaused: state.isPaused,
+
+        // Round 2
+        plunge_time: state.plungeTime,
+        plungeTime: state.plungeTime,
+        last_strike_time: state.lastStrikeTime,
+        lastStrikeTime: state.lastStrikeTime,
+        last_strike_offset: state.lastStrikeOffset,
+        lastStrikeOffset: state.lastStrikeOffset,
+        last_strike_result: state.lastStrikeResult,
+        lastStrikeResult: state.lastStrikeResult,
+        bite_state: state.biteState,
+        biteState: state.biteState,
+        hooks_landed: state.hooksLanded,
+        hooksLanded: state.hooksLanded,
+        too_early_escapes: state.tooEarlyEscapes,
+        tooEarlyEscapes: state.tooEarlyEscapes,
+        too_late_misses: state.tooLateMisses,
+        tooLateMisses: state.tooLateMisses,
+
+        // Round 3
+        tension: state.tension,
+        line_distance: state.lineDistance,
+        lineDistance: state.lineDistance,
+        current_species_pattern: [...state.currentSpeciesPattern],
+        currentSpeciesPattern: [...state.currentSpeciesPattern],
+        current_phase_index: state.currentPhaseIndex,
+        currentPhaseIndex: state.currentPhaseIndex,
+        remaining_phase_time: state.remainingPhaseTime,
+        remainingPhaseTime: state.remainingPhaseTime,
+        snaps_counter: state.lineSnaps,
+        snapsCounter: state.lineSnaps,
+        line_snaps: state.lineSnaps,
+        lineSnaps: state.lineSnaps,
+
+        // Round 4: Depth Layers & Sinkers
+        selected_sinker: state.selectedSinker.name,
+        selectedSinker: state.selectedSinker.name,
+        sinker: state.selectedSinker.name,
+        sinker_weight: state.selectedSinker.weight,
+        sinker_id: state.selectedSinker.id,
+        fishing_depth: state.selectedSinker.layer,
+        fishingDepth: state.selectedSinker.layer,
+        fishing_layer: state.selectedSinker.layer,
+        fishingLayer: state.selectedSinker.layer,
+        fishing_depth_m: state.selectedSinker.depth,
+        fishingDepthM: state.selectedSinker.depth,
+        depth: state.selectedSinker.depth,
+        current_depth: state.currentDepth,
+        currentDepth: state.currentDepth,
+        sink_progress: state.sinkProgress,
+        sinkProgress: state.sinkProgress,
+        is_sinking: state.isSinking,
+        isSinking: state.isSinking,
+
+        // Round 5: Lures & Attraction
+        current_lure: state.currentLure,
+        currentLure: state.currentLure,
+        lure: state.currentLure,
+        effective_grade: state.effectiveGrade,
+        effectiveGrade: state.effectiveGrade,
+        scheduled_approach_time: state.scheduledApproachTime,
+        scheduledApproachTime: state.scheduledApproachTime,
+        is_dex_open: state.isDexOpen,
+        isDexOpen: state.isDexOpen,
+        dex_entries: dexEntriesList,
+        dexEntries: dexEntriesList
+      };
+    }
+    updateArenaStateExport();
+
+    /* =========================================================================
+       THREE.JS SCENE SETUP
+       ========================================================================= */
+
+    const container = document.getElementById("canvas-container");
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x040c14);
+    scene.fog = new THREE.FogExp2(0x061521, 0.045);
+
+    const camera = new THREE.PerspectiveCamera(
+      45,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      100
+    );
+    camera.position.set(-6.2, 5.8, -4.5);
+    camera.lookAt(1.2, 0.8, 3.8);
+
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.1;
+      container.appendChild(renderer.domElement);
+    } catch (e1) {
+      try {
+        renderer = new THREE.WebGLRenderer({ antialias: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+      } catch (e2) {
+        console.warn("WebGL not available in current environment. Using headless mock renderer:", e2.message);
+        const mockCanvas = document.createElement("canvas");
+        mockCanvas.width = window.innerWidth || 800;
+        mockCanvas.height = window.innerHeight || 600;
+        container.appendChild(mockCanvas);
+        renderer = {
+          domElement: mockCanvas,
+          shadowMap: { enabled: true, type: null },
+          setSize: () => {},
+          setPixelRatio: () => {},
+          render: () => {},
+          toneMapping: 0,
+          toneMappingExposure: 1
+        };
+      }
+    }
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      if (renderer && renderer.setSize) {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+    });
+
+    /* =========================================================================
+       LIGHTING & ATMOSPHERE
+       ========================================================================= */
+
+    const ambientLight = new THREE.AmbientLight(0x183447, 0.9);
+    scene.add(ambientLight);
+
+    const moonLight = new THREE.DirectionalLight(0x75b2d6, 0.85);
+    moonLight.position.set(15, 25, -10);
+    moonLight.castShadow = true;
+    moonLight.shadow.mapSize.width = 1024;
+    moonLight.shadow.mapSize.height = 1024;
+    scene.add(moonLight);
+
+    const fillLight = new THREE.DirectionalLight(0x1a455a, 0.5);
+    fillLight.position.set(-15, 10, 15);
+    scene.add(fillLight);
+
+    /* =========================================================================
+       WORLD GEOMETRY
+       ========================================================================= */
+
+    const woodMaterial = new THREE.MeshStandardMaterial({ color: 0x3d2c1f, roughness: 0.85, metalness: 0.1 });
+    const woodDeckMaterial = new THREE.MeshStandardMaterial({ color: 0x36271c, roughness: 0.9, metalness: 0.05 });
+    const darkWoodMaterial = new THREE.MeshStandardMaterial({ color: 0x221811, roughness: 0.95 });
+    const ironMaterial = new THREE.MeshStandardMaterial({ color: 0x242d33, roughness: 0.4, metalness: 0.8 });
+    const lampGlowMaterial = new THREE.MeshBasicMaterial({ color: 0xffd98c });
+    const stoneMaterial = new THREE.MeshStandardMaterial({ color: 0x1f2930, roughness: 0.95 });
+
+    const pierGroup = new THREE.Group();
+    scene.add(pierGroup);
+
+    const deckGeo = new THREE.BoxGeometry(12.6, 0.3, 2.8);
+    const pierDeck = new THREE.Mesh(deckGeo, woodDeckMaterial);
+    pierDeck.position.set(0, 0.85, -1.3);
+    pierDeck.receiveShadow = true;
+    pierDeck.castShadow = true;
+    pierGroup.add(pierDeck);
+
+    for (let x = -6.0; x <= 6.0; x += 0.4) {
+      const plankLineGeo = new THREE.BoxGeometry(0.04, 0.02, 2.82);
+      const plankLine = new THREE.Mesh(plankLineGeo, darkWoodMaterial);
+      plankLine.position.set(x, 1.01, -1.3);
+      pierGroup.add(plankLine);
+    }
+
+    for (let px = -5.6; px <= 5.6; px += 2.8) {
+      for (let pz of [ -0.15, -2.55 ]) {
+        const pilingGeo = new THREE.CylinderGeometry(0.18, 0.22, 3.5, 8);
+        const piling = new THREE.Mesh(pilingGeo, darkWoodMaterial);
+        piling.position.set(px, -0.7, pz);
+        piling.castShadow = true;
+        pierGroup.add(piling);
+      }
+    }
+
+    const frontRailGeo = new THREE.BoxGeometry(12.4, 0.12, 0.12);
+    const frontRail = new THREE.Mesh(frontRailGeo, woodMaterial);
+    frontRail.position.set(0, 1.45, 0.0);
+    frontRail.castShadow = true;
+    pierGroup.add(frontRail);
+
+    const midRailGeo = new THREE.BoxGeometry(12.4, 0.08, 0.08);
+    const midRail = new THREE.Mesh(midRailGeo, woodMaterial);
+    midRail.position.set(0, 1.2, 0.0);
+    pierGroup.add(midRail);
+
+    for (let rx = -5.8; rx <= 5.8; rx += 1.45) {
+      const postGeo = new THREE.BoxGeometry(0.14, 0.65, 0.14);
+      const post = new THREE.Mesh(postGeo, woodMaterial);
+      post.position.set(rx, 1.25, 0.0);
+      post.castShadow = true;
+      pierGroup.add(post);
+    }
+
+    const backRail = new THREE.Mesh(new THREE.BoxGeometry(12.4, 0.1, 0.1), woodMaterial);
+    backRail.position.set(0, 1.4, -2.65);
+    pierGroup.add(backRail);
+    for (let rx = -5.8; rx <= 5.8; rx += 2.9) {
+      const bpost = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.55, 0.12), woodMaterial);
+      bpost.position.set(rx, 1.2, -2.65);
+      pierGroup.add(bpost);
+    }
+
+    function createPlaqueCanvas(text) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 256;
+      canvas.height = 64;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#1e140d";
+      ctx.fillRect(0, 0, 256, 64);
+      ctx.strokeStyle = "#8d6840";
+      ctx.lineWidth = 6;
+      ctx.strokeRect(4, 4, 248, 56);
+      ctx.fillStyle = "#f3dbb3";
+      ctx.font = "bold 24px monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, 128, 32);
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    SPOTS.forEach(spot => {
+      const plaqueMat = new THREE.MeshBasicMaterial({
+        map: createPlaqueCanvas(spot.name)
+      });
+      const plaqueMesh = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.26, 0.04), plaqueMat);
+      plaqueMesh.position.set(spot.x, 1.35, 0.08);
+      pierGroup.add(plaqueMesh);
+
+      const matMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.9, 0.01, 0.9),
+        new THREE.MeshStandardMaterial({ color: 0x283a45, roughness: 0.9 })
+      );
+      matMesh.position.set(spot.x, 1.01, -0.6);
+      pierGroup.add(matMesh);
+    });
+
+    const lampLights = [];
+    function createPierLamp(x, z) {
+      const lampGroup = new THREE.Group();
+      lampGroup.position.set(x, 1.0, z);
+
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 2.5, 8), ironMaterial);
+      pole.position.y = 1.25;
+      pole.castShadow = true;
+      lampGroup.add(pole);
+
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.5), ironMaterial);
+      arm.position.set(0, 2.45, 0.2);
+      lampGroup.add(arm);
+
+      const housing = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, 0.3), ironMaterial);
+      housing.position.set(0, 2.35, 0.45);
+      lampGroup.add(housing);
+
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), lampGlowMaterial);
+      bulb.position.set(0, 2.32, 0.45);
+      lampGroup.add(bulb);
+
+      const pLight = new THREE.PointLight(0xffb85c, 1.4, 8, 1.5);
+      pLight.position.set(x, 3.32, z + 0.45);
+      scene.add(pLight);
+      lampLights.push({ light: pLight, baseIntensity: 1.4, bulb: bulb });
+
+      pierGroup.add(lampGroup);
+    }
+    createPierLamp(-5.2, -0.2);
+    createPierLamp(5.2, -0.2);
+
+    function createCrate(x, y, z, size, rotY) {
+      const crate = new THREE.Mesh(
+        new THREE.BoxGeometry(size, size, size),
+        new THREE.MeshStandardMaterial({ color: 0x473220, roughness: 0.9 })
+      );
+      crate.position.set(x, y + size / 2, z);
+      crate.rotation.y = rotY;
+      crate.castShadow = true;
+      crate.receiveShadow = true;
+      pierGroup.add(crate);
+    }
+    createCrate(-2.0, 1.0, -1.8, 0.65, 0.15);
+    createCrate(-2.1, 1.65, -1.8, 0.5, -0.2);
+    createCrate(2.2, 1.0, -1.9, 0.7, -0.3);
+    createCrate(2.7, 1.0, -1.7, 0.55, 0.4);
+
+    function createRopeCoil(x, z) {
+      const ropeGeo = new THREE.TorusGeometry(0.25, 0.06, 8, 16);
+      const ropeMat = new THREE.MeshStandardMaterial({ color: 0x6e5c46, roughness: 0.95 });
+      const rope = new THREE.Mesh(ropeGeo, ropeMat);
+      rope.rotation.x = Math.PI / 2;
+      rope.position.set(x, 1.03, z);
+      pierGroup.add(rope);
+    }
+    createRopeCoil(-1.3, -1.6);
+    createRopeCoil(1.4, -1.7);
+
+    const boatGroup = new THREE.Group();
+    boatGroup.position.set(-6.5, 0.05, 1.2);
+    boatGroup.rotation.y = 0.35;
+    scene.add(boatGroup);
+
+    const hullGeo = new THREE.BoxGeometry(1.2, 0.6, 2.6);
+    const hullMat = new THREE.MeshStandardMaterial({ color: 0x223640, roughness: 0.8 });
+    const boatHull = new THREE.Mesh(hullGeo, hullMat);
+    boatHull.castShadow = true;
+    boatGroup.add(boatHull);
+
+    const seatMat = new THREE.MeshStandardMaterial({ color: 0x5a412c, roughness: 0.85 });
+    const seat1 = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.08, 0.4), seatMat);
+    seat1.position.set(0, 0.25, 0.2);
+    boatGroup.add(seat1);
+    const seat2 = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.08, 0.4), seatMat);
+    seat2.position.set(0, 0.25, -0.7);
+    boatGroup.add(seat2);
+
+    const lighthouseGroup = new THREE.Group();
+    lighthouseGroup.position.set(13.5, 0, 9.5);
+    scene.add(lighthouseGroup);
+
+    for (let i = 0; i < 7; i++) {
+      const rx = (i % 3 - 1) * 2.2;
+      const rz = (Math.floor(i / 3) - 1) * 2.2;
+      const rockGeo = new THREE.DodecahedronGeometry(1.8 + (i % 2) * 0.4, 1);
+      const rock = new THREE.Mesh(rockGeo, stoneMaterial);
+      rock.position.set(rx, 0.5, rz);
+      rock.scale.set(1.4, 0.9, 1.4);
+      lighthouseGroup.add(rock);
+    }
+
+    const towerGeo = new THREE.CylinderGeometry(0.85, 1.4, 9.0, 12);
+    const towerMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.7 });
+    const tower = new THREE.Mesh(towerGeo, towerMat);
+    tower.position.y = 5.5;
+    lighthouseGroup.add(tower);
+
+    const stripeGeo = new THREE.CylinderGeometry(1.05, 1.15, 1.6, 12);
+    const stripeMat = new THREE.MeshStandardMaterial({ color: 0x962828, roughness: 0.6 });
+    const stripe = new THREE.Mesh(stripeGeo, stripeMat);
+    stripe.position.y = 5.6;
+    lighthouseGroup.add(stripe);
+
+    const galleryGeo = new THREE.CylinderGeometry(1.1, 1.1, 0.3, 12);
+    const gallery = new THREE.Mesh(galleryGeo, ironMaterial);
+    gallery.position.y = 10.1;
+    lighthouseGroup.add(gallery);
+
+    const glassGeo = new THREE.CylinderGeometry(0.8, 0.8, 1.0, 8);
+    const glassMat = new THREE.MeshBasicMaterial({ color: 0xfff0aa, transparent: true, opacity: 0.85 });
+    const glass = new THREE.Mesh(glassGeo, glassMat);
+    glass.position.y = 10.7;
+    lighthouseGroup.add(glass);
+
+    const roofGeo = new THREE.ConeGeometry(1.0, 1.0, 12);
+    const roof = new THREE.Mesh(roofGeo, ironMaterial);
+    roof.position.y = 11.7;
+    lighthouseGroup.add(roof);
+
+    const beamPivot = new THREE.Group();
+    beamPivot.position.set(13.5, 10.7, 9.5);
+    scene.add(beamPivot);
+
+    const beamGeo = new THREE.ConeGeometry(4.5, 32.0, 16, 1, true);
+    beamGeo.rotateX(Math.PI / 2);
+    beamGeo.translate(0, 0, 16.0);
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: 0xfffae0,
+      transparent: true,
+      opacity: 0.22,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    const lighthouseBeam = new THREE.Mesh(beamGeo, beamMat);
+    beamPivot.add(lighthouseBeam);
+
+    /* =========================================================================
+       WATER SURFACE WITH DYNAMIC RIPPLES
+       ========================================================================= */
+
+    const waterWidth = 36;
+    const waterDepth = 30;
+    const waterSegX = 90;
+    const waterSegZ = 75;
+    const waterGeo = new THREE.PlaneGeometry(waterWidth, waterDepth, waterSegX, waterSegZ);
+    waterGeo.rotateX(-Math.PI / 2);
+    waterGeo.translate(0, 0, 12.0);
+
+    const baseWaterVertices = [];
+    const posAttr = waterGeo.attributes.position;
+    for (let i = 0; i < posAttr.count; i++) {
+      baseWaterVertices.push(posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i));
+    }
+
+    const waterMat = new THREE.MeshStandardMaterial({
+      color: 0x072233,
+      roughness: 0.15,
+      metalness: 0.85,
+      flatShading: true,
+      transparent: true,
+      opacity: 0.95
+    });
+    const waterMesh = new THREE.Mesh(waterGeo, waterMat);
+    waterMesh.receiveShadow = true;
+    scene.add(waterMesh);
+
+    const seabedGeo = new THREE.PlaneGeometry(40, 32);
+    seabedGeo.rotateX(-Math.PI / 2);
+    seabedGeo.translate(0, -1.8, 12.0);
+    scene.add(new THREE.Mesh(seabedGeo, new THREE.MeshBasicMaterial({ color: 0x02080f })));
+
+    /* =========================================================================
+       BUOY LINES
+       ========================================================================= */
+
+    const buoyMaterial1 = new THREE.MeshStandardMaterial({ color: 0xe84a38, roughness: 0.4 });
+    const buoyMaterial2 = new THREE.MeshStandardMaterial({ color: 0xf5a623, roughness: 0.4 });
+    const buoyGeo = new THREE.SphereGeometry(0.12, 10, 8);
+    const buoyGroup = new THREE.Group();
+    scene.add(buoyGroup);
+
+    for (let bx = -5.5; bx <= 5.5; bx += 0.8) {
+      const b = new THREE.Mesh(buoyGeo, buoyMaterial1);
+      b.position.set(bx, 0.05, 3.5);
+      b.scale.set(1.0, 1.3, 1.0);
+      buoyGroup.add(b);
+    }
+    const lineGeo1 = new THREE.CylinderGeometry(0.015, 0.015, 11.0);
+    lineGeo1.rotateZ(Math.PI / 2);
+    const ropeMat = new THREE.MeshBasicMaterial({ color: 0x304550 });
+    const line1 = new THREE.Mesh(lineGeo1, ropeMat);
+    line1.position.set(0, 0.05, 3.5);
+    buoyGroup.add(line1);
+
+    for (let bx = -5.5; bx <= 5.5; bx += 0.8) {
+      const b = new THREE.Mesh(buoyGeo, buoyMaterial2);
+      b.position.set(bx, 0.05, 5.5);
+      b.scale.set(1.0, 1.3, 1.0);
+      buoyGroup.add(b);
+    }
+    const lineGeo2 = new THREE.CylinderGeometry(0.015, 0.015, 11.0);
+    lineGeo2.rotateZ(Math.PI / 2);
+    const line2 = new THREE.Mesh(lineGeo2, ropeMat);
+    line2.position.set(0, 0.05, 5.5);
+    buoyGroup.add(line2);
+
+    for (let bz = 2.0; bz <= 7.5; bz += 1.2) {
+      const divMat = new THREE.MeshStandardMaterial({ color: 0x2288a8, roughness: 0.5 });
+      const b1 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.25, 6), divMat);
+      b1.position.set(-2.0, 0.06, bz);
+      buoyGroup.add(b1);
+
+      const b2 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.25, 6), divMat);
+      b2.position.set(2.0, 0.06, bz);
+      buoyGroup.add(b2);
+    }
+
+    /* =========================================================================
+       DRIFTING FOG BANKS
+       ========================================================================= */
+
+    const fogGroup = new THREE.Group();
+    scene.add(fogGroup);
+
+    const fogBankCount = 8;
+    const fogBanks = [];
+    const fogGeo = new THREE.PlaneGeometry(8, 3.5);
+    fogGeo.rotateX(-Math.PI / 2);
+
+    const fogCanvas = document.createElement("canvas");
+    fogCanvas.width = 128;
+    fogCanvas.height = 128;
+    const fogCtx = fogCanvas.getContext("2d");
+    const fogGrad = fogCtx.createRadialGradient(64, 64, 5, 64, 64, 64);
+    fogGrad.addColorStop(0, "rgba(160, 205, 225, 0.35)");
+    fogGrad.addColorStop(0.5, "rgba(120, 175, 200, 0.18)");
+    fogGrad.addColorStop(1, "rgba(50, 100, 130, 0.0)");
+    fogCtx.fillStyle = fogGrad;
+    fogCtx.fillRect(0, 0, 128, 128);
+    const fogTex = new THREE.CanvasTexture(fogCanvas);
+
+    for (let i = 0; i < fogBankCount; i++) {
+      const fogMat = new THREE.MeshBasicMaterial({
+        map: fogTex,
+        transparent: true,
+        opacity: 0.35,
+        depthWrite: false,
+        blending: THREE.NormalBlending
+      });
+      const fogMesh = new THREE.Mesh(fogGeo, fogMat);
+      const baseX = ((i * 3.7) % 18) - 9;
+      const baseZ = 2.0 + (i * 1.5) % 9.0;
+      fogMesh.position.set(baseX, 0.25 + (i % 3) * 0.1, baseZ);
+      fogBanks.push({
+        mesh: fogMesh,
+        baseX: baseX,
+        baseZ: baseZ,
+        speed: 0.2 + (i % 4) * 0.08
+      });
+      fogGroup.add(fogMesh);
+    }
+
+    /* =========================================================================
+       ANGLER FIGURE & FISHING ROD
+       ========================================================================= */
+
+    const anglerRoot = new THREE.Group();
+    scene.add(anglerRoot);
+    anglerRoot.position.set(SPOTS[0].x, 1.0, -0.5);
+
+    const yellowCoatMat = new THREE.MeshStandardMaterial({ color: 0xd99a26, roughness: 0.6 });
+    const darkPantsMat = new THREE.MeshStandardMaterial({ color: 0x182430, roughness: 0.8 });
+    const bootMat = new THREE.MeshStandardMaterial({ color: 0x11161a, roughness: 0.5 });
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xe2a882, roughness: 0.7 });
+    const hatMat = new THREE.MeshStandardMaterial({ color: 0xc4861b, roughness: 0.6 });
+    const rodMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.6, roughness: 0.3 });
+
+    const leftLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.65, 8), darkPantsMat);
+    leftLeg.position.set(-0.16, 0.35, 0);
+    leftLeg.castShadow = true;
+    anglerRoot.add(leftLeg);
+
+    const rightLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.65, 8), darkPantsMat);
+    rightLeg.position.set(0.16, 0.35, 0);
+    rightLeg.castShadow = true;
+    anglerRoot.add(rightLeg);
+
+    const leftBoot = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.15, 0.28), bootMat);
+    leftBoot.position.set(-0.16, 0.08, 0.04);
+    anglerRoot.add(leftBoot);
+
+    const rightBoot = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.15, 0.28), bootMat);
+    rightBoot.position.set(0.16, 0.08, 0.04);
+    anglerRoot.add(rightBoot);
+
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.65, 0.32), yellowCoatMat);
+    torso.position.set(0, 0.95, 0);
+    torso.castShadow = true;
+    anglerRoot.add(torso);
+
+    const coatHemPivot = new THREE.Group();
+    coatHemPivot.position.set(0, 0.68, 0);
+    anglerRoot.add(coatHemPivot);
+    const coatHemMesh = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.22, 0.36), yellowCoatMat);
+    coatHemMesh.position.set(0, -0.1, 0);
+    coatHemPivot.add(coatHemMesh);
+
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), skinMat);
+    head.position.set(0, 1.45, 0);
+    head.castShadow = true;
+    anglerRoot.add(head);
+
+    const hatBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.36, 0.05, 12), hatMat);
+    hatBrim.position.set(0, 1.54, -0.04);
+    hatBrim.rotation.x = -0.1;
+    anglerRoot.add(hatBrim);
+
+    const hatDome = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.25, 10), hatMat);
+    hatDome.position.set(0, 1.68, -0.04);
+    hatDome.rotation.x = -0.1;
+    anglerRoot.add(hatDome);
+
+    const beard = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.1), new THREE.MeshStandardMaterial({ color: 0x6e7880 }));
+    beard.position.set(0, 1.38, 0.13);
+    anglerRoot.add(beard);
+
+    const armsPivot = new THREE.Group();
+    armsPivot.position.set(0, 1.15, 0.12);
+    anglerRoot.add(armsPivot);
+
+    const leftArm = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.5, 8), yellowCoatMat);
+    leftArm.position.set(-0.24, -0.1, 0.18);
+    leftArm.rotation.x = 0.8;
+    leftArm.rotation.z = -0.3;
+    armsPivot.add(leftArm);
+
+    const rightArm = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.5, 8), yellowCoatMat);
+    rightArm.position.set(0.24, -0.1, 0.18);
+    rightArm.rotation.x = 0.8;
+    rightArm.rotation.z = 0.3;
+    armsPivot.add(rightArm);
+
+    const leftHand = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), skinMat);
+    leftHand.position.set(-0.12, -0.25, 0.38);
+    armsPivot.add(leftHand);
+
+    const rightHand = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), skinMat);
+    rightHand.position.set(0.12, -0.22, 0.38);
+    armsPivot.add(rightHand);
+
+    const rodBaseGroup = new THREE.Group();
+    rodBaseGroup.position.set(0.08, -0.22, 0.35);
+    armsPivot.add(rodBaseGroup);
+
+    const reel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.08, 10), ironMaterial);
+    reel.rotation.z = Math.PI / 2;
+    reel.position.set(-0.02, 0.05, 0.05);
+    rodBaseGroup.add(reel);
+
+    const rodLower = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.035, 1.4, 8), rodMat);
+    rodLower.position.set(0, 0.65, 0.4);
+    rodLower.rotation.x = 0.65;
+    rodBaseGroup.add(rodLower);
+
+    // Small brass bite bell mounted on the rod rest (Round 7)
+    const bellGroup = new THREE.Group();
+    bellGroup.position.set(0.06, 0.45, 0.28);
+    const bellMat = new THREE.MeshStandardMaterial({
+      color: 0xd4af37,
+      metalness: 0.85,
+      roughness: 0.25
+    });
+    const bellMesh = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.07, 8), bellMat);
+    bellMesh.rotation.x = Math.PI;
+    bellGroup.add(bellMesh);
+    const clapper = new THREE.Mesh(new THREE.SphereGeometry(0.015, 6, 6), bellMat);
+    clapper.position.y = -0.04;
+    bellGroup.add(clapper);
+    rodBaseGroup.add(bellGroup);
+
+    const rodTipPivot = new THREE.Group();
+    rodTipPivot.position.set(0, 1.25, 0.85);
+    rodBaseGroup.add(rodTipPivot);
+
+    const rodUpper = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.022, 1.6, 8), rodMat);
+    rodUpper.position.set(0, 0.75, 0.52);
+    rodUpper.rotation.x = 0.65;
+    rodTipPivot.add(rodUpper);
+
+    const rodTipMarker = new THREE.Object3D();
+    rodTipMarker.position.set(0, 1.45, 1.05);
+    rodTipPivot.add(rodTipMarker);
+
+    /* =========================================================================
+       FLOAT, LINE, AIM PREVIEW & TRAJECTORY
+       ========================================================================= */
+
+    const floatGroup = new THREE.Group();
+    scene.add(floatGroup);
+    floatGroup.visible = false;
+
+    const floatTop = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: 0xff3b30 })
+    );
+    const floatBottom = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08, 10, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: 0xffffff })
+    );
+    const floatSpindle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.012, 0.012, 0.32, 6),
+      new THREE.MeshBasicMaterial({ color: 0x111111 })
+    );
+    floatGroup.add(floatTop);
+    floatGroup.add(floatBottom);
+    floatGroup.add(floatSpindle);
+
+    // Fishing line: dynamic points during struggle to allow zigzagging
+    const maxLineVerts = 16;
+    const linePositions = new Float32Array(maxLineVerts * 3);
+    const lineGeo = new THREE.BufferGeometry();
+    lineGeo.setAttribute("position", new THREE.BufferAttribute(linePositions, 3));
+    const lineMat = new THREE.LineBasicMaterial({ color: 0xdcf4ff, transparent: true, opacity: 0.75 });
+    const fishingLine = new THREE.Line(lineGeo, lineMat);
+    scene.add(fishingLine);
+    fishingLine.visible = false;
+
+    const aimLineGeo = new THREE.BufferGeometry();
+    const aimPoints = [];
+    for (let i = 0; i <= 24; i++) {
+      aimPoints.push(new THREE.Vector3(0, 0.02, 0));
+    }
+    aimLineGeo.setFromPoints(aimPoints);
+    const aimLineMat = new THREE.LineDashedMaterial({
+      color: 0x5ce6b4,
+      dashSize: 0.25,
+      gapSize: 0.15,
+      transparent: true,
+      opacity: 0.45
+    });
+    const aimLine = new THREE.Line(aimLineGeo, aimLineMat);
+    aimLine.computeLineDistances();
+    scene.add(aimLine);
+
+    const arcPreviewCount = 30;
+    const arcPreviewPoints = [];
+    for (let i = 0; i <= arcPreviewCount; i++) {
+      arcPreviewPoints.push(new THREE.Vector3());
+    }
+    const arcPreviewGeo = new THREE.BufferGeometry().setFromPoints(arcPreviewPoints);
+    const arcPreviewMat = new THREE.LineBasicMaterial({
+      color: 0x70d6ff,
+      transparent: true,
+      opacity: 0.7
+    });
+    const arcPreviewLine = new THREE.Line(arcPreviewGeo, arcPreviewMat);
+    scene.add(arcPreviewLine);
+    arcPreviewLine.visible = false;
+
+    const landingRingMat = new THREE.MeshBasicMaterial({
+      color: 0x5ce6b4,
+      transparent: true,
+      opacity: 0.55,
+      side: THREE.DoubleSide
+    });
+    const landingRing = new THREE.Mesh(new THREE.RingGeometry(0.15, 0.22, 18), landingRingMat);
+    landingRing.rotation.x = -Math.PI / 2;
+    landingRing.position.y = 0.03;
+    scene.add(landingRing);
+    landingRing.visible = false;
+
+    const rippleRingMat = new THREE.MeshBasicMaterial({
+      color: 0x90e0ef,
+      transparent: true,
+      opacity: 0.0,
+      side: THREE.DoubleSide
+    });
+    const rippleRing = new THREE.Mesh(new THREE.RingGeometry(0.1, 0.18, 20), rippleRingMat);
+    rippleRing.rotation.x = -Math.PI / 2;
+    rippleRing.position.y = 0.03;
+    scene.add(rippleRing);
+
+    const splashGroup = new THREE.Group();
+    scene.add(splashGroup);
+    const splashDroplets = [];
+    for (let i = 0; i < 16; i++) {
+      const drop = new THREE.Mesh(
+        new THREE.SphereGeometry(0.03, 6, 6),
+        new THREE.MeshBasicMaterial({ color: 0xade8f4, transparent: true, opacity: 0.8 })
+      );
+      splashDroplets.push(drop);
+      splashGroup.add(drop);
+      drop.visible = false;
+    }
+
+    /* =========================================================================
+       FISH 3D MESHES & PATROL SILHOUETTES
+       ========================================================================= */
+
+    const fishMeshes = [];
+    state.fishes.forEach((fish, idx) => {
+      const fGroup = new THREE.Group();
+      fGroup.position.set(fish.x, fish.y, fish.z);
+
+      let bodyGeo;
+      if (fish.id === "paleking") {
+        bodyGeo = new THREE.ConeGeometry(0.24, 0.95, 8);
+      } else if (fish.id === "mothqueen") {
+        bodyGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.09, 6);
+      } else if (fish.id === "inkemperor") {
+        bodyGeo = new THREE.CylinderGeometry(0.12, 0.15, 1.15, 8);
+      } else if (fish.id === "grouper") {
+        bodyGeo = new THREE.ConeGeometry(0.20, 0.7, 8);
+      } else if (fish.id === "cod") {
+        bodyGeo = new THREE.ConeGeometry(0.16, 0.6, 8);
+      } else if (fish.id === "skate" || fish.id === "ray") {
+        bodyGeo = new THREE.CylinderGeometry(0.26, 0.26, 0.08, 6);
+      } else if (fish.id === "flounder") {
+        bodyGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.06, 6);
+      } else if (fish.id === "conger") {
+        bodyGeo = new THREE.CylinderGeometry(0.09, 0.11, 0.85, 8);
+      } else if (fish.id === "squid") {
+        bodyGeo = new THREE.ConeGeometry(0.14, 0.65, 8);
+      } else if (fish.id === "sculpin") {
+        bodyGeo = new THREE.ConeGeometry(0.17, 0.55, 8);
+      } else {
+        bodyGeo = new THREE.ConeGeometry(0.12, 0.5, 8);
+      }
+      bodyGeo.rotateX(Math.PI / 2);
+      const fMat = new THREE.MeshStandardMaterial({
+        color: fish.color,
+        roughness: 0.4,
+        metalness: 0.2
+      });
+      const body = new THREE.Mesh(bodyGeo, fMat);
+      fGroup.add(body);
+
+      const tailGeo = new THREE.BufferGeometry();
+      let tailVerts;
+      if (fish.id === "skate" || fish.id === "ray" || fish.id === "mothqueen") {
+        tailVerts = new Float32Array([
+          0, 0, -0.2,
+          0, 0.05, -0.55,
+          0, -0.05, -0.55
+        ]);
+      } else if (fish.id === "conger" || fish.id === "inkemperor") {
+        tailVerts = new Float32Array([
+          0, 0, -0.5,
+          0, 0.08, -0.8,
+          0, -0.08, -0.8
+        ]);
+      } else {
+        tailVerts = new Float32Array([
+          0, 0, -0.25,
+          0, 0.12, -0.42,
+          0, -0.12, -0.42
+        ]);
+      }
+      tailGeo.setAttribute("position", new THREE.BufferAttribute(tailVerts, 3));
+      const tailMat = new THREE.MeshBasicMaterial({ color: fish.color, side: THREE.DoubleSide });
+      const tail = new THREE.Mesh(tailGeo, tailMat);
+      fGroup.add(tail);
+
+      if (fish.id === "perch") {
+        const lanternMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(0.04, 6, 6),
+          new THREE.MeshBasicMaterial({ color: 0x70ffd0 })
+        );
+        lanternMesh.position.set(0, 0.16, 0.18);
+        fGroup.add(lanternMesh);
+      }
+
+      scene.add(fGroup);
+      fishMeshes.push({ group: fGroup, tail: tail, fishData: fish });
+    });
+
+    const landedFishGroup = new THREE.Group();
+    const landedBodyGeo = new THREE.ConeGeometry(0.14, 0.6, 8);
+    landedBodyGeo.rotateX(Math.PI / 2);
+    const landedFishMesh = new THREE.Mesh(
+      landedBodyGeo,
+      new THREE.MeshStandardMaterial({ color: 0x5ce6b4, roughness: 0.3 })
+    );
+    landedFishGroup.add(landedFishMesh);
+    scene.add(landedFishGroup);
+    landedFishGroup.visible = false;
+
+    /* =========================================================================
+       INPUT HANDLING
+       ========================================================================= */
+
+    const keys = {
+      ArrowLeft: false,
+      ArrowRight: false,
+      KeyA: false,
+      KeyD: false,
+      Space: false,
+      KeyX: false,
+      KeyP: false,
+      KeyR: false,
+      Enter: false
+    };
+
+    window.addEventListener("keydown", (e) => {
+      const code = e.code;
+      if (keys.hasOwnProperty(code)) {
+        keys[code] = true;
+      }
+
+      if (code === "Enter" && state.phase === "READY") {
+        startGame();
+        return;
+      }
+
+      if (code === "KeyP" && state.phase !== "READY") {
+        state.isPaused = !state.isPaused;
+        const pauseEl = document.getElementById("pause-screen");
+        if (state.isPaused) {
+          pauseEl.classList.add("show");
+        } else {
+          pauseEl.classList.remove("show");
+        }
+        return;
+      }
+
+      // DEX overlay toggle with C (Round 5)
+      if (code === "KeyC") {
+        toggleDexOverlay();
+        return;
+      }
+
+      // While DEX overlay is open, simulation and other controls are paused
+      if (state.isDexOpen) return;
+
+      if (code === "KeyR") {
+        resetGame();
+        return;
+      }
+
+      // Lure cycling with Q / E while no float is in water (Round 5)
+      if (!state.floatState.active && state.phase !== "FLYING" && state.phase !== "FIGHT" && state.phase !== "LANDING") {
+        if (code === "KeyQ") {
+          cycleLure(-1);
+          return;
+        } else if (code === "KeyE") {
+          cycleLure(1);
+          return;
+        }
+      }
+
+      // Sinker selection with 1 / 2 / 3 while no float is in water (Round 4)
+      if (!state.floatState.active && state.phase !== "FLYING" && state.phase !== "FIGHT" && state.phase !== "LANDING") {
+        if (code === "Digit1" || code === "Numpad1" || e.key === "1") {
+          selectSinker(1);
+          return;
+        } else if (code === "Digit2" || code === "Numpad2" || e.key === "2") {
+          selectSinker(2);
+          return;
+        } else if (code === "Digit3" || code === "Numpad3" || e.key === "3") {
+          selectSinker(3);
+          return;
+        }
+      }
+
+      if (state.isPaused || state.phase === "READY") return;
+
+      // During FIGHT: walking, aiming, casting, X, further strikes are LOCKED!
+      if (state.phase === "FIGHT") {
+        return;
+      }
+
+      // Space key for STRIKE when float is in water
+      if (code === "Space" && !e.repeat) {
+        if (state.floatState.active && (state.phase === "SETTLED" || state.phase === "NIBBLING" || state.phase === "PLUNGED")) {
+          performStrike();
+          return;
+        }
+      }
+
+      if (state.phase === "IDLE" && !state.isWalking) {
+        if (code === "ArrowLeft") {
+          requestSpotMove(-1);
+        } else if (code === "ArrowRight") {
+          requestSpotMove(1);
+        }
+      }
+
+      if (code === "KeyX") {
+        if (state.phase === "SETTLED" || state.phase === "NIBBLING" || state.phase === "PLUNGED") {
+          reelInFloat();
+        }
+      }
+    });
+
+    window.addEventListener("keyup", (e) => {
+      const code = e.code;
+      if (keys.hasOwnProperty(code)) {
+        keys[code] = false;
+      }
+
+      if (state.isPaused || state.isDexOpen || state.phase === "READY") return;
+
+      // Space release during CHARGING casts the line
+      if (code === "Space" && state.phase === "CHARGING") {
+        performCast();
+      }
+    });
+
+    function cycleLure(dir) {
+      if (state.floatState.active || state.phase === "FLYING" || state.phase === "FIGHT" || state.phase === "LANDING") return;
+      state.currentLureIndex = (state.currentLureIndex + dir + LURES.length) % LURES.length;
+      state.currentLure = LURES[state.currentLureIndex];
+      updateLureHUD();
+      updateArenaStateExport();
+    }
+
+    function updateLureHUD() {
+      const el = document.getElementById("hud-lure-name");
+      if (el) {
+        el.textContent = state.currentLure;
+      }
+    }
+
+    function toggleDexOverlay(force) {
+      if (typeof force === "boolean") {
+        state.isDexOpen = force;
+      } else {
+        state.isDexOpen = !state.isDexOpen;
+      }
+
+      const modal = document.getElementById("dex-modal-overlay");
+      if (state.isDexOpen) {
+        modal.classList.add("show");
+        renderDexTable();
+      } else {
+        modal.classList.remove("show");
+      }
+      updateArenaStateExport();
+    }
+
+    function renderDexTable() {
+      const tbody = document.getElementById("dex-table-body");
+      if (!tbody) return;
+
+      tbody.innerHTML = "";
+      state.fishes.forEach(fish => {
+        const isCaught = state.caughtSpecies.includes(fish.name);
+        const tr = document.createElement("tr");
+
+        const tdSpecies = document.createElement("td");
+        tdSpecies.className = "dex-row-species";
+        tdSpecies.textContent = (fish.isRare && !isCaught) ? "★ ???" : fish.name;
+        tr.appendChild(tdSpecies);
+
+        const tdStatus = document.createElement("td");
+        const statusSpan = document.createElement("span");
+        statusSpan.className = "dex-status-badge " + (isCaught ? "caught" : "uncaught");
+        statusSpan.textContent = isCaught ? "CAUGHT" : "UNCAUGHT";
+        tdStatus.appendChild(statusSpan);
+        tr.appendChild(tdStatus);
+
+        const tdWeight = document.createElement("td");
+        tdWeight.className = "dex-row-weight";
+        tdWeight.textContent = isCaught ? fish.weight : "—";
+        tr.appendChild(tdWeight);
+
+        const tdNote = document.createElement("td");
+        tdNote.className = "dex-row-note " + (isCaught ? "landed" : "");
+        tdNote.textContent = isCaught ? "Landed" : fish.fieldNote;
+        tr.appendChild(tdNote);
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById("dex-close-btn").addEventListener("click", () => toggleDexOverlay(false));
+    document.getElementById("hud-dex-card").addEventListener("click", () => toggleDexOverlay(true));
+    document.getElementById("lure-prev").addEventListener("click", () => cycleLure(-1));
+    document.getElementById("lure-next").addEventListener("click", () => cycleLure(1));
+
+    function selectSinker(id) {
+      if (state.floatState.active || state.phase === "FLYING" || state.phase === "FIGHT" || state.phase === "LANDING") return;
+      if (SINKERS[id]) {
+        state.selectedSinker = SINKERS[id];
+        updateSinkerHUD();
+        updateArenaStateExport();
+      }
+    }
+
+    function updateSinkerHUD() {
+      const curId = state.selectedSinker.id;
+      for (let i = 1; i <= 3; i++) {
+        const badge = document.getElementById("sinker-opt-" + i);
+        if (badge) {
+          if (i === curId) {
+            badge.classList.add("active");
+          } else {
+            badge.classList.remove("active");
+          }
+        }
+      }
+    }
+
+    function updateDepthGaugeHUD() {
+      const gaugeCont = document.getElementById("hud-depth-gauge-container");
+      const gaugeText = document.getElementById("hud-depth-gauge-text");
+      const gaugeFill = document.getElementById("hud-depth-gauge-fill");
+      if (!gaugeCont || !gaugeText || !gaugeFill) return;
+
+      if (!state.floatState.active && state.phase !== "FLYING") {
+        gaugeCont.style.display = "none";
+        return;
+      }
+
+      gaugeCont.style.display = "block";
+      const targetDepth = state.selectedSinker.depth;
+      const targetLayer = state.selectedSinker.layer;
+
+      if (state.isSinking) {
+        const p = state.sinkProgress;
+        const curM = (targetDepth * p).toFixed(1);
+        const remS = Math.max(0, state.selectedSinker.sinkDuration - state.sinkTimer).toFixed(1);
+        gaugeFill.style.width = (p * 100).toFixed(1) + "%";
+        gaugeFill.style.background = "#e9c46a";
+        gaugeText.textContent = `SINKING: ${curM}m / ${targetDepth}.0m (${targetLayer}) [${remS}s]`;
+      } else {
+        gaugeFill.style.width = "100%";
+        gaugeFill.style.background = "#5ce6b4";
+        gaugeText.textContent = `DEPTH: ${targetDepth}.0m (${targetLayer})`;
+      }
+    }
+
+    document.getElementById("sinker-opt-1").addEventListener("click", () => selectSinker(1));
+    document.getElementById("sinker-opt-2").addEventListener("click", () => selectSinker(2));
+    document.getElementById("sinker-opt-3").addEventListener("click", () => selectSinker(3));
+
+    function requestSpotMove(dir) {
+      const nextIndex = state.currentSpotIndex + dir;
+      if (nextIndex >= 0 && nextIndex < SPOTS.length) {
+        state.targetSpotIndex = nextIndex;
+        state.targetSpotX = SPOTS[nextIndex].x;
+        state.isWalking = true;
+        state.walkDirection = dir;
+      }
+    }
+
+    function startGame() {
+      state.phase = "IDLE";
+      state.sessionClock = 0.0;
+      document.getElementById("overlay-screen").classList.add("hidden");
+      updateHudPrompt();
+      updateArenaStateExport();
+    }
+
+    function resetGame() {
+      state.phase = "READY";
+      state.isPaused = false;
+      state.sessionClock = 0.0;
+      state.currentSpotIndex = 0; // WEST PIER
+      state.currentSpotX = SPOTS[0].x;
+      state.targetSpotIndex = 0;
+      state.targetSpotX = SPOTS[0].x;
+      state.isWalking = false;
+      state.aimAngle = 0.0;
+      state.power = 0.0;
+      state.isCharging = false;
+      state.caughtSpecies = [];
+      state.hooksLanded = 0;
+      state.tooEarlyEscapes = 0;
+      state.tooLateMisses = 0;
+      state.lineSnaps = 0;
+      state.lastStrikeTime = null;
+      state.lastStrikeOffset = null;
+      state.lastStrikeResult = null;
+      state.plungeTime = null;
+      state.biteState = "WAITING";
+      state.strikeAnimTimer = 0;
+      state.tension = 0.0;
+      state.lineDistance = 0.0;
+      state.currentSpeciesPattern = [];
+      state.currentPhaseIndex = 0;
+      state.remainingPhaseTime = 0.0;
+      state.recoveryTimer = 0.0;
+
+      // R restores LIGHT as the default (Round 4)
+      state.selectedSinker = SINKERS[1];
+      state.sinkProgress = 0.0;
+      state.sinkTimer = 0.0;
+      state.isSinking = false;
+      state.currentDepth = 0.0;
+
+      // R restores Brass Spoon as the default (Round 5)
+      state.currentLureIndex = 0;
+      state.currentLure = LURES[0];
+      state.activeBiteCandidate = null;
+      state.effectiveGrade = null;
+      state.scheduledApproachTime = null;
+      state.approachDelay = null;
+      state.isDexOpen = false;
+
+      // Day cycle & Lighthouse (Round 6 & 8)
+      state.clock = "18:00";
+      state.segment = "DUSK";
+      state.isMidnight = false;
+      state.isFloatLit = false;
+
+      // Fog Schedule & Bite Bell (Round 7)
+      state.fogLevel = "THIN";
+      state.lastBellTime = null;
+      state.lastBellEvent = null;
+      state.lastNibbleBellTime = null;
+      state.lastPlungeBellTime = null;
+      state.recentBellEvents = [];
+
+      // Snap Penalty Blackouts (Round 9)
+      state.blackoutUntil = {
+        WEST: 0.0,
+        MID: 0.0,
+        EAST: 0.0
+      };
+
+      initFishState();
+      resetFloat();
+
+      anglerRoot.position.set(SPOTS[0].x, 1.0, -0.5);
+      anglerRoot.rotation.y = 0;
+
+      document.getElementById("overlay-screen").classList.remove("hidden");
+      document.getElementById("pause-screen").classList.remove("show");
+      document.getElementById("dex-modal-overlay").classList.remove("show");
+      document.getElementById("results-screen").classList.remove("show");
+      document.getElementById("catch-banner").classList.remove("show");
+      document.getElementById("catch-banner").className = "";
+      document.getElementById("hud-power-bar").style.display = "none";
+      document.getElementById("fight-container").style.display = "none";
+      updateDEX();
+      updateTargetListHUD();
+      updateCountersHUD();
+      updateBiteStatusHUD();
+      updateSinkerHUD();
+      updateLureHUD();
+      updateDepthGaugeHUD();
+      updateClockHUD();
+      updateLitBadgeHUD();
+      updateFogHUD();
+      updateSpotRestHUD();
+      updateHudSpot();
+      updateHudPrompt();
+      updateArenaStateExport();
+    }
+
+    function resetFloat() {
+      state.floatState.active = false;
+      state.floatState.x = 0;
+      state.floatState.y = 0;
+      state.floatState.z = 0;
+      state.floatState.settledTimer = 0;
+      state.floatState.column = "NONE";
+      state.floatState.zone = "NONE";
+      state.sinkProgress = 0.0;
+      state.sinkTimer = 0.0;
+      state.isSinking = false;
+      state.currentDepth = 0.0;
+      floatGroup.visible = false;
+      fishingLine.visible = false;
+      arcPreviewLine.visible = false;
+      landingRing.visible = false;
+      rippleRingMat.opacity = 0;
+      state.activeBitingFish = null;
+      state.activeBiteCandidate = null;
+      state.effectiveGrade = null;
+      state.scheduledApproachTime = null;
+      state.approachDelay = null;
+      state.nibbleCount = 0;
+      state.nibbleTimer = 0;
+      state.plungeTime = null;
+      state.retryTimer = 0;
+      state.isRetrying = false;
+      state.biteState = "WAITING";
+      document.getElementById("fight-container").style.display = "none";
+      updateDepthGaugeHUD();
+      updateBiteStatusHUD();
+    }
+
+    function reelInFloat() {
+      if (state.activeBitingFish) {
+        state.activeBitingFish.state = "PATROLLING";
+      }
+      resetFloat();
+      state.phase = "IDLE";
+      updateHudPrompt();
+      updateArenaStateExport();
+    }
+
+    /* =========================================================================
+       CASTING & AIMING LOGIC
+       ========================================================================= */
+
+    function getRodTipWorldPos() {
+      const tipPos = new THREE.Vector3();
+      rodTipMarker.getWorldPosition(tipPos);
+      return tipPos;
+    }
+
+    function computeLandingPoint(spotX, aimAngle, powerVal) {
+      const r = 2.0 + 0.06 * powerVal;
+      const targetX = spotX + r * Math.sin(aimAngle);
+      const targetZ = r * Math.cos(aimAngle);
+      return { x: targetX, z: targetZ, r: r };
+    }
+
+    function performCast() {
+      state.phase = "FLYING";
+      state.isCharging = false;
+      document.getElementById("hud-power-bar").style.display = "none";
+
+      const landing = computeLandingPoint(state.currentSpotX, state.aimAngle, state.power);
+      const rodTip = getRodTipWorldPos();
+
+      state.floatState.active = true;
+      state.floatState.startX = rodTip.x;
+      state.floatState.startY = rodTip.y;
+      state.floatState.startZ = rodTip.z;
+      state.floatState.targetX = landing.x;
+      state.floatState.targetZ = landing.z;
+      state.floatState.distance = landing.r;
+      state.castDistance = landing.r;
+      state.floatState.column = computeColumn(landing.x);
+      state.floatState.zone = computeZone(landing.z);
+      state.floatState.flightTime = 0;
+      state.floatState.flightDuration = 0.85;
+      state.biteState = "WAITING";
+      state.sinkProgress = 0.0;
+      state.sinkTimer = 0.0;
+      state.isSinking = false;
+      state.currentDepth = 0.0;
+      updateBiteStatusHUD();
+      updateDepthGaugeHUD();
+
+      floatGroup.position.copy(rodTip);
+      floatGroup.visible = true;
+      fishingLine.visible = true;
+      arcPreviewLine.visible = false;
+      landingRing.visible = false;
+      updateHudPrompt();
+      updateArenaStateExport();
+    }
+
+    /* =========================================================================
+       STRIKE RESOLUTION
+       ========================================================================= */
+
+    function performStrike() {
+      state.strikeAnimTimer = 0.35;
+      const t = state.sessionClock;
+      state.lastStrikeTime = t;
+
+      if (!state.activeBitingFish || (state.phase === "SETTLED" && !state.activeBitingFish.isApproaching && state.biteState === "WAITING")) {
+        state.lastStrikeOffset = null;
+        state.lastStrikeResult = "NONE";
+        return;
+      }
+
+      const T = state.plungeTime;
+      if (T === null) {
+        state.lastStrikeOffset = -999.0;
+        resolveTooEarly();
+        return;
+      }
+
+      const offset = t - T;
+      state.lastStrikeOffset = offset;
+
+      // Round 6: Tighter Strike Window ±0.3s
+      if (offset >= -0.30001 && offset <= 0.30001) {
+        resolveHooked();
+      } else if (offset < -0.3) {
+        resolveTooEarly();
+      } else {
+        resolveTooLate();
+      }
+    }
+
+    function resolveHooked() {
+      state.lastStrikeResult = "HOOKED";
+      state.hooksLanded++;
+      updateCountersHUD();
+
+      // ROUND 3: Transition to FIGHT instead of instant landing!
+      startLineFight();
+    }
+
+    function resolveTooEarly() {
+      state.lastStrikeResult = "TOO EARLY";
+      state.tooEarlyEscapes++;
+      updateCountersHUD();
+
+      state.biteState = "TOO EARLY — spooked";
+      updateBiteStatusHUD();
+
+      showEscapeBanner("TOO EARLY — spooked", "early");
+
+      const fish = state.activeBitingFish;
+      const isLitAtEscape = state.isFloatLit;
+
+      if (fish) {
+        fish.state = "DARTING";
+        fish.dartTimer = 1.0;
+        if (isLitAtEscape) {
+          // Float is lit by beam: fish is not startled, normal 6.0s re-approach applies
+          fish.startledUntil = 0.0;
+          state.retryTimer = 6.0;
+          state.scheduledApproachTime = state.sessionClock + 6.0;
+        } else {
+          // Fish is startled: will not approach or bite for 12.0s
+          fish.startledUntil = state.sessionClock + 12.0;
+          state.retryTimer = 12.0;
+          state.scheduledApproachTime = state.sessionClock + 12.0;
+        }
+      } else {
+        state.retryTimer = 6.0;
+        state.scheduledApproachTime = state.sessionClock + 6.0;
+      }
+
+      state.phase = "SETTLED";
+      floatGroup.position.y = 0.0;
+      state.floatState.y = 0.0;
+      triggerRipple(state.floatState.x, state.floatState.z, 0.8);
+
+      state.isRetrying = true;
+      state.plungeTime = null;
+      updateArenaStateExport();
+    }
+
+    function resolveTooLate() {
+      state.lastStrikeResult = "TOO LATE";
+      state.tooLateMisses++;
+      updateCountersHUD();
+
+      state.biteState = "TOO LATE — missed";
+      updateBiteStatusHUD();
+
+      showEscapeBanner("TOO LATE — missed", "late");
+
+      const fish = state.activeBitingFish;
+      const isLitAtEscape = state.isFloatLit;
+
+      if (fish) {
+        fish.state = "DARTING";
+        fish.dartTimer = 1.0;
+        if (isLitAtEscape) {
+          // Float is lit by beam: fish is not startled, normal 6.0s re-approach applies
+          fish.startledUntil = 0.0;
+          state.retryTimer = 6.0;
+          state.scheduledApproachTime = state.sessionClock + 6.0;
+        } else {
+          // Fish is startled: will not approach or bite for 12.0s
+          fish.startledUntil = state.sessionClock + 12.0;
+          state.retryTimer = 12.0;
+          state.scheduledApproachTime = state.sessionClock + 12.0;
+        }
+      } else {
+        state.retryTimer = 6.0;
+        state.scheduledApproachTime = state.sessionClock + 6.0;
+      }
+
+      state.phase = "SETTLED";
+      floatGroup.position.y = 0.0;
+      state.floatState.y = 0.0;
+      triggerRipple(state.floatState.x, state.floatState.z, 0.8);
+
+      state.isRetrying = true;
+      state.plungeTime = null;
+      updateArenaStateExport();
+    }
+
+    function showEscapeBanner(text, type) {
+      const banner = document.getElementById("catch-banner");
+      banner.className = type + " show";
+      document.getElementById("catch-header-text").textContent = "Bite Resolution";
+      document.getElementById("catch-species-name").textContent = text;
+      document.getElementById("catch-species-weight").textContent = "";
+
+      setTimeout(() => {
+        banner.classList.remove("show");
+      }, 2000);
+    }
+
+    /* =========================================================================
+       ROUND 3: LINE FIGHT MECHANICS
+       ========================================================================= */
+
+    function startLineFight() {
+      state.phase = "FIGHT";
+      state.biteState = "HOOKED";
+      updateBiteStatusHUD();
+
+      // Tension starts at 15
+      state.tension = 15.0;
+      // Line distance starts equal to cast distance in meters
+      state.lineDistance = state.floatState.distance;
+
+      // Copy struggle pattern
+      const fish = state.activeBitingFish;
+      state.currentSpeciesPattern = fish.strugglePattern.map(p => ({ ...p }));
+      state.currentPhaseIndex = 0;
+      state.remainingPhaseTime = state.currentSpeciesPattern[0].duration;
+
+      fish.state = "FIGHTING";
+      document.getElementById("fight-container").style.display = "flex";
+      updateFightHUD();
+      updateHudPrompt();
+      updateArenaStateExport();
+    }
+
+    function updateFight(dt) {
+      // 1. Advance struggle pattern timer
+      state.remainingPhaseTime -= dt;
+      if (state.remainingPhaseTime <= 0) {
+        state.currentPhaseIndex = (state.currentPhaseIndex + 1) % state.currentSpeciesPattern.length;
+        state.remainingPhaseTime = state.currentSpeciesPattern[state.currentPhaseIndex].duration;
+      }
+
+      const curPhase = state.currentSpeciesPattern[state.currentPhaseIndex].type; // "STRUGGLE" or "REST"
+      const isReeling = !!keys.Space;
+
+      // 2. Apply fixed tension and line rates per second
+      // STRUGGLE + Reel: tension +26, dist -0.6
+      // STRUGGLE + Give: tension -10, dist +0.4
+      // REST + Reel:     tension +9,  dist -1.2
+      // REST + Give:     tension -14, dist 0
+      let dTen = 0;
+      let dDist = 0;
+
+      if (curPhase === "STRUGGLE") {
+        if (isReeling) {
+          dTen = +26;
+          dDist = -0.6;
+        } else {
+          dTen = -10;
+          dDist = +0.4;
+        }
+      } else { // REST
+        if (isReeling) {
+          dTen = +9;
+          dDist = -1.2;
+        } else {
+          dTen = -14;
+          dDist = 0;
+        }
+      }
+
+      state.tension += dTen * dt;
+      state.lineDistance += dDist * dt;
+
+      // Tension clamped at 0 from below
+      state.tension = Math.max(0.0, state.tension);
+
+      // Line distance never exceeds cast distance plus 3m
+      const maxDist = state.castDistance + 3.0;
+      state.lineDistance = Math.min(maxDist, state.lineDistance);
+
+      // Update position of float and hooked fish along aim direction
+      const curDist = state.lineDistance;
+      const spotX = state.currentSpotX;
+      const aim = state.aimAngle;
+      const targetX = spotX + curDist * Math.sin(aim);
+      const targetZ = curDist * Math.cos(aim);
+
+      state.floatState.x = targetX;
+      state.floatState.z = targetZ;
+      state.floatState.distance = curDist;
+
+      // Visual thrashing in STRUGGLE
+      const time = state.sessionClock;
+      let thrashX = 0;
+      let thrashZ = 0;
+      if (curPhase === "STRUGGLE") {
+        thrashX = Math.sin(time * 28.0) * 0.22;
+        thrashZ = Math.cos(time * 24.0) * 0.15;
+        triggerRipple(targetX, targetZ, 0.6);
+      }
+
+      floatGroup.position.set(targetX + thrashX * 0.5, -0.05, targetZ + thrashZ * 0.5);
+
+      const fishObj = fishMeshes.find(m => m.fishData.id === state.activeBitingFish.id);
+      if (fishObj) {
+        state.activeBitingFish.x = targetX + thrashX;
+        state.activeBitingFish.z = targetZ + thrashZ;
+        fishObj.group.position.set(targetX + thrashX, -0.22, targetZ + thrashZ);
+        fishObj.group.rotation.y = time * (curPhase === "STRUGGLE" ? 12.0 : 3.0);
+      }
+
+      // Update Fight HUD
+      updateFightHUD();
+
+      // 3. Check snap condition: tension reaches 100
+      if (state.tension >= 100.0) {
+        resolveLineSnap();
+        return;
+      }
+
+      // 4. Check win condition: line distance reaches 1.0 m or less
+      if (state.lineDistance <= 1.0001) {
+        resolveFightLand();
+        return;
+      }
+    }
+
+    function resolveLineSnap() {
+      state.lineSnaps++;
+      updateCountersHUD();
+
+      // Round 9: Snap Penalty: 30-second blackout for the snapped float's column
+      const snapCol = state.floatState.column;
+      if (snapCol && snapCol !== "NONE") {
+        state.blackoutUntil[snapCol] = state.sessionClock + 30.0;
+      }
+      updateSpotRestHUD();
+
+      document.getElementById("fight-container").style.display = "none";
+
+      // Banner reads LINE SNAPPED
+      const banner = document.getElementById("catch-banner");
+      banner.className = "snapped show";
+      document.getElementById("catch-header-text").textContent = "Fight Result";
+      document.getElementById("catch-species-name").textContent = "LINE SNAPPED";
+      document.getElementById("catch-species-weight").textContent = "";
+
+      setTimeout(() => {
+        banner.classList.remove("show");
+      }, 2000);
+
+      // Fish escapes back to patrol loop
+      const fish = state.activeBitingFish;
+      if (fish) {
+        fish.state = "DARTING";
+        fish.dartTimer = 1.5;
+        fish.caught = false;
+        fish.active = true;
+      }
+
+      // Float is gone
+      floatGroup.visible = false;
+      fishingLine.visible = false;
+      state.floatState.active = false;
+
+      // Angler can cast again after 1.5s (rig restores itself)
+      state.phase = "RECOVERING";
+      state.recoveryTimer = 1.5;
+      updateHudPrompt();
+      updateArenaStateExport();
+    }
+
+    function resolveFightLand() {
+      document.getElementById("fight-container").style.display = "none";
+
+      state.phase = "LANDING";
+      state.biteState = "HOOKED";
+      updateBiteStatusHUD();
+
+      state.landingProgress = 0.0;
+      state.landingFish = state.activeBitingFish;
+      state.activeBitingFish.caught = true;
+      state.activeBitingFish.active = false;
+      state.activeBitingFish.state = "CAUGHT";
+
+      triggerSplash(state.floatState.x, state.floatState.z);
+      landedFishGroup.visible = true;
+      landedFishMesh.material.color.setHex(state.landingFish.color);
+      updateArenaStateExport();
+    }
+
+    function updateFightHUD() {
+      const phaseObj = state.currentSpeciesPattern[state.currentPhaseIndex];
+      const curType = phaseObj ? phaseObj.type : "STRUGGLE";
+      const rem = Math.max(0, state.remainingPhaseTime).toFixed(1);
+
+      const phaseBadge = document.getElementById("hud-fight-phase");
+      phaseBadge.textContent = `${curType} ${rem}s`;
+      phaseBadge.className = "phase-badge " + (curType === "STRUGGLE" ? "struggle" : "rest");
+
+      document.getElementById("hud-fight-dist").textContent = `${Math.max(0, state.lineDistance).toFixed(1)} m`;
+
+      const tenVal = Math.min(100, Math.max(0, Math.round(state.tension)));
+      const fillEl = document.getElementById("hud-tension-fill");
+      fillEl.style.width = `${tenVal}%`;
+      if (tenVal >= 80) {
+        fillEl.classList.add("danger");
+      } else {
+        fillEl.classList.remove("danger");
+      }
+      document.getElementById("hud-tension-label").textContent = `TENSION ${tenVal}%`;
+    }
+
+    function updateCountersHUD() {
+      document.getElementById("hud-hooks-count").textContent = state.hooksLanded;
+      document.getElementById("hud-early-count").textContent = state.tooEarlyEscapes;
+      document.getElementById("hud-late-count").textContent = state.tooLateMisses;
+      document.getElementById("hud-snaps-count").textContent = state.lineSnaps;
+    }
+
+    function updateBiteStatusHUD() {
+      const badge = document.getElementById("hud-bite-status");
+      badge.textContent = state.biteState;
+      badge.className = "bite-status-badge";
+      if (state.biteState === "WAITING") {
+        badge.classList.add("waiting");
+      } else if (state.biteState === "NIBBLE") {
+        badge.classList.add("nibble");
+      } else if (state.biteState === "TAKE!") {
+        badge.classList.add("take");
+      } else if (state.phase === "FIGHT") {
+        badge.classList.add("fight");
+      } else if (state.biteState === "HOOKED") {
+        badge.classList.add("hooked");
+      } else if (state.biteState.includes("spooked")) {
+        badge.classList.add("spooked");
+      } else if (state.biteState.includes("missed")) {
+        badge.classList.add("missed");
+      }
+    }
+
+    function updateClockHUD() {
+      const timeEl = document.getElementById("hud-clock-time");
+      const segEl = document.getElementById("hud-segment-badge");
+      if (timeEl) timeEl.textContent = state.clock;
+      if (segEl) {
+        segEl.textContent = state.segment;
+        segEl.className = "segment-badge " + state.segment.toLowerCase();
+      }
+    }
+
+    function updateLitBadgeHUD() {
+      const el = document.getElementById("hud-lit-badge");
+      if (el) {
+        if (state.isFloatLit) {
+          el.classList.add("show");
+        } else {
+          el.classList.remove("show");
+        }
+      }
+    }
+
+    function updateFogHUD() {
+      const el = document.getElementById("hud-fog-badge");
+      if (el) {
+        el.textContent = `FOG: ${state.fogLevel}`;
+        el.className = `fog-badge ${state.fogLevel.toLowerCase()}`;
+      }
+    }
+
+    function updateSpotRestHUD() {
+      const restEl = document.getElementById("hud-spot-rest");
+      if (!restEl) return;
+
+      const currentSpotCol = SPOTS[state.currentSpotIndex].name.replace(" PIER", "");
+      const currentRest = Math.max(0, (state.blackoutUntil[currentSpotCol] || 0) - state.sessionClock);
+
+      // Check if any column is in blackout
+      const cols = ["WEST", "MID", "EAST"];
+      let maxRest = 0;
+      let restingCol = "";
+      cols.forEach(col => {
+        const rem = Math.max(0, (state.blackoutUntil[col] || 0) - state.sessionClock);
+        if (rem > maxRest) {
+          maxRest = rem;
+          restingCol = col;
+        }
+      });
+
+      if (currentRest > 0) {
+        restEl.style.display = "inline-block";
+        restEl.textContent = `SPOT REST ${Math.ceil(currentRest)}s`;
+      } else if (maxRest > 0) {
+        restEl.style.display = "inline-block";
+        restEl.textContent = `${restingCol} REST ${Math.ceil(maxRest)}s`;
+      } else {
+        restEl.style.display = "none";
+      }
+    }
+
+    function findBiteCandidate(landingCol, landingZn, currentTime) {
+      // Round 9: During blackout, no fish approaches or bites in that column
+      if (currentTime < (state.blackoutUntil[landingCol] || 0)) {
+        return null;
+      }
+
+      // Round 8: Rare species outrank every other species in their cell during MIDNIGHT
+      const rareCandidates = state.fishes.filter(f => {
+        if (!f.isRare || f.caught) return false;
+        if (f.column !== landingCol || f.zone !== landingZn || f.homeLayer !== state.selectedSinker.layer) return false;
+        if (!isFishActiveAtTime(f, currentTime)) return false;
+        const grade = ATTRACTION_TABLE[f.name][state.currentLure];
+        if (!grade || grade === "0") return false;
+        return true;
+      });
+
+      if (rareCandidates.length > 0) {
+        const chosenRare = rareCandidates.find(f => currentTime >= (f.startledUntil || 0));
+        if (chosenRare) return chosenRare;
+      }
+
+      // Standard candidate search in introduction order
+      const candidates = state.fishes.filter(f => {
+        if (f.isRare || f.caught) return false;
+        if (f.column !== landingCol || f.zone !== landingZn || f.homeLayer !== state.selectedSinker.layer) return false;
+        // Check active timetable window (Round 6 & 9)
+        if (!isFishActiveAtTime(f, currentTime)) return false;
+        // Check lure grade
+        const grade = ATTRACTION_TABLE[f.name][state.currentLure];
+        if (!grade || grade === "0") return false;
+        return true;
+      });
+
+      if (candidates.length === 0) return null;
+
+      // The species introduced earlier in the game gets the bite;
+      // if that fish is currently startled, the next matching species takes the bite instead
+      const chosen = candidates.find(f => currentTime >= (f.startledUntil || 0));
+      return chosen || null;
+    }
+
+    /* =========================================================================
+       GAME TICK & PHYSICS UPDATE (Deterministic)
+       ========================================================================= */
+
+    let rippleTimer = 0;
+
+    function gameTick(dt) {
+      state.sessionClock += dt;
+      const time = state.sessionClock;
+
+      // Round 10: Night Gala completes after exactly one full 240-second cycle
+      if (state.sessionClock >= 240.0 && state.phase !== "RESULTS") {
+        state.sessionClock = 240.0;
+        showResultsPage();
+        return;
+      }
+
+      // Round 6 & 8: Day Cycle, Clock calculation & Midnight window
+      const dayCycle = computeDayCycle(time);
+      state.clock = dayCycle.clock;
+      state.segment = dayCycle.segment;
+      state.isMidnight = dayCycle.isMidnight;
+      updateClockHUD();
+
+      // Round 7: Scheduled Fog & Density
+      const fogInfo = computeFogSchedule(time);
+      state.fogLevel = fogInfo.level;
+      if (scene && scene.fog) {
+        scene.fog.density = fogInfo.density;
+      }
+      updateFogHUD();
+
+      // Round 9: Spot Rest Blackout Countdown HUD
+      updateSpotRestHUD();
+
+      // Sky & lighting shifts deterministically with segment
+      if (typeof ambientLight !== "undefined" && typeof moonLight !== "undefined") {
+        if (state.segment === "DUSK") {
+          ambientLight.color.setHex(0x3d2836);
+          moonLight.color.setHex(0xe08c6c);
+          moonLight.intensity = 0.9;
+          if (scene.fog) scene.fog.color.setHex(0x0e121e);
+        } else if (state.segment === "NIGHT" || state.segment === "MIDNIGHT") {
+          ambientLight.color.setHex(0x183447);
+          moonLight.color.setHex(0x75b2d6);
+          moonLight.intensity = 0.85;
+          if (scene.fog) scene.fog.color.setHex(0x061521);
+        } else if (state.segment === "DAWN") {
+          ambientLight.color.setHex(0x283d47);
+          moonLight.color.setHex(0x98d4e8);
+          moonLight.intensity = 1.0;
+          if (scene.fog) scene.fog.color.setHex(0x0a1e2a);
+        } else { // DAY
+          ambientLight.color.setHex(0x42687c);
+          moonLight.color.setHex(0xd8eeff);
+          moonLight.intensity = 1.3;
+          if (scene.fog) scene.fog.color.setHex(0x1a2e3c);
+        }
+      }
+
+      // Round 6: Rotating lighthouse beam (period 12s, cone half-angle 15 deg)
+      const lhX = 13.5;
+      const lhZ = 9.5;
+      const beamAngle = time * (2 * Math.PI / 12.0);
+      beamPivot.rotation.y = beamAngle;
+
+      if (state.floatState.active && (state.phase === "SETTLED" || state.phase === "NIBBLING" || state.phase === "PLUNGED")) {
+        const toFX = state.floatState.x - lhX;
+        const toFZ = state.floatState.z - lhZ;
+        const floatAngle = Math.atan2(toFX, toFZ);
+        let angleDiff = Math.atan2(Math.sin(beamAngle), Math.cos(beamAngle)) - floatAngle;
+        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+
+        const halfAngleRad = 15 * (Math.PI / 180); // 15 degrees cone half-angle
+        state.isFloatLit = (Math.abs(angleDiff) <= halfAngleRad && Math.hypot(toFX, toFZ) <= 35.0);
+      } else {
+        state.isFloatLit = false;
+      }
+      updateLitBadgeHUD();
+
+      // 1. Walking between spots
+      if (state.isWalking) {
+        const dx = state.targetSpotX - state.currentSpotX;
+        const step = state.walkSpeed * dt;
+        if (Math.abs(dx) <= step) {
+          state.currentSpotX = state.targetSpotX;
+          state.currentSpotIndex = state.targetSpotIndex;
+          state.isWalking = false;
+        } else {
+          state.currentSpotX += Math.sign(dx) * step;
+        }
+        anglerRoot.position.x = state.currentSpotX;
+        const walkBob = Math.sin(time * 12.0) * 0.04;
+        anglerRoot.position.y = 1.0 + Math.abs(walkBob);
+        leftLeg.rotation.x = Math.sin(time * 10.0) * 0.4;
+        rightLeg.rotation.x = -Math.sin(time * 10.0) * 0.4;
+        updateHudSpot();
+      } else {
+        anglerRoot.position.y = 1.0;
+        leftLeg.rotation.x = 0;
+        rightLeg.rotation.x = 0;
+      }
+
+      // 2. Aiming with A / D (clamped to ±30°)
+      if (state.phase === "IDLE" || state.phase === "CHARGING") {
+        if (!state.isWalking) {
+          if (keys.KeyA) {
+            state.aimAngle -= state.aimSpeed * dt;
+          }
+          if (keys.KeyD) {
+            state.aimAngle += state.aimSpeed * dt;
+          }
+          const maxAim = Math.PI / 6;
+          state.aimAngle = Math.max(-maxAim, Math.min(maxAim, state.aimAngle));
+        }
+      }
+
+      const aimDeg = Math.round((state.aimAngle * 180) / Math.PI);
+      document.getElementById("hud-aim-info").textContent = `${aimDeg >= 0 ? "+" : ""}${aimDeg}°`;
+
+      // 3. Aim Line on water
+      if ((state.phase === "IDLE" || state.phase === "CHARGING") && !state.isWalking) {
+        aimLine.visible = true;
+        const aimPositions = aimLine.geometry.attributes.position;
+        const startX = state.currentSpotX;
+        const startZ = 0.2;
+        for (let i = 0; i <= 24; i++) {
+          const dist = 0.2 + (i / 24) * 7.8;
+          const px = startX + dist * Math.sin(state.aimAngle);
+          const pz = startZ + dist * Math.cos(state.aimAngle);
+          aimPositions.setXYZ(i, px, 0.02, pz);
+        }
+        aimPositions.needsUpdate = true;
+        aimLine.computeLineDistances();
+      } else {
+        aimLine.visible = false;
+      }
+
+      // 4. Power Charging with SPACE
+      if (state.phase === "IDLE" && !state.isWalking && keys.Space) {
+        state.phase = "CHARGING";
+        state.isCharging = true;
+        state.power = 0.0;
+        document.getElementById("hud-power-bar").style.display = "block";
+      }
+
+      if (state.phase === "CHARGING") {
+        state.power = Math.min(100.0, state.power + state.powerRate * dt);
+        const powerFill = document.getElementById("hud-power-fill");
+        const powerLabel = document.getElementById("hud-power-label");
+        powerFill.style.width = `${state.power}%`;
+        powerLabel.textContent = `POWER ${Math.round(state.power)}%`;
+
+        const landing = computeLandingPoint(state.currentSpotX, state.aimAngle, state.power);
+        const landingCol = computeColumn(landing.x);
+        const landingZn = computeZone(landing.z);
+        document.getElementById("hud-cell-info").textContent = `${landingCol} / ${landingZn}`;
+
+        landingRing.visible = true;
+        landingRing.position.set(landing.x, 0.03, landing.z);
+
+        arcPreviewLine.visible = true;
+        const rodTip = getRodTipWorldPos();
+        const arcPos = arcPreviewLine.geometry.attributes.position;
+        for (let i = 0; i <= arcPreviewCount; i++) {
+          const t = i / arcPreviewCount;
+          const px = THREE.MathUtils.lerp(rodTip.x, landing.x, t);
+          const pz = THREE.MathUtils.lerp(rodTip.z, landing.z, t);
+          const maxHeight = 1.4 + landing.r * 0.15;
+          const py = THREE.MathUtils.lerp(rodTip.y, 0.02, t) + 4.0 * maxHeight * t * (1.0 - t);
+          arcPos.setXYZ(i, px, py, pz);
+        }
+        arcPos.needsUpdate = true;
+
+        rodTipPivot.rotation.x = -0.003 * state.power;
+      } else if (state.phase === "IDLE") {
+        const landing = computeLandingPoint(state.currentSpotX, state.aimAngle, 0);
+        document.getElementById("hud-cell-info").textContent = `${computeColumn(landing.x)} / NEAR`;
+        rodTipPivot.rotation.x = 0;
+      }
+
+      // 5. Float Flying
+      if (state.phase === "FLYING") {
+        state.floatState.flightTime += dt;
+        const progress = Math.min(1.0, state.floatState.flightTime / state.floatState.flightDuration);
+        const fx = THREE.MathUtils.lerp(state.floatState.startX, state.floatState.targetX, progress);
+        const fz = THREE.MathUtils.lerp(state.floatState.startZ, state.floatState.targetZ, progress);
+        const maxHeight = 1.2 + state.floatState.distance * 0.18;
+        const fy = THREE.MathUtils.lerp(state.floatState.startY, 0.0, progress) + 4.0 * maxHeight * progress * (1.0 - progress);
+
+        state.floatState.x = fx;
+        state.floatState.y = fy;
+        state.floatState.z = fz;
+        floatGroup.position.set(fx, fy, fz);
+
+        if (progress >= 1.0) {
+          state.phase = "SETTLED";
+          state.floatState.y = 0.0;
+          state.floatState.settledTimer = 0.0;
+          state.isRetrying = false;
+          state.retryTimer = 0;
+          state.biteState = "WAITING";
+          updateBiteStatusHUD();
+          triggerSplash(fx, fz);
+
+          // Round 4: Sinker Sinking Phase begins upon landing
+          state.isSinking = true;
+          state.sinkTimer = 0.0;
+          state.sinkProgress = 0.0;
+          state.currentDepth = 0.0;
+          state.activeBitingFish = null;
+          state.plungeTime = null;
+          updateDepthGaugeHUD();
+          updateHudPrompt();
+        }
+      }
+
+      // 6. Float Settled & Bite Trigger
+      if (state.phase === "SETTLED") {
+        // Round 4: Handle active sinking before fishing begins
+        if (state.isSinking) {
+          state.sinkTimer += dt;
+          state.sinkProgress = Math.min(1.0, state.sinkTimer / state.selectedSinker.sinkDuration);
+          state.currentDepth = state.selectedSinker.depth * state.sinkProgress;
+          updateDepthGaugeHUD();
+
+          const sinkBob = Math.sin(time * 5.0) * 0.015 - 0.04 * state.sinkProgress;
+          floatGroup.position.y = sinkBob;
+          state.floatState.y = sinkBob;
+
+          if (state.sinkTimer >= state.selectedSinker.sinkDuration) {
+            state.isSinking = false;
+            state.sinkProgress = 1.0;
+            state.currentDepth = state.selectedSinker.depth;
+            state.floatState.settledTimer = 0.0; // Bait clock starts only when sink finishes!
+
+            const landingCol = state.floatState.column;
+            const landingZn = state.floatState.zone;
+            // Round 6: Multi-species matching with introduction priority & startled bypass
+            const targetFish = findBiteCandidate(landingCol, landingZn, time);
+            if (targetFish) {
+              state.activeBiteCandidate = targetFish;
+              const grade = ATTRACTION_TABLE[targetFish.name][state.currentLure];
+              state.effectiveGrade = grade;
+
+              if (grade === "HIGH") {
+                state.approachDelay = 4.0;
+                state.scheduledApproachTime = time + 4.0;
+                state.activeBitingFish = targetFish;
+                targetFish.approachStartX = targetFish.x;
+                targetFish.approachStartZ = targetFish.z;
+                state.plungeTime = time + 4.0 + targetFish.nibbles * 0.6;
+              } else if (grade === "LOW") {
+                state.approachDelay = 10.0;
+                state.scheduledApproachTime = time + 10.0;
+                state.activeBitingFish = targetFish;
+                targetFish.approachStartX = targetFish.x;
+                targetFish.approachStartZ = targetFish.z;
+                state.plungeTime = time + 10.0 + targetFish.nibbles * 0.6;
+              } else {
+                state.approachDelay = null;
+                state.scheduledApproachTime = null;
+                state.activeBitingFish = null;
+                state.plungeTime = null;
+              }
+            } else {
+              state.activeBiteCandidate = null;
+              state.effectiveGrade = null;
+              state.scheduledApproachTime = null;
+              state.approachDelay = null;
+              state.activeBitingFish = null;
+              state.plungeTime = null;
+            }
+            updateDepthGaugeHUD();
+            updateBiteStatusHUD();
+            updateHudPrompt();
+          }
+          return; // Bait is not fishing before sink finishes; no fish may approach
+        }
+
+        state.floatState.settledTimer += dt;
+        const bob = Math.sin(time * 3.5) * 0.02;
+        floatGroup.position.y = bob;
+        state.floatState.y = bob;
+
+        // If no fish currently biting, check if a startled or nocturnal fish is now eligible
+        if (!state.activeBitingFish && !state.isRetrying) {
+          const candidate = findBiteCandidate(state.floatState.column, state.floatState.zone, time);
+          if (candidate) {
+            state.activeBiteCandidate = candidate;
+            const grade = ATTRACTION_TABLE[candidate.name][state.currentLure];
+            state.effectiveGrade = grade;
+            state.approachDelay = (grade === "HIGH" ? 4.0 : 10.0);
+            state.scheduledApproachTime = time + state.approachDelay;
+            state.activeBitingFish = candidate;
+            candidate.approachStartX = candidate.x;
+            candidate.approachStartZ = candidate.z;
+            state.plungeTime = time + state.approachDelay + candidate.nibbles * 0.6;
+            state.floatState.settledTimer = 0.0;
+          }
+        }
+
+        if (state.activeBitingFish && !state.activeBitingFish.caught) {
+          if (state.isRetrying) {
+            state.retryTimer -= dt;
+            if (state.retryTimer <= 0) {
+              state.isRetrying = false;
+              state.phase = "NIBBLING";
+              state.nibbleCount = 0;
+              state.nibbleTimer = 0.0;
+              state.biteState = "NIBBLE";
+              updateBiteStatusHUD();
+              state.activeBitingFish.state = "NIBBLING";
+              state.activeBitingFish.approachStartX = state.activeBitingFish.x;
+              state.activeBitingFish.approachStartZ = state.activeBitingFish.z;
+              state.plungeTime = time + state.activeBitingFish.nibbles * 0.6;
+              triggerNibbleDip();
+            }
+          } else {
+            if (state.approachDelay !== null && state.floatState.settledTimer >= state.approachDelay) {
+              state.phase = "NIBBLING";
+              state.nibbleCount = 0;
+              state.nibbleTimer = 0.0;
+              state.biteState = "NIBBLE";
+              updateBiteStatusHUD();
+              state.activeBitingFish.state = "NIBBLING";
+              state.activeBitingFish.approachStartX = state.activeBitingFish.x;
+              state.activeBitingFish.approachStartZ = state.activeBitingFish.z;
+              state.plungeTime = time + state.activeBitingFish.nibbles * 0.6;
+              triggerNibbleDip();
+            }
+          }
+        }
+      }
+
+      // 7. Nibbling Sequence
+      if (state.phase === "NIBBLING") {
+        state.nibbleTimer += dt;
+        const currentTarget = state.activeBitingFish;
+        const totalNibbles = currentTarget.nibbles;
+
+        if (state.nibbleTimer >= 0.6) {
+          state.nibbleTimer = 0.0;
+          state.nibbleCount++;
+
+          if (state.nibbleCount < totalNibbles) {
+            triggerNibbleDip();
+          } else {
+            state.phase = "PLUNGED";
+            state.nibbleTimer = 0.0;
+            state.biteState = "TAKE!";
+            updateBiteStatusHUD();
+            currentTarget.state = "PLUNGED";
+            floatGroup.position.y = -0.32;
+            state.floatState.y = -0.32;
+            state.plungeTime = time;
+            triggerRipple(state.floatState.x, state.floatState.z, 1.3);
+
+            // Bite Bell rings sharp double-ring on true bite plunge in THICK or DENSE fog
+            if (state.fogLevel === "THICK" || state.fogLevel === "DENSE") {
+              ringBell("PLUNGE");
+            }
+          }
+        }
+      }
+
+      // 8. Plunged / True Bite Window (Round 6 tightened to 0.3s)
+      if (state.phase === "PLUNGED") {
+        state.nibbleTimer += dt;
+        floatGroup.position.y = -0.32;
+        state.floatState.y = -0.32;
+
+        if (state.nibbleTimer >= 0.3) {
+          resolveTooLate();
+        }
+      }
+
+      // 9. Round 3 Line Fight
+      if (state.phase === "FIGHT") {
+        updateFight(dt);
+      }
+
+      // 10. Rig Recovery after line snap (1.5s)
+      if (state.phase === "RECOVERING") {
+        state.recoveryTimer -= dt;
+        if (state.recoveryTimer <= 0) {
+          state.phase = "IDLE";
+          updateHudPrompt();
+        }
+      }
+
+      // 11. Fish Arc Landing Animation
+      if (state.phase === "LANDING") {
+        state.landingProgress += dt * 1.4;
+        const p = Math.min(1.0, state.landingProgress);
+
+        const startX = state.floatState.x;
+        const startZ = state.floatState.z;
+        const endX = state.currentSpotX;
+        const endZ = -0.5;
+
+        const curX = THREE.MathUtils.lerp(startX, endX, p);
+        const curZ = THREE.MathUtils.lerp(startZ, endZ, p);
+        const arcY = THREE.MathUtils.lerp(0.0, 1.5, p) + 3.0 * p * (1.0 - p);
+
+        landedFishGroup.position.set(curX, arcY, curZ);
+        landedFishGroup.rotation.x = p * Math.PI * 2;
+        landedFishGroup.rotation.y = time * 8;
+
+        floatGroup.position.set(curX, arcY + 0.1, curZ);
+
+        if (p >= 1.0) {
+          state.phase = "CAUGHT";
+          landedFishGroup.visible = false;
+          recordCatch(state.landingFish);
+        }
+      }
+
+      // Update Fishing Line (Dynamic points with zigzag during struggle)
+      if (floatGroup.visible && fishingLine.visible) {
+        const rodTip = getRodTipWorldPos();
+        const floatPos = floatGroup.position;
+        const lineAttr = fishingLine.geometry.attributes.position;
+
+        const isStruggling = (state.phase === "FIGHT" && state.currentSpeciesPattern[state.currentPhaseIndex]?.type === "STRUGGLE");
+
+        for (let i = 0; i < maxLineVerts; i++) {
+          const t = i / (maxLineVerts - 1);
+          let lx = THREE.MathUtils.lerp(rodTip.x, floatPos.x, t);
+          let ly = THREE.MathUtils.lerp(rodTip.y, floatPos.y + 0.1, t);
+          let lz = THREE.MathUtils.lerp(rodTip.z, floatPos.z, t);
+
+          if (isStruggling && i > 0 && i < maxLineVerts - 1) {
+            // Zigzag line deflection during STRUGGLE
+            const zigzag = Math.sin(time * 35.0 + i * 2.0) * 0.12 * Math.sin(t * Math.PI);
+            lx += zigzag;
+          }
+          lineAttr.setXYZ(i, lx, ly, lz);
+        }
+        lineAttr.needsUpdate = true;
+      }
+
+      // Fish Patrol and Darting
+      updateFishes(dt, time);
+
+      // Secondary Motion & Tension Rod Flexing
+      if (state.phase === "FIGHT") {
+        // Rod bends dynamically according to tension
+        const tensionFlex = 0.2 + (state.tension / 100.0) * 0.45;
+        const struggleVibe = (state.currentSpeciesPattern[state.currentPhaseIndex]?.type === "STRUGGLE") ? Math.sin(time * 30.0) * 0.08 : 0;
+        rodTipPivot.rotation.x = tensionFlex + struggleVibe;
+      } else if (state.strikeAnimTimer > 0) {
+        state.strikeAnimTimer -= dt;
+        rodTipPivot.rotation.x = -0.65 * (state.strikeAnimTimer / 0.35);
+      } else if (state.phase === "FLYING" || state.phase === "LANDING") {
+        rodTipPivot.rotation.x = 0.25 * Math.sin(time * 18.0);
+      } else if (state.phase === "PLUNGED") {
+        rodTipPivot.rotation.x = 0.38;
+      } else if (state.phase === "NIBBLING") {
+        rodTipPivot.rotation.x = 0.12 * Math.sin(time * 24.0);
+      } else if (state.phase !== "CHARGING") {
+        rodTipPivot.rotation.x = 0.02 * Math.sin(time * 2.0);
+      }
+
+      coatHemPivot.rotation.z = 0.05 * Math.sin(time * 2.5);
+      coatHemPivot.rotation.x = 0.03 * Math.cos(time * 2.0);
+
+      const lampPulse = 0.85 + 0.3 * Math.sin(time * 1.8);
+      lampLights.forEach(item => {
+        item.light.intensity = item.baseIntensity * lampPulse;
+      });
+
+      beamPivot.rotation.y = (time * (2 * Math.PI / 12.0));
+
+      updateWaterWaves(time);
+
+      fogBanks.forEach((f, idx) => {
+        const xOffset = Math.sin(time * 0.15 + idx) * 3.0;
+        f.mesh.position.x = f.baseX + xOffset;
+        f.mesh.position.y = 0.25 + 0.08 * Math.sin(time * 0.4 + idx);
+      });
+
+      boatGroup.position.y = 0.05 + 0.03 * Math.sin(time * 1.5);
+      boatGroup.rotation.z = 0.03 * Math.sin(time * 1.2);
+      boatGroup.rotation.x = 0.02 * Math.cos(time * 1.4);
+
+      buoyGroup.children.forEach((child, i) => {
+        if (child.isMesh && child.geometry.type === "SphereGeometry") {
+          child.position.y = 0.05 + 0.02 * Math.sin(time * 2.5 + i * 0.4);
+        }
+      });
+
+      updateRipplesAndSplashes(dt);
+    }
+
+    function triggerNibbleDip() {
+      floatGroup.position.y = -0.12;
+      triggerRipple(state.floatState.x, state.floatState.z, 0.7);
+
+      // Bite Bell rings soft short tick on nibble in THICK or DENSE fog
+      if (state.fogLevel === "THICK" || state.fogLevel === "DENSE") {
+        ringBell("NIBBLE");
+      }
+    }
+
+    function triggerRipple(x, z, scale = 1.0) {
+      rippleRing.position.set(x, 0.02, z);
+      rippleRing.scale.set(scale, scale, scale);
+      rippleRingMat.opacity = 0.8;
+      rippleTimer = 0.5;
+    }
+
+    function triggerSplash(x, z) {
+      triggerRipple(x, z, 1.4);
+      splashGroup.position.set(x, 0.0, z);
+      splashDroplets.forEach((drop, i) => {
+        drop.visible = true;
+        const ang = (i / splashDroplets.length) * Math.PI * 2;
+        const spd = 0.4 + (i % 3) * 0.2;
+        drop.userData = {
+          vx: Math.cos(ang) * spd,
+          vy: 1.2 + (i % 2) * 0.4,
+          vz: Math.sin(ang) * spd,
+          life: 0.45
+        };
+        drop.position.set(0, 0.05, 0);
+      });
+    }
+
+    function updateRipplesAndSplashes(dt) {
+      if (rippleTimer > 0) {
+        rippleTimer -= dt;
+        const p = 1.0 - (rippleTimer / 0.5);
+        rippleRing.scale.addScalar(dt * 1.8);
+        rippleRingMat.opacity = Math.max(0, 0.8 * (1.0 - p));
+        if (rippleTimer <= 0) {
+          rippleRingMat.opacity = 0;
+        }
+      }
+
+      splashDroplets.forEach(drop => {
+        if (drop.visible && drop.userData) {
+          drop.userData.life -= dt;
+          drop.userData.vy -= 9.8 * dt;
+          drop.position.x += drop.userData.vx * dt;
+          drop.position.y += drop.userData.vy * dt;
+          drop.position.z += drop.userData.vz * dt;
+          if (drop.userData.life <= 0 || drop.position.y < 0) {
+            drop.visible = false;
+          }
+        }
+      });
+    }
+
+    /* =========================================================================
+       FISH PATROLS & BEHAVIOR
+       ========================================================================= */
+
+    function updateFishes(dt, time) {
+      state.fishes.forEach((fish, idx) => {
+        const meshObj = fishMeshes[idx];
+        if (fish.caught) {
+          meshObj.group.visible = false;
+          return;
+        }
+
+        // Round 6, 8, 9: Timetable visibility check (active only during designated hours)
+        if (!isFishActiveAtTime(fish, time)) {
+          meshObj.group.visible = false;
+          return;
+        }
+
+        meshObj.group.visible = true;
+
+        const baseFishY = fish.homeLayer === "DEEP" ? -0.42 : -0.22;
+
+        if (fish.state === "PATROLLING") {
+          const t = time * fish.patrolSpeed;
+          const px = fish.patrolCenter.x + Math.sin(t) * fish.patrolRadius.x;
+          const pz = fish.patrolCenter.z + Math.cos(t) * fish.patrolRadius.z;
+
+          const dx = Math.cos(t) * fish.patrolRadius.x;
+          const dz = -Math.sin(t) * fish.patrolRadius.z;
+          const rotY = Math.atan2(dx, dz);
+
+          fish.x = px;
+          fish.z = pz;
+          fish.rotY = rotY;
+
+          meshObj.group.position.set(px, baseFishY, pz);
+          meshObj.group.rotation.y = rotY;
+        } else if (fish.state === "DARTING") {
+          fish.dartTimer -= dt;
+          const p = Math.max(0, fish.dartTimer / 1.5);
+          const t = time * fish.patrolSpeed;
+          const patrolTargetX = fish.patrolCenter.x + Math.sin(t) * fish.patrolRadius.x;
+          const patrolTargetZ = fish.patrolCenter.z + Math.cos(t) * fish.patrolRadius.z;
+
+          fish.x = THREE.MathUtils.lerp(patrolTargetX, state.floatState.x, p);
+          fish.z = THREE.MathUtils.lerp(patrolTargetZ, state.floatState.z, p);
+          meshObj.group.position.set(fish.x, baseFishY - 0.06, fish.z);
+
+          const dartAngle = Math.atan2(patrolTargetX - fish.x, patrolTargetZ - fish.z);
+          meshObj.group.rotation.y = dartAngle;
+
+          if (fish.dartTimer <= 0) {
+            fish.state = "PATROLLING";
+          }
+        } else if (fish.state === "NIBBLING") {
+          const fx = state.floatState.x;
+          const fz = state.floatState.z;
+          const glideP = Math.min(1.0, (state.nibbleCount * 0.6 + state.nibbleTimer) / 0.25);
+          const curX = THREE.MathUtils.lerp(fish.approachStartX, fx, glideP);
+          const curZ = THREE.MathUtils.lerp(fish.approachStartZ, fz, glideP);
+
+          const nudgeAngle = time * 2.5;
+          const offsetX = Math.cos(nudgeAngle) * 0.12 * (1.0 - 0.5 * glideP);
+          const offsetZ = Math.sin(nudgeAngle) * 0.12 * (1.0 - 0.5 * glideP);
+
+          fish.x = curX + offsetX;
+          fish.z = curZ + offsetZ;
+          meshObj.group.position.set(fish.x, baseFishY, fish.z);
+          meshObj.group.rotation.y = nudgeAngle + Math.PI / 2;
+        } else if (fish.state === "PLUNGED") {
+          const fx = state.floatState.x;
+          const fz = state.floatState.z;
+          fish.x = fx;
+          fish.z = fz;
+          meshObj.group.position.set(fx, baseFishY - 0.1, fz);
+          meshObj.group.rotation.y = time * 4.0;
+        }
+
+        if (meshObj.tail) {
+          const isExcited = (fish.state === "NIBBLING" || fish.state === "PLUNGED" || fish.state === "DARTING" || fish.state === "FIGHTING");
+          const tailSpeed = isExcited ? 24.0 : 12.0;
+          meshObj.tail.rotation.y = Math.sin(time * tailSpeed) * 0.35;
+        }
+      });
+    }
+
+    /* =========================================================================
+       WATER WAVES
+       ========================================================================= */
+
+    function updateWaterWaves(time) {
+      const pos = waterGeo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const bx = baseWaterVertices[i * 3];
+        const by = baseWaterVertices[i * 3 + 1];
+        const bz = baseWaterVertices[i * 3 + 2];
+
+        const wave1 = Math.sin(bx * 0.7 + time * 1.5) * 0.04;
+        const wave2 = Math.cos(bz * 0.9 + time * 1.8) * 0.035;
+        const wave3 = Math.sin((bx + bz) * 0.5 + time * 2.2) * 0.025;
+        pos.setY(i, by + wave1 + wave2 + wave3);
+      }
+      pos.needsUpdate = true;
+      waterGeo.computeVertexNormals();
+    }
+
+    /* =========================================================================
+       CATCH BANNER & DEX
+       ========================================================================= */
+
+    function recordCatch(fish) {
+      if (!state.caughtSpecies.includes(fish.name)) {
+        state.caughtSpecies.push(fish.name);
+      }
+
+      const banner = document.getElementById("catch-banner");
+      banner.className = "show";
+      document.getElementById("catch-header-text").textContent = "Fish Landed!";
+      document.getElementById("catch-species-name").textContent = fish.name;
+      document.getElementById("catch-species-weight").textContent = fish.weight;
+
+      updateDEX();
+      updateTargetListHUD();
+
+      setTimeout(() => {
+        banner.classList.remove("show");
+        reelInFloat();
+      }, 2600);
+    }
+
+    function updateDEX() {
+      const dexCount = state.caughtSpecies.length;
+      document.getElementById("hud-dex-count").textContent = `DEX ${dexCount}/15`;
+
+      const list = [
+        { id: "dex-smelt", name: "Fog Smelt" },
+        { id: "dex-herring", name: "Brass Herring" },
+        { id: "dex-perch", name: "Lantern Perch" },
+        { id: "dex-cod", name: "Coal Cod" },
+        { id: "dex-grouper", name: "Iron Grouper" },
+        { id: "dex-skate", name: "Rust Skate" },
+        { id: "dex-sardine", name: "Moon Sardine" },
+        { id: "dex-squid", name: "Ghost Squid" },
+        { id: "dex-conger", name: "Ink Conger" },
+        { id: "dex-flounder", name: "Star Flounder" },
+        { id: "dex-sculpin", name: "Velvet Sculpin" },
+        { id: "dex-ray", name: "Bell Ray" },
+        { id: "dex-paleking", name: "★ Pale King" },
+        { id: "dex-mothqueen", name: "★ Moth Queen" },
+        { id: "dex-inkemperor", name: "★ Ink Emperor" }
+      ];
+
+      list.forEach(item => {
+        const el = document.getElementById(item.id);
+        if (el) {
+          const caught = state.caughtSpecies.includes(item.name);
+          el.className = caught ? "dex-item caught" : "dex-item uncaught";
+          if (item.name.startsWith("★")) {
+            el.textContent = caught ? item.name : "★ ???";
+          }
+        }
+      });
+    }
+
+    function updateHudSpot() {
+      const spotName = SPOTS[state.targetSpotIndex].name;
+      document.getElementById("hud-spot-name").textContent = spotName;
+    }
+
+    function updateHudPrompt() {
+      const promptEl = document.getElementById("hud-prompt");
+      if (state.phase === "READY") {
+        promptEl.textContent = "Press [ENTER] to Start";
+      } else if (state.phase === "IDLE") {
+        promptEl.textContent = "Hold [SPACE] to Charge Cast • [A/D] Aim • [←/→] Walk Spot";
+      } else if (state.phase === "CHARGING") {
+        promptEl.textContent = "Release [SPACE] to Cast!";
+      } else if (state.phase === "FLYING") {
+        promptEl.textContent = "Casting...";
+      } else if (state.phase === "SETTLED" || state.phase === "NIBBLING") {
+        promptEl.textContent = "Float waiting... Press [SPACE] to STRIKE when fish takes! • [X] Reel In";
+      } else if (state.phase === "PLUNGED") {
+        promptEl.textContent = "STRIKE NOW! Press [SPACE]!";
+      } else if (state.phase === "FIGHT") {
+        promptEl.textContent = "HOLD [SPACE] to Reel in • RELEASE to Give Line • Keep tension < 100!";
+      } else if (state.phase === "RECOVERING") {
+        promptEl.textContent = "Restoring tackle rig...";
+      } else if (state.phase === "LANDING" || state.phase === "CAUGHT") {
+        promptEl.textContent = "Landing catch!";
+      }
+    }
+
+    /* =========================================================================
+       MAIN LOOP
+       ========================================================================= */
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Simulation is paused while paused, when DEX overlay is open, or when Gala is in RESULTS
+      if (!state.isPaused && !state.isDexOpen && state.phase !== "READY" && state.phase !== "RESULTS") {
+        gameTick(FIXED_DT);
+      }
+
+      if (typeof bellMesh !== "undefined" && bellMesh) {
+        bellMesh.rotation.z *= 0.88;
+      }
+
+      updateArenaStateExport();
+      if (renderer && typeof renderer.render === "function") {
+        renderer.render(scene, camera);
+      }
+    }
+
+    updateHudSpot();
+    updateDEX();
+    updateTargetListHUD();
+    updateCountersHUD();
+    updateBiteStatusHUD();
+    updateSinkerHUD();
+    updateLureHUD();
+    updateDepthGaugeHUD();
+    updateClockHUD();
+    updateLitBadgeHUD();
+    updateFogHUD();
+    updateSpotRestHUD();
+    renderDexTable();
+    updateHudPrompt();
+    updateArenaStateExport();
+    setInterval(updateArenaStateExport, 50);
+    animate();
+  </script>
+</body>
+</html>

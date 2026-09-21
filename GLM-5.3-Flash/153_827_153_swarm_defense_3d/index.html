@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Swarm Defense</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#10130c}
+  canvas{display:block}
+  #ui{position:fixed;inset:0;pointer-events:none;z-index:10;font-family:'Trebuchet MS','Segoe UI',Verdana,sans-serif;color:#ffe9c2}
+  .hidden{display:none !important}
+  .panel{background:rgba(26,19,9,.8);border:1px solid rgba(255,199,110,.45);border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,.4)}
+  #hud{position:absolute;top:14px;left:14px;padding:12px 18px;font-size:17px;line-height:1.7;font-weight:bold;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+  #hNext{font-weight:normal;font-size:13.5px;color:#cbb894;min-height:16px}
+  #hint{position:absolute;top:14px;right:14px;padding:8px 14px;font-size:13px;color:#e8d9be}
+  #fps{position:absolute;bottom:14px;right:14px;padding:6px 12px;font-size:13px;color:#e8d9be}
+  #msg{position:absolute;top:15%;left:50%;transform:translateX(-50%);font-size:24px;font-weight:bold;color:#ffdf8e;text-shadow:0 2px 8px rgba(0,0,0,.85);opacity:0;transition:opacity .3s;white-space:nowrap}
+  #buildMenu{position:absolute;pointer-events:auto;padding:12px;width:200px;display:flex;flex-direction:column;gap:8px}
+  #bmReason{font-size:12.5px;color:#ff9d7e;min-height:16px;text-align:center;font-weight:bold}
+  #buildMenu button{font:inherit;font-weight:bold;padding:9px 10px;border-radius:8px;border:1px solid #6b4a1e;cursor:pointer}
+  #bmArcher{background:linear-gradient(#ffd47a,#e8a53a);color:#3a2408}
+  #bmCannon{background:linear-gradient(#ffb98a,#e88a3a);color:#3a1c08}
+  #bmArcher:disabled,#bmCannon:disabled{filter:grayscale(.75);opacity:.55;cursor:not-allowed}
+  #bmCancel{background:rgba(70,58,44,.95);color:#e8d9be;border-color:#5a4a38}
+  .full{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(24,16,6,.5),rgba(8,6,3,.82))}
+  .card{text-align:center;padding:36px 48px;max-width:680px}
+  h1{margin:0 0 8px;font-size:54px;color:#ffd984;letter-spacing:3px;text-shadow:0 4px 12px rgba(0,0,0,.65)}
+  .sub{font-size:19px;color:#ffedd0;margin-bottom:20px}
+  .controls{display:inline-block;text-align:left;font-size:15.5px;line-height:2;color:#dccfae;margin-bottom:20px}
+  .controls b{color:#7ef0e2}
+  .press{font-size:20px;font-weight:bold;color:#7ef0e2;animation:pulse 1.5s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.45}}
+  #eTitle{font-size:30px;font-weight:bold;color:#ffd984}
+  #eGrade{font-size:72px;font-weight:bold;margin:4px 0 12px}
+  .stats{font-size:18px;line-height:2;color:#ffedd0}
+</style>
+</head>
+<body>
+<div id="ui">
+  <div id="hud" class="panel hidden">
+    <div id="hGold">Gold: 500</div>
+    <div id="hCore">Core: 1000 / 1000</div>
+    <div id="hWave">Wave: 1 / 5</div>
+    <div id="hNext"></div>
+    <div id="hAlive">Bees alive: 0</div>
+    <div id="hKilled">Bees killed: 0</div>
+  </div>
+  <div id="hint" class="panel hidden">Left-click ground: build &nbsp;&middot;&nbsp; R: reset</div>
+  <div id="fps" class="panel">FPS: --</div>
+  <div id="msg"></div>
+  <div id="buildMenu" class="panel hidden">
+    <div id="bmReason"></div>
+    <button id="bmArcher" type="button">Archer &mdash; 50g</button>
+    <button id="bmCannon" type="button">Cannon &mdash; 120g</button>
+    <button id="bmCancel" type="button">Cancel</button>
+  </div>
+  <div id="titleCard" class="full">
+    <div class="card panel">
+      <h1>Swarm Defense</h1>
+      <div class="sub">Ten waves attack from three gates &mdash; keep the core above 300 HP.</div>
+      <div class="controls">
+        <b>Left-click ground</b> &mdash; open the tower build menu<br>
+        <b>Archer Tower</b> &mdash; 50 gold &middot; range 10 &middot; 20 damage &middot; 1 shot/s<br>
+        <b>Cannon Tower</b> &mdash; 120 gold &middot; range 12 &middot; 30 splash damage &middot; 1 shot / 2s<br>
+        <b>Enter</b> &mdash; start the round<br>
+        <b>R</b> &mdash; reset the round at any time
+      </div>
+      <div class="press">Press Enter to start</div>
+    </div>
+  </div>
+  <div id="endCard" class="full hidden">
+    <div class="card panel">
+      <div id="eTitle">Victory!</div>
+      <div id="eGrade">S</div>
+      <div class="stats">
+        Core HP remaining: <span id="sHP">1000 / 1000</span><br>
+        Bees killed: <span id="sKilled">0</span><br>
+        Bees that reached the core: <span id="sReached">0</span><br>
+        Gold left unspent: <span id="sGold">0</span>
+      </div>
+      <div class="press" style="margin-top:18px">Press R to play again</div>
+    </div>
+  </div>
+</div>
+<script src="./assets/_shared/three/build/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+var titleCardEl=document.getElementById('titleCard');
+if(typeof THREE==='undefined'){
+  titleCardEl.innerHTML='<div class="card panel"><h1>Swarm Defense</h1><div class="sub">Could not load ./assets/_shared/three/build/three.min.js</div></div>';
+  window.__arena_state={phase:'title',gold:500,coreHP:1000,waveIndex:0,totalBeesSpawned:0,beesAlive:0,beesKilled:0,beesReachedCore:0,towers:[],grade:null};
+  return;
+}
+
+// ---------------- constants ----------------
+var FIELD=80, CORE_X=40, CORE_Z=40, CORE_R=5, CORE_MAX_HP=1000;
+var SPAWN_X=40, SPAWN_Z=0, BEE_ALT=3;
+var BEE_MAX_HP=50, BEE_SPEED=6, BEE_COH_W=2.0, BEE_SEP_W=1.0, BEE_SEP_R=3, BEE_AVOID_W=1.6, BEE_MAX_ACC=20, BEE_DMG=10, BEE_GOLD=2;
+var TOWER_MIN_CORE=8, TOWER_MIN_SEP=3;
+var TOWER_TYPES={
+  archer:{cost:50,range:10,dmg:20,interval:1.0,splash:0,speed:26,muzzleLen:0.95,muzzleH:2.95},
+  cannon:{cost:120,range:12,dmg:30,interval:2.0,splash:3,speed:14,muzzleLen:1.75,muzzleH:2.3}
+};
+var START_GOLD=500;
+var LANES=[{x:40,z:0},{x:80,z:40},{x:0,z:40}];
+var LANE_COUNTS=[66,67,67], BEES_PER_WAVE=200;
+var WAVE_TIMES=[0,22,44,66,88,110,132,154,176,198], TOTAL_BEES=2000;
+var DT=1/60, COH_BASE=7;      // acceleration contributed per weight unit
+var CAM_ELEV=0.92, CAM_FOV=50;
+
+// ---------------- seeded rng (spawn offsets only) ----------------
+var seed=24680;
+function rand(){ seed=(seed*1664525+1013904223)%4294967296; return seed/4294967296; }
+
+// ---------------- renderer / scene ----------------
+var renderer;
+try{ renderer=new THREE.WebGLRenderer({antialias:true}); }
+catch(e){
+  titleCardEl.innerHTML='<div class="card panel"><h1>Swarm Defense</h1><div class="sub">WebGL is not available in this browser.</div></div>';
+  return;
+}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+var dom=renderer.domElement;
+
+var scene=new THREE.Scene();
+scene.background=new THREE.Color(0x9fd9f6);
+var camera=new THREE.PerspectiveCamera(CAM_FOV,window.innerWidth/window.innerHeight,1,800);
+
+scene.add(new THREE.HemisphereLight(0xcfe8ff,0x9a8a5c,0.85));
+var sun=new THREE.DirectionalLight(0xfff1d0,1.35);
+sun.position.set(95,105,115);
+sun.target.position.set(40,0,40);
+sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left=-62; sun.shadow.camera.right=62;
+sun.shadow.camera.top=62; sun.shadow.camera.bottom=-62;
+sun.shadow.camera.near=40; sun.shadow.camera.far=320;
+sun.shadow.bias=-0.0005;
+sun.shadow.normalBias=0.5;
+scene.add(sun); scene.add(sun.target);
+
+// ---------------- helpers ----------------
+var matCache={};
+function SM(color){
+  if(!matCache[color]) matCache[color]=new THREE.MeshStandardMaterial({color:color,roughness:0.92,metalness:0});
+  return matCache[color];
+}
+function addM(geo,mat,x,y,z,o){
+  var m=new THREE.Mesh(geo,mat);
+  m.position.set(x,y,z);
+  o=o||{};
+  if(o.rx)m.rotation.x=o.rx;
+  if(o.ry)m.rotation.y=o.ry;
+  if(o.rz)m.rotation.z=o.rz;
+  if(o.s)m.scale.set(o.s[0],o.s[1],o.s[2]);
+  m.castShadow=!!o.cs;
+  m.receiveShadow=!!o.rs;
+  scene.add(m);
+  return m;
+}
+function lerpAngle(a,b,t){
+  var d=(b-a)%(Math.PI*2);
+  if(d>Math.PI)d-=Math.PI*2;
+  if(d<-Math.PI)d+=Math.PI*2;
+  return a+d*t;
+}
+function disposeTower(g){
+  g.traverse(function(o){
+    if(o.geometry)o.geometry.dispose();
+    if(o.material&&o.material.userData&&o.material.userData.own)o.material.dispose();
+  });
+}
+
+// ---------------- canvas textures ----------------
+function makeStripeTexture(){
+  var c=document.createElement('canvas'); c.width=32; c.height=128;
+  var x=c.getContext('2d');
+  x.fillStyle='#f2b23a'; x.fillRect(0,0,32,128);
+  x.fillStyle='#33200e';
+  x.fillRect(0,0,32,10);
+  x.fillRect(0,30,32,20);
+  x.fillRect(0,72,32,20);
+  x.fillRect(0,112,32,8);
+  return new THREE.CanvasTexture(c);
+}
+function makeSignTexture(){
+  var c=document.createElement('canvas'); c.width=256; c.height=96;
+  var x=c.getContext('2d');
+  x.fillStyle='#6b4a2a'; x.fillRect(0,0,256,96);
+  x.strokeStyle='#4a3116'; x.lineWidth=10; x.strokeRect(5,5,246,86);
+  x.fillStyle='#ffe9c2'; x.font='bold 56px Trebuchet MS, sans-serif';
+  x.textAlign='center'; x.textBaseline='middle';
+  x.fillText('CORE',128,52);
+  return new THREE.CanvasTexture(c);
+}
+
+// ---------------- static world ----------------
+// ground
+addM(new THREE.PlaneGeometry(340,340),SM(0x6f9c4e),0,-0.02,0,{rx:-Math.PI/2,rs:1});
+addM(new THREE.PlaneGeometry(FIELD,FIELD),SM(0x86b75a),40,0,40,{rx:-Math.PI/2,rs:1});
+
+// boundary wall + corner posts
+var wallMat=SM(0xa89680);
+addM(new THREE.BoxGeometry(82,1.1,1),wallMat,40,0.55,0,{cs:1,rs:1});
+addM(new THREE.BoxGeometry(82,1.1,1),wallMat,40,0.55,80,{cs:1,rs:1});
+addM(new THREE.BoxGeometry(1,1.1,80),wallMat,0,0.55,40,{cs:1,rs:1});
+addM(new THREE.BoxGeometry(1,1.1,80),wallMat,80,0.55,40,{cs:1,rs:1});
+[[0,0],[80,0],[0,80],[80,80]].forEach(function(c){
+  addM(new THREE.BoxGeometry(2,1.6,2),SM(0x8c7b64),c[0],0.8,c[1],{cs:1,rs:1});
+});
+
+// spawn gates on the north, east and west walls (arches clear the flight altitude)
+var sigilMat=new THREE.MeshBasicMaterial({color:0xffb646,transparent:true,opacity:0.9});
+var gateGlowMat=new THREE.MeshBasicMaterial({color:0xffb646,transparent:true,opacity:0.7,depthWrite:false});
+function buildGate(cx,cz,axis){
+  if(axis==='x'){
+    addM(new THREE.BoxGeometry(1,4.8,1),SM(0x9a8a74),cx-7.8,2.4,cz,{cs:1,rs:1});
+    addM(new THREE.BoxGeometry(1,4.8,1),SM(0x9a8a74),cx+7.8,2.4,cz,{cs:1,rs:1});
+    addM(new THREE.BoxGeometry(17,0.9,1.3),SM(0x8c7b64),cx,4.35,cz,{cs:1,rs:1});
+    addM(new THREE.BoxGeometry(17.6,0.28,1.7),SM(0x2f9e9a),cx,4.94,cz,{cs:1,rs:1});
+  }else{
+    addM(new THREE.BoxGeometry(1,4.8,1),SM(0x9a8a74),cx,2.4,cz-7.8,{cs:1,rs:1});
+    addM(new THREE.BoxGeometry(1,4.8,1),SM(0x9a8a74),cx,2.4,cz+7.8,{cs:1,rs:1});
+    addM(new THREE.BoxGeometry(1.3,0.9,17),SM(0x8c7b64),cx,4.35,cz,{cs:1,rs:1});
+    addM(new THREE.BoxGeometry(1.7,0.28,17.6),SM(0x2f9e9a),cx,4.94,cz,{cs:1,rs:1});
+  }
+  addM(new THREE.PlaneGeometry(2.4,0.7),sigilMat,cx,5.5,cz,{});
+  // cracked hive mouth on the ground
+  addM(new THREE.CircleGeometry(3,28),new THREE.MeshBasicMaterial({color:0x241608}),cx,0.02,cz,{rx:-Math.PI/2});
+  addM(new THREE.RingGeometry(2.25,3.0,40),gateGlowMat,cx,0.035,cz,{rx:-Math.PI/2});
+  for(var ci=0;ci<6;ci++){
+    var ca=0.4+ci*1.02;
+    addM(new THREE.BoxGeometry(1.7,0.02,0.14),new THREE.MeshBasicMaterial({color:0x57381a}),
+      cx+Math.cos(ca)*3.85,0.03,cz+Math.sin(ca)*3.85,{ry:-ca});
+  }
+}
+buildGate(40,0,'x');   // north lane
+buildGate(80,40,'z');  // east lane
+buildGate(0,40,'z');   // west lane
+
+// road from the gate toward the core (flat paint, stops nothing)
+addM(new THREE.PlaneGeometry(5,34),SM(0xd8b47c),40,0.02,17.5,{rx:-Math.PI/2,rs:1});
+addM(new THREE.BoxGeometry(0.28,0.06,34),SM(0xb9975f),37.35,0.03,17.5,{rs:1});
+addM(new THREE.BoxGeometry(0.28,0.06,34),SM(0xb9975f),42.65,0.03,17.5,{rs:1});
+// roads from the east and west gates toward the core
+addM(new THREE.PlaneGeometry(31,5),SM(0xd8b47c),61,0.02,40,{rx:-Math.PI/2,rs:1});
+addM(new THREE.BoxGeometry(31,0.06,0.28),SM(0xb9975f),61,0.03,37.35,{rs:1});
+addM(new THREE.BoxGeometry(31,0.06,0.28),SM(0xb9975f),61,0.03,42.65,{rs:1});
+addM(new THREE.PlaneGeometry(31,5),SM(0xd8b47c),19,0.02,40,{rx:-Math.PI/2,rs:1});
+addM(new THREE.BoxGeometry(31,0.06,0.28),SM(0xb9975f),19,0.03,37.35,{rs:1});
+addM(new THREE.BoxGeometry(31,0.06,0.28),SM(0xb9975f),19,0.03,42.65,{rs:1});
+
+// rocks and shrubs (small, near the edges)
+var ROCKS=[[10,12,0.8],[15,9,0.5],[66,10,0.9],[70,14,0.6],[9,60,0.7],[12,68,0.5],[68,64,0.8],[63,70,0.55],[24,52,0.5],[56,44,0.5]];
+ROCKS.forEach(function(r,i){
+  addM(new THREE.IcosahedronGeometry(r[2],0),SM(0x9a9aa2),r[0],r[2]*0.45,r[1],
+    {s:[1.25,0.75,1],ry:i*1.3,rx:i*0.4,cs:1,rs:1});
+});
+var SHRUBS=[[18,20],[62,22],[8,30],[72,36],[20,62],[58,66],[33,72],[48,14]];
+SHRUBS.forEach(function(s,i){
+  addM(new THREE.IcosahedronGeometry(0.62,0),SM(i%2?0x4c8f3f:0x5da24b),s[0],0.45,s[1],
+    {s:[1.2,0.9,1.2],ry:i*0.9,cs:1,rs:1});
+  addM(new THREE.IcosahedronGeometry(0.4,0),SM(0x5da24b),s[0]+0.5,0.3,s[1]+0.35,{ry:i*1.7,cs:1,rs:1});
+});
+
+// ramparts and corner turrets just outside the wall
+[8,20,60,72].forEach(function(x,i){ addM(new THREE.BoxGeometry(3,1.8+(i%2)*0.5,1.8),SM(0x9a8a74),x,0.9+(i%2)*0.25,-2.4,{cs:1,rs:1}); });
+[14,32,52,68].forEach(function(x,i){ addM(new THREE.BoxGeometry(3,1.8+(i%2)*0.5,1.8),SM(0x9a8a74),x,0.9+(i%2)*0.25,82.4,{cs:1,rs:1}); });
+[14,24,56,68].forEach(function(z,i){ addM(new THREE.BoxGeometry(1.8,1.8+(i%2)*0.5,3),SM(0x9a8a74),-2.4,0.9+(i%2)*0.25,z,{cs:1,rs:1}); });
+[14,24,56,68].forEach(function(z,i){ addM(new THREE.BoxGeometry(1.8,1.8+(i%2)*0.5,3),SM(0x9a8a74),82.4,0.9+(i%2)*0.25,z,{cs:1,rs:1}); });
+[[-2.4,-2.4],[82.4,-2.4],[-2.4,82.4],[82.4,82.4]].forEach(function(c){
+  addM(new THREE.CylinderGeometry(1.5,1.7,3.2,8),SM(0x9a8a74),c[0],1.6,c[1],{cs:1,rs:1});
+  addM(new THREE.ConeGeometry(1.9,1.6,8),SM(0x2f9e9a),c[0],4.0,c[1],{cs:1});
+});
+
+// trees outside the field
+var TREES=[[-6,20],[-7,55],[87,30],[86,62],[20,-6],[60,-7],[15,86],[70,87]];
+TREES.forEach(function(t,i){
+  addM(new THREE.CylinderGeometry(0.22,0.32,1.5,7),SM(0x7a5230),t[0],0.75,t[1],{cs:1});
+  addM(new THREE.IcosahedronGeometry(1.25,0),SM(0x4f9643),t[0],2.0,t[1],{ry:i,cs:1});
+  addM(new THREE.IcosahedronGeometry(0.85,0),SM(0x5fae4e),t[0]+0.4,2.9,t[1]-0.2,{ry:i*2,cs:1});
+});
+
+// distant hills for the horizon
+[[-45,-15,38,0x7ba263],[125,25,46,0x749b5c],[30,128,40,0x7ba263],[105,105,30,0x6f9457],[-30,110,34,0x749b5c]].forEach(function(h){
+  addM(new THREE.SphereGeometry(h[2],16,12),SM(h[3]),h[0],0,h[1],{s:[1,0.32,1]});
+});
+
+// banners near the core (poles sit inside the 8u no-build ring so towers never overlap them)
+var flags=[];
+[[34.5,34.5],[45.5,34.5],[34.5,45.5],[45.5,45.5]].forEach(function(p){
+  addM(new THREE.CylinderGeometry(0.06,0.09,3.2,6),SM(0x6b5a44),p[0],1.6,p[1],{cs:1});
+  var fg=new THREE.BufferGeometry();
+  fg.setAttribute('position',new THREE.Float32BufferAttribute([0,0,0, 1.05,-0.18,0, 0,-0.52,0],3));
+  fg.computeVertexNormals();
+  var fm=addM(fg,new THREE.MeshStandardMaterial({color:0x2fa8a0,side:THREE.DoubleSide,roughness:0.9}),p[0]+0.07,3.05,p[1],{});
+  flags.push(fm);
+});
+
+// CORE signpost beside the core (also inside the no-build ring)
+var signGrp=new THREE.Group();
+signGrp.position.set(46.5,0,37.5);
+signGrp.rotation.y=-0.45;
+scene.add(signGrp);
+(function(){
+  var pole=new THREE.Mesh(new THREE.BoxGeometry(0.16,1.5,0.16),SM(0x6b4a2a));
+  pole.position.set(0,0.75,0); pole.castShadow=true; signGrp.add(pole);
+  var plank=new THREE.Mesh(new THREE.BoxGeometry(2.3,0.72,0.12),SM(0x7a5530));
+  plank.position.set(0,1.5,0); plank.castShadow=true; signGrp.add(plank);
+  var txt=new THREE.Mesh(new THREE.PlaneGeometry(2.14,0.6),new THREE.MeshBasicMaterial({map:makeSignTexture()}));
+  txt.position.set(0,1.5,0.07); signGrp.add(txt);
+})();
+
+// ---------------- the core ----------------
+var coreGrp=new THREE.Group();
+coreGrp.position.set(40,0,40);
+scene.add(coreGrp);
+function cAdd(m){ coreGrp.add(m); return m; }
+var cBase=cAdd(new THREE.Mesh(new THREE.CylinderGeometry(5.2,5.8,1.1,8),SM(0x93a3a9)));
+cBase.position.y=0.55; cBase.castShadow=true; cBase.receiveShadow=true;
+var cMid=cAdd(new THREE.Mesh(new THREE.CylinderGeometry(3.6,4.6,1.7,8),SM(0xaebbc0)));
+cMid.position.y=1.95; cMid.castShadow=true;
+var cTop=cAdd(new THREE.Mesh(new THREE.CylinderGeometry(2.4,3.2,1.3,8),SM(0xc2ced2)));
+cTop.position.y=3.45; cTop.castShadow=true;
+var cCap=cAdd(new THREE.Mesh(new THREE.CylinderGeometry(1.1,2.1,0.8,8),SM(0x8fb0b4)));
+cCap.position.y=4.45; cCap.castShadow=true;
+var crystalMat=new THREE.MeshStandardMaterial({color:0x35e0d0,emissive:0x0e6e66,emissiveIntensity:0.55,roughness:0.3,metalness:0.1});
+var floatGrp=new THREE.Group();
+floatGrp.position.set(0,6.7,0);
+coreGrp.add(floatGrp);
+var crystal=new THREE.Mesh(new THREE.OctahedronGeometry(1.7,0),crystalMat);
+crystal.castShadow=true;
+floatGrp.add(crystal);
+var haloMat=new THREE.MeshBasicMaterial({color:0x53f0dd,transparent:true,opacity:0.5,depthWrite:false});
+var haloGrp=new THREE.Group();
+floatGrp.add(haloGrp);
+var halo=new THREE.Mesh(new THREE.TorusGeometry(2.55,0.09,8,40),haloMat);
+halo.rotation.x=Math.PI/2;
+haloGrp.add(halo);
+var crackMeshes=[];
+[0.4,1.9,3.4,4.9].forEach(function(a){
+  var m=new THREE.Mesh(new THREE.PlaneGeometry(0.18,1.0),new THREE.MeshBasicMaterial({color:0x2c3436}));
+  m.position.set(Math.sin(a)*5.62,0.5,Math.cos(a)*5.62);
+  m.rotation.y=a;
+  m.visible=false;
+  coreGrp.add(m);
+  crackMeshes.push(m);
+});
+var CRY_HEALTHY=new THREE.Color(0x35e0d0), CRY_HURT=new THREE.Color(0xd0342c);
+var crackThresholds=[800,600,300,150];
+
+// ---------------- bees ----------------
+var stripeTex=makeStripeTexture();
+var GEO={
+  ab:new THREE.SphereGeometry(0.5,14,12),
+  th:new THREE.SphereGeometry(0.42,12,10),
+  head:new THREE.SphereGeometry(0.3,10,8),
+  eye:new THREE.SphereGeometry(0.09,8,6),
+  ant:new THREE.CylinderGeometry(0.02,0.02,0.3,4),
+  sting:new THREE.ConeGeometry(0.1,0.34,8),
+  wingF:(function(){ var g=new THREE.PlaneGeometry(0.62,0.3); g.translate(0.31,0,0); return g; })(),
+  wingH:(function(){ var g=new THREE.PlaneGeometry(0.48,0.24); g.translate(0.24,0,0); return g; })(),
+  burst:new THREE.SphereGeometry(0.3,10,8),
+  bolt:new THREE.SphereGeometry(0.22,8,6),
+  ball:new THREE.SphereGeometry(0.38,10,8)
+};
+var MAT={
+  wing:new THREE.MeshBasicMaterial({color:0xdff3ff,transparent:true,opacity:0.45,side:THREE.DoubleSide,depthWrite:false}),
+  head:new THREE.MeshStandardMaterial({color:0x3a2413,roughness:0.7}),
+  eye:new THREE.MeshBasicMaterial({color:0x0c0805}),
+  ant:new THREE.MeshStandardMaterial({color:0x2b1a0e,roughness:0.8}),
+  sting:new THREE.MeshStandardMaterial({color:0x2b1a0e,roughness:0.6}),
+  bolt:new THREE.MeshBasicMaterial({color:0xffd25c}),
+  ball:new THREE.MeshBasicMaterial({color:0xff8830})
+};
+var AB_BASE=new THREE.Color(1,1,1), AB_HURT=new THREE.Color(0.98,0.42,0.4);
+var TH_BASE=new THREE.Color(0xd99a28), TH_HURT=new THREE.Color(0x7c3424);
+
+// bees render as 12 InstancedMeshes (one per body part) instead of one draw call per bee
+var MAX_BEES=2000;
+var ZERO_MATRIX=new THREE.Matrix4().makeScale(0,0,0);
+var abdomenMat=new THREE.MeshStandardMaterial({map:stripeTex,roughness:0.6});
+var thoraxMat=new THREE.MeshStandardMaterial({color:0xd99a28,roughness:0.75});
+var FLASH_COLOR=new THREE.Color(2.4,2.1,1.5);
+function m4Mul(){
+  var out=new THREE.Matrix4();
+  for(var i=0;i<arguments.length;i++){
+    if(i===0)out.copy(arguments[0]);
+    else out.multiply(arguments[i]);
+  }
+  return out;
+}
+function mt(x,y,z){ return new THREE.Matrix4().makeTranslation(x,y,z); }
+var abdomenLocal=m4Mul(mt(0,0,-0.62),new THREE.Matrix4().makeRotationX(-Math.PI/2),new THREE.Matrix4().makeScale(0.92,1.4,0.92));
+var thoraxLocal=mt(0,0.04,0.08);
+var headLocal=mt(0,0.06,0.5);
+var eyeLLocal=mt(0.13,0.13,0.73);
+var eyeRLocal=mt(-0.13,0.13,0.73);
+var antLLocal=m4Mul(mt(0.09,0.28,0.6),new THREE.Matrix4().makeRotationX(Math.PI/2-0.55),new THREE.Matrix4().makeRotationZ(-0.3));
+var antRLocal=m4Mul(mt(-0.09,0.28,0.6),new THREE.Matrix4().makeRotationX(Math.PI/2-0.55),new THREE.Matrix4().makeRotationZ(0.3));
+var stingLocal=m4Mul(mt(0,0,-1.42),new THREE.Matrix4().makeRotationX(-Math.PI/2));
+var wingPivotR=m4Mul(mt(0.16,0.36,0.06),new THREE.Matrix4().makeRotationY(0.18));
+var wingPivotL=m4Mul(mt(-0.16,0.36,0.06),new THREE.Matrix4().makeRotationY(0.18),new THREE.Matrix4().makeScale(-1,1,1));
+var wingHOff=mt(0,-0.02,-0.24);
+function beePart(geo,mat,local,castShadow){
+  var m=new THREE.InstancedMesh(geo,mat,MAX_BEES);
+  m.frustumCulled=false;
+  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  m.castShadow=!!castShadow;
+  for(var i=0;i<MAX_BEES;i++)m.setMatrixAt(i,ZERO_MATRIX);
+  scene.add(m);
+  return {mesh:m,local:local};
+}
+var P_AB=beePart(GEO.ab,abdomenMat,abdomenLocal,true);
+var P_TH=beePart(GEO.th,thoraxMat,thoraxLocal,true);
+var P_HD=beePart(GEO.head,MAT.head,headLocal,true);
+var P_EL=beePart(GEO.eye,MAT.eye,eyeLLocal,false);
+var P_ER=beePart(GEO.eye,MAT.eye,eyeRLocal,false);
+var P_AL=beePart(GEO.ant,MAT.ant,antLLocal,false);
+var P_AR=beePart(GEO.ant,MAT.ant,antRLocal,false);
+var P_ST=beePart(GEO.sting,MAT.sting,stingLocal,false);
+var P_WFL=beePart(GEO.wingF,MAT.wing,m4Mul(wingPivotL),false);
+var P_WFR=beePart(GEO.wingF,MAT.wing,m4Mul(wingPivotR),false);
+var P_WHL=beePart(GEO.wingH,MAT.wing,m4Mul(wingPivotL,wingHOff),false);
+var P_WHR=beePart(GEO.wingH,MAT.wing,m4Mul(wingPivotR,wingHOff),false);
+var BEE_PARTS=[P_AB,P_TH,P_HD,P_EL,P_ER,P_AL,P_AR,P_ST,P_WFL,P_WFR,P_WHL,P_WHR];
+var STATIC_PART_COUNT=8;
+(function(){
+  var c=new THREE.Color(1,1,1),i;
+  for(i=0;i<MAX_BEES;i++){ P_AB.mesh.setColorAt(i,c); P_TH.mesh.setColorAt(i,c); }
+})();
+function newBee(x,z,i){
+  return {x:x,z:z,vx:0,vz:0,ax:0,az:0,hp:BEE_MAX_HP,alive:true,i:i,yaw:0,flash:0,phase:i*0.73};
+}
+
+// ---------------- towers ----------------
+function makeTower(x,z,type){
+  var spec=TOWER_TYPES[type];
+  var g=new THREE.Group();
+  g.position.set(x,0,z);
+  scene.add(g);
+  function tAdd(geo,mat,y){
+    var m=new THREE.Mesh(geo,mat);
+    m.position.y=y;
+    m.castShadow=true; m.receiveShadow=true;
+    g.add(m);
+    return m;
+  }
+  var head;
+  if(type==='cannon'){
+    tAdd(new THREE.CylinderGeometry(1.7,1.9,0.6,10),SM(0xb9c4c9),0.3);
+    tAdd(new THREE.CylinderGeometry(1.15,1.35,0.9,10),SM(0xa4b2b8),1.05);
+    tAdd(new THREE.CylinderGeometry(1.35,1.15,0.45,8),SM(0x4a5a62),1.75);
+    head=new THREE.Group();
+    head.position.y=2.15;
+    g.add(head);
+    var turret=new THREE.Mesh(new THREE.BoxGeometry(0.95,0.5,1.15),SM(0x4a5a62));
+    turret.castShadow=true; head.add(turret);
+    var breech=new THREE.Mesh(new THREE.SphereGeometry(0.34,10,8),SM(0x55656d));
+    breech.position.set(0,0.1,-0.3); breech.castShadow=true; head.add(breech);
+    var cbarrel=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.26,1.7,10),SM(0x55656d));
+    cbarrel.rotation.x=Math.PI/2;
+    cbarrel.position.set(0,0.16,0.85);
+    cbarrel.castShadow=true;
+    head.add(cbarrel);
+    var muzzle=new THREE.Mesh(new THREE.TorusGeometry(0.27,0.07,6,14),SM(0xffb646));
+    muzzle.position.set(0,0.16,1.66);
+    head.add(muzzle);
+  }else{
+    tAdd(new THREE.CylinderGeometry(1.25,1.45,0.5,10),SM(0xb9c4c9),0.25);
+    tAdd(new THREE.CylinderGeometry(0.6,0.78,1.9,10),SM(0xa4b2b8),1.45);
+    tAdd(new THREE.CylinderGeometry(0.98,0.8,0.4,10),SM(0x2f9e9a),2.6);
+    var rail=new THREE.Mesh(new THREE.TorusGeometry(0.95,0.05,6,20),SM(0x35525a));
+    rail.rotation.x=Math.PI/2; rail.position.y=2.85; g.add(rail);
+    head=new THREE.Group();
+    head.position.y=2.95;
+    g.add(head);
+    var hb=new THREE.Mesh(new THREE.BoxGeometry(0.72,0.34,0.95),SM(0x35525a));
+    hb.castShadow=true; head.add(hb);
+    var barrel=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.16,0.9),SM(0x24444c));
+    barrel.position.set(0,0.07,0.7); barrel.castShadow=true; head.add(barrel);
+    var orbMat=new THREE.MeshBasicMaterial({color:0x7ef0e2});
+    orbMat.userData.own=true;
+    var orb=new THREE.Mesh(new THREE.SphereGeometry(0.14,8,6),orbMat);
+    orb.position.set(0,0.3,0); head.add(orb);
+  }
+  var ringCol=type==='cannon'?0xffb646:0x35d0c8;
+  var ringFillMat=new THREE.MeshBasicMaterial({color:ringCol,transparent:true,opacity:0.055,depthWrite:false});
+  ringFillMat.userData.own=true;
+  var ringFill=new THREE.Mesh(new THREE.CircleGeometry(spec.range,48),ringFillMat);
+  ringFill.rotation.x=-Math.PI/2; ringFill.position.y=0.05; g.add(ringFill);
+  var ringMat=new THREE.MeshBasicMaterial({color:ringCol,transparent:true,opacity:0.55,depthWrite:false});
+  ringMat.userData.own=true;
+  var ring=new THREE.Mesh(new THREE.RingGeometry(spec.range-0.32,spec.range+0.03,64),ringMat);
+  ring.rotation.x=-Math.PI/2; ring.position.y=0.06; g.add(ring);
+  return {x:x,z:z,type:type,group:g,head:head,headYaw:Math.PI,cooldown:0,
+    range:spec.range,dmg:spec.dmg,interval:spec.interval,splash:spec.splash,
+    speed:spec.speed,muzzleLen:spec.muzzleLen,muzzleH:spec.muzzleH};
+}
+
+// ghost preview rings that follow the cursor (teal: archer range, amber: cannon range)
+var ghostGrp=new THREE.Group();
+ghostGrp.visible=false;
+scene.add(ghostGrp);
+var ghostMat=new THREE.MeshBasicMaterial({color:0x35d0c8,transparent:true,opacity:0.5,depthWrite:false,side:THREE.DoubleSide});
+var ghostMat2=new THREE.MeshBasicMaterial({color:0xffb646,transparent:true,opacity:0.35,depthWrite:false,side:THREE.DoubleSide});
+var ghostRing=new THREE.Mesh(new THREE.RingGeometry(TOWER_TYPES.archer.range-0.3,TOWER_TYPES.archer.range+0.03,64),ghostMat);
+ghostRing.rotation.x=-Math.PI/2; ghostRing.position.y=0.07; ghostGrp.add(ghostRing);
+var ghostRing2=new THREE.Mesh(new THREE.RingGeometry(TOWER_TYPES.cannon.range-0.3,TOWER_TYPES.cannon.range+0.03,64),ghostMat2);
+ghostRing2.rotation.x=-Math.PI/2; ghostRing2.position.y=0.075; ghostGrp.add(ghostRing2);
+var ghostDot=new THREE.Mesh(new THREE.CircleGeometry(0.7,20),ghostMat);
+ghostDot.rotation.x=-Math.PI/2; ghostDot.position.y=0.07; ghostGrp.add(ghostDot);
+
+// ---------------- game state ----------------
+var phase='title', gold=START_GOLD, coreHP=CORE_MAX_HP, T=0, waveIndex=0;
+var spawnedCount=0, killed=0, reached=0, grade=null, coreFlash=0, acc=0;
+var bees=[], towers=[], projectiles=[], effects=[];
+
+function spawnWave(w){
+  // per wave: 66 north-lane bees, then 67 east-lane, then 67 west-lane, sharing the seed in order
+  var idx=w*BEES_PER_WAVE;
+  for(var l=0;l<LANES.length;l++){
+    for(var k=0;k<LANE_COUNTS[l];k++){
+      var r=6*Math.sqrt(rand());
+      var theta=2*Math.PI*rand();
+      var x=LANES[l].x+r*Math.cos(theta);
+      var z=LANES[l].z+r*Math.sin(theta);
+      bees.push(newBee(x,z,idx));
+      idx++;
+    }
+  }
+  spawnedCount+=BEES_PER_WAVE;
+  showMsg('Wave '+(w+1)+' incoming!',1.8);
+}
+
+function spawnEffect(x,y,z,color,scale){
+  var m=new THREE.Mesh(GEO.burst,new THREE.MeshBasicMaterial({color:color,transparent:true,opacity:0.85,depthWrite:false}));
+  m.position.set(x,y,z);
+  m.scale.setScalar(scale||1);
+  scene.add(m);
+  effects.push({mesh:m,life:0.28,max:0.28,scale:scale||1});
+}
+
+function killBee(b){
+  b.alive=false;
+  gold+=BEE_GOLD;
+  killed++;
+  spawnEffect(b.x,BEE_ALT,b.z,0xffe08a);
+}
+function absorbBee(b){
+  b.alive=false;
+  coreHP-=BEE_DMG;
+  if(coreHP<0)coreHP=0;
+  reached++;
+  coreFlash=1;
+}
+function hitBee(b,dmg){
+  if(!b.alive)return;
+  b.hp-=dmg;
+  b.flash=0.12;
+  if(b.hp<=0)killBee(b);
+}
+function fireTower(t,b){
+  var mx=t.x+Math.sin(t.headYaw)*t.muzzleLen;
+  var my=t.muzzleH;
+  var mz=t.z+Math.cos(t.headYaw)*t.muzzleLen;
+  var ball=t.type==='cannon';
+  var mesh=new THREE.Mesh(ball?GEO.ball:GEO.bolt,ball?MAT.ball:MAT.bolt);
+  mesh.position.set(mx,my,mz);
+  scene.add(mesh);
+  projectiles.push({x:mx,y:my,z:mz,target:b,mesh:mesh,dead:false,
+    dmg:t.dmg,splash:t.splash,speed:t.speed});
+}
+function splashDamage(cx,cz,dmg,radius,exclude){
+  // every OTHER bee whose centre lies within the splash radius takes full damage; sharp boundary
+  var ccx=bCellX(cx), ccz=bCellX(cz);
+  var cr=Math.ceil(radius/BG_CELL)+1;
+  var x0=ccx-cr>0?ccx-cr:0, x1=ccx+cr<BG_N-1?ccx+cr:BG_N-1;
+  var z0=ccz-cr>0?ccz-cr:0, z1=ccz+cr<BG_N-1?ccz+cr:BG_N-1;
+  var r2=radius*radius;
+  for(var gx=x0;gx<=x1;gx++){
+    for(var gz=z0;gz<=z1;gz++){
+      var bucket=beeBuckets[gx*BG_N+gz];
+      for(var q=0;q<bucket.length;q++){
+        var o=bucket[q];
+        if(o===exclude||!o.alive)continue;
+        var dx=o.x-cx, dz=o.z-cz;
+        var d2=dx*dx+dz*dz;
+        if(d2<=r2)hitBee(o,dmg);
+      }
+    }
+  }
+}
+
+// ---------------- spatial grids (rebuilt each step) ----------------
+var BG_CELL=3, BG_MIN=-10, BG_N=Math.ceil(100/BG_CELL);
+var beeBuckets=new Array(BG_N*BG_N);
+var TG_CELL=12, TG_MIN=-10, TG_N=9;
+var towerBuckets=new Array(TG_N*TG_N);
+var NB_OFF=[[1,0],[1,1],[0,1],[-1,1]];
+(function(){
+  var i;
+  for(i=0;i<beeBuckets.length;i++)beeBuckets[i]=[];
+  for(i=0;i<towerBuckets.length;i++)towerBuckets[i]=[];
+})();
+function bCellX(x){ var c=Math.floor((x-BG_MIN)/BG_CELL); return c<0?0:(c>=BG_N?BG_N-1:c); }
+function tCellX(x){ var c=Math.floor((x-TG_MIN)/TG_CELL); return c<0?0:(c>=TG_N?TG_N-1:c); }
+function rebuildBeeGrid(){
+  var i,j;
+  for(i=0;i<beeBuckets.length;i++)beeBuckets[i].length=0;
+  for(j=0;j<bees.length;j++){ var b=bees[j]; beeBuckets[bCellX(b.x)*BG_N+bCellX(b.z)].push(b); }
+}
+function rebuildTowerGrid(){
+  var i,j;
+  for(i=0;i<towerBuckets.length;i++)towerBuckets[i].length=0;
+  for(j=0;j<towers.length;j++){ var t=towers[j]; towerBuckets[tCellX(t.x)*TG_N+tCellX(t.z)].push(t); }
+}
+
+function step(dt){
+  T+=dt;
+  while(waveIndex<WAVE_TIMES.length && T>=WAVE_TIMES[waveIndex]-1e-9){
+    spawnWave(waveIndex);
+    waveIndex++;
+  }
+  var n=bees.length;
+  var i,j;
+  rebuildBeeGrid();
+  rebuildTowerGrid();
+  // cohesion (2.0) toward the core + tower avoidance (1.6) out to each tower's own range (10u / 12u)
+  for(i=0;i<n;i++){
+    var b=bees[i];
+    var dx=CORE_X-b.x, dz=CORE_Z-b.z;
+    var d=Math.sqrt(dx*dx+dz*dz);
+    if(d<1e-6)d=1e-6;
+    var coh=BEE_COH_W*COH_BASE;
+    var ax=dx/d*coh, az=dz/d*coh;
+    var tcx=tCellX(b.x), tcz=tCellX(b.z);
+    var tx0=tcx>0?tcx-1:0, tx1=tcx<TG_N-1?tcx+1:TG_N-1;
+    var tz0=tcz>0?tcz-1:0, tz1=tcz<TG_N-1?tcz+1:TG_N-1;
+    for(var tx=tx0;tx<=tx1;tx++){
+      for(var tz=tz0;tz<=tz1;tz++){
+        var tbuck=towerBuckets[tx*TG_N+tz];
+        for(var tq=0;tq<tbuck.length;tq++){
+          var tw=tbuck[tq];
+          var wx=b.x-tw.x, wz=b.z-tw.z;
+          var wd2=wx*wx+wz*wz;
+          if(wd2<tw.range*tw.range){
+            var wd=Math.sqrt(wd2);
+            var mag=BEE_AVOID_W*COH_BASE*(1-wd/tw.range);
+            if(wd<1e-4){ ax+=mag; }
+            else{ ax+=wx/wd*mag; az+=wz/wd*mag; }
+          }
+        }
+      }
+    }
+    b.ax=ax; b.az=az;
+  }
+  // neighbour separation (1.0 within 3u) — pair pass over the bee grid, each pair exactly once
+  for(var gx=0;gx<BG_N;gx++){
+    for(var gz=0;gz<BG_N;gz++){
+      var cellA=beeBuckets[gx*BG_N+gz];
+      var ci,cj;
+      for(ci=0;ci<cellA.length;ci++){
+        var PA=cellA[ci];
+        for(cj=ci+1;cj<cellA.length;cj++){
+          var PB=cellA[cj];
+          var sx=PA.x-PB.x, sz=PA.z-PB.z;
+          var d2=sx*sx+sz*sz;
+          if(d2<BEE_SEP_R*BEE_SEP_R && d2>1e-9){
+            var dd=Math.sqrt(d2);
+            var w=(1-dd/BEE_SEP_R)*BEE_SEP_W*COH_BASE/dd;
+            PA.ax+=sx*w; PA.az+=sz*w;
+            PB.ax-=sx*w; PB.az-=sz*w;
+          }
+        }
+      }
+      for(var nb=0;nb<4;nb++){
+        var ngx=gx+NB_OFF[nb][0], ngz=gz+NB_OFF[nb][1];
+        if(ngx<0||ngx>=BG_N||ngz<0||ngz>=BG_N)continue;
+        var cellB=beeBuckets[ngx*BG_N+ngz];
+        for(ci=0;ci<cellA.length;ci++){
+          var PA2=cellA[ci];
+          for(cj=0;cj<cellB.length;cj++){
+            var PB2=cellB[cj];
+            var sx2=PA2.x-PB2.x, sz2=PA2.z-PB2.z;
+            var d22=sx2*sx2+sz2*sz2;
+            if(d22<BEE_SEP_R*BEE_SEP_R && d22>1e-9){
+              var dd2=Math.sqrt(d22);
+              var w2=(1-dd2/BEE_SEP_R)*BEE_SEP_W*COH_BASE/dd2;
+              PA2.ax+=sx2*w2; PA2.az+=sz2*w2;
+              PB2.ax-=sx2*w2; PB2.az-=sz2*w2;
+            }
+          }
+        }
+      }
+    }
+  }
+  // integrate (clamping total steering to 20 u/s^2, speed to 6 u/s)
+  for(i=0;i<n;i++){
+    var b2=bees[i];
+    var m2=Math.sqrt(b2.ax*b2.ax+b2.az*b2.az);
+    if(m2>BEE_MAX_ACC){ b2.ax*=BEE_MAX_ACC/m2; b2.az*=BEE_MAX_ACC/m2; }
+    b2.vx+=b2.ax*dt; b2.vz+=b2.az*dt;
+    var sp=Math.sqrt(b2.vx*b2.vx+b2.vz*b2.vz);
+    if(sp>BEE_SPEED){ var sc=BEE_SPEED/sp; b2.vx*=sc; b2.vz*=sc; }
+    b2.x+=b2.vx*dt; b2.z+=b2.vz*dt;
+  }
+  // hard overlap resolution so bees never intersect (pair pass over the bee grid)
+  rebuildBeeGrid();
+  var MIN=0.95;
+  for(var rgx=0;rgx<BG_N;rgx++){
+    for(var rgz=0;rgz<BG_N;rgz++){
+      var rcA=beeBuckets[rgx*BG_N+rgz];
+      var ri,rj;
+      for(ri=0;ri<rcA.length;ri++){
+        var RA=rcA[ri];
+        for(rj=ri+1;rj<rcA.length;rj++){
+          var RB=rcA[rj];
+          var rdx=RB.x-RA.x, rdz=RB.z-RA.z;
+          var rd2=rdx*rdx+rdz*rdz;
+          if(rd2<MIN*MIN){
+            var rdist=Math.sqrt(rd2), rnx,rnz;
+            if(rdist<1e-4){ rnx=1; rnz=0; rdist=1e-4; } else { rnx=rdx/rdist; rnz=rdz/rdist; }
+            var rpush=(MIN-rdist)/2;
+            RA.x-=rnx*rpush; RA.z-=rnz*rpush;
+            RB.x+=rnx*rpush; RB.z+=rnz*rpush;
+          }
+        }
+      }
+      for(var rnb=0;rnb<4;rnb++){
+        var rngx=rgx+NB_OFF[rnb][0], rngz=rgz+NB_OFF[rnb][1];
+        if(rngx<0||rngx>=BG_N||rngz<0||rngz>=BG_N)continue;
+        var rcB=beeBuckets[rngx*BG_N+rngz];
+        for(ri=0;ri<rcA.length;ri++){
+          var RA2=rcA[ri];
+          for(rj=0;rj<rcB.length;rj++){
+            var RB2=rcB[rj];
+            var rdx2=RB2.x-RA2.x, rdz2=RB2.z-RA2.z;
+            var rd22=rdx2*rdx2+rdz2*rdz2;
+            if(rd22<MIN*MIN){
+              var rdist2=Math.sqrt(rd22), rnx2,rnz2;
+              if(rdist2<1e-4){ rnx2=1; rnz2=0; rdist2=1e-4; } else { rnx2=rdx2/rdist2; rnz2=rdz2/rdist2; }
+              var rpush2=(MIN-rdist2)/2;
+              RA2.x-=rnx2*rpush2; RA2.z-=rnz2*rpush2;
+              RB2.x+=rnx2*rpush2; RB2.z+=rnz2*rpush2;
+            }
+          }
+        }
+      }
+    }
+  }
+  // core absorption
+  for(i=0;i<n;i++){
+    var b3=bees[i];
+    if(!b3.alive)continue;
+    var ex=b3.x-CORE_X, ez=b3.z-CORE_Z;
+    if(ex*ex+ez*ez<CORE_R*CORE_R)absorbBee(b3);
+  }
+  // tower targeting and firing (nearest bee in range, via the bee grid)
+  for(i=0;i<towers.length;i++){
+    var t=towers[i];
+    var best=null, bd=1e9;
+    var ccx=bCellX(t.x), ccz=bCellX(t.z);
+    var cr=Math.ceil(t.range/BG_CELL);
+    var cx0=ccx-cr>0?ccx-cr:0, cx1=ccx+cr<BG_N-1?ccx+cr:BG_N-1;
+    var cz0=ccz-cr>0?ccz-cr:0, cz1=ccz+cr<BG_N-1?ccz+cr:BG_N-1;
+    for(var gcx=cx0;gcx<=cx1;gcx++){
+      for(var gcz=cz0;gcz<=cz1;gcz++){
+        var tbuck2=beeBuckets[gcx*BG_N+gcz];
+        for(var tq2=0;tq2<tbuck2.length;tq2++){
+          var bb=tbuck2[tq2];
+          if(!bb.alive)continue;
+          var bdx=bb.x-t.x, bdz=bb.z-t.z;
+          var tdist2=bdx*bdx+bdz*bdz;
+          if(tdist2<=t.range*t.range && tdist2<bd){ bd=tdist2; best=bb; }
+        }
+      }
+    }
+    if(best){
+      t.desiredYaw=Math.atan2(best.x-t.x,best.z-t.z);
+      t.headYaw=lerpAngle(t.headYaw,t.desiredYaw,Math.min(1,10*dt));
+      t.head.rotation.y=t.headYaw;
+      t.cooldown-=dt;
+      if(t.cooldown<=0){ t.cooldown=t.interval; fireTower(t,best); }
+    }else{
+      t.cooldown-=dt;
+      if(t.cooldown<0)t.cooldown=0;
+    }
+  }
+  // projectiles
+  for(i=0;i<projectiles.length;i++){
+    var p=projectiles[i];
+    if(!p.target.alive){ p.dead=true; continue; }
+    var px=p.target.x-p.x, py=BEE_ALT-p.y, pz=p.target.z-p.z;
+    var pdist=Math.sqrt(px*px+py*py+pz*pz);
+    var sl=p.speed*dt;
+    if(pdist<=sl+0.35){
+      p.dead=true;
+      if(p.splash>0){
+        spawnEffect(p.target.x,BEE_ALT,p.target.z,0xff9a40,2.2);
+        hitBee(p.target,p.dmg);
+        splashDamage(p.target.x,p.target.z,p.dmg,p.splash,p.target);
+      }else{
+        hitBee(p.target,p.dmg);
+      }
+    }else{
+      p.x+=px/pdist*sl; p.y+=py/pdist*sl; p.z+=pz/pdist*sl;
+    }
+    p.mesh.position.set(p.x,p.y,p.z);
+  }
+  for(i=projectiles.length-1;i>=0;i--){
+    if(projectiles[i].dead){ scene.remove(projectiles[i].mesh); projectiles.splice(i,1); }
+  }
+  var hadDead=false;
+  for(i=0;i<bees.length;i++){ if(!bees[i].alive){ hadDead=true; break; } }
+  if(hadDead){
+    var wr=0;
+    for(i=0;i<bees.length;i++){ var sv=bees[i]; if(sv.alive)bees[wr++]=sv; }
+    bees.length=wr;
+  }
+  if(coreFlash>0)coreFlash=Math.max(0,coreFlash-dt*2.2);
+  // round end: core destroyed, every spawned bee gone, or the 240s clock expires
+  if(coreHP<=0){ endRound(); }
+  else if(spawnedCount>=TOTAL_BEES && bees.length===0 && projectiles.length===0){ endRound(); }
+  else if(T>=240){ endRound(); }
+}
+
+// ---------------- UI ----------------
+var hudEl=document.getElementById('hud'), hintEl=document.getElementById('hint');
+var msgEl=document.getElementById('msg'), menuEl=document.getElementById('buildMenu');
+var bmArcher=document.getElementById('bmArcher'), bmCannon=document.getElementById('bmCannon'), bmCancel=document.getElementById('bmCancel'), bmReason=document.getElementById('bmReason');
+var endCardEl=document.getElementById('endCard');
+var eTitle=document.getElementById('eTitle'), eGrade=document.getElementById('eGrade');
+var sHP=document.getElementById('sHP'), sKilled=document.getElementById('sKilled');
+var sReached=document.getElementById('sReached'), sGold=document.getElementById('sGold');
+var hGold=document.getElementById('hGold'), hCore=document.getElementById('hCore');
+var hWave=document.getElementById('hWave'), hNext=document.getElementById('hNext');
+var hAlive=document.getElementById('hAlive'), hKilled=document.getElementById('hKilled');
+var fpsEl=document.getElementById('fps');
+var msgT=0;
+function showMsg(t,d){
+  msgEl.textContent=t;
+  msgEl.style.opacity='1';
+  msgT=d||1.6;
+}
+
+var menuSpot=null;
+function placementError(x,z){
+  if(x<1||x>79||z<1||z>79)return 'Outside the field';
+  var dx=x-CORE_X, dz=z-CORE_Z;
+  if(dx*dx+dz*dz<TOWER_MIN_CORE*TOWER_MIN_CORE)return 'Too close to the core';
+  for(var i=0;i<towers.length;i++){
+    var tx=x-towers[i].x, tz=z-towers[i].z;
+    if(tx*tx+tz*tz<TOWER_MIN_SEP*TOWER_MIN_SEP)return 'Too close to another tower';
+  }
+  return null;
+}
+function openBuildMenu(x,z,cx,cy){
+  menuSpot={x:x,z:z};
+  var err=placementError(x,z);
+  var archerOk=gold>=TOWER_TYPES.archer.cost;
+  var cannonOk=gold>=TOWER_TYPES.cannon.cost;
+  bmReason.textContent=err||(!archerOk&&!cannonOk?'Not enough gold':'');
+  bmArcher.disabled=!!err||!archerOk;
+  bmCannon.disabled=!!err||!cannonOk;
+  var mw=210, mh=180;
+  menuEl.style.left=Math.max(8,Math.min(cx+12,window.innerWidth-mw-8))+'px';
+  menuEl.style.top=Math.max(8,Math.min(cy+12,window.innerHeight-mh-8))+'px';
+  menuEl.classList.remove('hidden');
+}
+function closeMenu(){
+  menuSpot=null;
+  menuEl.classList.add('hidden');
+}
+function attemptBuild(x,z,type){
+  var spec=TOWER_TYPES[type];
+  var err=placementError(x,z);
+  if(err){ showMsg(err,1.6); closeMenu(); return; }
+  if(gold<spec.cost){ showMsg('Not enough gold',1.6); closeMenu(); return; }
+  gold-=spec.cost;
+  towers.push(makeTower(x,z,type));
+  spawnEffect(x,0.8,z,0x7ef0e2);
+  closeMenu();
+}
+bmArcher.addEventListener('click',function(){ if(menuSpot)attemptBuild(menuSpot.x,menuSpot.z,'archer'); });
+bmCannon.addEventListener('click',function(){ if(menuSpot)attemptBuild(menuSpot.x,menuSpot.z,'cannon'); });
+bmCancel.addEventListener('click',closeMenu);
+
+function startGame(){
+  var i;
+  bees=[];
+  for(i=0;i<towers.length;i++){ scene.remove(towers[i].group); disposeTower(towers[i].group); }
+  towers=[];
+  for(i=0;i<projectiles.length;i++){ scene.remove(projectiles[i].mesh); }
+  projectiles=[];
+  for(i=0;i<effects.length;i++){ scene.remove(effects[i].mesh); effects[i].mesh.material.dispose(); }
+  effects=[];
+  gold=START_GOLD; coreHP=CORE_MAX_HP; T=0; waveIndex=0; spawnedCount=0; killed=0;
+  reached=0; grade=null; coreFlash=0; seed=24680; acc=0;
+  phase='playing';
+  titleCardEl.classList.add('hidden');
+  endCardEl.classList.add('hidden');
+  hudEl.classList.remove('hidden');
+  hintEl.classList.remove('hidden');
+  closeMenu();
+  msgEl.style.opacity='0'; msgT=0;
+  dom.style.cursor='crosshair';
+}
+function endRound(){
+  if(phase!=='playing')return;
+  phase='ended';
+  grade=coreHP>=800?'S':(coreHP>=300?'A':'Defeat');
+  eTitle.textContent=coreHP>=300?'Victory!':'The core has fallen';
+  eGrade.textContent=grade;
+  eGrade.style.color=grade==='S'?'#7ef0e2':(grade==='A'?'#ffd984':'#ff8d7e');
+  sHP.textContent=Math.max(0,coreHP)+' / 1000';
+  sKilled.textContent=String(killed);
+  sReached.textContent=String(reached);
+  sGold.textContent=String(gold);
+  endCardEl.classList.remove('hidden');
+  closeMenu();
+  dom.style.cursor='default';
+}
+
+// ---------------- input ----------------
+var raycaster=new THREE.Raycaster(), ndc=new THREE.Vector2();
+var groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0), hitPt=new THREE.Vector3();
+function screenToGround(cx,cy){
+  var rect=dom.getBoundingClientRect();
+  ndc.x=((cx-rect.left)/rect.width)*2-1;
+  ndc.y=-((cy-rect.top)/rect.height)*2+1;
+  raycaster.setFromCamera(ndc,camera);
+  return raycaster.ray.intersectPlane(groundPlane,hitPt);
+}
+var ptr={x:0,y:0,inside:false};
+dom.addEventListener('pointermove',function(e){ ptr.x=e.clientX; ptr.y=e.clientY; ptr.inside=true; });
+dom.addEventListener('pointerleave',function(){ ptr.inside=false; });
+function onDown(e){
+  if(e.button!==0)return;
+  if(phase!=='playing')return;
+  var pt=screenToGround(e.clientX,e.clientY);
+  if(pt)openBuildMenu(pt.x,pt.z,e.clientX,e.clientY);
+}
+dom.addEventListener('pointerdown',onDown);
+dom.addEventListener('mousedown',onDown);
+dom.addEventListener('contextmenu',function(e){ e.preventDefault(); });
+window.addEventListener('keydown',function(e){
+  if(e.key==='Enter'){ if(phase!=='playing')startGame(); }
+  else if(e.key==='r'||e.key==='R'){ startGame(); }
+  else if(e.key==='Escape'){ closeMenu(); }
+});
+
+// ---------------- camera fitting ----------------
+var fitV=new THREE.Vector3();
+function fitCamera(){
+  var w=window.innerWidth, h=window.innerHeight;
+  renderer.setSize(w,h);
+  camera.aspect=w/h;
+  camera.updateProjectionMatrix();
+  var diry=Math.sin(CAM_ELEV), dirz=Math.cos(CAM_ELEV);
+  var corners=[[-6.5,-6.5],[86.5,-6.5],[-6.5,84],[86.5,84],[40,-6.5],[40,84]];
+  var D=110;
+  for(var k=0;k<28;k++){
+    camera.position.set(CORE_X,diry*D,CORE_Z+dirz*D);
+    camera.lookAt(CORE_X,1,CORE_Z);
+    camera.updateMatrixWorld(true);
+    var m=0;
+    for(var i2=0;i2<corners.length;i2++){
+      fitV.set(corners[i2][0],0,corners[i2][1]).project(camera);
+      var ax=Math.abs(fitV.x), ay=Math.abs(fitV.y);
+      if(ax>m)m=ax;
+      if(ay>m)m=ay;
+    }
+    if(Math.abs(m-0.93)<0.005)break;
+    D*=m/0.93;
+  }
+}
+window.addEventListener('resize',fitCamera);
+fitCamera();
+
+// ---------------- per-frame visuals ----------------
+var UP_AXIS=new THREE.Vector3(0,1,0);
+var BEE_SCALE=new THREE.Vector3(1.15,1.15,1.15);
+var tmpM1=new THREE.Matrix4(),tmpM2=new THREE.Matrix4(),tmpM3=new THREE.Matrix4();
+var tmpRotZ=new THREE.Matrix4();
+var tmpQ=new THREE.Quaternion(),tmpV=new THREE.Vector3(),tmpC=new THREE.Color();
+var prevBeeCount=0;
+function writeBeeInstances(rdt){
+  var n=bees.length,i,p,b;
+  for(i=0;i<n;i++){
+    b=bees[i];
+    var sp=Math.sqrt(b.vx*b.vx+b.vz*b.vz);
+    if(sp>0.4)b.yaw=lerpAngle(b.yaw,Math.atan2(b.vx,b.vz),Math.min(1,10*rdt));
+    var bob=Math.sin(vt*5.4+b.phase)*0.12;
+    tmpQ.setFromAxisAngle(UP_AXIS,b.yaw);
+    tmpM1.compose(tmpV.set(b.x,BEE_ALT+bob,b.z),tmpQ,BEE_SCALE);
+    for(p=0;p<STATIC_PART_COUNT;p++){
+      tmpM2.multiplyMatrices(tmpM1,BEE_PARTS[p].local);
+      BEE_PARTS[p].mesh.setMatrixAt(i,tmpM2);
+    }
+    tmpRotZ.makeRotationZ(0.28+Math.sin(vt*42+b.phase)*0.62);
+    for(p=STATIC_PART_COUNT;p<BEE_PARTS.length;p++){
+      tmpM2.multiplyMatrices(BEE_PARTS[p].local,tmpRotZ);
+      tmpM3.multiplyMatrices(tmpM1,tmpM2);
+      BEE_PARTS[p].mesh.setMatrixAt(i,tmpM3);
+    }
+    var dmg=Math.max(0,1-b.hp/BEE_MAX_HP);
+    var e=0;
+    if(b.flash>0){ b.flash-=rdt; e=Math.max(0,b.flash/0.12); }
+    tmpC.copy(AB_BASE).lerp(AB_HURT,dmg*0.9);
+    if(e>0)tmpC.lerp(FLASH_COLOR,e*0.85);
+    P_AB.mesh.setColorAt(i,tmpC);
+    tmpC.copy(TH_BASE).lerp(TH_HURT,dmg*0.9);
+    if(e>0)tmpC.lerp(FLASH_COLOR,e*0.85);
+    P_TH.mesh.setColorAt(i,tmpC);
+  }
+  if(prevBeeCount>n){
+    for(i=n;i<prevBeeCount;i++){
+      for(p=0;p<BEE_PARTS.length;p++)BEE_PARTS[p].mesh.setMatrixAt(i,ZERO_MATRIX);
+    }
+  }
+  prevBeeCount=n;
+  for(p=0;p<BEE_PARTS.length;p++)BEE_PARTS[p].mesh.instanceMatrix.needsUpdate=true;
+  P_AB.mesh.instanceColor.needsUpdate=true;
+  P_TH.mesh.instanceColor.needsUpdate=true;
+}
+function updateCoreVisual(){
+  var frac=Math.max(0,coreHP)/CORE_MAX_HP;
+  crystalMat.color.copy(CRY_HEALTHY).lerp(CRY_HURT,1-frac);
+  crystalMat.emissiveIntensity=0.55+coreFlash*2.0;
+  crystal.rotation.y=vt*0.8;
+  haloGrp.rotation.y=-vt*0.5;
+  floatGrp.position.y=6.7+Math.sin(vt*1.3)*0.15;
+  haloMat.opacity=0.22+0.3*frac+coreFlash*0.35;
+  for(var i=0;i<crackMeshes.length;i++)crackMeshes[i].visible=(coreHP<=crackThresholds[i]);
+}
+function updateGateVisual(){
+  gateGlowMat.opacity=0.55+0.28*Math.sin(vt*2.3);
+  sigilMat.opacity=0.75+0.2*Math.sin(vt*1.7);
+}
+function updateFlags(){
+  for(var i=0;i<flags.length;i++)flags[i].rotation.y=i*0.9+Math.sin(vt*1.7+i*1.3)*0.22;
+}
+function updateGhost(){
+  if(phase!=='playing'||!ptr.inside||menuSpot){ ghostGrp.visible=false; return; }
+  var pt=screenToGround(ptr.x,ptr.y);
+  if(!pt){ ghostGrp.visible=false; return; }
+  ghostGrp.position.set(pt.x,0,pt.z);
+  ghostGrp.visible=true;
+  var err=placementError(pt.x,pt.z);
+  ghostMat.color.setHex(err?0xe05548:0x35d0c8);
+  ghostMat2.color.setHex(err?0xe05548:0xffb646);
+}
+function updateHUD(){
+  hGold.textContent='Gold: '+gold;
+  var hp=Math.max(0,coreHP);
+  hCore.textContent='Core: '+hp+' / 1000';
+  hCore.style.color=hp<300?'#ff8d7e':(hp<800?'#ffd984':'#c8f5e8');
+  hWave.textContent='Wave: '+Math.max(1,Math.min(waveIndex,WAVE_TIMES.length))+' / '+WAVE_TIMES.length;
+  if(phase==='playing'&&waveIndex<WAVE_TIMES.length){
+    hNext.textContent='Next wave in '+Math.max(0,Math.ceil(WAVE_TIMES[waveIndex]-T))+'s';
+  }else if(phase==='playing'){
+    hNext.textContent='All waves deployed';
+  }else{
+    hNext.textContent='';
+  }
+  hAlive.textContent='Bees alive: '+bees.length;
+  hKilled.textContent='Bees killed: '+killed;
+  if(menuSpot){
+    var merr=placementError(menuSpot.x,menuSpot.z);
+    bmArcher.disabled=!!merr||gold<TOWER_TYPES.archer.cost;
+    bmCannon.disabled=!!merr||gold<TOWER_TYPES.cannon.cost;
+  }
+}
+function exportState(){
+  window.__arena_state={
+    phase:phase,
+    gold:gold,
+    coreHP:Math.max(0,coreHP),
+    waveIndex:waveIndex,
+    totalBeesSpawned:spawnedCount,
+    beesAlive:bees.length,
+    beesKilled:killed,
+    beesReachedCore:reached,
+    towers:towers.map(function(t){ return {type:t.type,x:t.x,z:t.z}; }),
+    fps:fpsVal,
+    grade:grade
+  };
+}
+
+// ---------------- main loop ----------------
+var lastT=performance.now(), vt=0, fpsFrames=0, fpsTime=0, fpsVal=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  var rdt=(now-lastT)/1000;
+  lastT=now;
+  if(!(rdt>0))rdt=0.016;
+  if(rdt>0.1)rdt=0.1;
+  vt+=rdt;
+  if(phase==='playing'){
+    acc+=rdt;
+    var steps=0;
+    while(acc>=DT&&steps<10){ step(DT); acc-=DT; steps++; }
+    if(steps>=10)acc=0;
+  }
+  var i;
+  writeBeeInstances(rdt);
+  for(i=effects.length-1;i>=0;i--){
+    var ef=effects[i];
+    ef.life-=rdt;
+    var k=1-Math.max(0,ef.life)/ef.max;
+    ef.mesh.scale.setScalar((0.6+k*2.6)*ef.scale);
+    ef.mesh.material.opacity=0.85*(1-k);
+    if(ef.life<=0){ scene.remove(ef.mesh); ef.mesh.material.dispose(); effects.splice(i,1); }
+  }
+  updateCoreVisual();
+  updateGateVisual();
+  updateFlags();
+  updateGhost();
+  updateHUD();
+  if(msgT>0){ msgT-=rdt; if(msgT<=0)msgEl.style.opacity='0'; }
+  fpsFrames++; fpsTime+=rdt;
+  if(fpsTime>=0.5){
+    fpsVal=Math.max(1,Math.round(fpsFrames/fpsTime));
+    fpsFrames=0; fpsTime=0;
+    fpsEl.textContent='FPS: '+fpsVal;
+  }
+  renderer.render(scene,camera);
+  exportState();
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

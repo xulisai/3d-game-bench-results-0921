@@ -1,0 +1,4288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Tightrope Gala</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #05040a;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #fff;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      left: 0;
+      top: 0;
+      z-index: 1;
+    }
+    #ui-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    /* Top HUD */
+    .hud-header {
+      padding: 16px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      background: linear-gradient(to bottom, rgba(5,4,10,0.92) 0%, rgba(5,4,10,0) 100%);
+    }
+    .game-title-hud {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #f7d070;
+      text-shadow: 0 0 12px rgba(247, 208, 112, 0.4);
+    }
+    .act-tag {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: #48cae4;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+    .hud-indicators-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 6px;
+      flex-wrap: wrap;
+    }
+    .hud-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: 1px solid rgba(247, 208, 112, 0.3);
+      background: rgba(18, 14, 30, 0.7);
+      color: #8e88a8;
+      transition: all 0.15s ease;
+    }
+    .hud-badge.active-upright {
+      background: rgba(72, 202, 228, 0.25);
+      border-color: #48cae4;
+      color: #48cae4;
+      box-shadow: 0 0 10px rgba(72, 202, 228, 0.4);
+    }
+    .hud-badge.active-hop {
+      background: rgba(255, 183, 3, 0.25);
+      border-color: #ffb703;
+      color: #ffd166;
+      box-shadow: 0 0 10px rgba(255, 183, 3, 0.4);
+    }
+    .hud-badge.active-disturb {
+      background: rgba(239, 71, 111, 0.25);
+      border-color: #ef476f;
+      color: #ff6b8b;
+      box-shadow: 0 0 10px rgba(239, 71, 111, 0.5);
+      animation: pulseAlert 0.3s infinite alternate;
+    }
+    .hud-badge.active-wind {
+      background: rgba(0, 180, 216, 0.25);
+      border-color: #00b4d8;
+      color: #90e0ef;
+      box-shadow: 0 0 10px rgba(0, 180, 216, 0.4);
+    }
+    .hud-badge.active-pump {
+      background: rgba(42, 157, 143, 0.3);
+      border-color: #2a9d8f;
+      color: #52b788;
+      box-shadow: 0 0 10px rgba(82, 183, 136, 0.5);
+    }
+    .hud-badge.active-release {
+      background: rgba(247, 208, 112, 0.3);
+      border-color: #f7d070;
+      color: #ffe6a7;
+      box-shadow: 0 0 12px rgba(247, 208, 112, 0.6);
+      animation: pulseAlert 0.4s infinite alternate;
+    }
+    @keyframes pulseAlert {
+      from { transform: scale(1); }
+      to { transform: scale(1.06); }
+    }
+
+    .hud-stats-group {
+      display: flex;
+      gap: 14px;
+    }
+    .stat-card {
+      background: rgba(20, 16, 35, 0.75);
+      border: 1px solid rgba(247, 208, 112, 0.3);
+      border-radius: 8px;
+      padding: 8px 14px;
+      min-width: 95px;
+      text-align: center;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+      backdrop-filter: blur(4px);
+    }
+    .stat-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: #a49fc4;
+      margin-bottom: 2px;
+    }
+    .stat-value {
+      font-size: 19px;
+      font-weight: 700;
+      color: #ffffff;
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+    .stat-value.gold { color: #ffd166; }
+    .stat-value.red { color: #ef476f; }
+    .stat-value.blue { color: #48cae4; }
+    .stat-value.green { color: #52b788; }
+
+    /* Wire Lean Meter HUD */
+    .meter-container {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .gauge-wrapper {
+      position: relative;
+      width: 250px;
+      height: 125px;
+      overflow: hidden;
+    }
+    .gauge-svg {
+      width: 250px;
+      height: 250px;
+    }
+    .gauge-needle {
+      position: absolute;
+      bottom: 0px;
+      left: 125px;
+      width: 4px;
+      height: 100px;
+      background: #ffec99;
+      transform-origin: 50% 100%;
+      transform: rotate(0deg);
+      border-radius: 2px 2px 0 0;
+      box-shadow: 0 0 10px rgba(255, 236, 153, 0.8);
+      transition: transform 0.04s linear;
+    }
+    .gauge-needle-center {
+      position: absolute;
+      bottom: -8px;
+      left: 117px;
+      width: 16px;
+      height: 16px;
+      background: #f7d070;
+      border: 2px solid #221c35;
+      border-radius: 50%;
+    }
+    .meter-title {
+      margin-top: -6px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #e2d9f3;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    }
+    .meter-display-val {
+      font-size: 13px;
+      font-family: monospace;
+      color: #f7d070;
+      margin-top: 2px;
+    }
+
+    /* Trapeze Swing Phase Meter HUD */
+    #trapeze-meter {
+      display: none;
+    }
+    .swing-track-bar {
+      width: 260px;
+      height: 20px;
+      background: rgba(30, 24, 52, 0.85);
+      border: 1px solid rgba(247, 208, 112, 0.4);
+      border-radius: 10px;
+      position: relative;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .swing-pump-zone {
+      position: absolute;
+      left: calc(50% - 16px);
+      width: 32px;
+      height: 100%;
+      background: rgba(42, 157, 143, 0.45);
+      border-left: 1px dashed #52b788;
+      border-right: 1px dashed #52b788;
+    }
+    .swing-center-line {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      width: 2px;
+      height: 100%;
+      background: #ffd166;
+      transform: translateX(-50%);
+    }
+    .swing-pointer {
+      position: absolute;
+      top: 1px;
+      left: 50%;
+      width: 6px;
+      height: 16px;
+      background: #ffffff;
+      border-radius: 3px;
+      transform: translateX(-50%);
+      box-shadow: 0 0 8px #ffffff;
+      transition: left 0.03s linear;
+    }
+
+    /* Sphere Hype Meter HUD */
+    #sphere-meter {
+      display: none;
+    }
+    .hype-bar-wrapper {
+      position: relative;
+      width: 220px;
+      height: 18px;
+      background: rgba(30, 24, 52, 0.85);
+      border: 1px solid rgba(247, 208, 112, 0.4);
+      border-radius: 9px;
+      overflow: hidden;
+      margin-top: 4px;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.6);
+    }
+    .hype-marker {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: rgba(255, 255, 255, 0.35);
+      z-index: 2;
+    }
+    .hype-fill-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #2a9d8f 0%, #ffb703 50%, #ef476f 100%);
+      transition: width 0.3s ease-out;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(247, 208, 112, 0.5);
+    }
+
+    /* Overlay Panels */
+    .overlay-panel {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(15, 12, 28, 0.95);
+      border: 2px solid #f7d070;
+      border-radius: 14px;
+      padding: 30px 42px;
+      text-align: center;
+      max-width: 530px;
+      width: 90%;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(247, 208, 112, 0.25);
+      backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: auto;
+    }
+    .panel-hidden {
+      display: none !important;
+    }
+    .panel-title {
+      font-size: 32px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      color: #f7d070;
+      margin-bottom: 6px;
+      text-shadow: 0 0 20px rgba(247, 208, 112, 0.5);
+    }
+    .panel-subtitle {
+      font-size: 14px;
+      color: #b8b3ce;
+      margin-bottom: 18px;
+      line-height: 1.4;
+    }
+    .controls-guide {
+      background: rgba(30, 24, 52, 0.85);
+      border: 1px solid rgba(247, 208, 112, 0.2);
+      border-radius: 8px;
+      padding: 12px 16px;
+      width: 100%;
+      margin-bottom: 18px;
+      text-align: left;
+    }
+    .guide-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 7px;
+      font-size: 13px;
+      color: #ded9f0;
+    }
+    .guide-row:last-child {
+      margin-bottom: 0;
+    }
+    .key-badge {
+      background: #f7d070;
+      color: #120e24;
+      font-weight: 800;
+      padding: 2px 9px;
+      border-radius: 4px;
+      font-size: 12px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+    .pulse-cta {
+      font-size: 16px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      animation: pulseAnim 1.6s infinite ease-in-out;
+      background: rgba(247, 208, 112, 0.2);
+      border: 1px solid #f7d070;
+      padding: 10px 24px;
+      border-radius: 30px;
+      cursor: pointer;
+    }
+    @keyframes pulseAnim {
+      0%, 100% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.04); opacity: 1; box-shadow: 0 0 18px rgba(247, 208, 112, 0.4); }
+    }
+
+    .results-table {
+      width: 100%;
+      margin-bottom: 16px;
+      border-collapse: collapse;
+    }
+    .results-table td {
+      padding: 7px 10px;
+      font-size: 14px;
+      border-bottom: 1px solid rgba(247, 208, 112, 0.15);
+      text-align: left;
+    }
+    .results-table td.val {
+      text-align: right;
+      font-weight: 700;
+      color: #ffd166;
+      font-size: 15px;
+    }
+    .score-banner {
+      font-size: 24px;
+      font-weight: 900;
+      color: #f7d070;
+      margin-bottom: 16px;
+      padding: 8px 18px;
+      border-radius: 8px;
+      background: rgba(247, 208, 112, 0.15);
+      border: 1px dashed #f7d070;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div id="ui-layer">
+    <div class="hud-header">
+      <div>
+        <div class="game-title-hud">Tightrope Gala</div>
+        <div class="act-tag" id="hud-act-tag">ACT 1: HIGH-WIRE TRAVERSE</div>
+        <div class="hud-indicators-row">
+          <div class="hud-badge" id="badge-upright">POLE: HORIZONTAL [W]</div>
+          <div class="hud-badge" id="badge-hop">HOP: READY [SPACE]</div>
+          <div class="hud-badge" id="badge-wind" style="display:none;">CROSSWIND ZONE: ACTIVE</div>
+          <div class="hud-badge" id="badge-disturb" style="display:none;">BIRD DISTURBANCE!</div>
+          <div class="hud-badge" id="badge-pump" style="display:none;">PUMP [J]: READY</div>
+          <div class="hud-badge" id="badge-release" style="display:none;">RELEASE [SPACE]: LOCKED (&lt;60°)</div>
+          <div class="hud-badge" id="badge-grab" style="display:none;">GRAB BAR [J]</div>
+          <div class="hud-badge" id="badge-sphere-speed" style="display:none;">SPEED: 1.00 m/s</div>
+          <div class="hud-badge" id="badge-sphere-ctrl" style="display:none;">WEIGHT-SHIFT [A] [D]</div>
+          <div class="hud-badge" id="hud-clown-schedule" style="display:none; font-family:monospace; letter-spacing:0.5px; border-color:rgba(239,71,111,0.5);">CLOWNS: 4s [A:+18] &bull; 8s [B:-18] &bull; 12s [A:+18] &bull; 16s [B:-18]</div>
+          <div class="hud-badge" id="badge-ribbon" style="display:none;">RIBBON [K]: READY</div>
+        </div>
+      </div>
+
+      <!-- Wire Lean Meter -->
+      <div class="meter-container" id="wire-meter">
+        <div class="gauge-wrapper">
+          <svg class="gauge-svg" viewBox="0 0 250 250">
+            <path d="M 41.7 76.9 A 96.2 96.2 0 0 1 208.3 76.9" fill="none" stroke="#2a2344" stroke-width="15" />
+            <path d="M 41.7 76.9 A 96.2 96.2 0 0 1 63.2 51.3" fill="none" stroke="#e63946" stroke-width="15" />
+            <path d="M 186.8 51.3 A 96.2 96.2 0 0 1 208.3 76.9" fill="none" stroke="#e63946" stroke-width="15" />
+            <path d="M 63.2 51.3 A 96.2 96.2 0 0 1 92.1 33.3" fill="none" stroke="#ffb703" stroke-width="15" />
+            <path d="M 157.9 33.3 A 96.2 96.2 0 0 1 186.8 51.3" fill="none" stroke="#ffb703" stroke-width="15" />
+            <path d="M 92.1 33.3 A 96.2 96.2 0 0 1 157.9 33.3" fill="none" stroke="#2a9d8f" stroke-width="15" />
+
+            <line x1="41.7" y1="76.9" x2="33.6" y2="72.1" stroke="#ff5555" stroke-width="3" />
+            <line x1="125" y1="28.8" x2="125" y2="19.2" stroke="#f7d070" stroke-width="3" />
+            <line x1="208.3" y1="76.9" x2="216.4" y2="72.1" stroke="#ff5555" stroke-width="3" />
+          </svg>
+          <div class="gauge-needle" id="gauge-needle"></div>
+          <div class="gauge-needle-center"></div>
+        </div>
+        <div class="meter-title">Balance Needle</div>
+        <div class="meter-display-val" id="gauge-angle-text">0.0°</div>
+      </div>
+
+      <!-- Trapeze Swing Phase Meter -->
+      <div class="meter-container" id="trapeze-meter">
+        <div class="meter-title" style="margin-top:0;">Swing Phase &amp; Amplitude</div>
+        <div class="swing-track-bar">
+          <div class="swing-pump-zone" style="left: calc(50% - 10px); width: 20px;"></div>
+          <div class="swing-center-line"></div>
+          <div class="swing-pointer" id="swing-pointer"></div>
+        </div>
+        <div class="meter-display-val" id="trapeze-angle-text">Angle: 0.0° | Amp: 36.0°</div>
+      </div>
+
+      <!-- Sphere Crowd Hype Meter -->
+      <div class="meter-container" id="sphere-meter">
+        <div class="meter-title" style="margin-top:0;">Crowd Hype Meter</div>
+        <div class="hype-bar-wrapper">
+          <div class="hype-marker" style="left: 25%;"></div>
+          <div class="hype-marker" style="left: 50%;"></div>
+          <div class="hype-marker" style="left: 75%;"></div>
+          <div class="hype-fill-bar" id="hype-fill"></div>
+        </div>
+        <div class="meter-display-val" id="hud-hype-text">Hype: 0 / 100 (+0 judge bonus)</div>
+      </div>
+
+      <!-- Stats Groups -->
+      <div class="hud-stats-group" id="wire-stats">
+        <div class="stat-card">
+          <div class="stat-label">Wire Position</div>
+          <div class="stat-value gold"><span id="hud-pos">0.0</span> / 30.0 m</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Hops</div>
+          <div class="stat-value gold" id="hud-hops">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Fall Count</div>
+          <div class="stat-value red" id="hud-falls">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Mean Abs Lean</div>
+          <div class="stat-value blue" id="hud-mean-lean">0.0°</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Act Clock</div>
+          <div class="stat-value" id="hud-time">0.00 s</div>
+        </div>
+      </div>
+
+      <div class="hud-stats-group" id="trapeze-stats" style="display:none;">
+        <div class="stat-card">
+          <div class="stat-label">Flight</div>
+          <div class="stat-value gold"><span id="hud-flight-num">1</span> / 3</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Amplitude</div>
+          <div class="stat-value blue" id="hud-amplitude">36.0°</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Last Landing</div>
+          <div class="stat-value green" id="hud-last-landing">-</div>
+        </div>
+      </div>
+
+      <div class="hud-stats-group" id="sphere-stats" style="display:none;">
+        <div class="stat-card">
+          <div class="stat-label">Sphere Wire</div>
+          <div class="stat-value gold"><span id="hud-sphere-pos">0.0</span> / 14.0 m</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Speed</div>
+          <div class="stat-value blue"><span id="hud-sphere-speed">1.00</span> m/s</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Fall Count</div>
+          <div class="stat-value red" id="hud-sphere-falls">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Mean Abs Lean</div>
+          <div class="stat-value blue" id="hud-sphere-mean-lean">0.0°</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Act Clock</div>
+          <div class="stat-value" id="hud-sphere-time">0.00 s</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ready Screen Panel (Show Title & Start) -->
+    <div class="overlay-panel" id="panel-ready">
+      <div class="panel-title">Tightrope Gala</div>
+      <div class="panel-subtitle">Grand 3D Circus Spectacular under the Big Top</div>
+      <div class="controls-guide">
+        <div class="guide-row">
+          <span>Wire: Counter-tilt Left / Right</span>
+          <div><span class="key-badge">A</span> <span class="key-badge">D</span></div>
+        </div>
+        <div class="guide-row">
+          <span>Wire: Plant Pole Upright (Double Inertia)</span>
+          <span class="key-badge">Hold W</span>
+        </div>
+        <div class="guide-row">
+          <span>Wire: Hop (Freeze Lean &amp; Skip Birds)</span>
+          <span class="key-badge">Space</span>
+        </div>
+        <div class="guide-row">
+          <span>Trapeze: Pump (|θ| &le; 6° forward)</span>
+          <span class="key-badge">J</span>
+        </div>
+        <div class="guide-row">
+          <span>Trapeze: Release / Catch Bar Grab</span>
+          <div><span class="key-badge">Space</span> <span class="key-badge">J</span></div>
+        </div>
+        <div class="guide-row">
+          <span>Sphere: Weight-shift Left / Right</span>
+          <div><span class="key-badge">A</span> <span class="key-badge">D</span></div>
+        </div>
+        <div class="guide-row">
+          <span>Sphere: Accelerates 1.0 &rarr; 1.6 m/s (Hype on clean roll)</span>
+          <span style="color:#ffd166; font-weight:700;">+25 Hype / 5m</span>
+        </div>
+        <div class="guide-row">
+          <span>Trapeze: Catch Aerial Ribbon (within 1.0m)</span>
+          <span class="key-badge">K</span>
+        </div>
+        <div class="guide-row">
+          <span>Wire: Oncoming Unicycle Clowns</span>
+          <span style="color:#ef476f; font-weight:700;">+18°/s² Gust at 2m</span>
+        </div>
+      </div>
+      <div class="pulse-cta" id="cta-start-wire">Press Enter to Start Program</div>
+    </div>
+
+
+
+    <!-- Wire Act Judges Finish Screen Panel -->
+    <div class="overlay-panel panel-hidden" id="panel-wire-finish">
+      <div class="panel-title">Judges' Decision</div>
+      <div class="panel-subtitle">Wire Act Results — The Jury renders its score!</div>
+      <table class="results-table">
+        <tr>
+          <td>Fall Count</td>
+          <td class="val" id="res-wire-falls">0</td>
+        </tr>
+        <tr>
+          <td>Mean Absolute Lean</td>
+          <td class="val" id="res-wire-mean-lean">0.0°</td>
+        </tr>
+        <tr>
+          <td>STYLE</td>
+          <td class="val" id="res-wire-style">+0</td>
+        </tr>
+        <tr>
+          <td>JUDGE 1</td>
+          <td class="val" id="res-wire-j1">10 / 10</td>
+        </tr>
+        <tr>
+          <td>JUDGE 2</td>
+          <td class="val" id="res-wire-j2">10 / 10</td>
+        </tr>
+        <tr>
+          <td>JUDGE 3</td>
+          <td class="val" id="res-wire-j3">10 / 10</td>
+        </tr>
+      </table>
+      <div class="score-banner" id="res-wire-score">ACT SCORE: 30 / 30</div>
+      <div class="pulse-cta" id="cta-wire-finish" style="font-size: 14px; margin-bottom: 8px;">Press Enter for Next Act</div>
+      <div style="font-size: 12px; color: #a49fc4;">or Press R to Restart Show</div>
+    </div>
+
+    <!-- Trapeze Ready / Instructions Banner Panel (Legacy fallback) -->
+    <div class="overlay-panel panel-hidden" id="panel-trapeze-ready">
+      <div class="panel-title">Flying Trapeze</div>
+      <div class="panel-subtitle">Act 2: Three Flights over the Grand Ring</div>
+      <div class="controls-guide">
+        <div class="guide-row">
+          <span>Pump Swing (when |θ| &le; 6° moving forward)</span>
+          <span class="key-badge">J</span>
+        </div>
+        <div class="guide-row">
+          <span>Release Bar (Amplitude &ge; 60°)</span>
+          <span class="key-badge">Space</span>
+        </div>
+        <div class="guide-row">
+          <span>Catch Bar Grab in flight</span>
+          <span class="key-badge">J</span>
+        </div>
+        <div class="guide-row">
+          <span>Near Mat (5m–9m) / Far Mat (10m–14m)</span>
+          <span style="color:#52b788; font-weight:700;">+3 / +4 per judge</span>
+        </div>
+      </div>
+      <div class="pulse-cta" id="cta-start-trapeze">Press Enter to Fly</div>
+    </div>
+
+    <!-- Trapeze Act Judges Finish Screen Panel -->
+    <div class="overlay-panel panel-hidden" id="panel-trapeze-finish">
+      <div class="panel-title">Trapeze Jury Verdict</div>
+      <div class="panel-subtitle">Final scores across all 3 aerial flights!</div>
+      <table class="results-table">
+        <tr>
+          <td>Flight 1 Result</td>
+          <td class="val" id="res-f1">NEAR MAT (+9)</td>
+        </tr>
+        <tr>
+          <td>Flight 2 Result</td>
+          <td class="val" id="res-f2">FAR MAT (+12)</td>
+        </tr>
+        <tr>
+          <td>Flight 3 Result</td>
+          <td class="val" id="res-f3">NET MISS (+0)</td>
+        </tr>
+        <tr>
+          <td>JUDGE 1 TOTAL</td>
+          <td class="val" id="res-trap-j1">12 / 12</td>
+        </tr>
+        <tr>
+          <td>JUDGE 2 TOTAL</td>
+          <td class="val" id="res-trap-j2">12 / 12</td>
+        </tr>
+        <tr>
+          <td>JUDGE 3 TOTAL</td>
+          <td class="val" id="res-trap-j3">12 / 12</td>
+        </tr>
+      </table>
+      <div class="score-banner" id="res-trap-score">ACT SCORE: 36 / 36</div>
+      <div class="pulse-cta" id="cta-trapeze-finish" style="font-size: 14px; margin-bottom: 8px;">Press Enter for Next Act</div>
+      <div style="font-size: 12px; color: #a49fc4;">or Press R to Restart Show</div>
+    </div>
+
+    <!-- Sphere Act Judges Finish Screen Panel -->
+    <div class="overlay-panel panel-hidden" id="panel-sphere-finish">
+      <div class="panel-title">Judges' Decision</div>
+      <div class="panel-subtitle">Sphere Balance Act Results — The Jury renders its score!</div>
+      <table class="results-table">
+        <tr>
+          <td>Fall Count</td>
+          <td class="val" id="res-sphere-falls">0</td>
+        </tr>
+        <tr>
+          <td>Mean Absolute Lean</td>
+          <td class="val" id="res-sphere-mean-lean">0.0°</td>
+        </tr>
+        <tr>
+          <td>Final Crowd Hype</td>
+          <td class="val" id="res-sphere-hype">100 / 100</td>
+        </tr>
+        <tr>
+          <td>JUDGE 1</td>
+          <td class="val" id="res-sphere-j1">12 / 12</td>
+        </tr>
+        <tr>
+          <td>JUDGE 2</td>
+          <td class="val" id="res-sphere-j2">12 / 12</td>
+        </tr>
+        <tr>
+          <td>JUDGE 3</td>
+          <td class="val" id="res-sphere-j3">12 / 12</td>
+        </tr>
+      </table>
+      <div class="score-banner" id="res-sphere-score">ACT SCORE: 36 / 36</div>
+      <div class="pulse-cta" id="cta-sphere-finish" style="font-size: 14px; margin-bottom: 8px;">Press Enter for Curtain Call</div>
+      <div style="font-size: 12px; color: #a49fc4;">or Press R to Restart Show</div>
+    </div>
+
+    <!-- Two-Act Program: Next Act Transition Banner -->
+    <div class="overlay-panel panel-hidden" id="panel-next-act">
+      <div class="panel-title" style="color:#48cae4; font-size:36px; letter-spacing:4px;">NEXT ACT</div>
+      <div class="panel-subtitle" style="font-size:16px; margin-bottom:14px; color:#ffd166;">Wire Act Completed! Preparing Flying Trapeze...</div>
+      <div class="stat-value blue" id="next-act-timer" style="font-size:36px; font-weight:900; margin-bottom:10px;">3.0 s</div>
+      <div style="font-size:12px; color:#a49fc4;">Controls Frozen &bull; The Show Continues...</div>
+    </div>
+
+    <!-- Grand Finale: Final Review Screen Panel -->
+    <div class="overlay-panel panel-hidden" id="panel-final-review" style="max-width: 620px;">
+      <div class="panel-title" style="color: #f7d070; font-size: 32px; letter-spacing: 3px;">FINAL REVIEW</div>
+      <div class="panel-subtitle">Grand Gala Jury Deliberation &bull; Three-Act Championship Review</div>
+      
+      <table class="results-table" style="font-size: 13px;">
+        <thead>
+          <tr style="border-bottom: 2px solid rgba(247, 208, 112, 0.4); color: #ffd166; font-weight: 800;">
+            <th style="text-align: left; padding: 6px 8px;">PERFORMANCE ACT</th>
+            <th style="text-align: center; padding: 6px 8px;">JUDGE 1</th>
+            <th style="text-align: center; padding: 6px 8px;">JUDGE 2</th>
+            <th style="text-align: center; padding: 6px 8px;">JUDGE 3</th>
+            <th style="text-align: right; padding: 6px 8px;">TECH TOTAL</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>HIGH WIRE</td>
+            <td style="text-align:center;" id="rev-w-j1">10</td>
+            <td style="text-align:center;" id="rev-w-j2">10</td>
+            <td style="text-align:center;" id="rev-w-j3">10</td>
+            <td class="val" id="rev-w-tot">30</td>
+          </tr>
+          <tr>
+            <td>FLYING TRAPEZE</td>
+            <td style="text-align:center;" id="rev-t-j1">12</td>
+            <td style="text-align:center;" id="rev-t-j2">12</td>
+            <td style="text-align:center;" id="rev-t-j3">12</td>
+            <td class="val" id="rev-t-tot">36</td>
+          </tr>
+          <tr>
+            <td>SPHERE BALANCE</td>
+            <td style="text-align:center;" id="rev-s-j1">10</td>
+            <td style="text-align:center;" id="rev-s-j2">10</td>
+            <td style="text-align:center;" id="rev-s-j3">10</td>
+            <td class="val" id="rev-s-tot">30</td>
+          </tr>
+          <tr style="background: rgba(247, 208, 112, 0.08); font-weight: 700;">
+            <td>JUDGE TECHNICAL TOTAL (TECH_j)</td>
+            <td style="text-align:center;" id="rev-tot-j1">32</td>
+            <td style="text-align:center;" id="rev-tot-j2">32</td>
+            <td style="text-align:center;" id="rev-tot-j3">32</td>
+            <td class="val" id="rev-tot-tech">96</td>
+          </tr>
+          <tr>
+            <td>WIRE STYLE AWARD (STYLE_j)</td>
+            <td style="text-align:center;" id="rev-style-j1">+2</td>
+            <td style="text-align:center;" id="rev-style-j2">+2</td>
+            <td style="text-align:center;" id="rev-style-j3">+2</td>
+            <td class="val" id="rev-tot-style">+6</td>
+          </tr>
+          <tr>
+            <td colspan="4">CROWD HYPE BONUS: floor(Hype / 20) = floor(<span id="rev-hype-val">100</span> / 20)</td>
+            <td class="val" id="rev-tot-hype">+5</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="font-size: 13px; color: #a49fc4; margin-bottom: 8px;">
+        TOTAL = &Sigma; (TECH_j + STYLE_j) + &lfloor;Hype / 20&rfloor; = <span id="rev-formula-str">96 + 6 + 5</span>
+      </div>
+
+      <div class="score-banner" id="rev-final-score" style="margin-bottom: 8px;">FINAL SCORE: 107</div>
+      
+      <div id="rev-palm-rating" style="font-size: 26px; font-weight: 900; letter-spacing: 2px; margin-bottom: 16px; color: #f7d070; text-shadow: 0 0 15px rgba(247,208,112,0.6);">
+        ★ GOLDEN PALM ★
+      </div>
+
+      <div class="pulse-cta" id="cta-final-review-restart" style="font-size: 14px; margin-bottom: 8px;">Press Enter to Restart Show</div>
+      <div style="font-size: 12px; color: #a49fc4;">or Press R to Return to Ready</div>
+    </div>
+  </div>
+
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+  <script>
+    /*
+     * Tightrope Gala — Complete 3D Circus Show (Wire Act & Flying Trapeze)
+     * Strictly deterministic: zero random calls, fixed 60Hz physics step, WebAudio sound synthesis.
+     */
+
+    // --- Deterministic Pseudo-Random Number Generator ---
+    let _seed = 123456789;
+    function deterministicRandom() {
+      _seed = (_seed * 1664525 + 1013904223) % 4294967296;
+      return _seed / 4294967296;
+    }
+
+    // --- Audio Synthesis System (Web Audio API) ---
+    class SoundController {
+      constructor() {
+        this.ctx = null;
+        this.isPlayingDrum = false;
+        this.drumPulseTimer = 0;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            this.ctx = new AudioContext();
+          }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      startDrumroll() { this.isPlayingDrum = true; }
+      stopDrumroll() { this.isPlayingDrum = false; }
+
+      updateDrumroll(dt) {
+        if (!this.ctx || !this.isPlayingDrum) return;
+        this.drumPulseTimer += dt;
+        if (this.drumPulseTimer >= 0.12) {
+          this.drumPulseTimer = 0;
+          this.playSnareTap();
+        }
+      }
+
+      playSnareTap() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(80, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + 0.08);
+
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.09);
+      }
+
+      playWhistleFall() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, now);
+        osc.frequency.exponentialRampToValueAtTime(140, now + 0.75);
+
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.linearRampToValueAtTime(0.2, now + 0.55);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.8);
+      }
+
+      playNetThud() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(120, now);
+        osc.frequency.exponentialRampToValueAtTime(35, now + 0.35);
+
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.4);
+      }
+
+      playApplauseBurst() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const chordNotes = [261.63, 329.63, 392.00, 523.25];
+        chordNotes.forEach((freq, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+
+          gain.gain.setValueAtTime(0.06, now + idx * 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 1.8);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + idx * 0.05);
+          osc.stop(now + 2.0);
+        });
+
+        for (let i = 0; i < 30; i++) {
+          const tapTime = now + (i * 0.07) + (deterministicRandom() * 0.04);
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(300 + deterministicRandom() * 400, tapTime);
+
+          gain.gain.setValueAtTime(0.05, tapTime);
+          gain.gain.exponentialRampToValueAtTime(0.0001, tapTime + 0.05);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(tapTime);
+          osc.stop(tapTime + 0.06);
+        }
+      }
+
+      playBirdChirp() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1400, now);
+        osc.frequency.exponentialRampToValueAtTime(2600, now + 0.08);
+        osc.frequency.exponentialRampToValueAtTime(1200, now + 0.16);
+
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.22);
+      }
+
+      playHopSound() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.exponentialRampToValueAtTime(440, now + 0.15);
+
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.2);
+      }
+
+      playWhooshRelease() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.exponentialRampToValueAtTime(160, now + 0.45);
+
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.52);
+      }
+
+      playCrowdGasp() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        // Inhaled gasp chord
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(160, now);
+        osc.frequency.linearRampToValueAtTime(320, now + 0.4);
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.18, now + 0.25);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.7);
+      }
+
+      playPumpSwoosh() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.exponentialRampToValueAtTime(300, now + 0.15);
+
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.22);
+      }
+
+      playGrabSound() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(1200, now + 0.08);
+
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.12);
+      }
+
+      startRollingRumble() {
+        if (!this.ctx) return;
+        this.stopRollingRumble();
+        this.rumbleOsc = this.ctx.createOscillator();
+        this.rumbleGain = this.ctx.createGain();
+        this.rumbleFilter = this.ctx.createBiquadFilter();
+
+        this.rumbleOsc.type = 'triangle';
+        this.rumbleOsc.frequency.setValueAtTime(45, this.ctx.currentTime);
+
+        this.rumbleFilter.type = 'lowpass';
+        this.rumbleFilter.frequency.setValueAtTime(140, this.ctx.currentTime);
+
+        this.rumbleGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
+        this.rumbleGain.gain.linearRampToValueAtTime(0.14, this.ctx.currentTime + 0.1);
+
+        this.rumbleOsc.connect(this.rumbleFilter);
+        this.rumbleFilter.connect(this.rumbleGain);
+        this.rumbleGain.connect(this.ctx.destination);
+        this.rumbleOsc.start();
+        this.isRumbling = true;
+      }
+
+      updateRollingRumble(speed) {
+        if (!this.ctx || !this.isRumbling || !this.rumbleOsc) return;
+        // Pitch rises with sphere speed from 1.0 to 1.6 m/s
+        const normalized = Math.max(0, Math.min(1, (speed - 1.6) / 0.8));
+        const targetFreq = 45 + normalized * 40;
+        this.rumbleOsc.frequency.setTargetAtTime(targetFreq, this.ctx.currentTime, 0.05);
+      }
+
+      stopRollingRumble() {
+        if (this.rumbleOsc && this.ctx) {
+          try {
+            const now = this.ctx.currentTime;
+            this.rumbleGain.gain.setValueAtTime(this.rumbleGain.gain.value, now);
+            this.rumbleGain.gain.linearRampToValueAtTime(0.001, now + 0.08);
+            this.rumbleOsc.stop(now + 0.09);
+          } catch(e) {}
+          this.rumbleOsc = null;
+          this.rumbleGain = null;
+        }
+        this.isRumbling = false;
+      }
+
+      playClownHorn() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        // Circus squeak/honk horn
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(520, now);
+        osc.frequency.setValueAtTime(780, now + 0.08);
+        osc.frequency.exponentialRampToValueAtTime(440, now + 0.28);
+
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.35);
+      }
+
+      playRibbonCatch() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        // Silk snap & chime
+        const freqs = [880, 1320, 1760];
+        freqs.forEach((f, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(f, now + idx * 0.02);
+
+          gain.gain.setValueAtTime(0.15, now + idx * 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + idx * 0.02);
+          osc.stop(now + 0.5);
+        });
+      }
+
+      playCrowdMurmur(hypeLevel) {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        let freqs = [220, 277];
+        let duration = 0.8;
+        if (hypeLevel >= 100) {
+          freqs = [440, 554.37, 659.25, 880];
+          duration = 1.6;
+        } else if (hypeLevel >= 75) {
+          freqs = [329.63, 415.3, 493.88, 659.25];
+          duration = 1.2;
+        } else if (hypeLevel >= 50) {
+          freqs = [277.18, 329.63, 440];
+          duration = 1.0;
+        }
+
+        freqs.forEach((freq, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.04);
+          gain.gain.setValueAtTime(0.001, now + idx * 0.04);
+          gain.gain.linearRampToValueAtTime(0.06, now + idx * 0.04 + 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + idx * 0.04);
+          osc.stop(now + duration + 0.05);
+        });
+
+        for (let i = 0; i < 15; i++) {
+          const t = now + (i * 0.05) + (deterministicRandom() * 0.03);
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(180 + deterministicRandom() * 220, t);
+          gain.gain.setValueAtTime(0.03, t);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.09);
+        }
+      }
+    }
+
+    const sound = new SoundController();
+
+    // --- Global Show Constants ---
+    const WIRE_LENGTH = 30.0;
+    const WIRE_HEIGHT = 8.0;
+    const WALK_SPEED = 1.5;
+    const MAX_LEAN_DEG = 30.0;
+    const FALL_DUR_DROP = 0.5;
+    const FALL_REST_TIME = 1.5;
+    const FALL_CLIMB_TIME = 0.5;
+    const NET_Y = 2.5;
+
+    const HOP_DURATION = 0.4;
+    const HOP_COOLDOWN = 1.0;
+    const HOP_HEIGHT = 0.45;
+
+    const BIRD_TRIGGER_DIST = 0.3;
+    const DISTURB_TORQUE = 20.0;
+    const DISTURB_DURATION = 0.6;
+
+    const WIND_ZONE_START = 12.0;
+    const WIND_ZONE_END = 18.0;
+    const WIND_PERIOD = 4.0;
+    const WIND_AMPLITUDE = 25.0;
+
+    const FIXED_DT = 1 / 60.0;
+    const GRAVITY_CONST = 9.8; // m/s^2
+
+    // --- Trapeze & Platform Constants ---
+    const TRAPEZE_PIVOT_X = 0.0;
+    const TRAPEZE_PIVOT_Y = 10.0;
+    const TRAPEZE_PIVOT_Z = -8.0; // At side of the ring
+    const ROPE_LENGTH = 6.0;      // 6 meters
+    const LANDING_Y = 3.5;        // landing height of catch platform mats
+    const NEAR_MAT_X_MIN = 5.0;   // 5 to 9 meters from pivot axis
+    const NEAR_MAT_X_MAX = 9.0;
+    const FAR_MAT_X_MIN = 10.0;   // 10 to 14 meters from pivot axis
+    const FAR_MAT_X_MAX = 14.0;
+    const PUMP_INTERVAL_MIN = 0.5;// min 0.5s between pumps
+    const PUMP_BOOST_DEG = 8.0;   // exactly 8 degrees
+    const MAX_AMPLITUDE_DEG = 80.0;
+    const MIN_RELEASE_AMP = 60.0;
+    const TRAPEZE_RESET_TIME = 2.0;
+
+    // --- Catch Bar Constants ---
+    const CATCH_BAR_PIVOT_X = 3.5;
+    const CATCH_BAR_PIVOT_Y = 8.0;
+    const CATCH_BAR_CABLE_LEN = 4.0;
+    const CATCH_BAR_PERIOD = 2.4;
+    const CATCH_BAR_AMP_DEG = 40.0;
+
+    // --- Sphere Balance Constants (Retuned in Round 9) ---
+    const SPHERE_WIRE_LENGTH = 14.0;
+    const SPHERE_WIRE_Z = 8.0;
+    const SPHERE_RADIUS = 0.5;
+    const SPHERE_INIT_SPEED = 1.6;
+    const SPHERE_MAX_SPEED = 2.4;
+    const SPHERE_ACCEL = 0.2;
+    const SPHERE_SEGMENT_LEN = SPHERE_WIRE_LENGTH / 4.0; // 3.5m each
+
+    // --- Clown Constants (Wire Act) ---
+    const CLOWN_SPEED = 2.5; // m/s toward start platform (X: 30 -> 0)
+    const CLOWN_WARNING_TIME = 1.5; // seconds before scheduled entry
+    const CLOWN_GUST_DIST = 2.0; // within 2.0 meters triggers air-gust
+    const CLOWN_GUST_TORQUE = 18.0; // +18 deg/s^2
+    const CLOWN_GUST_DURATION = 0.5; // 0.5 seconds
+
+    // --- Aerial Ribbon Constants (Trapeze Act) ---
+    const RIBBON_GRIP_X = 2.0;
+    const RIBBON_GRIP_Y = 3.5 + 3.8; // 7.3m (3.8m above landing height 3.5m)
+    const RIBBON_GRIP_Z = -8.0;
+    const RIBBON_CATCH_DIST = 1.0; // within 1.0 meter of grip point
+
+    // --- State Variables ---
+    let currentAct = 'WIRE'; // 'WIRE' | 'TRAPEZE' | 'SPHERE'
+    let gameState = 'READY'; // WIRE: 'READY'|'ACT_SELECT'|'WALKING'|'FALLING'|'FINISH'
+                            // TRAPEZE: 'TRAPEZE_READY'|'SWINGING'|'FLYING'|'LANDED'|'TRAPEZE_FINISH'
+                            // SPHERE: 'SPHERE_ROLLING'|'SPHERE_FALLING'|'SPHERE_FINISH'
+
+    // Wire Act State
+    let wirePos = 0.0;
+    let leanAngle = 0.0;
+    let angularVel = 0.0;
+    let actClock = 0.0;
+    let fallCount = 0;
+    let sumAbsLean = 0.0;
+    let leanStepCount = 0;
+
+    let fallTimer = 0.0;
+    let fallStage = 0;
+    let fallStartWirePos = 0;
+    let performerFallY = WIRE_HEIGHT;
+    let performerFallRoll = 0;
+
+    let isHoldingW = false;
+    let isAirborne = false;
+    let hopTimer = 0.0;
+    let hopCooldownTimer = 0.0;
+    let hopYOffset = 0.0;
+    let wireHopCount = 0;
+    let wireStyleAwardPerJudge = 0;
+
+    const birdDefinitions = [
+      { id: 0, position: 6.0, sign: -1.0, color: 0x2a9d8f },
+      { id: 1, position: 11.0, sign: 1.0, color: 0xe76f51 },
+      { id: 2, position: 16.0, sign: -1.0, color: 0x9c89b8 }
+    ];
+
+    let birds = [
+      { position: 6.0, triggered: false, flyAwayTimer: 0.0, sign: -1.0 },
+      { position: 11.0, triggered: false, flyAwayTimer: 0.0, sign: 1.0 },
+      { position: 16.0, triggered: false, flyAwayTimer: 0.0, sign: -1.0 }
+    ];
+
+    let activeDisturbance = { remainingTime: 0.0, sign: 0 };
+    let currentWindTorque = 0.0;
+    let wireJudgeScores = null;
+
+    let currentGravAcc = 0;
+    let currentCtrlAcc = 0;
+    let currentDampAcc = 0;
+    let currentDisturbAcc = 0;
+
+    // --- Trapeze Act State ---
+    let swingAngle = 36.0 * (Math.PI / 180.0); // angle from vertical in radians, starts at +36 deg
+    let swingAngularVel = 0.0;                 // rad/s
+    let swingAmplitudeDeg = 36.0;              // degrees amplitude
+    let pendingPumpBoost = false;              // amplitude boost queued for bottom crossing
+    let lastPumpTime = -999.0;
+    let trapezeClock = 0.0;
+    let trapezeActClock = 0.0;
+
+    // Catch Bar State
+    let currentBarAngleDeg = 0.0;
+    let currentBarAngularVelDeg = 0.0;
+    let isRidingBar = false;
+    let grabAttemptSucceeded = false;
+
+    let flightNumber = 1; // 1, 2, 3
+    let flightResults = []; // array of { flight: 1, result: 'NEAR MAT'|'FAR MAT'|'NET MISS', judgeScorePerJudge: 3|4|0 }
+    let flyerFlightPos = new THREE.Vector3(0, 0, 0);
+    let flyerFlightVel = new THREE.Vector3(0, 0, 0);
+    let flyerInFlight = false;
+    let flightLandTimer = 0.0;
+    let lastFlightResult = null;
+    let trapezeJudgeScores = null;
+
+    // --- Sphere Act State ---
+    let spherePos = 0.0;
+    let sphereLeanAngle = 0.0;
+    let sphereAngularVel = 0.0;
+    let sphereSpeed = 1.6;
+    let sphereActClock = 0.0;
+    let sphereFallCount = 0;
+    let sphereSumAbsLean = 0.0;
+    let sphereLeanStepCount = 0;
+    let sphereHype = 0;
+    let sphereSegmentClean = [true, true, true, true];
+    let sphereSegmentAwarded = [false, false, false, false];
+    let sphereJudgeScores = null;
+
+    let sphereGravAcc = 0.0;
+    let sphereCtrlAcc = 0.0;
+    let sphereDampAcc = 0.0;
+    let sphereTotalAcc = 0.0;
+    let sphereMv = 1.0;
+
+    let sphereFallTimer = 0.0;
+    let sphereFallStage = 0;
+    let sphereFallStartPos = 0.0;
+    let performerSphereFallY = WIRE_HEIGHT + SPHERE_RADIUS * 2;
+    let performerSphereFallRoll = 0.0;
+    let sphereMeshRotationZ = 0.0;
+
+    // --- Double Clown Traffic State (Round 9) ---
+    // Stream A: entries at 4s, 12s, gust +18 deg/s^2 for 0.5s
+    // Stream B: entries at 8s, 16s, gust -18 deg/s^2 for 0.5s
+    let clowns = [
+      { id: 0, stream: 'A', entryTime: 4.0, gustSign: 1, torque: 18.0, position: 30.0, gustFired: false, active: false },
+      { id: 1, stream: 'B', entryTime: 8.0, gustSign: -1, torque: -18.0, position: 30.0, gustFired: false, active: false },
+      { id: 2, stream: 'A', entryTime: 12.0, gustSign: 1, torque: 18.0, position: 30.0, gustFired: false, active: false },
+      { id: 3, stream: 'B', entryTime: 16.0, gustSign: -1, torque: -18.0, position: 30.0, gustFired: false, active: false }
+    ];
+    let activeClownGust = { remainingTime: 0.0, torque: 0.0 };
+
+    // --- Ribbon State (Trapeze Act) ---
+    let ribbonCaughtThisFlight = false;
+    let ribbonCatchPerFlight = [false, false, false];
+
+    // --- Three-Act Program Mode State ---
+    let programActNumber = 1; // 1: Wire, 2: Trapeze, 3: Sphere
+    let nextActTarget = 2;
+    let programTransitionTimer = 0.0;
+    let programWireJudgeScores = null;
+    let programTrapezeJudgeScores = null;
+    let programSphereJudgeScores = null;
+    let curtainCallTimer = 0.0;
+    const CURTAIN_CALL_DURATION = 6.0;
+
+    // Input state
+    const keys = { KeyA: false, KeyD: false, KeyW: false };
+
+    // --- Arena State Export ---
+    function exportArenaState() {
+      const meanLean = leanStepCount > 0 ? (sumAbsLean / leanStepCount) : 0;
+      const sphereMeanLean = sphereLeanStepCount > 0 ? (sphereSumAbsLean / sphereLeanStepCount) : 0;
+      const canRelease = (swingAmplitudeDeg >= MIN_RELEASE_AMP);
+      const swingAngleDeg = swingAngle * (180.0 / Math.PI);
+      const swingAngVelDeg = swingAngularVel * (180.0 / Math.PI);
+
+      const barAngleVal = parseFloat(currentBarAngleDeg.toFixed(4));
+      const barAngVelVal = parseFloat(currentBarAngularVelDeg.toFixed(4));
+
+      const activePos = currentAct === 'SPHERE' ? spherePos : wirePos;
+      const activeLean = currentAct === 'SPHERE' ? sphereLeanAngle : leanAngle;
+      const activeAngVel = currentAct === 'SPHERE' ? sphereAngularVel : angularVel;
+      const activeFalls = currentAct === 'SPHERE' ? sphereFallCount : fallCount;
+      const activeMeanLean = currentAct === 'SPHERE' ? sphereMeanLean : meanLean;
+
+      window.__arena_state = {
+        currentAct: currentAct,
+        selectedAct: currentAct,
+        phase: gameState,
+        actClock: parseFloat(actClock.toFixed(4)),
+        trapezeActClock: parseFloat(trapezeActClock.toFixed(4)),
+        sphereActClock: parseFloat(sphereActClock.toFixed(4)),
+
+        // Cross-act baseline compatibility
+        alongWirePosition: parseFloat(activePos.toFixed(4)),
+        leanAngle: parseFloat(activeLean.toFixed(4)),
+        angularVelocity: parseFloat(activeAngVel.toFixed(4)),
+        fallCount: activeFalls,
+        runningMeanAbsoluteLean: parseFloat(activeMeanLean.toFixed(4)),
+
+        // Trapeze status
+        barAngleDeg: barAngleVal,
+        barAngularVelocityDeg: barAngVelVal,
+        grabAttemptSucceeded: grabAttemptSucceeded,
+        isRidingBar: isRidingBar,
+        lastFlightResult: lastFlightResult,
+        flightNumber: flightNumber,
+
+        // Sphere status reported top-level
+        sphereSpeed: parseFloat(sphereSpeed.toFixed(4)),
+        speed: currentAct === 'SPHERE' ? parseFloat(sphereSpeed.toFixed(4)) : (currentAct === 'WIRE' ? WALK_SPEED : 0),
+        multiplierMv: parseFloat(sphereMv.toFixed(4)),
+        mv: parseFloat(sphereMv.toFixed(4)),
+        m_v: parseFloat(sphereMv.toFixed(4)),
+        hype: sphereHype,
+        hypeValue: sphereHype,
+        perSegmentCleanFlags: [...sphereSegmentClean],
+        segmentCleanFlags: [...sphereSegmentClean],
+        cleanSegments: [...sphereSegmentClean],
+        gravityTorque: currentAct === 'SPHERE' ? parseFloat(sphereGravAcc.toFixed(4)) : parseFloat(currentGravAcc.toFixed(4)),
+        controlTorque: currentAct === 'SPHERE' ? parseFloat(sphereCtrlAcc.toFixed(4)) : parseFloat(currentCtrlAcc.toFixed(4)),
+        dampingTorque: currentAct === 'SPHERE' ? parseFloat(sphereDampAcc.toFixed(4)) : parseFloat(currentDampAcc.toFixed(4)),
+        totalAcceleration: currentAct === 'SPHERE' ? parseFloat(sphereTotalAcc.toFixed(4)) : 0,
+
+        // Round 9 Curtain Call, Clown Streams, Formula & Rating reporting
+        programActNumber: programActNumber,
+        wireHopCount: wireHopCount,
+        hopCount: wireHopCount,
+        styleAwardPerJudge: wireStyleAwardPerJudge,
+        styleBonus: wireStyleAwardPerJudge,
+
+        curtainCallPhase: gameState === 'CURTAIN_CALL' ? (curtainCallTimer < 2.0 ? 1 : (curtainCallTimer < 4.0 ? 2 : 3)) : null,
+        curtainCallTimer: parseFloat(curtainCallTimer.toFixed(4)),
+        isCurtainCall: gameState === 'CURTAIN_CALL',
+
+        clownStreams: {
+          streamA: { entries: [4.0, 12.0], gustTorque: 18.0, gustSign: 1 },
+          streamB: { entries: [8.0, 16.0], gustTorque: -18.0, gustSign: -1 }
+        },
+
+        finalFormula: (function() {
+          const w1 = programWireJudgeScores ? (programWireJudgeScores.judge1 - wireStyleAwardPerJudge) : 10;
+          const w2 = programWireJudgeScores ? (programWireJudgeScores.judge2 - wireStyleAwardPerJudge) : 10;
+          const w3 = programWireJudgeScores ? (programWireJudgeScores.judge3 - wireStyleAwardPerJudge) : 10;
+          const t1 = programTrapezeJudgeScores ? programTrapezeJudgeScores.judge1 : 12;
+          const t2 = programTrapezeJudgeScores ? programTrapezeJudgeScores.judge2 : 12;
+          const t3 = programTrapezeJudgeScores ? programTrapezeJudgeScores.judge3 : 12;
+          const s1 = programSphereJudgeScores ? programSphereJudgeScores.judge1 : 10;
+          const s2 = programSphereJudgeScores ? programSphereJudgeScores.judge2 : 10;
+          const s3 = programSphereJudgeScores ? programSphereJudgeScores.judge3 : 10;
+
+          const tech1 = w1 + t1 + s1;
+          const tech2 = w2 + t2 + s2;
+          const tech3 = w3 + t3 + s3;
+          const techTotal = tech1 + tech2 + tech3;
+          const styleTotal = wireStyleAwardPerJudge * 3;
+          const hypeBonus = Math.floor(sphereHype / 20);
+          const grandTotal = techTotal + styleTotal + hypeBonus;
+
+          let r = 'CURTAIN';
+          if (grandTotal >= 105) r = 'GOLDEN PALM';
+          else if (grandTotal >= 85) r = 'SILVER PALM';
+          else if (grandTotal >= 65) r = 'BRONZE PALM';
+
+          return {
+            techTotal: techTotal,
+            styleTotal: styleTotal,
+            finalHype: sphereHype,
+            hypeBonus: hypeBonus,
+            totalScore: grandTotal,
+            rating: r
+          };
+        })(),
+        rating: (function() {
+          const wTech = programWireJudgeScores ? (programWireJudgeScores.actScore - wireStyleAwardPerJudge * 3) : 30;
+          const tTech = programTrapezeJudgeScores ? programTrapezeJudgeScores.actScore : 36;
+          const sTech = programSphereJudgeScores ? programSphereJudgeScores.actScore : 30;
+          const tot = wTech + tTech + sTech + (wireStyleAwardPerJudge * 3) + Math.floor(sphereHype / 20);
+          if (tot >= 105) return 'GOLDEN PALM';
+          if (tot >= 85) return 'SILVER PALM';
+          if (tot >= 65) return 'BRONZE PALM';
+          return 'CURTAIN';
+        })(),
+        palmRating: (function() {
+          const wTech = programWireJudgeScores ? (programWireJudgeScores.actScore - wireStyleAwardPerJudge * 3) : 30;
+          const tTech = programTrapezeJudgeScores ? programTrapezeJudgeScores.actScore : 36;
+          const sTech = programSphereJudgeScores ? programSphereJudgeScores.actScore : 30;
+          const tot = wTech + tTech + sTech + (wireStyleAwardPerJudge * 3) + Math.floor(sphereHype / 20);
+          if (tot >= 105) return 'GOLDEN PALM';
+          if (tot >= 85) return 'SILVER PALM';
+          if (tot >= 65) return 'BRONZE PALM';
+          return 'CURTAIN';
+        })(),
+        runningProgramTotal: (programWireJudgeScores ? programWireJudgeScores.actScore : 0) + (programTrapezeJudgeScores ? programTrapezeJudgeScores.actScore : 0) + (programSphereJudgeScores ? programSphereJudgeScores.actScore : 0),
+        programTotal: (programWireJudgeScores ? programWireJudgeScores.actScore : 0) + (programTrapezeJudgeScores ? programTrapezeJudgeScores.actScore : 0) + (programSphereJudgeScores ? programSphereJudgeScores.actScore : 0),
+
+        // Clown status top-level
+        clowns: clowns.map(c => ({
+          entryTime: c.entryTime,
+          position: parseFloat(c.position.toFixed(4)),
+          gustFired: c.gustFired
+        })),
+        activeClownGust: {
+          active: activeClownGust.remainingTime > 0,
+          remainingTime: parseFloat(activeClownGust.remainingTime.toFixed(4)),
+          torque: CLOWN_GUST_TORQUE
+        },
+
+        // Ribbon status top-level
+        ribbonCatchStatePerFlight: [...ribbonCatchPerFlight],
+        ribbonCaughtThisFlight: ribbonCaughtThisFlight,
+        ribbon: {
+          gripPoint: [RIBBON_GRIP_X, RIBBON_GRIP_Y, RIBBON_GRIP_Z],
+          caughtThisFlight: ribbonCaughtThisFlight,
+          catchStatePerFlight: [...ribbonCatchPerFlight]
+        },
+
+        wireAct: {
+          alongWirePosition: parseFloat(wirePos.toFixed(4)),
+          leanAngle: parseFloat(leanAngle.toFixed(4)),
+          angularVelocity: parseFloat(angularVel.toFixed(4)),
+          fallCount: fallCount,
+          runningMeanAbsoluteLean: parseFloat(meanLean.toFixed(4)),
+          isWHeld: isHoldingW,
+          hopCount: wireHopCount,
+          styleAwardPerJudge: wireStyleAwardPerJudge,
+          hop: {
+            isAirborne: isAirborne,
+            cooldownRemaining: parseFloat(hopCooldownTimer.toFixed(4))
+          },
+          birds: birds.map(b => ({ position: b.position, triggered: b.triggered })),
+          activeDisturbancePulse: {
+            active: activeDisturbance.remainingTime > 0,
+            remainingTime: parseFloat(activeDisturbance.remainingTime.toFixed(4)),
+            sign: activeDisturbance.sign
+          },
+          wind: {
+            zone: [WIND_ZONE_START, WIND_ZONE_END],
+            inZone: wirePos >= WIND_ZONE_START && wirePos <= WIND_ZONE_END,
+            appliedTorque: parseFloat(currentWindTorque.toFixed(4))
+          },
+          clowns: clowns.map(c => ({
+            entryTime: c.entryTime,
+            position: parseFloat(c.position.toFixed(4)),
+            gustFired: c.gustFired
+          })),
+          activeClownGust: {
+            active: activeClownGust.remainingTime > 0,
+            remainingTime: parseFloat(activeClownGust.remainingTime.toFixed(4)),
+            torque: CLOWN_GUST_TORQUE
+          },
+          judges: wireJudgeScores
+        },
+        trapezeAct: {
+          flightNumber: flightNumber,
+          swingAngleDeg: parseFloat(swingAngleDeg.toFixed(4)),
+          swingAngularVelDeg: parseFloat(swingAngVelDeg.toFixed(4)),
+          swingAmplitudeDeg: parseFloat(swingAmplitudeDeg.toFixed(4)),
+          releaseAccepted: canRelease,
+          flyer: {
+            inFlight: flyerInFlight,
+            isRidingBar: isRidingBar,
+            position: [parseFloat(flyerFlightPos.x.toFixed(4)), parseFloat(flyerFlightPos.y.toFixed(4)), parseFloat(flyerFlightPos.z.toFixed(4))],
+            velocity: [parseFloat(flyerFlightVel.x.toFixed(4)), parseFloat(flyerFlightVel.y.toFixed(4)), parseFloat(flyerFlightVel.z.toFixed(4))]
+          },
+          bar: {
+            pivot: [CATCH_BAR_PIVOT_X, CATCH_BAR_PIVOT_Y, TRAPEZE_PIVOT_Z],
+            cableLength: CATCH_BAR_CABLE_LEN,
+            angleDeg: barAngleVal,
+            angularVelocityDeg: barAngVelVal,
+            isRidingBar: isRidingBar,
+            grabAttemptSucceeded: grabAttemptSucceeded
+          },
+          barAngleDeg: barAngleVal,
+          barAngularVelocityDeg: barAngVelVal,
+          grabAttemptSucceeded: grabAttemptSucceeded,
+          isRidingBar: isRidingBar,
+          lastFlightResult: lastFlightResult,
+          flightHistory: flightResults,
+          ribbonCatchStatePerFlight: [...ribbonCatchPerFlight],
+          ribbonCaught: ribbonCaughtThisFlight,
+          judges: trapezeJudgeScores
+        },
+        sphereAct: {
+          speed: parseFloat(sphereSpeed.toFixed(4)),
+          multiplierMv: parseFloat(sphereMv.toFixed(4)),
+          m_v: parseFloat(sphereMv.toFixed(4)),
+          alongWirePosition: parseFloat(spherePos.toFixed(4)),
+          position: parseFloat(spherePos.toFixed(4)),
+          leanAngle: parseFloat(sphereLeanAngle.toFixed(4)),
+          angularVelocity: parseFloat(sphereAngularVel.toFixed(4)),
+          fallCount: sphereFallCount,
+          runningMeanAbsoluteLean: parseFloat(sphereMeanLean.toFixed(4)),
+          hype: sphereHype,
+          hypeValue: sphereHype,
+          perSegmentCleanFlags: [...sphereSegmentClean],
+          segmentCleanFlags: [...sphereSegmentClean],
+          cleanSegments: [...sphereSegmentClean],
+          leanTerms: {
+            gravity: parseFloat(sphereGravAcc.toFixed(4)),
+            control: parseFloat(sphereCtrlAcc.toFixed(4)),
+            damping: parseFloat(sphereDampAcc.toFixed(4))
+          },
+          gravityTorque: parseFloat(sphereGravAcc.toFixed(4)),
+          controlTorque: parseFloat(sphereCtrlAcc.toFixed(4)),
+          dampingTorque: parseFloat(sphereDampAcc.toFixed(4)),
+          totalAcceleration: parseFloat(sphereTotalAcc.toFixed(4)),
+          judges: sphereJudgeScores
+        }
+      };
+    }
+
+    // --- Three.js Scene Setup ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x0a0614, 0.012);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 260);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+    container.appendChild(renderer.domElement);
+
+    // --- Procedural Canvas Textures ---
+    function createStripedCanvas() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512; canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      const stripeWidth = 64;
+      for (let x = 0; x < 512; x += stripeWidth) {
+        ctx.fillStyle = (x / stripeWidth) % 2 === 0 ? '#9b1b30' : '#f0d38d';
+        ctx.fillRect(x, 0, stripeWidth, 512);
+      }
+      return new THREE.CanvasTexture(canvas);
+    }
+    const tentTexture = createStripedCanvas();
+    tentTexture.wrapS = THREE.RepeatWrapping; tentTexture.wrapT = THREE.RepeatWrapping;
+    tentTexture.repeat.set(16, 1);
+
+    function createRingCarpetTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512; canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#1e112a';
+      ctx.fillRect(0, 0, 512, 512);
+      ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 12;
+      ctx.beginPath(); ctx.arc(256, 256, 230, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.arc(256, 256, 170, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = '#c59b27'; ctx.font = 'bold 70px serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('★', 256, 256);
+      return new THREE.CanvasTexture(canvas);
+    }
+    const ringCarpetTex = createRingCarpetTexture();
+
+    function createSteelWireTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64; canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#7a7d84'; ctx.fillRect(0, 0, 64, 64);
+      ctx.strokeStyle = '#4b4d52'; ctx.lineWidth = 4;
+      for (let i = -64; i < 128; i += 12) {
+        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + 64, 64); ctx.stroke();
+      }
+      return new THREE.CanvasTexture(canvas);
+    }
+    const wireTex = createSteelWireTexture();
+    wireTex.wrapS = THREE.RepeatWrapping; wireTex.wrapT = THREE.RepeatWrapping;
+    wireTex.repeat.set(60, 1);
+
+    // --- Environment: Big Top Circus Tent at Night ---
+    const floorGeo = new THREE.PlaneGeometry(140, 140);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x0c0914, roughness: 0.9, metalness: 0.1 });
+    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+    floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.receiveShadow = true;
+    scene.add(floorMesh);
+
+    const RING_CENTER_X = WIRE_LENGTH / 2; // 15m
+    const RING_RADIUS = 20;
+
+    const ringGeo = new THREE.CircleGeometry(RING_RADIUS, 64);
+    const ringMat = new THREE.MeshStandardMaterial({ map: ringCarpetTex, roughness: 0.8, metalness: 0.2 });
+    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    ringMesh.rotation.x = -Math.PI / 2;
+    ringMesh.position.set(RING_CENTER_X, 0.02, 0);
+    ringMesh.receiveShadow = true;
+    scene.add(ringMesh);
+
+    const curbGeo = new THREE.TorusGeometry(RING_RADIUS, 0.25, 12, 64);
+    const curbMat = new THREE.MeshStandardMaterial({ color: 0xb52438, roughness: 0.5, metalness: 0.3 });
+    const curbMesh = new THREE.Mesh(curbGeo, curbMat);
+    curbMesh.rotation.x = Math.PI / 2;
+    curbMesh.position.set(RING_CENTER_X, 0.15, 0);
+    scene.add(curbMesh);
+
+    const tentGeo = new THREE.ConeGeometry(48, 26, 48, 1, true);
+    const tentMat = new THREE.MeshStandardMaterial({ map: tentTexture, side: THREE.BackSide, roughness: 0.85, metalness: 0.1 });
+    const tentMesh = new THREE.Mesh(tentGeo, tentMat);
+    tentMesh.position.set(RING_CENTER_X, 19, 0);
+    scene.add(tentMesh);
+
+    const cupolaGeo = new THREE.CylinderGeometry(5.5, 5.5, 3.5, 32);
+    const cupolaMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.6, roughness: 0.3 });
+    const cupolaMesh = new THREE.Mesh(cupolaGeo, cupolaMat);
+    cupolaMesh.position.set(RING_CENTER_X, 31, 0);
+    scene.add(cupolaMesh);
+
+    // Audience Stands around ring
+    const standsGroup = new THREE.Group();
+    const spectatorMat = new THREE.MeshStandardMaterial({ color: 0x120c24, roughness: 0.9 });
+    const spectatorHeadGeo = new THREE.SphereGeometry(0.26, 8, 8);
+    const spectatorBodyGeo = new THREE.CylinderGeometry(0.28, 0.38, 0.8, 8);
+
+    for (let t = 0; t < 4; t++) {
+      const tierRadius = RING_RADIUS + 2.5 + t * 2.2;
+      const tierY = 0.5 + t * 1.4;
+      const benchGeo = new THREE.TorusGeometry(tierRadius, 0.6, 8, 48, Math.PI * 1.8);
+      const benchMat = new THREE.MeshStandardMaterial({ color: 0x221a36, roughness: 0.9 });
+      const benchMesh = new THREE.Mesh(benchGeo, benchMat);
+      benchMesh.rotation.x = Math.PI / 2;
+      benchMesh.rotation.z = 0.1;
+      benchMesh.position.set(RING_CENTER_X, tierY - 0.3, 0);
+      standsGroup.add(benchMesh);
+
+      const count = 44 + t * 12;
+      for (let i = 0; i < count; i++) {
+        const angle = (i / count) * Math.PI * 1.8 + 0.15;
+        const px = RING_CENTER_X + Math.cos(angle) * tierRadius;
+        const pz = Math.sin(angle) * tierRadius;
+        const body = new THREE.Mesh(spectatorBodyGeo, spectatorMat);
+        body.position.set(px, tierY + 0.4, pz);
+        const head = new THREE.Mesh(spectatorHeadGeo, spectatorMat);
+        head.position.set(px, tierY + 0.95, pz);
+        body.userData = { origY: tierY + 0.4, phase: i * 0.7 };
+        head.userData = { origY: tierY + 0.95, phase: i * 0.7 };
+        standsGroup.add(body);
+        standsGroup.add(head);
+      }
+    }
+    scene.add(standsGroup);
+
+    // Pennants
+    const pennantsGroup = new THREE.Group();
+    const pennantColors = [0xe63946, 0xf1faee, 0xa8dadc, 0x457b9d, 0xf7d070, 0x2a9d8f];
+    const flagGeo = new THREE.BufferGeometry();
+    flagGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0,0,0, 0.6,0,0, 0.3,-0.7,0]), 3));
+    flagGeo.computeVertexNormals();
+
+    const pennantMeshes = [];
+    for (let r = 0; r < 8; r++) {
+      const angle = (r / 8) * Math.PI * 2;
+      const stringLength = 30;
+      for (let s = 1; s <= 16; s++) {
+        const dist = s * 1.7;
+        const fx = RING_CENTER_X + Math.cos(angle) * dist;
+        const fz = Math.sin(angle) * dist;
+        const fy = 20 - (dist / stringLength) * 9.5;
+        const flagMat = new THREE.MeshStandardMaterial({
+          color: pennantColors[(r * 3 + s) % pennantColors.length],
+          side: THREE.DoubleSide, roughness: 0.7
+        });
+        const flag = new THREE.Mesh(flagGeo, flagMat);
+        flag.position.set(fx, fy, fz);
+        flag.rotation.y = angle + Math.PI / 2;
+        flag.userData = { baseRotY: flag.rotation.y, phase: r + s * 0.5 };
+        pennantsGroup.add(flag);
+        pennantMeshes.push(flag);
+      }
+    }
+    scene.add(pennantsGroup);
+
+    // --- Wire Rig (30m) ---
+    const platformGeo = new THREE.CylinderGeometry(1.6, 1.8, 0.5, 24);
+    const platformMat = new THREE.MeshStandardMaterial({ color: 0x9b1b30, roughness: 0.6, metalness: 0.2 });
+    const railingMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3, metalness: 0.8 });
+    const columnMat = new THREE.MeshStandardMaterial({ color: 0x2a243d, roughness: 0.7, metalness: 0.4 });
+
+    function createPlatformUnit(xPos, zPos = 0, wireLen = WIRE_LENGTH) {
+      const group = new THREE.Group();
+      group.position.set(xPos, 0, zPos);
+      const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.6, WIRE_HEIGHT - 0.25, 16), columnMat);
+      tower.position.set(0, (WIRE_HEIGHT - 0.25) / 2, 0);
+      tower.castShadow = true;
+      group.add(tower);
+
+      const disc = new THREE.Mesh(platformGeo, platformMat);
+      disc.position.set(0, WIRE_HEIGHT - 0.25, 0);
+      disc.receiveShadow = true;
+      group.add(disc);
+
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(1.6, 0.08, 8, 32), railingMat);
+      rim.rotation.x = Math.PI / 2;
+      rim.position.set(0, WIRE_HEIGHT + 0.6, 0);
+      group.add(rim);
+
+      for (let p = 0; p < 8; p++) {
+        const a = (p / 8) * Math.PI * 2;
+        const isFacingWire = (xPos === 0 && Math.cos(a) > 0.8) || (xPos === wireLen && Math.cos(a) < -0.8);
+        if (isFacingWire) continue;
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.85, 8), railingMat);
+        post.position.set(Math.cos(a) * 1.6, WIRE_HEIGHT + 0.175, Math.sin(a) * 1.6);
+        group.add(post);
+      }
+      return group;
+    }
+
+    const startPlatform = createPlatformUnit(0);
+    const endPlatform = createPlatformUnit(WIRE_LENGTH);
+    scene.add(startPlatform);
+    scene.add(endPlatform);
+
+    // Steel tightrope (30m)
+    const wireRadius = 0.024;
+    const wireMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(wireRadius, wireRadius, WIRE_LENGTH, 16),
+      new THREE.MeshStandardMaterial({ map: wireTex, metalness: 0.85, roughness: 0.3, color: 0xcccccc })
+    );
+    wireMesh.rotation.z = -Math.PI / 2;
+    wireMesh.position.set(WIRE_LENGTH / 2, WIRE_HEIGHT, 0);
+    wireMesh.castShadow = true;
+    scene.add(wireMesh);
+
+    // Wire safety net
+    function createNetTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128; canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(20, 15, 35, 0.6)'; ctx.fillRect(0, 0, 128, 128);
+      ctx.strokeStyle = '#c9b085'; ctx.lineWidth = 3;
+      ctx.strokeRect(0, 0, 128, 128);
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(128, 128); ctx.moveTo(128, 0); ctx.lineTo(0, 128); ctx.stroke();
+      return new THREE.CanvasTexture(canvas);
+    }
+    const netTex = createNetTexture();
+    netTex.wrapS = THREE.RepeatWrapping; netTex.wrapT = THREE.RepeatWrapping;
+    netTex.repeat.set(36, 6);
+
+    const netMat = new THREE.MeshStandardMaterial({ map: netTex, transparent: true, opacity: 0.82, side: THREE.DoubleSide, roughness: 0.8 });
+    const wireNetMesh = new THREE.Mesh(new THREE.PlaneGeometry(WIRE_LENGTH + 2.0, 4.4, 48, 12), netMat);
+    wireNetMesh.rotation.x = -Math.PI / 2;
+    wireNetMesh.position.set(WIRE_LENGTH / 2, NET_Y, 0);
+    wireNetMesh.receiveShadow = true;
+    scene.add(wireNetMesh);
+
+    // Wind sock at 15m
+    const windSockGroup = new THREE.Group();
+    windSockGroup.position.set(15.0, 6.0, 2.5);
+    scene.add(windSockGroup);
+
+    const sockMast = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 3.6, 8), railingMat);
+    sockMast.position.set(0, 1.8, 0);
+    sockMast.castShadow = true;
+    windSockGroup.add(sockMast);
+
+    const sockPivot = new THREE.Group();
+    sockPivot.position.set(0, 3.4, -0.6);
+    windSockGroup.add(sockPivot);
+
+    const sockCone = new THREE.Mesh(
+      new THREE.ConeGeometry(0.22, 1.2, 12, 1, true),
+      new THREE.MeshStandardMaterial({ color: 0xff6b35, roughness: 0.6, side: THREE.DoubleSide })
+    );
+    sockCone.position.set(0, 0, -0.6);
+    sockCone.rotation.x = -Math.PI / 2;
+    sockPivot.add(sockCone);
+
+    // --- Ringside Judges Table ---
+    const judgesGroup = new THREE.Group();
+    judgesGroup.position.set(15.0, 0, 7.0);
+    judgesGroup.rotation.y = Math.PI;
+    scene.add(judgesGroup);
+
+    const dais = new THREE.Mesh(new THREE.BoxGeometry(7.0, 0.35, 2.5), new THREE.MeshStandardMaterial({ color: 0x221a36, roughness: 0.8 }));
+    dais.position.set(0, 0.175, 0);
+    dais.receiveShadow = true;
+    judgesGroup.add(dais);
+
+    const tableTop = new THREE.Mesh(new THREE.BoxGeometry(5.8, 0.1, 1.2), new THREE.MeshStandardMaterial({ color: 0x4a0e17, roughness: 0.4 }));
+    tableTop.position.set(0, 1.15, -0.2);
+    judgesGroup.add(tableTop);
+
+    const judgeSuitMat = new THREE.MeshStandardMaterial({ color: 0x1b1b2f, roughness: 0.7 });
+    const judgeSkinMat = new THREE.MeshStandardMaterial({ color: 0xf5cfb3, roughness: 0.6 });
+    const judgeMeshes = [];
+
+    function createJudgeFigure(xOffset) {
+      const jGroup = new THREE.Group();
+      jGroup.position.set(xOffset, 0.35, 0.5);
+      const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.22, 0.7, 10), judgeSuitMat);
+      torso.position.set(0, 1.05, 0);
+      jGroup.add(torso);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 12), judgeSkinMat);
+      head.position.set(0, 1.58, 0);
+      jGroup.add(head);
+      const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.06, 0.45, 8), judgeSuitMat);
+      armL.position.set(-0.28, 1.0, -0.3); armL.rotation.x = -0.8;
+      jGroup.add(armL);
+      const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.06, 0.45, 8), judgeSuitMat);
+      armR.position.set(0.28, 1.0, -0.3); armR.rotation.x = -0.8;
+      jGroup.add(armR);
+      judgesGroup.add(jGroup);
+      judgeMeshes.push({ group: jGroup, head: head });
+    }
+    createJudgeFigure(-1.8);
+    createJudgeFigure(0.0);
+    createJudgeFigure(1.8);
+
+    // --- Perched Birds ---
+    const birdMeshes = [];
+    birdDefinitions.forEach((bDef) => {
+      const bObj = new THREE.Group();
+      const bMat = new THREE.MeshStandardMaterial({ color: bDef.color, roughness: 0.5 });
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), bMat);
+      body.scale.set(1.2, 0.85, 0.85); body.position.set(0, 0.08, 0);
+      bObj.add(body);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.065, 8, 8), bMat);
+      head.position.set(0.1, 0.14, 0);
+      bObj.add(head);
+      const beak = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.07, 6), new THREE.MeshStandardMaterial({ color: 0xf4a261 }));
+      beak.rotation.z = -Math.PI / 2; beak.position.set(0.18, 0.14, 0);
+      bObj.add(beak);
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.015, 0.08), bMat);
+      wingL.position.set(0, 0.09, 0.07);
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.015, 0.08), bMat);
+      wingR.position.set(0, 0.09, -0.07);
+      bObj.add(wingL); bObj.add(wingR);
+      bObj.userData = { wingL, wingR };
+      bObj.position.set(bDef.position, WIRE_HEIGHT + wireRadius, 0);
+      scene.add(bObj);
+      birdMeshes.push(bObj);
+    });
+
+    // --- Performer 1: The High-Wire Walker ---
+    const walkerRoot = new THREE.Group();
+    scene.add(walkerRoot);
+    const walkerTiltGroup = new THREE.Group();
+    walkerRoot.add(walkerTiltGroup);
+
+    const costumeMat = new THREE.MeshStandardMaterial({ color: 0x9e1b32, roughness: 0.5 });
+    const tightsMat = new THREE.MeshStandardMaterial({ color: 0xf4eedb, roughness: 0.8 });
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xfad7a0, roughness: 0.6 });
+    const hatMat = new THREE.MeshStandardMaterial({ color: 0x2c1d11, roughness: 0.8 });
+
+    const leftLegGroup = new THREE.Group();
+    const rightLegGroup = new THREE.Group();
+    walkerTiltGroup.add(leftLegGroup);
+    walkerTiltGroup.add(rightLegGroup);
+
+    const leftLegMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.05, 0.85, 8), tightsMat);
+    leftLegMesh.position.set(0, 0.45, 0.06); leftLegGroup.add(leftLegMesh);
+    const rightLegMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.05, 0.85, 8), tightsMat);
+    rightLegMesh.position.set(0, 0.45, -0.06); rightLegGroup.add(rightLegMesh);
+
+    const walkerTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.14, 0.65, 10), costumeMat);
+    walkerTorso.position.set(0, 1.25, 0);
+    walkerTiltGroup.add(walkerTorso);
+
+    const walkerHead = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 12), skinMat);
+    walkerHead.position.set(0, 1.74, 0);
+    walkerTiltGroup.add(walkerHead);
+
+    const walkerHat = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.22, 16), hatMat);
+    walkerHat.position.set(0, 1.95, 0);
+    walkerTiltGroup.add(walkerHat);
+
+    const leftArmMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.6, 8), costumeMat);
+    leftArmMesh.position.set(0.1, 1.25, 0.22); leftArmMesh.rotation.x = -0.5;
+    walkerTiltGroup.add(leftArmMesh);
+    const rightArmMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.6, 8), costumeMat);
+    rightArmMesh.position.set(0.1, 1.25, -0.22); rightArmMesh.rotation.x = 0.5;
+    walkerTiltGroup.add(rightArmMesh);
+
+    // Balance Pole
+    const balancePoleGroup = new THREE.Group();
+    balancePoleGroup.position.set(0.26, 1.15, 0);
+    walkerTiltGroup.add(balancePoleGroup);
+
+    const balancePoleMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.032, 0.032, 5.2, 16),
+      new THREE.MeshStandardMaterial({ color: 0x3d2716, roughness: 0.4 })
+    );
+    balancePoleMesh.rotation.x = Math.PI / 2;
+    balancePoleGroup.add(balancePoleMesh);
+
+    // --- Trapeze Rig & Performer 2: The Flyer ---
+    // Swing bar on two ropes of fixed length 6m, hanging from pivot at (0, 10, -8).
+    // Swings in X-Y plane (forward is +X toward the catch platform).
+    const trapezeRigGroup = new THREE.Group();
+    trapezeRigGroup.position.set(TRAPEZE_PIVOT_X, TRAPEZE_PIVOT_Y, TRAPEZE_PIVOT_Z);
+    scene.add(trapezeRigGroup);
+
+    // Overhead truss support
+    const trussMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.4, metalness: 0.6 });
+    const pivotBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.2, 12), trussMat);
+    pivotBeam.rotation.x = Math.PI / 2;
+    trapezeRigGroup.add(pivotBeam);
+
+    // Swing assembly pivot group
+    const swingPivotGroup = new THREE.Group();
+    trapezeRigGroup.add(swingPivotGroup);
+
+    // Two ropes (length 6m)
+    const ropeMat = new THREE.MeshStandardMaterial({ color: 0xddc5a2, roughness: 0.8 });
+    const ropeGeo = new THREE.CylinderGeometry(0.02, 0.02, ROPE_LENGTH, 8);
+    const ropeL = new THREE.Mesh(ropeGeo, ropeMat);
+    ropeL.position.set(0, -ROPE_LENGTH / 2, 0.6);
+    swingPivotGroup.add(ropeL);
+
+    const ropeR = new THREE.Mesh(ropeGeo, ropeMat);
+    ropeR.position.set(0, -ROPE_LENGTH / 2, -0.6);
+    swingPivotGroup.add(ropeR);
+
+    // Trapeze Swing Bar
+    const barMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.35, 12), trussMat);
+    barMesh.rotation.x = Math.PI / 2;
+    barMesh.position.set(0, -ROPE_LENGTH, 0);
+    swingPivotGroup.add(barMesh);
+
+    // Flyer Attached to Bar (when on swing)
+    const flyerSwingGroup = new THREE.Group();
+    flyerSwingGroup.position.set(0, -ROPE_LENGTH, 0);
+    swingPivotGroup.add(flyerSwingGroup);
+
+    // Free Projectile Flyer Root (when in flight or landed)
+    const flyerFreeRoot = new THREE.Group();
+    scene.add(flyerFreeRoot);
+    flyerFreeRoot.visible = false;
+
+    // --- Sphere Wire Rig (20m, at Z = 8.0) ---
+    const sphereStartPlatform = createPlatformUnit(0, SPHERE_WIRE_Z, SPHERE_WIRE_LENGTH);
+    const sphereEndPlatform = createPlatformUnit(SPHERE_WIRE_LENGTH, SPHERE_WIRE_Z, SPHERE_WIRE_LENGTH);
+    scene.add(sphereStartPlatform);
+    scene.add(sphereEndPlatform);
+
+    const sphereWireMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(wireRadius, wireRadius, SPHERE_WIRE_LENGTH, 16),
+      new THREE.MeshStandardMaterial({ map: wireTex, metalness: 0.85, roughness: 0.3, color: 0xcccccc })
+    );
+    sphereWireMesh.rotation.z = -Math.PI / 2;
+    sphereWireMesh.position.set(SPHERE_WIRE_LENGTH / 2, WIRE_HEIGHT, SPHERE_WIRE_Z);
+    sphereWireMesh.castShadow = true;
+    scene.add(sphereWireMesh);
+
+    const sphereNetMesh = new THREE.Mesh(new THREE.PlaneGeometry(SPHERE_WIRE_LENGTH + 2.0, 4.4, 32, 12), netMat);
+    sphereNetMesh.rotation.x = -Math.PI / 2;
+    sphereNetMesh.position.set(SPHERE_WIRE_LENGTH / 2, NET_Y, SPHERE_WIRE_Z);
+    sphereNetMesh.receiveShadow = true;
+    scene.add(sphereNetMesh);
+
+    // Procedural Solid Sphere Texture
+    function createSphereTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512; canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      const cols = ['#c81d36', '#f7d070', '#1f2041', '#f7d070'];
+      const segW = 512 / 8;
+      for (let i = 0; i < 8; i++) {
+        ctx.fillStyle = cols[i % cols.length];
+        ctx.fillRect(i * segW, 0, segW, 256);
+      }
+      ctx.fillStyle = '#d4af37';
+      ctx.fillRect(0, 118, 512, 20);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 24px sans-serif';
+      ctx.textAlign = 'center';
+      for (let i = 0; i < 8; i++) {
+        ctx.fillText('★', i * segW + segW / 2, 134);
+      }
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    const sphereTex = createSphereTexture();
+    const sphereMat = new THREE.MeshStandardMaterial({
+      map: sphereTex,
+      roughness: 0.4,
+      metalness: 0.2
+    });
+    const sphereMesh = new THREE.Mesh(new THREE.SphereGeometry(SPHERE_RADIUS, 32, 24), sphereMat);
+    sphereMesh.castShadow = true;
+    sphereMesh.position.set(0, WIRE_HEIGHT + SPHERE_RADIUS, SPHERE_WIRE_Z);
+    scene.add(sphereMesh);
+    sphereMesh.visible = false;
+
+    // --- Performer 3: The Sphere Roller ---
+    const rollerRoot = new THREE.Group();
+    rollerRoot.position.set(0, WIRE_HEIGHT + SPHERE_RADIUS * 2, SPHERE_WIRE_Z);
+    scene.add(rollerRoot);
+    rollerRoot.visible = false;
+
+    const rollerTiltGroup = new THREE.Group();
+    rollerRoot.add(rollerTiltGroup);
+
+    const rollerCostumeMat = new THREE.MeshStandardMaterial({ color: 0x5a189a, roughness: 0.5 });
+    const rollerTightsMat = new THREE.MeshStandardMaterial({ color: 0xe0aaff, roughness: 0.7 });
+    const rollerGoldMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3, metalness: 0.7 });
+
+    // Legs straddling top of sphere
+    const rollerLeftLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.05, 0.85, 8), rollerTightsMat);
+    rollerLeftLeg.position.set(0, 0.42, 0.16);
+    rollerLeftLeg.rotation.x = -0.15;
+    rollerTiltGroup.add(rollerLeftLeg);
+
+    const rollerRightLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.05, 0.85, 8), rollerTightsMat);
+    rollerRightLeg.position.set(0, 0.42, -0.16);
+    rollerRightLeg.rotation.x = 0.15;
+    rollerTiltGroup.add(rollerRightLeg);
+
+    // Torso & Sash
+    const rollerTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.14, 0.65, 10), rollerCostumeMat);
+    rollerTorso.position.set(0, 1.25, 0);
+    rollerTiltGroup.add(rollerTorso);
+
+    const rollerSash = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.15, 0.15, 10), rollerGoldMat);
+    rollerSash.position.set(0, 1.25, 0);
+    rollerTiltGroup.add(rollerSash);
+
+    // Head & Circlet
+    const rollerHead = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 12), skinMat);
+    rollerHead.position.set(0, 1.74, 0);
+    rollerTiltGroup.add(rollerHead);
+
+    const rollerCirclet = new THREE.Mesh(new THREE.TorusGeometry(0.135, 0.02, 8, 16), rollerGoldMat);
+    rollerCirclet.rotation.x = Math.PI / 2;
+    rollerCirclet.position.set(0, 1.78, 0);
+    rollerTiltGroup.add(rollerCirclet);
+
+    // Outstretched balancing arms
+    const rollerLeftArmGroup = new THREE.Group();
+    rollerLeftArmGroup.position.set(0, 1.45, 0.18);
+    rollerTiltGroup.add(rollerLeftArmGroup);
+    const rollerLeftArm = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.7, 8), rollerCostumeMat);
+    rollerLeftArm.position.set(0, 0, 0.35);
+    rollerLeftArm.rotation.x = Math.PI / 2;
+    rollerLeftArmGroup.add(rollerLeftArm);
+
+    const rollerRightArmGroup = new THREE.Group();
+    rollerRightArmGroup.position.set(0, 1.45, -0.18);
+    rollerTiltGroup.add(rollerRightArmGroup);
+    const rollerRightArm = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.7, 8), rollerCostumeMat);
+    rollerRightArm.position.set(0, 0, -0.35);
+    rollerRightArm.rotation.x = -Math.PI / 2;
+    rollerRightArmGroup.add(rollerRightArm);
+
+    // --- 3D Aerial Ribbon Rig (Trapeze Act) ---
+    const ribbonGroup = new THREE.Group();
+    ribbonGroup.position.set(RIBBON_GRIP_X, RIBBON_GRIP_Y, RIBBON_GRIP_Z);
+    scene.add(ribbonGroup);
+    ribbonGroup.visible = false;
+
+    // Brass grip ring
+    const gripRingGeo = new THREE.TorusGeometry(0.12, 0.025, 8, 20);
+    const gripRingMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.8, roughness: 0.3 });
+    const gripRingMesh = new THREE.Mesh(gripRingGeo, gripRingMat);
+    ribbonGroup.add(gripRingMesh);
+
+    // Silk streaming ribbon
+    const ribbonSilkMat = new THREE.MeshStandardMaterial({
+      color: 0xe63946,
+      emissive: 0x4a0e17,
+      roughness: 0.5,
+      metalness: 0.1,
+      side: THREE.DoubleSide
+    });
+    const ribbonSilkGeo = new THREE.PlaneGeometry(0.22, 2.4, 4, 16);
+    const ribbonSilkMesh = new THREE.Mesh(ribbonSilkGeo, ribbonSilkMat);
+    ribbonSilkMesh.position.set(0, -1.2, 0);
+    ribbonGroup.add(ribbonSilkMesh);
+
+    // Top anchor cord from overhead truss
+    const anchorCordMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.6 });
+    const anchorCordMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 2.7, 6), anchorCordMat);
+    anchorCordMesh.position.set(0, 1.35, 0);
+    ribbonGroup.add(anchorCordMesh);
+
+    // --- 3D Unicycle Clowns (Wire Act) ---
+    function createUnicycleClown(id) {
+      const clownRoot = new THREE.Group();
+      clownRoot.position.set(30.0, WIRE_HEIGHT, 0);
+
+      // Unicycle Wheel
+      const wheelGeo = new THREE.TorusGeometry(0.28, 0.038, 8, 24);
+      const tireMat = new THREE.MeshStandardMaterial({ color: 0x1b1b24, roughness: 0.8 });
+      const wheelMesh = new THREE.Mesh(wheelGeo, tireMat);
+      wheelMesh.position.set(0, 0.28, 0);
+      clownRoot.add(wheelMesh);
+
+      const spokeMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.7, roughness: 0.3 });
+      const hubMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.12, 10), spokeMat);
+      hubMesh.rotation.x = Math.PI / 2;
+      hubMesh.position.set(0, 0.28, 0);
+      clownRoot.add(hubMesh);
+
+      // Frame fork and seatpost
+      const forkMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.45, 8), spokeMat);
+      forkMesh.position.set(0, 0.5, 0);
+      clownRoot.add(forkMesh);
+
+      const saddleMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.22, 0.06, 0.14),
+        new THREE.MeshStandardMaterial({ color: 0x3d2716, roughness: 0.6 })
+      );
+      saddleMesh.position.set(0, 0.72, 0);
+      clownRoot.add(saddleMesh);
+
+      // Clown Performer
+      const clownTilt = new THREE.Group();
+      clownTilt.position.set(0, 0.72, 0);
+      clownRoot.add(clownTilt);
+
+      // Legs
+      const clownCostumeMat = new THREE.MeshStandardMaterial({
+        color: [0xffb703, 0x06d6a0, 0xef476f][id % 3],
+        roughness: 0.5
+      });
+      const clownLegL = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.4, 8), clownCostumeMat);
+      clownLegL.position.set(0.06, 0.16, 0.09); clownLegL.rotation.z = -0.2;
+      clownTilt.add(clownLegL);
+      const clownLegR = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.4, 8), clownCostumeMat);
+      clownLegR.position.set(-0.06, 0.16, -0.09); clownLegR.rotation.z = 0.2;
+      clownTilt.add(clownLegR);
+
+      // Torso with polka pattern color
+      const clownTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.14, 0.55, 10), clownCostumeMat);
+      clownTorso.position.set(0, 0.52, 0);
+      clownTilt.add(clownTorso);
+
+      // Ruffled collar
+      const collarMesh = new THREE.Mesh(
+        new THREE.TorusGeometry(0.16, 0.05, 8, 16),
+        new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 })
+      );
+      collarMesh.rotation.x = Math.PI / 2;
+      collarMesh.position.set(0, 0.78, 0);
+      clownTilt.add(collarMesh);
+
+      // Clown Head & Makeup
+      const clownHead = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 12), skinMat);
+      clownHead.position.set(0, 0.94, 0);
+      clownTilt.add(clownHead);
+
+      const noseMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.04, 8, 8),
+        new THREE.MeshStandardMaterial({ color: 0xe63946, roughness: 0.3 })
+      );
+      noseMesh.position.set(-0.13, 0.94, 0); // Facing -X (riding toward start)
+      clownTilt.add(noseMesh);
+
+      // Silly cone party hat with pom-pom
+      const hatCone = new THREE.Mesh(
+        new THREE.ConeGeometry(0.11, 0.35, 12),
+        new THREE.MeshStandardMaterial({ color: [0x7209b7, 0x4361ee, 0xf72585][id % 3], roughness: 0.4 })
+      );
+      hatCone.position.set(0, 1.2, 0);
+      clownTilt.add(hatCone);
+
+      const pomPom = new THREE.Mesh(
+        new THREE.SphereGeometry(0.04, 8, 8),
+        new THREE.MeshStandardMaterial({ color: 0xffd166, roughness: 0.8 })
+      );
+      pomPom.position.set(0, 1.38, 0);
+      clownTilt.add(pomPom);
+
+      // Outstretched balancing arms
+      const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.035, 0.55, 8), clownCostumeMat);
+      armL.position.set(0, 0.65, 0.3); armL.rotation.x = 0.9;
+      clownTilt.add(armL);
+      const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.035, 0.55, 8), clownCostumeMat);
+      armR.position.set(0, 0.65, -0.3); armR.rotation.x = -0.9;
+      clownTilt.add(armR);
+
+      clownRoot.visible = false;
+      scene.add(clownRoot);
+      return { root: clownRoot, wheel: wheelMesh, tilt: clownTilt, armL: armL, armR: armR };
+    }
+
+    const clownMeshes = [createUnicycleClown(0), createUnicycleClown(1), createUnicycleClown(2), createUnicycleClown(3)];
+
+    // Build the Flyer Figure (recognizable performer: head, torso, 2 arms, legs)
+    function buildFlyerModel() {
+      const fGroup = new THREE.Group();
+      const suitMat = new THREE.MeshStandardMaterial({ color: 0x0077b6, roughness: 0.4 }); // royal cyan leotard
+      const trimMat = new THREE.MeshStandardMaterial({ color: 0xffd166, roughness: 0.3 }); // gold sparkle
+
+      // Hands holding bar (at origin of group, y = 0)
+      const handL = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), skinMat);
+      handL.position.set(0, 0, 0.35); fGroup.add(handL);
+      const handR = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), skinMat);
+      handR.position.set(0, 0, -0.35); fGroup.add(handR);
+
+      // Arms extending downwards
+      const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.55, 8), skinMat);
+      armL.position.set(0, -0.28, 0.35); fGroup.add(armL);
+      const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.55, 8), skinMat);
+      armR.position.set(0, -0.28, -0.35); fGroup.add(armR);
+
+      // Head
+      const fHead = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 12), skinMat);
+      fHead.position.set(0, -0.65, 0); fGroup.add(fHead);
+      // Gold circlet headband
+      const band = new THREE.Mesh(new THREE.TorusGeometry(0.135, 0.02, 6, 16), trimMat);
+      band.position.set(0, -0.62, 0); band.rotation.x = Math.PI / 2; fGroup.add(band);
+
+      // Torso
+      const fTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.13, 0.65, 10), suitMat);
+      fTorso.position.set(0, -1.05, 0); fGroup.add(fTorso);
+
+      // Legs extending down
+      const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.045, 0.85, 8), suitMat);
+      legL.position.set(0, -1.75, 0.12); fGroup.add(legL);
+      const legR = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.045, 0.85, 8), suitMat);
+      legR.position.set(0, -1.75, -0.12); fGroup.add(legR);
+
+      return fGroup;
+    }
+
+    const flyerOnSwing = buildFlyerModel();
+    flyerSwingGroup.add(flyerOnSwing);
+
+    const flyerInFlightMesh = buildFlyerModel();
+    flyerFreeRoot.add(flyerInFlightMesh);
+
+    // --- Platforms & Landing Mats ---
+    // Pivot is at X = 0. Catch platforms stand opposite the rig.
+    // Near Mat: band from 5 to 9 meters (X: 5.0 to 9.0)
+    // Far Mat: band from 10 to 14 meters (X: 10.0 to 14.0)
+    // Mat top surface is at LANDING_Y (3.5m).
+    const catchGroup = new THREE.Group();
+    catchGroup.position.set(0, 0, TRAPEZE_PIVOT_Z);
+    scene.add(catchGroup);
+
+    // Platform structure under Near Mat (X from 4.8 to 9.2)
+    const platUnderGeo = new THREE.BoxGeometry(4.2, LANDING_Y - 0.2, 3.4);
+    const platUnderMat = new THREE.MeshStandardMaterial({ color: 0x221a36, roughness: 0.8 });
+    const platUnderNear = new THREE.Mesh(platUnderGeo, platUnderMat);
+    platUnderNear.position.set(7.0, (LANDING_Y - 0.2) / 2, 0);
+    platUnderNear.receiveShadow = true;
+    catchGroup.add(platUnderNear);
+
+    // Near Landing Mat: exactly from X = 5.0m to 9.0m (Length = 4.0m, Center = 7.0m)
+    const matThickness = 0.25;
+    const matGeo = new THREE.BoxGeometry(4.0, matThickness, 3.0);
+    const nearMatMat = new THREE.MeshStandardMaterial({
+      color: 0x2a9d8f, // distinct emerald teal near landing mat
+      roughness: 0.5,
+      metalness: 0.1
+    });
+    const nearLandingMatMesh = new THREE.Mesh(matGeo, nearMatMat);
+    nearLandingMatMesh.position.set(7.0, LANDING_Y - matThickness / 2, 0);
+    nearLandingMatMesh.receiveShadow = true;
+    catchGroup.add(nearLandingMatMesh);
+
+    // Near Mat gold border
+    const nearMatBorder = new THREE.Mesh(new THREE.BoxGeometry(4.1, 0.05, 3.1), railingMat);
+    nearMatBorder.position.set(7.0, LANDING_Y + 0.02, 0);
+    catchGroup.add(nearMatBorder);
+
+    // Platform structure under Far Mat (X from 9.8 to 14.2)
+    const platUnderFar = new THREE.Mesh(platUnderGeo, platUnderMat);
+    platUnderFar.position.set(12.0, (LANDING_Y - 0.2) / 2, 0);
+    platUnderFar.receiveShadow = true;
+    catchGroup.add(platUnderFar);
+
+    // Far Landing Mat: exactly from X = 10.0m to 14.0m (Length = 4.0m, Center = 12.0m)
+    // Visually distinct circus ruby crimson
+    const farMatMat = new THREE.MeshStandardMaterial({
+      color: 0xd90429,
+      roughness: 0.45,
+      metalness: 0.2
+    });
+    const farLandingMatMesh = new THREE.Mesh(matGeo, farMatMat);
+    farLandingMatMesh.position.set(12.0, LANDING_Y - matThickness / 2, 0);
+    farLandingMatMesh.receiveShadow = true;
+    catchGroup.add(farLandingMatMesh);
+
+    // Far Mat gold trim border
+    const farMatBorder = new THREE.Mesh(new THREE.BoxGeometry(4.1, 0.05, 3.1), new THREE.MeshStandardMaterial({ color: 0xffd166, roughness: 0.3, metalness: 0.6 }));
+    farMatBorder.position.set(12.0, LANDING_Y + 0.02, 0);
+    catchGroup.add(farMatBorder);
+
+    // Safety Netting everywhere outside the mats at landing height
+    const trapNetMat = new THREE.MeshStandardMaterial({
+      map: netTex,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide,
+      roughness: 0.8
+    });
+
+    // Net section 1: before near mat (X: -2.0 to 5.0)
+    const trapNet1 = new THREE.Mesh(new THREE.PlaneGeometry(7.0, 4.4, 24, 8), trapNetMat);
+    trapNet1.rotation.x = -Math.PI / 2;
+    trapNet1.position.set(1.5, LANDING_Y - 0.1, 0);
+    catchGroup.add(trapNet1);
+
+    // Net section 2: gap between near mat and far mat (X: 9.0 to 10.0)
+    const trapNet2 = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 4.4, 6, 8), trapNetMat);
+    trapNet2.rotation.x = -Math.PI / 2;
+    trapNet2.position.set(9.5, LANDING_Y - 0.1, 0);
+    catchGroup.add(trapNet2);
+
+    // Net section 3: beyond far mat (X: 14.0 to 18.0)
+    const trapNet3 = new THREE.Mesh(new THREE.PlaneGeometry(4.0, 4.4, 16, 8), trapNetMat);
+    trapNet3.rotation.x = -Math.PI / 2;
+    trapNet3.position.set(16.0, LANDING_Y - 0.1, 0);
+    catchGroup.add(trapNet3);
+
+    // Net border cables spanning full run X: -2.0 to 18.0 (20 meters long)
+    const trapCable1 = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 20.0, 8), columnMat);
+    trapCable1.rotation.z = Math.PI / 2;
+    trapCable1.position.set(8.0, LANDING_Y - 0.05, 2.2);
+    catchGroup.add(trapCable1);
+    const trapCable2 = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 20.0, 8), columnMat);
+    trapCable2.rotation.z = Math.PI / 2;
+    trapCable2.position.set(8.0, LANDING_Y - 0.05, -2.2);
+    catchGroup.add(trapCable2);
+
+    // --- The Swinging Catch Bar ---
+    // Horizontal bar on a single cable, pivot 8m above floor at horizontal distance 3.5m from swing pivot axis (toward catch platform)
+    // Cable exactly 4m long. Bar swings forever: phi = 40 * sin(2*pi*t / 2.4) deg.
+    const catchBarRigGroup = new THREE.Group();
+    catchBarRigGroup.position.set(CATCH_BAR_PIVOT_X, CATCH_BAR_PIVOT_Y, TRAPEZE_PIVOT_Z);
+    scene.add(catchBarRigGroup);
+
+    // Pivot mount beam/bracket
+    const catchBarMount = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.0, 10), trussMat);
+    catchBarMount.rotation.x = Math.PI / 2;
+    catchBarRigGroup.add(catchBarMount);
+
+    // Swinging pivot assembly (rotates around Z-axis at pivot point)
+    const catchBarPivotGroup = new THREE.Group();
+    catchBarRigGroup.add(catchBarPivotGroup);
+
+    // Single cable (length exactly 4m)
+    const catchBarCable = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.018, 0.018, CATCH_BAR_CABLE_LEN, 8),
+      ropeMat
+    );
+    catchBarCable.position.set(0, -CATCH_BAR_CABLE_LEN / 2, 0);
+    catchBarPivotGroup.add(catchBarCable);
+
+    // Horizontal catch bar at bottom of cable
+    const catchBarMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.035, 0.035, 1.4, 12),
+      trussMat
+    );
+    catchBarMesh.rotation.x = Math.PI / 2;
+    catchBarMesh.position.set(0, -CATCH_BAR_CABLE_LEN, 0);
+    catchBarPivotGroup.add(catchBarMesh);
+
+    // Center leather grip on catch bar
+    const catchBarGrip = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.038, 0.038, 0.8, 12),
+      new THREE.MeshStandardMaterial({ color: 0xffd166, roughness: 0.5 })
+    );
+    catchBarGrip.rotation.x = Math.PI / 2;
+    catchBarGrip.position.set(0, -CATCH_BAR_CABLE_LEN, 0);
+    catchBarPivotGroup.add(catchBarGrip);
+
+    // --- Dynamic Theatrical Lighting ---
+    const ambientLight = new THREE.AmbientLight(0x181028, 1.4);
+    scene.add(ambientLight);
+
+    const ringFlood = new THREE.DirectionalLight(0xffeedd, 0.6);
+    ringFlood.position.set(RING_CENTER_X - 10, 25, 15);
+    scene.add(ringFlood);
+
+    const blueFill = new THREE.PointLight(0x3a2068, 1.2, 60);
+    blueFill.position.set(RING_CENTER_X, 12, -20);
+    scene.add(blueFill);
+
+    const spotTarget = new THREE.Object3D();
+    scene.add(spotTarget);
+
+    const followSpotlight = new THREE.SpotLight(0xfff7e0, 5.5);
+    followSpotlight.angle = 0.42;
+    followSpotlight.penumbra = 0.5;
+    followSpotlight.decay = 1.2;
+    followSpotlight.distance = 55;
+    followSpotlight.castShadow = true;
+    followSpotlight.target = spotTarget;
+    scene.add(followSpotlight);
+
+    const coneHeight = 22;
+    const coneRadius = 5.2;
+    const spotBeamMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.2, coneRadius, coneHeight, 24, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xfff0c4, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false })
+    );
+    scene.add(spotBeamMesh);
+
+    // --- Input Management ---
+    window.addEventListener('keydown', (e) => {
+      sound.init();
+
+      if (e.code === 'KeyA') {
+        keys.KeyA = true;
+      } else if (e.code === 'KeyD') {
+        keys.KeyD = true;
+      } else if (e.code === 'KeyW') {
+        keys.KeyW = true;
+        isHoldingW = true;
+      } else if (e.code === 'KeyK') {
+        if (currentAct === 'TRAPEZE' && gameState === 'FLYING' && !isRidingBar) {
+          attemptRibbonCatch();
+        }
+      } else if (e.code === 'KeyJ') {
+        if (currentAct === 'TRAPEZE') {
+          if (gameState === 'SWINGING') {
+            attemptPump();
+          } else if (gameState === 'FLYING' && !isRidingBar) {
+            attemptCatchBarGrab();
+          }
+        }
+      } else if (e.code === 'Space') {
+        if (currentAct === 'WIRE') {
+          if (gameState === 'WALKING' && !isAirborne && hopCooldownTimer <= 0) {
+            triggerHop();
+          }
+        } else if (currentAct === 'TRAPEZE') {
+          if (gameState === 'SWINGING') {
+            attemptRelease();
+          } else if (isRidingBar) {
+            releaseFromCatchBar();
+          }
+        }
+      } else if (e.code === 'Enter') {
+        if (gameState === 'READY') {
+          startFullProgram();
+        } else if (gameState === 'FINISH') {
+          startNextActTransition(2);
+        } else if (gameState === 'TRAPEZE_FINISH') {
+          startNextActTransition(3);
+        } else if (gameState === 'SPHERE_FINISH') {
+          startCurtainCall();
+        } else if (gameState === 'CURTAIN_CALL') {
+          // Staging accepts no input
+        } else if (gameState === 'FINAL_REVIEW') {
+          startFullProgram();
+        }
+      } else if (e.code === 'KeyR') {
+        resetToShowReady();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'KeyA') keys.KeyA = false;
+      if (e.code === 'KeyD') keys.KeyD = false;
+      if (e.code === 'KeyW') {
+        keys.KeyW = false;
+        isHoldingW = false;
+      }
+    });
+
+    // UI Interactive Button Handlers
+    document.getElementById('cta-start-wire')?.addEventListener('click', () => {
+      sound.init();
+      startFullProgram();
+    });
+    document.getElementById('cta-wire-finish')?.addEventListener('click', () => {
+      sound.init();
+      startNextActTransition(2);
+    });
+    document.getElementById('cta-trapeze-finish')?.addEventListener('click', () => {
+      sound.init();
+      startNextActTransition(3);
+    });
+    document.getElementById('cta-sphere-finish')?.addEventListener('click', () => {
+      sound.init();
+      startCurtainCall();
+    });
+    document.getElementById('cta-final-review-restart')?.addEventListener('click', () => {
+      sound.init();
+      startFullProgram();
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // --- Show Navigation & Operations ---
+    function startFullProgram() {
+      programActNumber = 1;
+      programWireJudgeScores = null;
+      programTrapezeJudgeScores = null;
+      programSphereJudgeScores = null;
+      programTransitionTimer = 0.0;
+      startWireAct();
+    }
+
+    function startNextActTransition(nextAct) {
+      nextActTarget = nextAct;
+      gameState = 'PROGRAM_TRANSITION';
+      programTransitionTimer = 3.0;
+
+      sound.stopDrumroll();
+      sound.stopRollingRumble();
+
+      document.getElementById('panel-wire-finish').classList.add('panel-hidden');
+      document.getElementById('panel-trapeze-finish').classList.add('panel-hidden');
+      document.getElementById('panel-sphere-finish').classList.add('panel-hidden');
+
+      const nextBanner = document.getElementById('panel-next-act');
+      nextBanner.classList.remove('panel-hidden');
+      document.getElementById('next-act-timer').textContent = '3.0 s';
+    }
+
+    function startCurtainCall() {
+      gameState = 'CURTAIN_CALL';
+      curtainCallTimer = 0.0;
+
+      sound.stopDrumroll();
+      sound.stopRollingRumble();
+      sound.playApplauseBurst();
+
+      document.getElementById('panel-wire-finish').classList.add('panel-hidden');
+      document.getElementById('panel-trapeze-finish').classList.add('panel-hidden');
+      document.getElementById('panel-sphere-finish').classList.add('panel-hidden');
+      document.getElementById('panel-next-act').classList.add('panel-hidden');
+      document.getElementById('panel-final-review').classList.add('panel-hidden');
+
+      // Staging: Line up all three performers in the central performance ring (X=15, Z=0)
+      // Left: Walker with pole at X=13.0, Y=0, Z=0
+      walkerRoot.visible = true;
+      walkerRoot.position.set(13.0, 0, 0);
+      walkerRoot.rotation.y = Math.PI; // facing +Z towards camera
+      walkerTiltGroup.rotation.set(0, 0, 0);
+      balancePoleMesh.rotation.x = Math.PI / 2;
+
+      // Center: Flyer at X=15.0, Y=0, Z=0
+      flyerFreeRoot.visible = true;
+      flyerFreeRoot.position.set(15.0, 0, 0);
+      flyerFreeRoot.rotation.y = Math.PI;
+      flyerSwingGroup.visible = false;
+      flyerInFlightMesh.rotation.set(0, 0, 0);
+
+      // Right: Roller beside sphere at X=17.0, Y=0, Z=0
+      rollerRoot.visible = true;
+      rollerRoot.position.set(17.0, 0, 0);
+      rollerRoot.rotation.y = Math.PI;
+      rollerTiltGroup.rotation.set(0, 0, 0);
+
+      sphereMesh.visible = true;
+      sphereMesh.position.set(18.2, 0.5, 0.0);
+
+      // Hide scenery props from air
+      clownMeshes.forEach(cm => { cm.root.visible = false; });
+      ribbonGroup.visible = false;
+
+      // Audience rises to their feet (Standing Ovation)
+      for (let i = 0; i < standsGroup.children.length; i++) {
+        const s = standsGroup.children[i];
+        if (s.userData && s.userData.origY !== undefined) {
+          s.position.y = s.userData.origY + 0.35;
+        }
+      }
+    }
+
+    function showFinalReviewPanel() {
+      gameState = 'FINAL_REVIEW';
+      sound.playApplauseBurst();
+
+      document.getElementById('panel-wire-finish').classList.add('panel-hidden');
+      document.getElementById('panel-trapeze-finish').classList.add('panel-hidden');
+      document.getElementById('panel-sphere-finish').classList.add('panel-hidden');
+      document.getElementById('panel-next-act').classList.add('panel-hidden');
+
+      // Judge technical scores per act
+      const w1 = programWireJudgeScores ? (programWireJudgeScores.judge1 - wireStyleAwardPerJudge) : 10;
+      const w2 = programWireJudgeScores ? (programWireJudgeScores.judge2 - wireStyleAwardPerJudge) : 10;
+      const w3 = programWireJudgeScores ? (programWireJudgeScores.judge3 - wireStyleAwardPerJudge) : 10;
+      const wTot = w1 + w2 + w3;
+
+      const t1 = programTrapezeJudgeScores ? programTrapezeJudgeScores.judge1 : 12;
+      const t2 = programTrapezeJudgeScores ? programTrapezeJudgeScores.judge2 : 12;
+      const t3 = programTrapezeJudgeScores ? programTrapezeJudgeScores.judge3 : 12;
+      const tTot = t1 + t2 + t3;
+
+      const s1 = programSphereJudgeScores ? programSphereJudgeScores.judge1 : 10;
+      const s2 = programSphereJudgeScores ? programSphereJudgeScores.judge2 : 10;
+      const s3 = programSphereJudgeScores ? programSphereJudgeScores.judge3 : 10;
+      const sTot = s1 + s2 + s3;
+
+      const tech1 = w1 + t1 + s1;
+      const tech2 = w2 + t2 + s2;
+      const tech3 = w3 + t3 + s3;
+      const techTotal = tech1 + tech2 + tech3;
+
+      const style1 = wireStyleAwardPerJudge;
+      const style2 = wireStyleAwardPerJudge;
+      const style3 = wireStyleAwardPerJudge;
+      const styleTotal = style1 + style2 + style3;
+
+      const hypeBonus = Math.floor(sphereHype / 20);
+      const grandTotal = techTotal + styleTotal + hypeBonus;
+
+      let palmStr = 'CURTAIN';
+      let palmColor = '#e63946';
+      if (grandTotal >= 105) {
+        palmStr = '★ GOLDEN PALM ★';
+        palmColor = '#f7d070';
+      } else if (grandTotal >= 85) {
+        palmStr = '★ SILVER PALM ★';
+        palmColor = '#e0e1dd';
+      } else if (grandTotal >= 65) {
+        palmStr = '★ BRONZE PALM ★';
+        palmColor = '#cd7f32';
+      } else {
+        palmStr = 'CURTAIN';
+        palmColor = '#ef476f';
+      }
+
+      document.getElementById('rev-w-j1').textContent = w1;
+      document.getElementById('rev-w-j2').textContent = w2;
+      document.getElementById('rev-w-j3').textContent = w3;
+      document.getElementById('rev-w-tot').textContent = wTot;
+
+      document.getElementById('rev-t-j1').textContent = t1;
+      document.getElementById('rev-t-j2').textContent = t2;
+      document.getElementById('rev-t-j3').textContent = t3;
+      document.getElementById('rev-t-tot').textContent = tTot;
+
+      document.getElementById('rev-s-j1').textContent = s1;
+      document.getElementById('rev-s-j2').textContent = s2;
+      document.getElementById('rev-s-j3').textContent = s3;
+      document.getElementById('rev-s-tot').textContent = sTot;
+
+      document.getElementById('rev-tot-j1').textContent = tech1;
+      document.getElementById('rev-tot-j2').textContent = tech2;
+      document.getElementById('rev-tot-j3').textContent = tech3;
+      document.getElementById('rev-tot-tech').textContent = techTotal;
+
+      document.getElementById('rev-style-j1').textContent = `+${style1}`;
+      document.getElementById('rev-style-j2').textContent = `+${style2}`;
+      document.getElementById('rev-style-j3').textContent = `+${style3}`;
+      document.getElementById('rev-tot-style').textContent = `+${styleTotal}`;
+
+      document.getElementById('rev-hype-val').textContent = sphereHype;
+      document.getElementById('rev-tot-hype').textContent = `+${hypeBonus}`;
+
+      document.getElementById('rev-formula-str').textContent = `${techTotal} + ${styleTotal} + ${hypeBonus}`;
+      document.getElementById('rev-final-score').textContent = `TOTAL SCORE: ${grandTotal}`;
+
+      const palmElem = document.getElementById('rev-palm-rating');
+      palmElem.textContent = palmStr;
+      palmElem.style.color = palmColor;
+
+      document.getElementById('panel-final-review').classList.remove('panel-hidden');
+    }
+
+    // --- Wire Act Operations ---
+    function triggerHop() {
+      isAirborne = true;
+      hopTimer = 0.0;
+      wireHopCount++;
+      sound.playHopSound();
+    }
+
+    function startWireAct() {
+      currentAct = 'WIRE';
+      gameState = 'WALKING';
+
+      wirePos = 0.0;
+      leanAngle = 0.0;
+      angularVel = 0.0;
+      actClock = 0.0;
+      fallCount = 0;
+      sumAbsLean = 0.0;
+      leanStepCount = 0;
+
+      fallTimer = 0.0;
+      fallStage = 0;
+      performerFallY = WIRE_HEIGHT;
+      performerFallRoll = 0;
+
+      isAirborne = false;
+      hopTimer = 0.0;
+      hopCooldownTimer = 0.0;
+      hopYOffset = 0.0;
+
+      activeDisturbance.remainingTime = 0.0;
+      activeDisturbance.sign = 0;
+      currentWindTorque = 0.0;
+      wireJudgeScores = null;
+
+      // Reset Double Clown Traffic (Streams A & B)
+      clowns = [
+        { id: 0, stream: 'A', entryTime: 4.0, gustSign: 1, torque: 18.0, position: 30.0, gustFired: false, active: false },
+        { id: 1, stream: 'B', entryTime: 8.0, gustSign: -1, torque: -18.0, position: 30.0, gustFired: false, active: false },
+        { id: 2, stream: 'A', entryTime: 12.0, gustSign: 1, torque: 18.0, position: 30.0, gustFired: false, active: false },
+        { id: 3, stream: 'B', entryTime: 16.0, gustSign: -1, torque: -18.0, position: 30.0, gustFired: false, active: false }
+      ];
+      activeClownGust.remainingTime = 0.0;
+      activeClownGust.torque = 0.0;
+      clownMeshes.forEach(cm => {
+        cm.root.position.set(30.0, WIRE_HEIGHT, 0);
+        cm.root.visible = false;
+      });
+      ribbonGroup.visible = false;
+
+      // Reset birds
+      birds = [
+        { position: 6.0, triggered: false, flyAwayTimer: 0.0, sign: -1.0 },
+        { position: 11.0, triggered: false, flyAwayTimer: 0.0, sign: 1.0 },
+        { position: 16.0, triggered: false, flyAwayTimer: 0.0, sign: -1.0 }
+      ];
+      for (let i = 0; i < birdMeshes.length; i++) {
+        birdMeshes[i].position.set(birdDefinitions[i].position, WIRE_HEIGHT + wireRadius, 0);
+        birdMeshes[i].visible = true;
+        birdMeshes[i].rotation.set(0, 0, 0);
+      }
+
+      document.getElementById('panel-ready').classList.add('panel-hidden');
+            document.getElementById('panel-wire-finish').classList.add('panel-hidden');
+      document.getElementById('panel-trapeze-ready').classList.add('panel-hidden');
+      document.getElementById('panel-trapeze-finish').classList.add('panel-hidden');
+
+      sound.stopRollingRumble();
+      walkerRoot.visible = true;
+      rollerRoot.visible = false;
+      sphereMesh.visible = false;
+
+      programActNumber = 1;
+      wireHopCount = 0;
+      wireStyleAwardPerJudge = 0;
+
+      // Set Wire HUD
+      document.getElementById('hud-act-tag').textContent = 'ACT 1/3: HIGH-WIRE TRAVERSE';
+      document.getElementById('wire-meter').style.display = 'flex';
+      document.getElementById('trapeze-meter').style.display = 'none';
+      document.getElementById('sphere-meter').style.display = 'none';
+      document.getElementById('wire-stats').style.display = 'flex';
+      document.getElementById('trapeze-stats').style.display = 'none';
+      document.getElementById('sphere-stats').style.display = 'none';
+      document.getElementById('panel-sphere-finish').classList.add('panel-hidden');
+
+      document.getElementById('badge-upright').style.display = 'inline-flex';
+      document.getElementById('badge-hop').style.display = 'inline-flex';
+      document.getElementById('badge-wind').style.display = 'none';
+      document.getElementById('badge-disturb').style.display = 'none';
+      document.getElementById('badge-pump').style.display = 'none';
+      document.getElementById('badge-release').style.display = 'none';
+      document.getElementById('badge-grab').style.display = 'none';
+
+      sound.startDrumroll();
+      updateWireHUD();
+    }
+
+    function triggerWireFall() {
+      gameState = 'FALLING';
+      fallCount++;
+      fallStage = 0;
+      fallTimer = 0;
+      fallStartWirePos = wirePos;
+      performerFallY = WIRE_HEIGHT + hopYOffset;
+      performerFallRoll = 0;
+
+      isAirborne = false;
+      hopTimer = 0;
+      hopYOffset = 0;
+      activeDisturbance.remainingTime = 0;
+      activeDisturbance.sign = 0;
+      currentWindTorque = 0;
+
+      sound.stopDrumroll();
+      sound.playWhistleFall();
+    }
+
+    function finishWireAct() {
+      gameState = 'FINISH';
+      isAirborne = false;
+      hopTimer = 0;
+      hopYOffset = 0;
+      activeDisturbance.remainingTime = 0;
+      activeDisturbance.sign = 0;
+      currentWindTorque = 0;
+
+      sound.stopDrumroll();
+      sound.playApplauseBurst();
+
+      const meanLean = leanStepCount > 0 ? (sumAbsLean / leanStepCount) : 0;
+      let leanDeduction = 0;
+      if (meanLean >= 15.0) leanDeduction = 3;
+      else if (meanLean >= 10.0) leanDeduction = 2;
+      else if (meanLean >= 5.0) leanDeduction = 1;
+
+      const baseScore = Math.max(1, 10 - (3 * fallCount) - leanDeduction);
+      // Style points: at least 3 hops during the act AND zero net falls -> +2 per judge
+      wireStyleAwardPerJudge = (wireHopCount >= 3 && fallCount === 0) ? 2 : 0;
+      const wireJudgeAward = baseScore + wireStyleAwardPerJudge;
+
+      wireJudgeScores = {
+        judge1: wireJudgeAward,
+        judge2: wireJudgeAward,
+        judge3: wireJudgeAward,
+        actScore: wireJudgeAward * 3,
+        styleBonus: wireStyleAwardPerJudge
+      };
+      programWireJudgeScores = wireJudgeScores;
+
+      document.getElementById('res-wire-falls').textContent = fallCount;
+      document.getElementById('res-wire-mean-lean').textContent = meanLean.toFixed(1) + '°';
+      document.getElementById('res-wire-style').textContent = wireStyleAwardPerJudge > 0 ? '+2' : '+0';
+      document.getElementById('res-wire-j1').textContent = `${wireJudgeAward} / 12`;
+      document.getElementById('res-wire-j2').textContent = `${wireJudgeAward} / 12`;
+      document.getElementById('res-wire-j3').textContent = `${wireJudgeAward} / 12`;
+      document.getElementById('res-wire-score').textContent = `ACT SCORE: ${wireJudgeAward * 3} / 36`;
+
+      document.getElementById('panel-wire-finish').classList.remove('panel-hidden');
+    }
+
+    // --- Trapeze Act Operations ---
+    function startTrapezeAct() {
+      currentAct = 'TRAPEZE';
+      gameState = 'SWINGING';
+      trapezeActClock = 0.0;
+      flightNumber = 1;
+      flightResults = [];
+      trapezeJudgeScores = null;
+      lastFlightResult = null;
+      grabAttemptSucceeded = false;
+      isRidingBar = false;
+
+      // Aerial Ribbon setup
+      ribbonGroup.visible = true;
+      ribbonCaughtThisFlight = false;
+      ribbonCatchPerFlight = [false, false, false];
+
+      // Hide clowns during trapeze
+      clownMeshes.forEach(cm => { cm.root.visible = false; });
+
+      document.getElementById('panel-ready').classList.add('panel-hidden');
+            document.getElementById('panel-wire-finish').classList.add('panel-hidden');
+      document.getElementById('panel-trapeze-ready').classList.add('panel-hidden');
+      document.getElementById('panel-trapeze-finish').classList.add('panel-hidden');
+
+      sound.stopRollingRumble();
+      walkerRoot.visible = false;
+      rollerRoot.visible = false;
+      sphereMesh.visible = false;
+
+      programActNumber = 2;
+      // Switch HUD view
+      document.getElementById('hud-act-tag').textContent = 'ACT 2/3: FLYING TRAPEZE';
+      document.getElementById('wire-meter').style.display = 'none';
+      document.getElementById('trapeze-meter').style.display = 'flex';
+      document.getElementById('sphere-meter').style.display = 'none';
+      document.getElementById('wire-stats').style.display = 'none';
+      document.getElementById('trapeze-stats').style.display = 'flex';
+      document.getElementById('sphere-stats').style.display = 'none';
+      document.getElementById('panel-sphere-finish').classList.add('panel-hidden');
+
+      // Hide wire badges, reveal trapeze badges
+      document.getElementById('badge-upright').style.display = 'none';
+      document.getElementById('badge-hop').style.display = 'none';
+      document.getElementById('badge-wind').style.display = 'none';
+      document.getElementById('badge-disturb').style.display = 'none';
+      document.getElementById('hud-clown-schedule').style.display = 'none';
+      document.getElementById('badge-pump').style.display = 'inline-flex';
+      document.getElementById('badge-release').style.display = 'inline-flex';
+      document.getElementById('badge-grab').style.display = 'none';
+
+      resetTrapezeFlight(1);
+      sound.startDrumroll();
+    }
+
+    function resetTrapezeFlight(fNum) {
+      flightNumber = fNum;
+      swingAmplitudeDeg = 36.0;
+      swingAngle = swingAmplitudeDeg * (Math.PI / 180.0);
+      swingAngularVel = 0.0;
+      pendingPumpBoost = false;
+      lastPumpTime = -999.0;
+      ribbonCaughtThisFlight = false;
+
+      flyerInFlight = false;
+      isRidingBar = false;
+      grabAttemptSucceeded = false;
+      flyerFreeRoot.visible = false;
+      flyerSwingGroup.visible = true;
+
+      document.getElementById('hud-flight-num').textContent = flightNumber;
+      updateTrapezeHUD();
+    }
+
+    function attemptPump() {
+      // Pump window changed in Round 5: counts only if swing angle is within 6 degrees of vertical and moving forward
+      const nowClock = actClock;
+      if (nowClock - lastPumpTime < PUMP_INTERVAL_MIN) return;
+
+      const angleDeg = swingAngle * (180.0 / Math.PI);
+      const isWithin6 = Math.abs(angleDeg) <= 6.0;
+      const isMovingForward = (swingAngularVel > 0);
+
+      if (isWithin6 && isMovingForward) {
+        lastPumpTime = nowClock;
+        pendingPumpBoost = true;
+        sound.playPumpSwoosh();
+      }
+    }
+
+    function attemptRelease() {
+      // Pressing Space releases the bar: accepted once amplitude is at least 60 degrees
+      if (swingAmplitudeDeg < MIN_RELEASE_AMP) return;
+
+      sound.stopDrumroll();
+      sound.playWhooshRelease();
+
+      flyerInFlight = true;
+      isRidingBar = false;
+      flyerSwingGroup.visible = false;
+      flyerFreeRoot.visible = true;
+      gameState = 'FLYING';
+
+      // Tangential velocity inheritance:
+      // speed = sqrt(2 * 9.8 * 6 * (cos(theta) - cos(A))) directed along arc of travel
+      const theta = swingAngle;
+      const A = swingAmplitudeDeg * (Math.PI / 180.0);
+      const cosDiff = Math.max(0, Math.cos(theta) - Math.cos(A));
+      const speed = Math.sqrt(2.0 * GRAVITY_CONST * ROPE_LENGTH * cosDiff);
+
+      const dirSign = swingAngularVel >= 0 ? 1.0 : -1.0;
+      const tanX = Math.cos(theta) * dirSign;
+      const tanY = Math.sin(theta) * dirSign;
+
+      flyerFlightVel.set(speed * tanX, speed * tanY, 0);
+
+      const launchX = TRAPEZE_PIVOT_X + ROPE_LENGTH * Math.sin(theta);
+      const launchY = TRAPEZE_PIVOT_Y - ROPE_LENGTH * Math.cos(theta);
+      const launchZ = TRAPEZE_PIVOT_Z;
+
+      flyerFlightPos.set(launchX, launchY, launchZ);
+      flyerFreeRoot.position.copy(flyerFlightPos);
+    }
+
+    function attemptCatchBarGrab() {
+      // During any flight, pressing J attempts a grab.
+      // Succeeds only if flyer's horizontal distance from bar pivot axis is <= 1.0m AND bar angle |phi| <= 20 deg
+      if (currentAct !== 'TRAPEZE' || gameState !== 'FLYING' || isRidingBar) return;
+      const distFromPivotX = Math.abs(flyerFlightPos.x - CATCH_BAR_PIVOT_X);
+      const isNearPivot = distFromPivotX <= 1.0;
+      const isAngleValid = Math.abs(currentBarAngleDeg) <= 20.0;
+
+      if (isNearPivot && isAngleValid) {
+        grabAttemptSucceeded = true;
+        isRidingBar = true;
+        flyerInFlight = false;
+        sound.playGrabSound();
+
+        const barAngleRad = currentBarAngleDeg * (Math.PI / 180.0);
+        const barEndX = CATCH_BAR_PIVOT_X + CATCH_BAR_CABLE_LEN * Math.sin(barAngleRad);
+        const barEndY = CATCH_BAR_PIVOT_Y - CATCH_BAR_CABLE_LEN * Math.cos(barAngleRad);
+        flyerFlightPos.set(barEndX, barEndY, TRAPEZE_PIVOT_Z);
+        flyerFreeRoot.position.copy(flyerFlightPos);
+      }
+    }
+
+    function releaseFromCatchBar() {
+      // While hanging on the bar, pressing Space releases:
+      // flyer inherits exactly the bar end's current tangential velocity
+      if (!isRidingBar) return;
+      isRidingBar = false;
+      flyerInFlight = true;
+      gameState = 'FLYING';
+
+      sound.playWhooshRelease();
+
+      const barAngleRad = currentBarAngleDeg * (Math.PI / 180.0);
+      const barAngularVelRad = currentBarAngularVelDeg * (Math.PI / 180.0);
+      const vx = CATCH_BAR_CABLE_LEN * Math.cos(barAngleRad) * barAngularVelRad;
+      const vy = CATCH_BAR_CABLE_LEN * Math.sin(barAngleRad) * barAngularVelRad;
+      flyerFlightVel.set(vx, vy, 0);
+    }
+
+    function finishFlight(result) {
+      lastFlightResult = result;
+      document.getElementById('hud-last-landing').textContent = result;
+      let judgeScore = 0;
+      if (result === 'FAR MAT') {
+        judgeScore = 4;
+        document.getElementById('hud-last-landing').style.color = '#ffd166';
+        sound.playApplauseBurst();
+      } else if (result === 'NEAR MAT') {
+        judgeScore = 3;
+        document.getElementById('hud-last-landing').style.color = '#52b788';
+        sound.playApplauseBurst();
+      } else {
+        judgeScore = 0;
+        document.getElementById('hud-last-landing').style.color = '#ef476f';
+        sound.playCrowdGasp();
+      }
+
+      flightResults.push({
+        flight: flightNumber,
+        result: result,
+        judgeScorePerJudge: judgeScore
+      });
+
+      gameState = 'LANDED';
+      flightLandTimer = 0.0;
+    }
+
+    function finishTrapezeAct() {
+      gameState = 'TRAPEZE_FINISH';
+      sound.stopDrumroll();
+
+      let j1 = 0, j2 = 0, j3 = 0;
+      flightResults.forEach(fr => {
+        j1 += fr.judgeScorePerJudge;
+        j2 += fr.judgeScorePerJudge;
+        j3 += fr.judgeScorePerJudge;
+      });
+
+      trapezeJudgeScores = {
+        judge1: j1,
+        judge2: j2,
+        judge3: j3,
+        actScore: j1 + j2 + j3
+      };
+      programTrapezeJudgeScores = trapezeJudgeScores;
+
+      document.getElementById('res-f1').textContent = `${flightResults[0].result} (+${flightResults[0].judgeScorePerJudge * 3})`;
+      document.getElementById('res-f2').textContent = `${flightResults[1].result} (+${flightResults[1].judgeScorePerJudge * 3})`;
+      document.getElementById('res-f3').textContent = `${flightResults[2].result} (+${flightResults[2].judgeScorePerJudge * 3})`;
+
+      document.getElementById('res-trap-j1').textContent = `${j1} / 12`;
+      document.getElementById('res-trap-j2').textContent = `${j2} / 12`;
+      document.getElementById('res-trap-j3').textContent = `${j3} / 12`;
+      document.getElementById('res-trap-score').textContent = `ACT SCORE: ${trapezeJudgeScores.actScore} / 36`;
+
+      document.getElementById('panel-trapeze-finish').classList.remove('panel-hidden');
+    }
+
+    function resetToShowReady() {
+      currentAct = 'WIRE';
+      gameState = 'READY';
+
+      wirePos = 0.0;
+      leanAngle = 0.0;
+      angularVel = 0.0;
+      actClock = 0.0;
+      fallCount = 0;
+      sumAbsLean = 0.0;
+      leanStepCount = 0;
+
+      fallTimer = 0.0;
+      fallStage = 0;
+      performerFallY = WIRE_HEIGHT;
+      performerFallRoll = 0;
+
+      isAirborne = false;
+      hopTimer = 0.0;
+      hopCooldownTimer = 0.0;
+      hopYOffset = 0.0;
+
+      activeDisturbance.remainingTime = 0.0;
+      activeDisturbance.sign = 0;
+      currentWindTorque = 0.0;
+      wireJudgeScores = null;
+
+      // Trapeze reset
+      trapezeActClock = 0.0;
+      flightNumber = 1;
+      flightResults = [];
+      flyerInFlight = false;
+      isRidingBar = false;
+      grabAttemptSucceeded = false;
+      flyerFreeRoot.visible = false;
+      flyerSwingGroup.visible = true;
+      trapezeJudgeScores = null;
+      lastFlightResult = null;
+      swingAmplitudeDeg = 36.0;
+      swingAngle = swingAmplitudeDeg * (Math.PI / 180.0);
+      swingAngularVel = 0.0;
+      pendingPumpBoost = false;
+      lastPumpTime = -999.0;
+
+      // Reset birds
+      birds = [
+        { position: 6.0, triggered: false, flyAwayTimer: 0.0, sign: -1.0 },
+        { position: 11.0, triggered: false, flyAwayTimer: 0.0, sign: 1.0 },
+        { position: 16.0, triggered: false, flyAwayTimer: 0.0, sign: -1.0 }
+      ];
+      for (let i = 0; i < birdMeshes.length; i++) {
+        birdMeshes[i].position.set(birdDefinitions[i].position, WIRE_HEIGHT + wireRadius, 0);
+        birdMeshes[i].visible = true;
+        birdMeshes[i].rotation.set(0, 0, 0);
+      }
+
+      // Sphere reset
+      spherePos = 0.0;
+      sphereLeanAngle = 0.0;
+      sphereAngularVel = 0.0;
+      sphereSpeed = 1.0;
+      sphereActClock = 0.0;
+      sphereFallCount = 0;
+      sphereSumAbsLean = 0.0;
+      sphereLeanStepCount = 0;
+      sphereHype = 0;
+      sphereSegmentClean = [true, true, true, true];
+      sphereSegmentAwarded = [false, false, false, false];
+      sphereJudgeScores = null;
+      sphereFallTimer = 0.0;
+      sphereFallStage = 0;
+      performerSphereFallY = WIRE_HEIGHT + SPHERE_RADIUS * 2;
+      performerSphereFallRoll = 0.0;
+      sphereMeshRotationZ = 0.0;
+
+      walkerRoot.visible = true;
+      rollerRoot.visible = false;
+      sphereMesh.visible = false;
+
+      // Clowns & Ribbon & Program Reset
+      programActNumber = 1;
+      wireHopCount = 0;
+      wireStyleAwardPerJudge = 0;
+      programTransitionTimer = 0.0;
+      curtainCallTimer = 0.0;
+      programWireJudgeScores = null;
+      programTrapezeJudgeScores = null;
+      programSphereJudgeScores = null;
+      clowns = [
+        { id: 0, stream: 'A', entryTime: 4.0, gustSign: 1, torque: 18.0, position: 30.0, gustFired: false, active: false },
+        { id: 1, stream: 'B', entryTime: 8.0, gustSign: -1, torque: -18.0, position: 30.0, gustFired: false, active: false },
+        { id: 2, stream: 'A', entryTime: 12.0, gustSign: 1, torque: 18.0, position: 30.0, gustFired: false, active: false },
+        { id: 3, stream: 'B', entryTime: 16.0, gustSign: -1, torque: -18.0, position: 30.0, gustFired: false, active: false }
+      ];
+      activeClownGust.remainingTime = 0.0;
+      activeClownGust.torque = 0.0;
+      clownMeshes.forEach(cm => {
+        cm.root.position.set(30.0, WIRE_HEIGHT, 0);
+        cm.root.visible = false;
+      });
+      ribbonGroup.visible = false;
+      ribbonCaughtThisFlight = false;
+      ribbonCatchPerFlight = [false, false, false];
+
+      // Reset audience silhouettes to seated height
+      for (let i = 0; i < standsGroup.children.length; i++) {
+        const s = standsGroup.children[i];
+        if (s.userData && s.userData.origY !== undefined) {
+          s.position.y = s.userData.origY;
+        }
+      }
+
+      // Hide all modals except Ready
+      document.getElementById('panel-wire-finish').classList.add('panel-hidden');
+      document.getElementById('panel-trapeze-ready').classList.add('panel-hidden');
+      document.getElementById('panel-trapeze-finish').classList.add('panel-hidden');
+      document.getElementById('panel-sphere-finish').classList.add('panel-hidden');
+      document.getElementById('panel-next-act').classList.add('panel-hidden');
+      document.getElementById('panel-final-review').classList.add('panel-hidden');
+      document.getElementById('panel-ready').classList.remove('panel-hidden');
+
+      // Restore wire HUD
+      document.getElementById('hud-act-tag').textContent = 'ACT 1: HIGH-WIRE TRAVERSE';
+      document.getElementById('wire-meter').style.display = 'flex';
+      document.getElementById('trapeze-meter').style.display = 'none';
+      document.getElementById('sphere-meter').style.display = 'none';
+      document.getElementById('wire-stats').style.display = 'flex';
+      document.getElementById('trapeze-stats').style.display = 'none';
+      document.getElementById('sphere-stats').style.display = 'none';
+
+      document.getElementById('badge-upright').style.display = 'inline-flex';
+      document.getElementById('badge-hop').style.display = 'inline-flex';
+      document.getElementById('badge-wind').style.display = 'none';
+      document.getElementById('badge-disturb').style.display = 'none';
+      document.getElementById('hud-clown-schedule').style.display = 'inline-flex';
+      document.getElementById('badge-pump').style.display = 'none';
+      document.getElementById('badge-release').style.display = 'none';
+      document.getElementById('badge-grab').style.display = 'none';
+      document.getElementById('badge-sphere-speed').style.display = 'none';
+      document.getElementById('badge-sphere-ctrl').style.display = 'none';
+
+      sound.stopDrumroll();
+      sound.stopRollingRumble();
+      updateWireHUD();
+    }
+
+    // --- Physics Simulation (Deterministic Fixed 60Hz) ---
+    // --- Sphere Balance Act Operations & Physics ---
+    function startSphereAct() {
+      currentAct = 'SPHERE';
+      gameState = 'SPHERE_ROLLING';
+
+      spherePos = 0.0;
+      sphereLeanAngle = 0.0;
+      sphereAngularVel = 0.0;
+      sphereSpeed = 1.0;
+      sphereActClock = 0.0;
+      sphereFallCount = 0;
+      sphereSumAbsLean = 0.0;
+      sphereLeanStepCount = 0;
+      sphereHype = 0;
+      sphereSegmentClean = [true, true, true, true];
+      sphereSegmentAwarded = [false, false, false, false];
+      sphereJudgeScores = null;
+
+      sphereGravAcc = 0.0;
+      sphereCtrlAcc = 0.0;
+      sphereDampAcc = 0.0;
+      sphereTotalAcc = 0.0;
+      sphereMv = 1.0;
+
+      sphereFallTimer = 0.0;
+      sphereFallStage = 0;
+      sphereFallStartPos = 0.0;
+      performerSphereFallY = WIRE_HEIGHT + SPHERE_RADIUS * 2;
+      performerSphereFallRoll = 0.0;
+      sphereMeshRotationZ = 0.0;
+
+      walkerRoot.visible = false;
+      flyerSwingGroup.visible = false;
+      flyerFreeRoot.visible = false;
+      rollerRoot.visible = true;
+      sphereMesh.visible = true;
+
+      document.getElementById('panel-ready').classList.add('panel-hidden');
+            document.getElementById('panel-wire-finish').classList.add('panel-hidden');
+      document.getElementById('panel-trapeze-ready').classList.add('panel-hidden');
+      document.getElementById('panel-trapeze-finish').classList.add('panel-hidden');
+      document.getElementById('panel-sphere-finish').classList.add('panel-hidden');
+
+      programActNumber = 3;
+      // Sphere HUD
+      document.getElementById('hud-act-tag').textContent = 'ACT 3/3: ROLLING SPHERE BALANCE';
+      document.getElementById('wire-meter').style.display = 'flex';
+      document.getElementById('trapeze-meter').style.display = 'none';
+      document.getElementById('sphere-meter').style.display = 'flex';
+      document.getElementById('wire-stats').style.display = 'none';
+      document.getElementById('trapeze-stats').style.display = 'none';
+      document.getElementById('sphere-stats').style.display = 'flex';
+
+      document.getElementById('badge-upright').style.display = 'none';
+      document.getElementById('badge-hop').style.display = 'none';
+      document.getElementById('badge-wind').style.display = 'none';
+      document.getElementById('badge-disturb').style.display = 'none';
+      document.getElementById('hud-clown-schedule').style.display = 'none';
+      document.getElementById('badge-pump').style.display = 'none';
+      document.getElementById('badge-release').style.display = 'none';
+      document.getElementById('badge-grab').style.display = 'none';
+      document.getElementById('badge-sphere-speed').style.display = 'inline-flex';
+      document.getElementById('badge-sphere-ctrl').style.display = 'inline-flex';
+
+      sound.startRollingRumble();
+      updateSphereHUD();
+    }
+
+    function triggerSphereFall() {
+      gameState = 'SPHERE_FALLING';
+      sphereFallCount++;
+
+      const segIdx = Math.min(3, Math.max(0, Math.floor(spherePos / SPHERE_SEGMENT_LEN)));
+      sphereSegmentClean[segIdx] = false;
+
+      sphereFallStage = 0;
+      sphereFallTimer = 0.0;
+      sphereFallStartPos = spherePos;
+      performerSphereFallY = WIRE_HEIGHT + SPHERE_RADIUS * 2;
+      performerSphereFallRoll = 0.0;
+
+      sound.stopRollingRumble();
+      sound.playWhistleFall();
+    }
+
+    function finishSphereAct() {
+      gameState = 'SPHERE_FINISH';
+      sound.stopRollingRumble();
+      sound.playApplauseBurst();
+
+      const meanLean = sphereLeanStepCount > 0 ? (sphereSumAbsLean / sphereLeanStepCount) : 0;
+      let leanDeduction = 0;
+      if (meanLean >= 15.0) leanDeduction = 3;
+      else if (meanLean >= 10.0) leanDeduction = 2;
+      else if (meanLean >= 5.0) leanDeduction = 1;
+
+      // Pure technical score for sphere judges (hype enters only in Final Review formula)
+      const baseScore = Math.max(1, 10 - 3 * sphereFallCount - leanDeduction);
+      sphereJudgeScores = {
+        judge1: baseScore,
+        judge2: baseScore,
+        judge3: baseScore,
+        actScore: baseScore * 3
+      };
+      programSphereJudgeScores = sphereJudgeScores;
+
+      document.getElementById('res-sphere-falls').textContent = sphereFallCount;
+      document.getElementById('res-sphere-mean-lean').textContent = meanLean.toFixed(1) + '°';
+      document.getElementById('res-sphere-hype').textContent = `${sphereHype} / 100`;
+      document.getElementById('res-sphere-j1').textContent = `${baseScore} / 10`;
+      document.getElementById('res-sphere-j2').textContent = `${baseScore} / 10`;
+      document.getElementById('res-sphere-j3').textContent = `${baseScore} / 10`;
+      document.getElementById('res-sphere-score').textContent = `ACT SCORE: ${baseScore * 3} / 30`;
+
+      document.getElementById('panel-sphere-finish').classList.remove('panel-hidden');
+    }
+
+    function stepSpherePhysics() {
+      if (gameState === 'SPHERE_ROLLING') {
+        actClock += FIXED_DT;
+        sphereActClock += FIXED_DT;
+
+        // Forward speed acceleration: fixed 0.2 m/s^2, capped at 2.4 m/s
+        sphereSpeed = Math.min(SPHERE_MAX_SPEED, sphereSpeed + SPHERE_ACCEL * FIXED_DT);
+        spherePos += sphereSpeed * FIXED_DT;
+
+        sound.updateRollingRumble(sphereSpeed);
+
+        // Speed-stability multiplier: m(v) = 1 + 0.4 * (v - 1.0)
+        sphereMv = 1.0 + 0.4 * (sphereSpeed - 1.0);
+
+        // Check segment boundaries crossing: 4 equal segments of 3.5m each (3.5, 7.0, 10.5, 14.0m)
+        for (let k = 0; k < 4; k++) {
+          const boundary = (k + 1) * SPHERE_SEGMENT_LEN;
+          if (spherePos >= boundary && !sphereSegmentAwarded[k]) {
+            sphereSegmentAwarded[k] = true;
+            if (sphereSegmentClean[k]) {
+              sphereHype = Math.min(100, sphereHype + 25);
+              sound.playCrowdMurmur(sphereHype);
+            }
+          }
+        }
+
+        sphereSumAbsLean += Math.abs(sphereLeanAngle);
+        sphereLeanStepCount++;
+
+        // Dynamics:
+        // Gravity torque: +40 * sin(theta) * m(v)
+        const thetaRad = (sphereLeanAngle * Math.PI) / 180.0;
+        sphereGravAcc = 40.0 * Math.sin(thetaRad) * sphereMv;
+
+        // Weight-shift control: holding A adds -30, holding D adds +30
+        sphereCtrlAcc = 0.0;
+        if (keys.KeyA && !keys.KeyD) sphereCtrlAcc = -30.0;
+        else if (keys.KeyD && !keys.KeyA) sphereCtrlAcc = 30.0;
+
+        // Damping: -0.5 * omega
+        sphereDampAcc = -0.5 * sphereAngularVel;
+
+        sphereTotalAcc = sphereGravAcc + sphereCtrlAcc + sphereDampAcc;
+        sphereAngularVel += sphereTotalAcc * FIXED_DT;
+        sphereLeanAngle += sphereAngularVel * FIXED_DT;
+
+        if (Math.abs(sphereLeanAngle) >= MAX_LEAN_DEG) {
+          triggerSphereFall();
+        } else if (spherePos >= SPHERE_WIRE_LENGTH) {
+          spherePos = SPHERE_WIRE_LENGTH;
+          if (!sphereSegmentAwarded[3]) {
+            sphereSegmentAwarded[3] = true;
+            if (sphereSegmentClean[3]) {
+              sphereHype = Math.min(100, sphereHype + 25);
+              sound.playCrowdMurmur(sphereHype);
+            }
+          }
+          finishSphereAct();
+        }
+      } else if (gameState === 'SPHERE_FALLING') {
+        actClock += FIXED_DT;
+        sphereActClock += FIXED_DT;
+        sphereFallTimer += FIXED_DT;
+
+        const startY = WIRE_HEIGHT + SPHERE_RADIUS * 2;
+        if (sphereFallStage === 0) {
+          const t = Math.min(1.0, sphereFallTimer / FALL_DUR_DROP);
+          performerSphereFallY = startY + (NET_Y - startY) * (t * t);
+          performerSphereFallRoll = (sphereLeanAngle >= 0 ? 1 : -1) * (t * Math.PI * 1.2);
+          if (t >= 1.0) {
+            sphereFallStage = 1;
+            sphereFallTimer = 0.0;
+            performerSphereFallY = NET_Y;
+            sound.playNetThud();
+          }
+        } else if (sphereFallStage === 1) {
+          performerSphereFallY = NET_Y - Math.sin(Math.min(Math.PI, sphereFallTimer * 6)) * 0.25;
+          if (sphereFallTimer >= FALL_REST_TIME) {
+            sphereFallStage = 2;
+            sphereFallTimer = 0.0;
+          }
+        } else if (sphereFallStage === 2) {
+          const t = Math.min(1.0, sphereFallTimer / FALL_CLIMB_TIME);
+          performerSphereFallY = NET_Y + (startY - NET_Y) * (t * (3 - 2 * t));
+          performerSphereFallRoll = performerSphereFallRoll * (1 - t);
+          if (t >= 1.0) {
+            performerSphereFallY = startY;
+            performerSphereFallRoll = 0.0;
+            spherePos = sphereFallStartPos;
+            sphereLeanAngle = 0.0;
+            sphereAngularVel = 0.0;
+            sphereSpeed = SPHERE_INIT_SPEED;
+            gameState = 'SPHERE_ROLLING';
+            sound.startRollingRumble();
+          }
+        }
+      }
+    }
+
+    function updateSphereHUD() {
+      const meanLean = sphereLeanStepCount > 0 ? (sphereSumAbsLean / sphereLeanStepCount) : 0;
+      document.getElementById('hud-sphere-pos').textContent = spherePos.toFixed(1);
+      document.getElementById('hud-sphere-speed').textContent = sphereSpeed.toFixed(2);
+      document.getElementById('hud-sphere-falls').textContent = sphereFallCount;
+      document.getElementById('hud-sphere-mean-lean').textContent = meanLean.toFixed(1) + '°';
+      document.getElementById('hud-sphere-time').textContent = sphereActClock.toFixed(2) + ' s';
+
+      const clampedLean = Math.max(-MAX_LEAN_DEG, Math.min(MAX_LEAN_DEG, sphereLeanAngle));
+      gaugeNeedleElem.style.transform = `rotate(${(clampedLean / MAX_LEAN_DEG) * 60}deg)`;
+      gaugeAngleText.textContent = (sphereLeanAngle >= 0 ? '+' : '') + sphereLeanAngle.toFixed(1) + '°';
+
+      if (Math.abs(sphereLeanAngle) > 22) gaugeAngleText.style.color = '#ef476f';
+      else if (Math.abs(sphereLeanAngle) > 12) gaugeAngleText.style.color = '#ffb703';
+      else gaugeAngleText.style.color = '#f7d070';
+
+      document.getElementById('hype-fill').style.width = `${sphereHype}%`;
+      let bonusStr = '+0';
+      if (sphereHype === 100) bonusStr = '+2';
+      else if (sphereHype >= 50) bonusStr = '+1';
+      document.getElementById('hud-hype-text').textContent = `Hype: ${sphereHype} / 100 (${bonusStr} judge bonus)`;
+
+      document.getElementById('badge-sphere-speed').textContent = `SPEED: ${sphereSpeed.toFixed(2)} m/s (m=${sphereMv.toFixed(2)})`;
+    }
+
+    function updateSphereVisuals(dt) {
+      rollerRoot.visible = true;
+      sphereMesh.visible = true;
+
+      if (gameState === 'SPHERE_ROLLING') {
+        sphereMeshRotationZ -= (sphereSpeed * dt / SPHERE_RADIUS);
+        sphereMesh.rotation.z = sphereMeshRotationZ;
+        sphereMesh.position.set(spherePos, WIRE_HEIGHT + SPHERE_RADIUS, SPHERE_WIRE_Z);
+
+        rollerRoot.position.set(spherePos, WIRE_HEIGHT + SPHERE_RADIUS * 2, SPHERE_WIRE_Z);
+        rollerTiltGroup.rotation.x = (sphereLeanAngle * Math.PI) / 180.0;
+        rollerTiltGroup.rotation.z = 0;
+
+        const armWobble = Math.sin(sphereActClock * 8) * 0.05 - (sphereLeanAngle * 0.015);
+        rollerLeftArmGroup.rotation.z = armWobble;
+        rollerRightArmGroup.rotation.z = -armWobble;
+      } else if (gameState === 'SPHERE_FALLING') {
+        sphereMesh.position.set(spherePos, WIRE_HEIGHT + SPHERE_RADIUS, SPHERE_WIRE_Z);
+        rollerRoot.position.set(spherePos, performerSphereFallY, SPHERE_WIRE_Z);
+        rollerTiltGroup.rotation.x = performerSphereFallRoll;
+      } else if (gameState === 'SPHERE_FINISH') {
+        sphereMesh.position.set(spherePos, WIRE_HEIGHT + SPHERE_RADIUS, SPHERE_WIRE_Z);
+        rollerRoot.position.set(spherePos, WIRE_HEIGHT + SPHERE_RADIUS * 2, SPHERE_WIRE_Z);
+        rollerTiltGroup.rotation.x = 0;
+        rollerTiltGroup.rotation.z = 0.6;
+      }
+
+      for (let j = 0; j < judgeMeshes.length; j++) {
+        const diffX = rollerRoot.position.x - (judgeMeshes[j].group.position.x + judgesGroup.position.x);
+        judgeMeshes[j].head.rotation.y = -Math.max(-0.6, Math.min(0.6, diffX * 0.05));
+      }
+    }
+    function stepPhysics() {
+      if (gameState === 'CURTAIN_CALL') {
+        curtainCallTimer += FIXED_DT;
+        if (curtainCallTimer >= CURTAIN_CALL_DURATION) {
+          showFinalReviewPanel();
+        }
+        return;
+      }
+
+      if (gameState === 'PROGRAM_TRANSITION') {
+        programTransitionTimer -= FIXED_DT;
+        document.getElementById('next-act-timer').textContent = Math.max(0, programTransitionTimer).toFixed(1) + ' s';
+        if (programTransitionTimer <= 0) {
+          document.getElementById('panel-next-act').classList.add('panel-hidden');
+          if (nextActTarget === 2) {
+            startTrapezeAct();
+          } else if (nextActTarget === 3) {
+            startSphereAct();
+          }
+        }
+        return;
+      }
+
+      if (currentAct === 'WIRE') {
+        stepWirePhysics();
+      } else if (currentAct === 'TRAPEZE') {
+        stepTrapezePhysics();
+      } else if (currentAct === 'SPHERE') {
+        stepSpherePhysics();
+      }
+    }
+
+    function attemptRibbonCatch() {
+      if (ribbonCaughtThisFlight) return;
+      // Distance from flyer to ribbon grip point (2.0, 7.3, -8.0)
+      const dx = flyerFlightPos.x - RIBBON_GRIP_X;
+      const dy = flyerFlightPos.y - RIBBON_GRIP_Y;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist <= RIBBON_CATCH_DIST) {
+        ribbonCaughtThisFlight = true;
+        if (flightNumber >= 1 && flightNumber <= 3) {
+          ribbonCatchPerFlight[flightNumber - 1] = true;
+        }
+        // Multiply horizontal velocity by 0.7; vertical velocity unchanged
+        flyerFlightVel.x *= 0.7;
+        sound.playRibbonCatch();
+      }
+    }
+
+    function stepWirePhysics() {
+      if (gameState === 'WALKING') {
+        actClock += FIXED_DT;
+        wirePos += WALK_SPEED * FIXED_DT;
+
+        if (!isAirborne && hopCooldownTimer > 0) {
+          hopCooldownTimer = Math.max(0, hopCooldownTimer - FIXED_DT);
+        }
+
+        if (isAirborne) {
+          hopTimer += FIXED_DT;
+          const t = Math.min(1.0, hopTimer / HOP_DURATION);
+          hopYOffset = 4.0 * HOP_HEIGHT * t * (1.0 - t);
+
+          if (hopTimer >= HOP_DURATION) {
+            isAirborne = false;
+            hopTimer = 0.0;
+            hopYOffset = 0.0;
+            hopCooldownTimer = HOP_COOLDOWN;
+          }
+
+          currentGravAcc = 0; currentCtrlAcc = 0; currentDampAcc = 0; currentDisturbAcc = 0; currentWindTorque = 0;
+          if (wirePos >= WIRE_LENGTH) {
+            wirePos = WIRE_LENGTH;
+            finishWireAct();
+          }
+          return;
+        }
+
+        // Birds trigger check
+        for (let i = 0; i < birds.length; i++) {
+          const bird = birds[i];
+          if (!bird.triggered) {
+            const dist = Math.abs(wirePos - bird.position);
+            if (dist <= BIRD_TRIGGER_DIST) {
+              bird.triggered = true;
+              bird.flyAwayTimer = 0.0;
+              activeDisturbance.remainingTime = DISTURB_DURATION;
+              activeDisturbance.sign = bird.sign;
+              sound.playBirdChirp();
+            }
+          }
+        }
+
+        // Bird disturbance
+        currentDisturbAcc = 0;
+        if (activeDisturbance.remainingTime > 0) {
+          activeDisturbance.remainingTime = Math.max(0, activeDisturbance.remainingTime - FIXED_DT);
+          currentDisturbAcc = activeDisturbance.sign * DISTURB_TORQUE;
+          if (activeDisturbance.remainingTime <= 0) activeDisturbance.sign = 0;
+        }
+
+        // Crosswind zone
+        currentWindTorque = 0;
+        if (wirePos >= WIND_ZONE_START && wirePos <= WIND_ZONE_END) {
+          currentWindTorque = WIND_AMPLITUDE * Math.sin((2 * Math.PI * actClock) / WIND_PERIOD);
+        }
+
+        // Double Clown Traffic (Streams A & B, Wire Act only)
+        for (let i = 0; i < clowns.length; i++) {
+          const c = clowns[i];
+          if (actClock >= c.entryTime) {
+            c.active = true;
+            c.position = 30.0 - CLOWN_SPEED * (actClock - c.entryTime);
+            if (c.position < -2.0) {
+              c.active = false;
+            }
+
+            // Air-gust trigger check (within 2.0m along wire)
+            if (c.active && !c.gustFired) {
+              if (Math.abs(c.position - wirePos) <= CLOWN_GUST_DIST) {
+                c.gustFired = true;
+                activeClownGust.remainingTime = CLOWN_GUST_DURATION;
+                activeClownGust.torque = c.torque; // +18 for stream A, -18 for stream B
+                sound.playClownHorn();
+              }
+            }
+          }
+        }
+
+        // Air-gust pulse to walker's lean: +18 deg/s^2 (stream A) or -18 deg/s^2 (stream B) for 0.5s
+        let currentClownGustAcc = 0.0;
+        if (activeClownGust.remainingTime > 0) {
+          activeClownGust.remainingTime = Math.max(0, activeClownGust.remainingTime - FIXED_DT);
+          currentClownGustAcc = activeClownGust.torque;
+        }
+
+        sumAbsLean += Math.abs(leanAngle);
+        leanStepCount++;
+
+        const thetaRad = (leanAngle * Math.PI) / 180.0;
+        let grav = 55.0 * Math.sin(thetaRad);
+
+        let ctrl = 0;
+        if (keys.KeyA && !keys.KeyD) ctrl = -45.0;
+        else if (keys.KeyD && !keys.KeyA) ctrl = 45.0;
+
+        let damp = -0.8 * angularVel;
+
+        const inertiaMultiplier = isHoldingW ? 0.5 : 1.0;
+        currentGravAcc = grav * inertiaMultiplier;
+        currentCtrlAcc = ctrl * inertiaMultiplier;
+        currentDampAcc = damp * inertiaMultiplier;
+
+        const totalAcc = currentGravAcc + currentCtrlAcc + currentDampAcc + currentDisturbAcc + currentWindTorque + currentClownGustAcc;
+        angularVel += totalAcc * FIXED_DT;
+        leanAngle += angularVel * FIXED_DT;
+
+        if (Math.abs(leanAngle) >= MAX_LEAN_DEG) {
+          triggerWireFall();
+        } else if (wirePos >= WIRE_LENGTH) {
+          wirePos = WIRE_LENGTH;
+          finishWireAct();
+        }
+      } else if (gameState === 'FALLING') {
+        actClock += FIXED_DT;
+        fallTimer += FIXED_DT;
+
+        if (fallStage === 0) {
+          const t = Math.min(1.0, fallTimer / FALL_DUR_DROP);
+          performerFallY = WIRE_HEIGHT + (NET_Y - WIRE_HEIGHT) * (t * t);
+          performerFallRoll = (leanAngle >= 0 ? 1 : -1) * (t * Math.PI * 1.2);
+          if (t >= 1.0) {
+            fallStage = 1; fallTimer = 0; performerFallY = NET_Y;
+            sound.playNetThud();
+          }
+        } else if (fallStage === 1) {
+          performerFallY = NET_Y - Math.sin(Math.min(Math.PI, fallTimer * 6)) * 0.25;
+          if (fallTimer >= FALL_REST_TIME) {
+            fallStage = 2; fallTimer = 0;
+          }
+        } else if (fallStage === 2) {
+          const t = Math.min(1.0, fallTimer / FALL_CLIMB_TIME);
+          performerFallY = NET_Y + (WIRE_HEIGHT - NET_Y) * (t * (3 - 2 * t));
+          performerFallRoll = performerFallRoll * (1 - t);
+          if (t >= 1.0) {
+            performerFallY = WIRE_HEIGHT; performerFallRoll = 0;
+            wirePos = fallStartWirePos;
+            leanAngle = 0.0; angularVel = 0.0;
+            gameState = 'WALKING';
+            sound.startDrumroll();
+          }
+        }
+      }
+
+      for (let i = 0; i < birds.length; i++) {
+        if (birds[i].triggered) birds[i].flyAwayTimer += FIXED_DT;
+      }
+    }
+
+    function stepTrapezePhysics() {
+      actClock += FIXED_DT;
+      trapezeClock += FIXED_DT;
+      trapezeActClock += FIXED_DT;
+
+      // Harmonic motion of catch bar:
+      // phi = 40 * sin(2*pi*t / 2.4) degrees
+      const omega = (2.0 * Math.PI) / CATCH_BAR_PERIOD;
+      currentBarAngleDeg = CATCH_BAR_AMP_DEG * Math.sin(omega * trapezeActClock);
+      currentBarAngularVelDeg = CATCH_BAR_AMP_DEG * omega * Math.cos(omega * trapezeActClock);
+
+      const barAngleRad = currentBarAngleDeg * (Math.PI / 180.0);
+      const barAngularVelRad = currentBarAngularVelDeg * (Math.PI / 180.0);
+      const barEndX = CATCH_BAR_PIVOT_X + CATCH_BAR_CABLE_LEN * Math.sin(barAngleRad);
+      const barEndY = CATCH_BAR_PIVOT_Y - CATCH_BAR_CABLE_LEN * Math.cos(barAngleRad);
+      const barEndZ = TRAPEZE_PIVOT_Z;
+
+      if (isRidingBar) {
+        flyerFlightPos.set(barEndX, barEndY, barEndZ);
+        flyerFreeRoot.position.copy(flyerFlightPos);
+        const vx = CATCH_BAR_CABLE_LEN * Math.cos(barAngleRad) * barAngularVelRad;
+        const vy = CATCH_BAR_CABLE_LEN * Math.sin(barAngleRad) * barAngularVelRad;
+        flyerFlightVel.set(vx, vy, 0);
+      }
+
+      if (gameState === 'SWINGING') {
+        // Ideal undamped pendulum: d^2(theta)/dt^2 = -(g / L) * sin(theta)
+        const prevAngle = swingAngle;
+        const angAcc = -(GRAVITY_CONST / ROPE_LENGTH) * Math.sin(swingAngle);
+        swingAngularVel += angAcc * FIXED_DT;
+        swingAngle += swingAngularVel * FIXED_DT;
+
+        // Bottom crossing check: apply pending pump boost (+8 deg)
+        if ((prevAngle < 0 && swingAngle >= 0) || (prevAngle > 0 && swingAngle <= 0)) {
+          if (pendingPumpBoost) {
+            pendingPumpBoost = false;
+            swingAmplitudeDeg = Math.min(MAX_AMPLITUDE_DEG, swingAmplitudeDeg + PUMP_BOOST_DEG);
+
+            const newAmpRad = swingAmplitudeDeg * (Math.PI / 180.0);
+            const maxSpeed = Math.sqrt((2.0 * GRAVITY_CONST * (1.0 - Math.cos(newAmpRad))) / ROPE_LENGTH);
+            swingAngularVel = (swingAngularVel >= 0 ? 1.0 : -1.0) * maxSpeed;
+          }
+        }
+
+        // Clamp pendulum amplitude conserving energy
+        const maxAmpRad = swingAmplitudeDeg * (Math.PI / 180.0);
+        if (Math.abs(swingAngle) > maxAmpRad) {
+          swingAngle = Math.sign(swingAngle) * maxAmpRad;
+          swingAngularVel = 0.0;
+        }
+      } else if (gameState === 'FLYING' && !isRidingBar) {
+        // Free projectile under gravity: 9.8 m/s^2 down, no air resistance
+        flyerFlightVel.y -= GRAVITY_CONST * FIXED_DT;
+        flyerFlightPos.x += flyerFlightVel.x * FIXED_DT;
+        flyerFlightPos.y += flyerFlightVel.y * FIXED_DT;
+        flyerFreeRoot.position.copy(flyerFlightPos);
+
+        // Landing check at landing height (LANDING_Y = 3.5m)
+        if (flyerFlightPos.y - 1.5 <= LANDING_Y && flyerFlightVel.y < 0) {
+          const landedX = flyerFlightPos.x;
+          if (landedX >= FAR_MAT_X_MIN && landedX <= FAR_MAT_X_MAX) {
+            finishFlight('FAR MAT');
+          } else if (landedX >= NEAR_MAT_X_MIN && landedX <= NEAR_MAT_X_MAX) {
+            finishFlight('NEAR MAT');
+          } else {
+            finishFlight('NET MISS');
+          }
+        }
+      } else if (gameState === 'LANDED') {
+        flightLandTimer += FIXED_DT;
+        if (flightLandTimer >= TRAPEZE_RESET_TIME) {
+          if (flightNumber < 3) {
+            resetTrapezeFlight(flightNumber + 1);
+            gameState = 'SWINGING';
+            sound.startDrumroll();
+          } else {
+            finishTrapezeAct();
+          }
+        }
+      }
+    }
+
+    // --- HUD Updating ---
+    const hudPosElem = document.getElementById('hud-pos');
+    const hudFallsElem = document.getElementById('hud-falls');
+    const hudMeanLeanElem = document.getElementById('hud-mean-lean');
+    const hudTimeElem = document.getElementById('hud-time');
+    const gaugeNeedleElem = document.getElementById('gauge-needle');
+    const gaugeAngleText = document.getElementById('gauge-angle-text');
+
+    const badgeUpright = document.getElementById('badge-upright');
+    const badgeHop = document.getElementById('badge-hop');
+    const badgeWind = document.getElementById('badge-wind');
+    const badgeDisturb = document.getElementById('badge-disturb');
+    const badgePump = document.getElementById('badge-pump');
+    const badgeRelease = document.getElementById('badge-release');
+    const badgeGrab = document.getElementById('badge-grab');
+
+    const swingPointerElem = document.getElementById('swing-pointer');
+    const trapezeAngleText = document.getElementById('trapeze-angle-text');
+    const hudAmplitudeElem = document.getElementById('hud-amplitude');
+
+    function updateWireHUD() {
+      const meanLean = leanStepCount > 0 ? (sumAbsLean / leanStepCount) : 0;
+      hudPosElem.textContent = wirePos.toFixed(1);
+      const hudHopsElem = document.getElementById('hud-hops');
+      if (hudHopsElem) hudHopsElem.textContent = wireHopCount;
+      hudFallsElem.textContent = fallCount;
+      hudMeanLeanElem.textContent = meanLean.toFixed(1) + '°';
+      hudTimeElem.textContent = actClock.toFixed(2) + ' s';
+
+      const clampedLean = Math.max(-MAX_LEAN_DEG, Math.min(MAX_LEAN_DEG, leanAngle));
+      gaugeNeedleElem.style.transform = `rotate(${(clampedLean / MAX_LEAN_DEG) * 60}deg)`;
+      gaugeAngleText.textContent = (leanAngle >= 0 ? '+' : '') + leanAngle.toFixed(1) + '°';
+
+      if (Math.abs(leanAngle) > 22) gaugeAngleText.style.color = '#ef476f';
+      else if (Math.abs(leanAngle) > 12) gaugeAngleText.style.color = '#ffb703';
+      else gaugeAngleText.style.color = '#f7d070';
+
+      if (isHoldingW) {
+        badgeUpright.className = 'hud-badge active-upright';
+        badgeUpright.textContent = 'POLE: UPRIGHT [2× INERTIA]';
+      } else {
+        badgeUpright.className = 'hud-badge';
+        badgeUpright.textContent = 'POLE: HORIZONTAL [W]';
+      }
+
+      if (isAirborne) {
+        badgeHop.className = 'hud-badge active-hop';
+        badgeHop.textContent = `HOPPING (${(HOP_DURATION - hopTimer).toFixed(2)}s)`;
+      } else if (hopCooldownTimer > 0) {
+        badgeHop.className = 'hud-badge';
+        badgeHop.textContent = `HOP COOLDOWN (${hopCooldownTimer.toFixed(1)}s)`;
+      } else {
+        badgeHop.className = 'hud-badge';
+        badgeHop.textContent = 'HOP: READY [SPACE]';
+      }
+
+      if (wirePos >= WIND_ZONE_START && wirePos <= WIND_ZONE_END && gameState === 'WALKING') {
+        badgeWind.style.display = 'inline-flex';
+        badgeWind.className = 'hud-badge active-wind';
+        const s = currentWindTorque >= 0 ? `+${currentWindTorque.toFixed(1)}` : currentWindTorque.toFixed(1);
+        badgeWind.textContent = `CROSSWIND: ${s}°/s²`;
+      } else {
+        badgeWind.style.display = 'none';
+      }
+
+      if (activeDisturbance.remainingTime > 0) {
+        badgeDisturb.style.display = 'inline-flex';
+        badgeDisturb.className = 'hud-badge active-disturb';
+        const s = activeDisturbance.sign > 0 ? '+20°/s²' : '-20°/s²';
+        badgeDisturb.textContent = `BIRD DISTURBANCE: ${s} (${activeDisturbance.remainingTime.toFixed(2)}s)`;
+      } else {
+        badgeDisturb.style.display = 'none';
+      }
+    }
+
+    function updateTrapezeHUD() {
+      const swingDeg = swingAngle * (180.0 / Math.PI);
+      hudAmplitudeElem.textContent = `${swingAmplitudeDeg.toFixed(1)}°`;
+
+      const pointerPct = Math.max(0, Math.min(100, 50 + (swingDeg / 80.0) * 50));
+      swingPointerElem.style.left = `${pointerPct}%`;
+
+      const dirStr = swingAngularVel >= 0 ? '→ FWD' : '← BACK';
+      trapezeAngleText.textContent = `θ: ${(swingDeg >= 0 ? '+' : '')}${swingDeg.toFixed(1)}° (${dirStr}) | Amp: ${swingAmplitudeDeg.toFixed(1)}°`;
+
+      // Pump badge status (|θ| <= 6 deg)
+      const isWithin6 = Math.abs(swingDeg) <= 6.0;
+      const isMovingFwd = (swingAngularVel > 0);
+      const nowClock = actClock;
+      const isCoolingDown = (nowClock - lastPumpTime < PUMP_INTERVAL_MIN);
+
+      if (gameState === 'SWINGING') {
+        badgeGrab.style.display = 'none';
+        if (isWithin6 && isMovingFwd && !isCoolingDown && swingAmplitudeDeg < MAX_AMPLITUDE_DEG) {
+          badgePump.className = 'hud-badge active-pump';
+          badgePump.textContent = 'PUMP [J]: NOW!';
+        } else if (isCoolingDown) {
+          badgePump.className = 'hud-badge';
+          badgePump.textContent = `PUMP [J]: ${(PUMP_INTERVAL_MIN - (nowClock - lastPumpTime)).toFixed(1)}s`;
+        } else {
+          badgePump.className = 'hud-badge';
+          badgePump.textContent = 'PUMP [J]: WAIT FOR |θ|≤6° FWD';
+        }
+
+        // Release badge status
+        if (swingAmplitudeDeg >= MIN_RELEASE_AMP) {
+          badgeRelease.className = 'hud-badge active-release';
+          badgeRelease.textContent = 'RELEASE [SPACE]: READY!';
+        } else {
+          badgeRelease.className = 'hud-badge';
+          badgeRelease.textContent = `RELEASE [SPACE]: LOCKED (${swingAmplitudeDeg.toFixed(0)}° / 60°)`;
+        }
+      } else if (gameState === 'FLYING' && !isRidingBar) {
+        badgePump.className = 'hud-badge';
+        badgePump.textContent = 'PUMP [J]: -';
+        badgeRelease.className = 'hud-badge';
+        badgeRelease.textContent = 'RELEASE [SPACE]: -';
+
+        // Ribbon badge status in flight
+        const badgeRibbon = document.getElementById('badge-ribbon');
+        badgeRibbon.style.display = 'inline-flex';
+        if (ribbonCaughtThisFlight) {
+          badgeRibbon.className = 'hud-badge active-upright';
+          badgeRibbon.textContent = 'RIBBON: CAUGHT (0.7× SPEED)';
+        } else {
+          const dx = flyerFlightPos.x - RIBBON_GRIP_X;
+          const dy = flyerFlightPos.y - RIBBON_GRIP_Y;
+          const distRib = Math.hypot(dx, dy);
+          if (distRib <= RIBBON_CATCH_DIST) {
+            badgeRibbon.className = 'hud-badge active-pump';
+            badgeRibbon.textContent = 'CATCH RIBBON [K]: NOW!';
+          } else {
+            badgeRibbon.className = 'hud-badge';
+            badgeRibbon.textContent = 'RIBBON [K]: IN AIR';
+          }
+        }
+
+        badgeGrab.style.display = 'inline-flex';
+        const distFromPivotX = Math.abs(flyerFlightPos.x - CATCH_BAR_PIVOT_X);
+        const isNearPivot = distFromPivotX <= 1.0;
+        const isAngleValid = Math.abs(currentBarAngleDeg) <= 20.0;
+        if (isNearPivot && isAngleValid) {
+          badgeGrab.className = 'hud-badge active-pump';
+          badgeGrab.textContent = 'GRAB BAR [J]: NOW!';
+        } else {
+          badgeGrab.className = 'hud-badge';
+          badgeGrab.textContent = 'GRAB BAR [J]: IN AIR';
+        }
+      } else if (isRidingBar) {
+        badgePump.className = 'hud-badge';
+        badgePump.textContent = 'PUMP [J]: -';
+
+        badgeGrab.style.display = 'inline-flex';
+        badgeGrab.className = 'hud-badge active-release';
+        badgeGrab.textContent = `RIDING BAR (${currentBarAngleDeg.toFixed(1)}°)`;
+
+        badgeRelease.className = 'hud-badge active-release';
+        badgeRelease.textContent = 'RELEASE [SPACE]: READY!';
+      } else {
+        badgeGrab.style.display = 'none';
+        document.getElementById('badge-ribbon').style.display = 'none';
+      }
+    }
+
+    // --- Visuals & Animation ---
+    let walkCyclePhase = 0;
+    let visualPoleTiltX = Math.PI / 2;
+
+    function updateVisuals(dt) {
+      if (currentAct === 'WIRE') {
+        updateWireVisuals(dt);
+      } else if (currentAct === 'TRAPEZE') {
+        updateTrapezeVisuals(dt);
+      } else if (currentAct === 'SPHERE') {
+        updateSphereVisuals(dt);
+      }
+
+      // Secondary Big Top motion
+      for (let i = 0; i < pennantMeshes.length; i++) {
+        const flag = pennantMeshes[i];
+        flag.rotation.z = Math.sin(actClock * 4.5 + flag.userData.phase) * 0.18;
+      }
+      for (let i = 0; i < standsGroup.children.length; i++) {
+        const c = standsGroup.children[i];
+        if (c.userData && c.userData.origY !== undefined) {
+          c.position.y = c.userData.origY + Math.sin(actClock * 1.5 + c.userData.phase) * 0.025;
+        }
+      }
+    }
+
+    function updateWireVisuals(dt) {
+      walkerRoot.visible = true;
+      const targetPoleTilt = isHoldingW ? 0.08 : (Math.PI / 2);
+      visualPoleTiltX += (targetPoleTilt - visualPoleTiltX) * 0.25;
+      balancePoleMesh.rotation.x = visualPoleTiltX;
+
+      if (gameState === 'WALKING') {
+        if (!isAirborne) {
+          walkCyclePhase += dt * WALK_SPEED * 5.0;
+          leftLegGroup.rotation.z = Math.sin(walkCyclePhase) * 0.35;
+          rightLegGroup.rotation.z = -Math.sin(walkCyclePhase) * 0.35;
+          walkerTiltGroup.position.y = Math.abs(Math.cos(walkCyclePhase)) * 0.04;
+        } else {
+          leftLegGroup.rotation.z = 0.25; rightLegGroup.rotation.z = 0.25;
+          walkerTiltGroup.position.y = 0;
+        }
+
+        walkerRoot.position.set(wirePos, WIRE_HEIGHT + hopYOffset, 0);
+        walkerTiltGroup.rotation.x = (leanAngle * Math.PI) / 180.0;
+        walkerTiltGroup.rotation.z = 0;
+      } else if (gameState === 'FALLING') {
+        walkerRoot.position.set(wirePos, performerFallY, 0);
+        walkerTiltGroup.rotation.x = performerFallRoll;
+      } else if (gameState === 'FINISH') {
+        walkerRoot.position.set(wirePos, WIRE_HEIGHT, 0);
+        walkerTiltGroup.rotation.x = 0;
+        walkerTiltGroup.rotation.z = 0.6; // Bow
+      }
+
+      // Unicycle Clowns Visuals
+      for (let i = 0; i < clowns.length; i++) {
+        const c = clowns[i];
+        const cm = clownMeshes[i];
+        if (c.active && c.position >= -1.0 && c.position <= 30.5) {
+          cm.root.visible = true;
+          cm.root.position.set(c.position, WIRE_HEIGHT, 0);
+          // Wheel rotation as it rides forward in -X
+          cm.wheel.rotation.z += (CLOWN_SPEED * dt / 0.28);
+          // Balancing arm wave
+          cm.armL.rotation.x = 0.9 + Math.sin(actClock * 6.0 + i) * 0.15;
+          cm.armR.rotation.x = -0.9 - Math.cos(actClock * 6.0 + i) * 0.15;
+          cm.tilt.rotation.z = Math.sin(actClock * 5.0 + i) * 0.08;
+        } else {
+          cm.root.visible = false;
+        }
+      }
+
+      // Birds
+      for (let i = 0; i < birds.length; i++) {
+        const b = birds[i];
+        const m = birdMeshes[i];
+        if (!b.triggered) {
+          m.position.set(b.position, WIRE_HEIGHT + wireRadius, 0);
+          m.rotation.y = Math.sin(actClock * 2.0 + i) * 0.2;
+        } else {
+          const ft = b.flyAwayTimer;
+          m.position.x = b.position + ft * 2.5;
+          m.position.y = WIRE_HEIGHT + wireRadius + ft * 4.0;
+          m.position.z = (b.sign > 0 ? 1 : -1) * (ft * 3.5);
+          if (ft > 3.0) m.visible = false;
+        }
+      }
+
+      // Wind sock
+      const windVal = Math.sin((2 * Math.PI * actClock) / WIND_PERIOD);
+      sockPivot.rotation.y = -windVal * 0.85;
+      sockPivot.rotation.z = Math.abs(windVal) * 0.25;
+
+      // Judges head tracking walker
+      for (let j = 0; j < judgeMeshes.length; j++) {
+        const diffX = walkerRoot.position.x - (judgeMeshes[j].group.position.x + judgesGroup.position.x);
+        judgeMeshes[j].head.rotation.y = -Math.max(-0.6, Math.min(0.6, diffX * 0.05));
+      }
+    }
+
+    function updateTrapezeVisuals(dt) {
+      // Swing assembly rotates about Z-axis at pivot (0, 10, -8)
+      swingPivotGroup.rotation.z = -swingAngle;
+
+      // Swinging catch bar rotates with harmonic motion
+      const barAngleRad = currentBarAngleDeg * (Math.PI / 180.0);
+      catchBarPivotGroup.rotation.z = -barAngleRad;
+
+      if (isRidingBar) {
+        flyerInFlightMesh.rotation.z = -barAngleRad;
+      } else if (gameState === 'FLYING') {
+        // Tumble rotation in air
+        flyerInFlightMesh.rotation.z -= dt * 4.0;
+      } else if (gameState === 'LANDED') {
+        if (lastFlightResult === 'FAR MAT' || lastFlightResult === 'NEAR MAT' || lastFlightResult === 'MAT CATCH') {
+          // Standing proudly on landing mat!
+          flyerFreeRoot.position.set(flyerFlightPos.x, LANDING_Y + 1.8, TRAPEZE_PIVOT_Z);
+          flyerInFlightMesh.rotation.z = 0;
+        } else {
+          // In the netting
+          flyerFreeRoot.position.set(flyerFlightPos.x, LANDING_Y, TRAPEZE_PIVOT_Z);
+          flyerInFlightMesh.rotation.z = Math.PI / 2;
+        }
+      }
+
+      // Ribbon fluttering
+      if (ribbonGroup.visible) {
+        ribbonSilkMesh.rotation.z = Math.sin(trapezeActClock * 4.0) * 0.08;
+        ribbonSilkMesh.rotation.x = Math.cos(trapezeActClock * 3.5) * 0.05;
+      }
+
+      // Judges head tracking flyer
+      const flyerTargetX = (flyerInFlight || isRidingBar) ? flyerFlightPos.x : (TRAPEZE_PIVOT_X + ROPE_LENGTH * Math.sin(swingAngle));
+      for (let j = 0; j < judgeMeshes.length; j++) {
+        const diffX = flyerTargetX - (judgeMeshes[j].group.position.x + judgesGroup.position.x);
+        judgeMeshes[j].head.rotation.y = -Math.max(-0.6, Math.min(0.6, diffX * 0.05));
+      }
+    }
+
+    // --- Camera & Lighting Update ---
+    function updateCameraAndLights() {
+      if (currentAct === 'WIRE') {
+        const targetX = walkerRoot.position.x;
+        const targetY = walkerRoot.position.y + 0.9;
+        const targetZ = walkerRoot.position.z;
+
+        const desiredCamX = targetX - 4.0;
+        const desiredCamY = WIRE_HEIGHT + 2.4;
+        const desiredCamZ = 6.2;
+
+        camera.position.x += (desiredCamX - camera.position.x) * 0.1;
+        camera.position.y += (desiredCamY - camera.position.y) * 0.1;
+        camera.position.z += (desiredCamZ - camera.position.z) * 0.1;
+        camera.lookAt(targetX + 2.5, WIRE_HEIGHT + 0.4, 0);
+
+        spotTarget.position.set(targetX, targetY, targetZ);
+        followSpotlight.position.set(targetX - 2.5, 24, 7);
+      } else if (currentAct === 'TRAPEZE') {
+        // Trapeze Camera: keeps rig, swinging catch bar, flight arc, and both landing mats readable
+        const targetX = (flyerInFlight || isRidingBar) ? flyerFlightPos.x : (TRAPEZE_PIVOT_X + ROPE_LENGTH * Math.sin(swingAngle));
+        const targetY = (flyerInFlight || isRidingBar) ? flyerFlightPos.y : (TRAPEZE_PIVOT_Y - ROPE_LENGTH * Math.cos(swingAngle));
+        const targetZ = TRAPEZE_PIVOT_Z;
+
+        // Position camera framed for X: 0 to 14m
+        const desiredCamX = 6.5 + (targetX - 6.5) * 0.35;
+        const desiredCamY = 8.5;
+        const desiredCamZ = 6.5;
+
+        camera.position.x += (desiredCamX - camera.position.x) * 0.08;
+        camera.position.y += (desiredCamY - camera.position.y) * 0.08;
+        camera.position.z += (desiredCamZ - camera.position.z) * 0.08;
+        camera.lookAt(targetX + 1.2, targetY * 0.5 + 3.0, targetZ);
+
+        spotTarget.position.set(targetX, targetY, targetZ);
+        followSpotlight.position.set(targetX, 23, targetZ + 10);
+      } else if (currentAct === 'SPHERE') {
+        const targetX = rollerRoot.position.x;
+        const targetY = rollerRoot.position.y + 0.5;
+        const targetZ = SPHERE_WIRE_Z;
+
+        const desiredCamX = targetX - 4.0;
+        const desiredCamY = WIRE_HEIGHT + 2.4;
+        const desiredCamZ = SPHERE_WIRE_Z + 6.2;
+
+        camera.position.x += (desiredCamX - camera.position.x) * 0.1;
+        camera.position.y += (desiredCamY - camera.position.y) * 0.1;
+        camera.position.z += (desiredCamZ - camera.position.z) * 0.1;
+        camera.lookAt(targetX + 2.5, WIRE_HEIGHT + 0.4, SPHERE_WIRE_Z);
+
+        spotTarget.position.set(targetX, targetY, targetZ);
+        followSpotlight.position.set(targetX - 2.5, 24, SPHERE_WIRE_Z + 7);
+      }
+
+      if (gameState === 'CURTAIN_CALL' || gameState === 'FINAL_REVIEW') {
+        // Spotlight beams sweep in fixed order: left performer (Walker), center (Flyer), right (Roller)
+        let spotX = 13.0;
+        if (curtainCallTimer < 2.0) {
+          spotX = 13.0; // Left performer
+          walkerTiltGroup.rotation.z = Math.sin(Math.min(Math.PI, (curtainCallTimer / 2.0) * Math.PI)) * 0.4;
+        } else if (curtainCallTimer < 4.0) {
+          spotX = 15.0; // Center performer
+          flyerInFlightMesh.rotation.z = Math.sin(Math.min(Math.PI, ((curtainCallTimer - 2.0) / 2.0) * Math.PI)) * 0.4;
+        } else {
+          spotX = 17.0; // Right performer
+          rollerTiltGroup.rotation.z = Math.sin(Math.min(Math.PI, ((curtainCallTimer - 4.0) / 2.0) * Math.PI)) * 0.4;
+        }
+
+        spotTarget.position.set(spotX, 1.2, 0);
+        followSpotlight.position.set(spotX, 22, 6);
+
+        camera.position.x += (15.0 - camera.position.x) * 0.08;
+        camera.position.y += (3.5 - camera.position.y) * 0.08;
+        camera.position.z += (9.2 - camera.position.z) * 0.08;
+        camera.lookAt(15.0, 1.1, 0);
+      }
+
+      // Align spotlight beam cone
+      const beamStart = followSpotlight.position;
+      const beamEnd = spotTarget.position;
+      spotBeamMesh.position.copy(new THREE.Vector3().addVectors(beamStart, beamEnd).multiplyScalar(0.5));
+      spotBeamMesh.quaternion.setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        new THREE.Vector3().subVectors(beamEnd, beamStart).normalize()
+      );
+      spotBeamMesh.scale.set(1, beamStart.distanceTo(beamEnd) / coneHeight, 1);
+    }
+
+    // Initial camera
+    camera.position.set(-4.0, WIRE_HEIGHT + 2.4, 6.2);
+    camera.lookAt(2.5, WIRE_HEIGHT + 0.4, 0);
+
+    // --- Main Game Loop ---
+    let lastFrameTime = performance.now();
+    let accumulator = 0.0;
+
+    function animate(currentTime) {
+      requestAnimationFrame(animate);
+
+      const frameDelta = Math.min((currentTime - lastFrameTime) / 1000.0, 0.1);
+      lastFrameTime = currentTime;
+
+      accumulator += frameDelta;
+      while (accumulator >= FIXED_DT) {
+        stepPhysics();
+        accumulator -= FIXED_DT;
+      }
+
+      sound.updateDrumroll(frameDelta);
+      updateVisuals(frameDelta);
+      updateCameraAndLights();
+
+      if (currentAct === 'WIRE') updateWireHUD();
+      else if (currentAct === 'TRAPEZE') updateTrapezeHUD();
+      else if (currentAct === 'SPHERE') updateSphereHUD();
+
+      exportArenaState();
+      renderer.render(scene, camera);
+    }
+
+    updateWireHUD();
+    exportArenaState();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

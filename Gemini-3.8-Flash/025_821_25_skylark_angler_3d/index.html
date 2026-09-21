@@ -1,0 +1,4468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skylark Angler</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #1a0f1e;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      left: 0;
+      top: 0;
+      z-index: 1;
+    }
+    #ui-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 24px;
+      color: #fff9ea;
+      text-shadow: 0 2px 4px rgba(40, 15, 5, 0.7);
+    }
+    .hud-panel {
+      background: rgba(35, 20, 30, 0.7);
+      border: 1px solid rgba(255, 215, 120, 0.4);
+      border-radius: 8px;
+      padding: 12px 18px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+    .hud-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .hud-title {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: #ffe6a0;
+      text-transform: uppercase;
+    }
+    .stat-row {
+      display: flex;
+      gap: 20px;
+      margin-top: 6px;
+      font-size: 14px;
+    }
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+    }
+    .stat-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: #e0b080;
+      letter-spacing: 1px;
+    }
+    .stat-val {
+      font-size: 16px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    /* Tension HUD */
+    #fight-hud {
+      position: absolute;
+      top: 90px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 420px;
+      display: none;
+      text-align: center;
+    }
+    .tension-bar-wrap {
+      width: 100%;
+      height: 20px;
+      background: rgba(20, 10, 15, 0.85);
+      border-radius: 10px;
+      border: 1px solid rgba(255, 215, 120, 0.5);
+      overflow: hidden;
+      position: relative;
+      margin: 8px 0;
+    }
+    .tension-bar-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #4ade80 0%, #facc15 60%, #ef4444 95%);
+      transition: width 0.05s linear;
+    }
+    .tension-bar-fill.eel-tint {
+      background: linear-gradient(90deg, #38bdf8 0%, #818cf8 40%, #c084fc 75%, #f43f5e 95%);
+      box-shadow: 0 0 12px #38bdf8;
+    }
+    #eel-warning {
+      display: none;
+      color: #38bdf8;
+      font-weight: 800;
+      font-size: 13px;
+      margin-top: 5px;
+      text-shadow: 0 0 8px #0284c7;
+      animation: pulse 0.35s infinite alternate;
+      letter-spacing: 0.5px;
+    }
+    .fish-phase-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 4px;
+    }
+    .phase-pull {
+      background: #dc2626;
+      color: #fff;
+      animation: pulse 0.6s infinite alternate;
+    }
+    .phase-rest {
+      background: #16a34a;
+      color: #fff;
+    }
+    @keyframes pulse {
+      from { transform: scale(1); }
+      to { transform: scale(1.08); }
+    }
+
+    /* Strike Prompt Banner */
+    #strike-prompt {
+      position: absolute;
+      top: 180px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(239, 68, 68, 0.92);
+      border: 2px solid #fef08a;
+      border-radius: 28px;
+      padding: 10px 28px;
+      font-size: 20px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: 2px;
+      box-shadow: 0 0 25px rgba(239, 68, 68, 0.8);
+      display: none;
+      animation: pulse 0.25s infinite alternate;
+      z-index: 15;
+    }
+
+    /* Prompts & notifications */
+    #dock-prompt {
+      position: absolute;
+      bottom: 110px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      background: rgba(245, 158, 11, 0.88);
+      color: #1e1005;
+      font-weight: 700;
+      font-size: 15px;
+      padding: 8px 20px;
+      border-radius: 20px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+      letter-spacing: 0.5px;
+      text-shadow: none;
+    }
+    #status-toast {
+      position: absolute;
+      bottom: 150px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 16px;
+      font-weight: 600;
+      color: #fef08a;
+      background: rgba(20, 10, 25, 0.85);
+      padding: 8px 20px;
+      border-radius: 18px;
+      border: 1px solid rgba(254, 240, 138, 0.4);
+      display: none;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+      text-align: center;
+    }
+
+    .hud-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .controls-panel {
+      font-size: 12px;
+      line-height: 1.6;
+      max-width: 440px;
+    }
+    .key-badge {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.22);
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: 10px;
+      font-weight: bold;
+      color: #ffe6a0;
+      margin: 0 2px;
+    }
+
+    /* Modal Screens */
+    .screen-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(18, 10, 22, 0.82);
+      backdrop-filter: blur(8px);
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: #fff;
+      text-align: center;
+      pointer-events: auto;
+    }
+    .screen-overlay h1 {
+      font-size: 54px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: #fbbf24;
+      text-shadow: 0 4px 18px rgba(245, 158, 11, 0.6);
+      margin-bottom: 12px;
+      font-family: Georgia, 'Times New Roman', serif;
+    }
+    .screen-overlay h2 {
+      font-size: 19px;
+      color: #fef3c7;
+      margin-bottom: 24px;
+      font-weight: 300;
+    }
+    .screen-overlay .instructions-box {
+      background: rgba(45, 25, 40, 0.88);
+      border: 1px solid rgba(251, 191, 36, 0.5);
+      border-radius: 12px;
+      padding: 20px 32px;
+      margin-bottom: 30px;
+      max-width: 660px;
+      text-align: left;
+      line-height: 1.8;
+      font-size: 14px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    }
+    .instructions-box ul {
+      margin-left: 20px;
+    }
+    .start-prompt {
+      font-size: 22px;
+      font-weight: 700;
+      color: #fef08a;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      animation: pulse 1.2s infinite alternate;
+    }
+    #gameover-screen {
+      display: none;
+    }
+    #gameover-screen h1 {
+      color: #f87171;
+      text-shadow: 0 4px 18px rgba(239, 68, 68, 0.6);
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div id="ui-layer">
+    <div class="hud-top">
+      <div class="hud-panel">
+        <div class="hud-title">Skylark Angler <span id="whale-sigil" style="display: none; color: #facc15; font-size: 13px; text-shadow: 0 0 10px #eab308; border: 1px solid #eab308; padding: 2px 6px; border-radius: 10px; margin-left: 6px;">🐋 WHALER</span></div>
+        <div class="stat-row">
+          <div class="stat-item">
+            <span class="stat-label">Airspeed</span>
+            <span class="stat-val" id="hud-speed">0.0 u/s</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Altitude</span>
+            <span class="stat-val" id="hud-altitude">12.0 u</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Spools</span>
+            <span class="stat-val" id="hud-spools" style="color: #67e8f9;">3</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Hold</span>
+            <span class="stat-val" id="hud-hold">0 Fish (0.0kg)</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Trim</span>
+            <span class="stat-val" id="hud-tier" style="color: #6ee7b7;">LIGHT</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Coins</span>
+            <span class="stat-val" id="hud-coins">0 Gold</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Checkpoint</span>
+            <span class="stat-val" id="hud-checkpoint" style="color: #93c5fd; font-size: 13px;">None</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Respawns</span>
+            <span class="stat-val" id="hud-respawns" style="color: #4ade80;">3/3</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hud-panel" style="text-align: right;">
+        <span class="stat-label">Tackle [G]</span>
+        <div class="stat-val" id="hud-tackle" style="color: #38bdf8;">Light Hook (Snap 90)</div>
+        <div class="stat-label" style="margin-top: 6px;">Bait Depth [1/2/3]</div>
+        <div class="stat-val" id="hud-bait-depth" style="color: #facc15;">Shallow (1u)</div>
+        <div class="stat-label" style="margin-top: 6px;">Line Status</div>
+        <div class="stat-val" id="hud-line-status" style="color: #6ee7b7; font-size: 14px;">Ready to Cast [F]</div>
+      </div>
+    </div>
+
+    <!-- Strike Window Alert -->
+    <div id="strike-prompt">FISH BITE! PRESS [SPACE] TO STRIKE!</div>
+
+    <!-- Tension & Line Length HUD -->
+    <div id="fight-hud" class="hud-panel">
+      <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px;">
+        <span id="fight-species-name">FIGHTING: SUN CARP</span>
+        <span id="fish-loop-state" class="fish-phase-badge phase-rest">RESTING</span>
+      </div>
+      <div class="tension-bar-wrap">
+        <div class="tension-bar-fill" id="tension-fill"></div>
+      </div>
+      <div id="eel-warning">⚡ WARNING: EEL CHARGING! SLACK LINE (KEEP TENSION &le; 15)!</div>
+      <div style="display: flex; justify-content: space-between; font-size: 13px;">
+        <span>Tension: <strong id="hud-tension">0 / 90</strong></span>
+        <span>Line: <strong id="hud-line-len">12.0m</strong> / 30m</span>
+      </div>
+      <div style="font-size: 11px; margin-top: 6px; color: #fde68a;">
+        [Hold Space] Reel in &nbsp;|&nbsp; [Hold Shift] Give slack &nbsp;|&nbsp; Watch for fish tow!
+      </div>
+    </div>
+
+    <!-- Whale Sleighride HUD -->
+    <div id="sleighride-hud" class="hud-panel" style="position: absolute; top: 90px; left: 50%; transform: translateX(-50%); width: 440px; display: none; text-align: center;">
+      <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 15px; color: #38bdf8;">
+        <span>THE SLEIGHRIDE</span>
+        <span id="sleigh-timer">TOW: 0.0s / 90s</span>
+      </div>
+      <div id="sleigh-breach-warning" style="display: none; color: #facc15; font-weight: 800; font-size: 14px; margin: 6px 0; animation: pulse 0.3s infinite alternate;">
+        ⚡ WHALE BREACHING! PRESS [SPACE] TO WINCH (+20g, -3m Rope)!
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px;">
+        <span>Rope: <strong id="sleigh-rope">15.0m</strong></span>
+        <span>Strain: <strong id="sleigh-strain" style="color: #4ade80;">LINE STRAIN 0/2</strong></span>
+        <span>Rings: <strong id="sleigh-rings" style="color: #facc15;">0/24</strong></span>
+      </div>
+      <div style="font-size: 11px; margin-top: 6px; color: #bae6fd;">
+        [A]/[D] Steer Sled (&plusmn;8m) &bull; Avoid Pillars &bull; [Shift] Cut Rope
+      </div>
+    </div>
+
+    <!-- Skylark Cup Tournament HUD -->
+    <div id="tournament-hud" class="hud-panel" style="position: absolute; top: 90px; left: 50%; transform: translateX(-50%); width: 440px; display: none; text-align: center;">
+      <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 15px; color: #facc15;">
+        <span>🏆 THE SKYLARK CUP</span>
+        <span id="tourney-timer" style="color: #f87171;">150.0s</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+        <span style="font-size: 13px;">Score: <strong id="tourney-score" style="color: #4ade80; font-size: 16px;">0</strong> pts</span>
+        <span id="tourney-target" style="background: rgba(234, 179, 8, 0.2); border: 1px solid #eab308; padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: 800; color: #fef08a;">
+          TARGET: SUN CARP (&times;3)
+        </span>
+      </div>
+      <div style="font-size: 11px; margin-top: 6px; color: #bae6fd;">
+        Rotates: 0-50s Carp &bull; 50-100s Dart &bull; 100-150s Puffer &bull; Hold auto-sold at 150s
+      </div>
+    </div>
+
+    <div id="dock-prompt">Dock Berth: [T] Sell Hold &bull; [B] Buy Spool (15c) &bull; [H] Accept Whale Hunt &bull; [J] Start Skylark Cup &bull; [K] End the Day</div>
+    <div id="status-toast"></div>
+
+    <div class="hud-bottom">
+      <div class="hud-panel controls-panel">
+        <div><span class="key-badge">W</span><span class="key-badge">S</span> Throttle &bull; <span class="key-badge">A</span><span class="key-badge">D</span> Turn/Steer Sled &bull; <span class="key-badge">Q</span><span class="key-badge">E</span> Ballast Climb/Descend</div>
+        <div><span class="key-badge">K</span> End Day &bull; <span class="key-badge">J</span> Cup &bull; <span class="key-badge">H</span> Whale Hunt &bull; <span class="key-badge">G</span> Tackle &bull; <span class="key-badge">1</span><span class="key-badge">2</span><span class="key-badge">3</span> Depth &bull; <span class="key-badge">F</span> Cast/Harpoon &bull; <span class="key-badge">T</span> Sell &bull; <span class="key-badge">B</span> Spool</div>
+        <div><span class="key-badge">Space</span> Strike Bite / Reel / Winch Breach &bull; <span class="key-badge">Shift</span> Slack Line / Cut Rope &bull; <span class="key-badge">R</span> Reset</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen Whiteout for Respawn -->
+  <div id="whiteout-screen" style="position: absolute; top:0; left:0; width:100%; height:100%; background: #ffffff; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 100;"></div>
+
+  <!-- The Reckoning Screen (Full-Screen Settlement) -->
+  <div id="reckoning-screen" class="screen-overlay" style="display: none; z-index: 90; overflow-y: auto; padding: 20px;">
+    <h1 style="color: #facc15; font-size: 38px; text-shadow: 0 4px 20px rgba(234, 179, 8, 0.7); margin-bottom: 4px;">THE RECKONING</h1>
+    <h2 id="reckoning-subtitle" style="font-size: 16px; color: #fde68a; margin-bottom: 16px;">Day Concluded at Market Dock</h2>
+
+    <div class="instructions-box" style="max-width: 620px; width: 100%; text-align: left; font-size: 14px; background: rgba(15, 23, 42, 0.95); border: 2px solid #eab308; box-shadow: 0 8px 32px rgba(0,0,0,0.7);">
+      <!-- Day Rating Badge -->
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(234, 179, 8, 0.3); padding-bottom: 12px; margin-bottom: 12px;">
+        <div>
+          <span style="font-size: 13px; color: #94a3b8; text-transform: uppercase;">Overall Day Rating</span>
+          <div id="reckoning-rating-desc" style="font-size: 14px; color: #fef08a;">Master Aeronaut & Whaler</div>
+        </div>
+        <div id="reckoning-rating-badge" style="font-size: 48px; font-weight: 900; color: #facc15; text-shadow: 0 0 20px #eab308; padding: 0 16px;">S</div>
+      </div>
+
+      <!-- Species Catches -->
+      <div style="margin-bottom: 12px;">
+        <strong style="color: #67e8f9; text-transform: uppercase; font-size: 12px; letter-spacing: 1px;">Species Catch Breakdown:</strong>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; font-size: 13px;">
+          <div id="rec-carp">🐟 Sun Carp: 0 landed (heaviest: 0.0kg)</div>
+          <div id="rec-dart">🐟 Silver Dart: 0 landed (heaviest: 0.0kg)</div>
+          <div id="rec-puffer">🐡 Moon Puffer: 0 landed (heaviest: 0.0kg)</div>
+          <div id="rec-eel">⚡ Storm Eel: 0 landed (heaviest: 0.0kg)</div>
+        </div>
+      </div>
+
+      <!-- Line & Strike Incidents -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px; font-size: 13px;">
+        <div>Lines Snapped: <strong id="rec-snapped" style="color: #f87171;">0</strong></div>
+        <div>Lines Burned: <strong id="rec-burned" style="color: #f87171;">0</strong></div>
+        <div>Strikes Missed: <strong id="rec-missed" style="color: #fb923c;">0</strong></div>
+      </div>
+
+      <!-- Whale Hunt & Tournament -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; font-size: 13px;">
+        <div style="background: rgba(30, 41, 59, 0.6); padding: 8px; border-radius: 6px;">
+          <strong style="color: #38bdf8;">Whale Hunt:</strong>
+          <div id="rec-whale-outcome" style="margin-top: 4px;">Outcome: NOT ATTEMPTED</div>
+          <div id="rec-whale-details" style="color: #94a3b8; font-size: 12px;">0 Rings &bull; 0 Winches</div>
+        </div>
+        <div style="background: rgba(30, 41, 59, 0.6); padding: 8px; border-radius: 6px;">
+          <strong style="color: #facc15;">Skylark Cup:</strong>
+          <div id="rec-tourney-score" style="margin-top: 4px;">Best Score: 0 pts</div>
+          <div id="rec-tourney-trophy" style="color: #94a3b8; font-size: 12px;">Trophy: NONE</div>
+        </div>
+      </div>
+
+      <!-- Respawns & Coins -->
+      <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(234, 179, 8, 0.3); padding-top: 10px; font-size: 15px;">
+        <span>Salvage Respawns: <strong id="rec-respawns">0 / 3</strong></span>
+        <span>Total Day Purse: <strong id="rec-total-coins" style="color: #facc15; font-size: 18px;">0 Gold</strong></span>
+      </div>
+    </div>
+
+    <div class="start-prompt" style="margin-top: 18px;">Press [R] to Reset the Day</div>
+  </div>
+
+  <!-- Tournament Results Screen -->
+  <div id="tournament-results" class="screen-overlay" style="display: none;">
+    <h1 style="color: #facc15; text-shadow: 0 4px 18px rgba(250, 204, 21, 0.6);">🏆 The Skylark Cup</h1>
+    <h2 id="tourney-results-subtitle">Contest Concluded!</h2>
+    <div class="instructions-box" style="text-align: center; max-width: 440px;">
+      <div style="font-size: 28px; font-weight: 800; margin-bottom: 8px;" id="tourney-final-trophy">🥉 BRONZE TROPHY</div>
+      <p style="font-size: 16px; margin-bottom: 6px;">Final Score: <strong id="tourney-final-score" style="color: #4ade80;">520</strong> pts</p>
+      <p style="font-size: 14px; margin-bottom: 6px;">Hold Auto-Sold: <strong id="tourney-hold-earned" style="color: #facc15;">+90</strong> Gold</p>
+      <p style="font-size: 14px; margin-bottom: 6px;">Trophy Bounty: <strong id="tourney-trophy-bonus" style="color: #facc15;">+50</strong> Gold</p>
+      <p style="font-size: 16px; margin-top: 10px;">Total Purse: <strong id="tourney-total-gold" style="color: #38bdf8;">140 Gold</strong></p>
+    </div>
+    <div class="start-prompt" onclick="document.getElementById('tournament-results').style.display='none'">Press [J] or [Enter] to Continue</div>
+  </div>
+
+  <!-- Ready Screen -->
+  <div id="ready-screen" class="screen-overlay">
+    <h1>Skylark Angler</h1>
+    <h2>Golden Hour Skies &bull; Cloud Sea Fishing</h2>
+    <div class="instructions-box">
+      <p style="margin-bottom: 8px;"><strong>Welcome aboard the airship Skylark!</strong></p>
+      <ul>
+        <li>Fly above the golden cloud sea using <span class="key-badge">W</span><span class="key-badge">S</span><span class="key-badge">A</span><span class="key-badge">D</span> and <span class="key-badge">Q</span><span class="key-badge">E</span>.</li>
+        <li><strong>Lighthouse Checkpoints:</strong> Fly within 5u of Sunwatch, Southreach, or Mistveil Beacon to light it! Crashing pays 20g salvage fee to respawn at active beacon (up to 3 respawns).</li>
+        <li><strong>The Reckoning [K]:</strong> Press <span class="key-badge">K</span> at the dock to End the Day, or face the final settlement on Game Over. Day ratings: S (1500g + whale hunt), A (1000g), B (500g), C.</li>
+        <li><strong>The Skylark Cup [J]:</strong> 150s contest with rotating targets (&times;3 score). Auto-sold at finish with trophy bonuses (Bronze 400+, Silver 700+, Gold 1000+).</li>
+        <li><strong>The Whale Hunt [H]:</strong> Accept at pier board. Strike surfaced Cloud Whale with harpoon (<span class="key-badge">F</span>) for 90s Sleighride tow! Winch breaches for +20g.</li>
+        <li><strong>Tackle [G] & Depth [1/2/3]:</strong> Light/Heavy hooks, 4 species with unique fight scripts, consumable line spools, and cargo buoyancy tiers.</li>
+      </ul>
+    </div>
+    <div class="start-prompt">Press Enter to Start</div>
+  </div>
+
+  <!-- Game Over Screen -->
+  <div id="gameover-screen" class="screen-overlay">
+    <h1>Game Over</h1>
+    <h2 id="gameover-reason">The Skylark suffered critical hull damage!</h2>
+    <div class="start-prompt">Press R to Reset Airship</div>
+  </div>
+
+  <!-- Local Three.js runtime -->
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+
+  <script>
+    /* ==========================================================================
+       DETERMINISTIC PRNG (LCG) - NO RANDOMNESS SOURCE EVER
+       ========================================================================== */
+    class DeterministicRNG {
+      constructor(seed = 123456789) {
+        this.m = 0x80000000;
+        this.a = 1103515245;
+        this.c = 12345;
+        this.state = seed;
+      }
+      nextFloat() {
+        this.state = (this.a * this.state + this.c) % this.m;
+        return this.state / (this.m - 1);
+      }
+      range(min, max) {
+        return min + this.nextFloat() * (max - min);
+      }
+    }
+    const worldRng = new DeterministicRNG(987654321);
+
+    function clamp(val, min, max) {
+      return Math.max(min, Math.min(max, val));
+    }
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    /* ==========================================================================
+       GAME CONSTANTS & SPECIFICATIONS
+       ========================================================================== */
+    const TOP_SPEED_FWD = 10.0;    // units/sec
+    const TOP_SPEED_REV = 4.0;     // units/sec
+    const ACCEL_TIME = 2.0;        // 2 seconds to reach top speed
+    const COAST_TIME = 2.0;        // 2 seconds to coast to rest
+    const TURN_RATE = 45 * (Math.PI / 180); // 45 degrees/second
+    const CLIMB_RATE = 3.0;        // 3 units/second
+    const CEILING_ALT = 30.0;      // max 30 units above clouds
+    const CLOUD_Y = 0.0;           // cloud surface at y = 0
+    const GONDOLA_CRASH_Y = 0.7;   // gondola bottom touches cloud surface if y <= 0.7
+
+    const AIM_DIST = 12.0;         // 12 units ahead of bow
+    const LURE_DIST = 4.0;         // 4 units radius to lure fish
+    const BITE_DELAY = 3.0;        // bites exactly 3 seconds after diverting
+    const STRIKE_WINDOW_DUR = 0.8; // 0.8 second strike window
+    const MAX_LINE_LEN = 30.0;
+    const CATCH_LINE_LEN = 2.0;
+
+    /* ==========================================================================
+       GAME STATE
+       ========================================================================== */
+    const gameState = {
+      phase: 'ready', // 'ready' | 'playing' | 'gameover'
+      gameoverReason: '',
+      coins: 0,
+      hold: [],
+      spools: 3,
+      linesBurned: 0,
+      strikesMissed: 0,
+      tackle: 'light', // 'light' | 'heavy'
+      simTime: 0,
+      baitDepth: 1, // 1 (shallow), 3 (mid), 6 (deep)
+      baitSinkTimer: 0,
+      baitSinkDuration: 1.0,
+      strikeWindowOpen: false,
+      hunt: {
+        state: 'none', // 'none' | 'armed' | 'towing' | 'done' | 'failed'
+        towTime: 0,
+        ropeLength: 15.0,
+        ropeStrain: 0,
+        ringsCollected: 0,
+        breachWinches: 0,
+        lateralOffset: 0,
+        breachWinchedThisBreach: false,
+        whaleTiredTimer: 0
+      },
+      tournament: {
+        active: false,
+        timeLeft: 150.0,
+        score: 0,
+        targetSpecies: 'Sun Carp',
+        finished: false,
+        trophy: ''
+      },
+      checkpoints: {
+        active: null, // null or { id, name, x, y, z }
+        respawnsRemaining: 3,
+        respawnsUsed: 0,
+        respawning: false,
+        respawnTimer: 0
+      },
+      stats: {
+        catches: {
+          'Sun Carp': { count: 0, heaviest: 0 },
+          'Silver Dart': { count: 0, heaviest: 0 },
+          'Moon Puffer': { count: 0, heaviest: 0 },
+          'Storm Eel': { count: 0, heaviest: 0 }
+        },
+        linesSnapped: 0,
+        linesBurned: 0,
+        strikesMissed: 0,
+        whaleHunt: {
+          outcome: 'not attempted', // 'not attempted' | 'failed' | 'completed'
+          rings: 0,
+          winches: 0
+        },
+        tournament: {
+          bestScore: 0,
+          trophy: 'NONE'
+        },
+        respawnsUsed: 0
+      },
+      ship: {
+        x: 0,
+        y: 12.0,
+        z: 35.0,
+        heading: 0,       // radians (0 = facing -Z)
+        speed: 0,
+        climbSpeed: 0,
+        angularVel: 0,
+        pitch: 0,
+        roll: 0,
+        swayOffset: 0,
+        swayVel: 0
+      },
+      fishing: {
+        state: 'idle',    // 'idle' | 'flying' | 'cast' | 'divert' | 'strike' | 'fight' | 'rerig'
+        bobberPos: new THREE.Vector3(),
+        castProgress: 0,
+        castStart: new THREE.Vector3(),
+        castTarget: new THREE.Vector3(),
+        tension: 0,
+        lineLength: 0,
+        hookedFishId: null,
+        targetFishId: null,
+        strikeTimer: 0,
+        fightTimer: 0,
+        isPulling: false,
+        pullPhaseName: 'RESTING',
+        pullVector: new THREE.Vector3(),
+        rerigTimer: 0,
+        eelPhase: null
+      },
+      fish: [],
+      clouds: []
+    };
+
+    function getHoldWeight() {
+      let sum = 0;
+      for (let i = 0; i < gameState.hold.length; i++) {
+        sum += gameState.hold[i].weight;
+      }
+      return Math.round(sum * 10) / 10;
+    }
+
+    function getSnapThreshold() {
+      return gameState.tackle === 'heavy' ? 110.0 : 90.0;
+    }
+
+    function computeDayRating() {
+      if (gameState.coins >= 1500 && gameState.stats.whaleHunt.outcome === 'completed') return 'S';
+      if (gameState.coins >= 1000) return 'A';
+      if (gameState.coins >= 500) return 'B';
+      return 'C';
+    }
+
+    function exportArenaState() {
+      const shipPos = [gameState.ship.x, gameState.ship.y, gameState.ship.z];
+      shipPos.x = gameState.ship.x;
+      shipPos.y = gameState.ship.y;
+      shipPos.z = gameState.ship.z;
+
+      const fState = (gameState.fishing.state === 'fight') ? 'fight' :
+                     (gameState.fishing.state === 'cast' || gameState.fishing.state === 'flying' || gameState.fishing.state === 'divert' || gameState.fishing.state === 'strike') ? 'cast' : 'idle';
+
+      const curHoldWeight = getHoldWeight();
+      const loadTier = (curHoldWeight >= 7.0) ? 'Laden' : 'Light';
+      const hookedFish = gameState.fish.find(f => f.id === gameState.fishing.hookedFishId);
+      const isEelHooked = hookedFish && hookedFish.species === 'Storm Eel' && gameState.fishing.state === 'fight';
+      const currentEelPhase = isEelHooked ? (gameState.fishing.eelPhase || 'pull') : null;
+
+      const exportObj = {
+        phase: gameState.phase,
+        activeCheckpoint: gameState.checkpoints.active ? gameState.checkpoints.active.name : null,
+        respawnsRemaining: gameState.checkpoints.respawnsRemaining,
+        respawnsUsed: gameState.checkpoints.respawnsUsed,
+        stats: {
+          catches: {
+            'Sun Carp': { count: gameState.stats.catches['Sun Carp'].count, heaviest: gameState.stats.catches['Sun Carp'].heaviest },
+            'Silver Dart': { count: gameState.stats.catches['Silver Dart'].count, heaviest: gameState.stats.catches['Silver Dart'].heaviest },
+            'Moon Puffer': { count: gameState.stats.catches['Moon Puffer'].count, heaviest: gameState.stats.catches['Moon Puffer'].heaviest },
+            'Storm Eel': { count: gameState.stats.catches['Storm Eel'].count, heaviest: gameState.stats.catches['Storm Eel'].heaviest }
+          },
+          linesSnapped: gameState.stats.linesSnapped,
+          linesBurned: gameState.stats.linesBurned,
+          strikesMissed: gameState.stats.strikesMissed,
+          whaleHunt: {
+            outcome: gameState.stats.whaleHunt.outcome,
+            rings: gameState.stats.whaleHunt.rings,
+            winches: gameState.stats.whaleHunt.winches
+          },
+          tournament: {
+            bestScore: gameState.stats.tournament.bestScore,
+            trophy: gameState.stats.tournament.trophy
+          },
+          respawnsUsed: gameState.checkpoints.respawnsUsed,
+          coins: gameState.coins,
+          dayRating: computeDayRating()
+        },
+        tournament: {
+          active: gameState.tournament.active,
+          timeLeft: gameState.tournament.timeLeft,
+          score: gameState.tournament.score,
+          targetSpecies: gameState.tournament.targetSpecies
+        },
+        windLanes: (typeof windLanesData !== 'undefined') ? windLanesData.map(w => ({
+          id: w.id,
+          start: [w.startX, w.startY, w.startZ],
+          end: [w.endX, w.endY, w.endZ],
+          direction: [w.dirX, w.dirY, w.dirZ],
+          width: w.width,
+          shipInside: w.shipInside
+        })) : [],
+        thermals: (typeof thermalsData !== 'undefined') ? thermalsData.map(th => ({
+          id: th.id,
+          position: [th.x, th.y, th.z],
+          radius: th.radius,
+          shipInside: th.shipInside
+        })) : [],
+        rivals: (typeof rivalAirships !== 'undefined' && gameState.tournament.active) ? rivalAirships.map(r => ({
+          id: r.id,
+          position: [r.mesh.position.x, r.mesh.position.y, r.mesh.position.z],
+          heading: r.heading
+        })) : [],
+        huntState: gameState.hunt.state,
+        towTime: gameState.hunt.towTime,
+        ropeLength: gameState.hunt.ropeLength,
+        ropeStrain: gameState.hunt.ropeStrain,
+        ringsCollected: gameState.hunt.ringsCollected,
+        breachWinches: gameState.hunt.breachWinches,
+        whale: {
+          position: (typeof whaleData !== 'undefined') ? [whaleData.x, whaleData.y, whaleData.z] : [0, 0, 0],
+          phase: (typeof whaleData !== 'undefined') ? whaleData.phase : 'patrol'
+        },
+        tackle: gameState.tackle,
+        strikesMissed: gameState.strikesMissed,
+        spools: gameState.spools,
+        holdWeight: curHoldWeight,
+        loadTier: loadTier,
+        eelPhase: currentEelPhase,
+        linesBurned: gameState.linesBurned,
+        baitDepth: gameState.baitDepth,
+        strikeWindowOpen: gameState.strikeWindowOpen,
+        ship: {
+          position: shipPos,
+          heading: gameState.ship.heading,
+          speed: gameState.ship.speed,
+          altitude: gameState.ship.y - CLOUD_Y
+        },
+        fishing: {
+          state: fState,
+          tension: gameState.fishing.tension,
+          lineLength: gameState.fishing.lineLength,
+          hookedFishId: gameState.fishing.hookedFishId,
+          eelPhase: currentEelPhase
+        },
+        tension: gameState.fishing.tension,
+        lineLength: gameState.fishing.lineLength,
+        hookedFishId: gameState.fishing.hookedFishId,
+        fish: gameState.fish.map(f => {
+          const fPos = [f.mesh.position.x, f.mesh.position.y, f.mesh.position.z];
+          fPos.x = f.mesh.position.x;
+          fPos.y = f.mesh.position.y;
+          fPos.z = f.mesh.position.z;
+          return {
+            id: f.id,
+            species: f.species,
+            state: f.state,
+            position: fPos,
+            weight: f.weight,
+            sizeMultiplier: f.sizeMultiplier
+          };
+        }),
+        hold: gameState.hold.map(h => ({ id: h.id, species: h.species, weight: h.weight, value: h.value })),
+        coins: gameState.coins
+      };
+
+      window.__arena_state = Object.freeze(exportObj);
+    }
+
+    /* ==========================================================================
+       THREE.JS SETUP & GOLDEN HOUR ART DIRECTION
+       ========================================================================== */
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf6ba78);
+    scene.fog = new THREE.FogExp2(0xf0aa70, 0.0075);
+
+    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.5, 800);
+
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+    } catch (e) {
+      console.warn("WebGLRenderer unavailable, using headless fallback:", e);
+      renderer = {
+        render: () => {},
+        setSize: () => {},
+        domElement: document.createElement('canvas'),
+        shadowMap: {}
+      };
+    }
+
+    window.addEventListener('resize', () => {
+      if (renderer.setSize) {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+    });
+
+    const hemiLight = new THREE.HemisphereLight(0xffdfba, 0x6d405d, 0.85);
+    scene.add(hemiLight);
+
+    const sunLight = new THREE.DirectionalLight(0xffebaa, 1.3);
+    sunLight.position.set(120, 90, 160);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 1024;
+    sunLight.shadow.mapSize.height = 1024;
+    sunLight.shadow.camera.near = 10;
+    sunLight.shadow.camera.far = 400;
+    const d = 100;
+    sunLight.shadow.camera.left = -d;
+    sunLight.shadow.camera.right = d;
+    sunLight.shadow.camera.top = d;
+    sunLight.shadow.camera.bottom = -d;
+    scene.add(sunLight);
+
+    const sunsetRimLight = new THREE.DirectionalLight(0xec4899, 0.45);
+    sunsetRimLight.position.set(-150, 20, -150);
+    scene.add(sunsetRimLight);
+
+    /* ==========================================================================
+       ENVIRONMENT: GOLDEN CLOUD SEA, ISLETS, MARKET, LIGHTHOUSES, WATERFALL
+       ========================================================================== */
+    const cloudGeo = new THREE.PlaneGeometry(800, 800, 32, 32);
+    const posAttr = cloudGeo.attributes.position;
+    for (let i = 0; i < posAttr.count; i++) {
+      const u = posAttr.getX(i);
+      const v = posAttr.getY(i);
+      const zOffset = Math.sin(u * 0.05) * Math.cos(v * 0.05) * 0.35 +
+                      Math.sin(u * 0.1 + v * 0.08) * 0.2;
+      posAttr.setZ(i, zOffset);
+    }
+    cloudGeo.computeVertexNormals();
+    const cloudMat = new THREE.MeshStandardMaterial({
+      color: 0xffedd5,
+      roughness: 0.85,
+      metalness: 0.05,
+      emissive: 0xd97706,
+      emissiveIntensity: 0.2,
+      flatShading: true,
+      transparent: true,
+      opacity: 0.92 // Translucent cloud tops so bait sinker and glowing fish are visible
+    });
+    const cloudSea = new THREE.Mesh(cloudGeo, cloudMat);
+    cloudSea.rotation.x = -Math.PI / 2;
+    cloudSea.position.y = CLOUD_Y;
+    cloudSea.receiveShadow = true;
+    scene.add(cloudSea);
+
+    // Drifting cloud puffs
+    const cloudPuffGroup = new THREE.Group();
+    const puffGeo = new THREE.DodecahedronGeometry(2.5, 1);
+    const puffMat = new THREE.MeshStandardMaterial({
+      color: 0xfff7ed,
+      roughness: 0.9,
+      emissive: 0xf59e0b,
+      emissiveIntensity: 0.15,
+      flatShading: true
+    });
+    for (let i = 0; i < 35; i++) {
+      const puff = new THREE.Mesh(puffGeo, puffMat);
+      const px = worldRng.range(-200, 200);
+      const pz = worldRng.range(-200, 200);
+      puff.position.set(px, CLOUD_Y + 0.2, pz);
+      const s = worldRng.range(0.8, 2.2);
+      puff.scale.set(s * 1.5, s * 0.5, s);
+      cloudPuffGroup.add(puff);
+      gameState.clouds.push(puff);
+    }
+    scene.add(cloudPuffGroup);
+
+    // Collidable Obstacles Array for honest collisions
+    const colliders = [];
+
+    // Floating Market Isle with Dock, Awning Stalls, Bell Tower
+    const marketGroup = new THREE.Group();
+    marketGroup.position.set(-35, 1.5, -10);
+
+    const rockMat = new THREE.MeshStandardMaterial({ color: 0x5c483a, roughness: 0.9, flatShading: true });
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x854d0e, roughness: 0.7, flatShading: true });
+    const turfMat = new THREE.MeshStandardMaterial({ color: 0x4d7c0f, roughness: 0.8, flatShading: true });
+
+    const marketRock = new THREE.Mesh(new THREE.CylinderGeometry(14, 2, 9, 9), rockMat);
+    marketRock.position.y = 2.5;
+    marketRock.castShadow = true;
+    marketRock.receiveShadow = true;
+    marketGroup.add(marketRock);
+
+    const turf = new THREE.Mesh(new THREE.CylinderGeometry(14.2, 14, 1.2, 9), turfMat);
+    turf.position.y = 7.0;
+    turf.receiveShadow = true;
+    marketGroup.add(turf);
+
+    const dock = new THREE.Mesh(new THREE.BoxGeometry(7, 0.8, 14), woodMat);
+    dock.position.set(13, 5.8, 0);
+    dock.receiveShadow = true;
+    marketGroup.add(dock);
+
+    for (let pz = -6; pz <= 6; pz += 4) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 2.5, 6), woodMat);
+      post.position.set(16.0, 6.5, pz);
+      marketGroup.add(post);
+    }
+
+    // Harpoon notice board on market pier
+    const harpoonBoardGroup = new THREE.Group();
+    harpoonBoardGroup.position.set(13.5, 6.2, 4.0);
+    const boardP1 = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 2.8, 6), woodMat);
+    boardP1.position.set(-0.9, 1.4, 0);
+    harpoonBoardGroup.add(boardP1);
+    const boardP2 = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 2.8, 6), woodMat);
+    boardP2.position.set(0.9, 1.4, 0);
+    harpoonBoardGroup.add(boardP2);
+    const boardPlank = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.6, 0.2), new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 }));
+    boardPlank.position.set(0, 2.0, 0);
+    harpoonBoardGroup.add(boardPlank);
+    const boardSign = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.3, 0.25), new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8 }));
+    boardSign.position.set(0, 2.0, 0.08);
+    harpoonBoardGroup.add(boardSign);
+    marketGroup.add(harpoonBoardGroup);
+
+    const DOCK_BERTH_X = -22.0;
+    const DOCK_BERTH_Z = -10.0;
+    const DOCK_BERTH_RADIUS = 6.0;
+
+    const berthRingGeo = new THREE.RingGeometry(4.5, 5.5, 28);
+    const berthRingMat = new THREE.MeshBasicMaterial({
+      color: 0xfacc15,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.85
+    });
+    const berthRing = new THREE.Mesh(berthRingGeo, berthRingMat);
+    berthRing.rotation.x = -Math.PI / 2;
+    berthRing.position.set(DOCK_BERTH_X, CLOUD_Y + 0.35, DOCK_BERTH_Z);
+    scene.add(berthRing);
+
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(3.2, 11, 3.2), new THREE.MeshStandardMaterial({ color: 0x78716c, roughness: 0.7, flatShading: true }));
+    tower.position.set(-4, 12.5, -4);
+    tower.castShadow = true;
+    marketGroup.add(tower);
+
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(2.8, 4, 4), new THREE.MeshStandardMaterial({ color: 0x991b1b, roughness: 0.6, flatShading: true }));
+    roof.position.set(-4, 19.5, -4);
+    roof.rotation.y = Math.PI / 4;
+    roof.castShadow = true;
+    marketGroup.add(roof);
+
+    const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 1.0, 1.2, 8), new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.8, roughness: 0.3 }));
+    bell.position.set(-4, 16.5, -4);
+    marketGroup.add(bell);
+
+    const stallColors = [0xb91c1c, 0x1d4ed8, 0x047857];
+    for (let s = 0; s < 3; s++) {
+      const stallBase = new THREE.Mesh(new THREE.BoxGeometry(3.5, 2.5, 2.8), woodMat);
+      stallBase.position.set(2, 8.2, -5 + s * 4.5);
+      marketGroup.add(stallBase);
+
+      const awning = new THREE.Mesh(
+        new THREE.ConeGeometry(2.5, 1.2, 4),
+        new THREE.MeshStandardMaterial({ color: stallColors[s], roughness: 0.6, flatShading: true })
+      );
+      awning.position.set(2, 10.1, -5 + s * 4.5);
+      awning.rotation.y = Math.PI / 4;
+      marketGroup.add(awning);
+    }
+    scene.add(marketGroup);
+
+    colliders.push({
+      type: 'cylinder',
+      pos: new THREE.Vector3(-35, 6, -10),
+      radius: 9.5,
+      yMin: CLOUD_Y,
+      yMax: 20,
+      name: 'Market Isle'
+    });
+
+    /* ==========================================================================
+       THE STORM SHOAL (North of Market) - Darker cloud patch under crackling halo
+       ========================================================================== */
+    const stormShoalGroup = new THREE.Group();
+    const SHOAL_X = -35.0;
+    const SHOAL_Z = -82.0;
+    stormShoalGroup.position.set(SHOAL_X, CLOUD_Y, SHOAL_Z);
+
+    const stormCloudMat = new THREE.MeshStandardMaterial({
+      color: 0x1f1b2b,
+      emissive: 0x0f0b1a,
+      emissiveIntensity: 0.8,
+      roughness: 0.9,
+      metalness: 0.1,
+      flatShading: true
+    });
+
+    // Dark cloud patch disk
+    const shoalPatch = new THREE.Mesh(new THREE.CylinderGeometry(26, 28, 1.2, 22), stormCloudMat);
+    shoalPatch.position.y = 0.2;
+    shoalPatch.receiveShadow = true;
+    stormShoalGroup.add(shoalPatch);
+
+    // Billowing dark cloud mounds
+    const moundOffsets = [
+      [-12, -7, 8], [11, -5, 10], [-8, 10, 9], [12, 9, 8], [0, 0, 12], [-14, 5, 7], [13, -11, 7]
+    ];
+    moundOffsets.forEach(([ox, oz, rad]) => {
+      const moundGeo = new THREE.SphereGeometry(rad, 10, 8);
+      moundGeo.scale(1.4, 0.4, 1.2);
+      const mound = new THREE.Mesh(moundGeo, stormCloudMat);
+      mound.position.set(ox, 0.35, oz);
+      mound.receiveShadow = true;
+      stormShoalGroup.add(mound);
+    });
+
+    // Crackling Halo suspended above Storm Shoal
+    const stormHaloGroup = new THREE.Group();
+    stormHaloGroup.position.set(0, 6.5, 0);
+
+    const haloGeo = new THREE.TorusGeometry(14, 0.45, 8, 36);
+    const haloMat = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x0ea5e9,
+      emissiveIntensity: 1.8,
+      roughness: 0.2,
+      metalness: 0.8
+    });
+    const stormHaloMesh = new THREE.Mesh(haloGeo, haloMat);
+    stormHaloMesh.rotation.x = Math.PI / 2;
+    stormHaloGroup.add(stormHaloMesh);
+
+    // Inner wireframe energy ring
+    const innerHaloGeo = new THREE.TorusGeometry(10.5, 0.2, 6, 24);
+    const innerHaloMat = new THREE.MeshBasicMaterial({ color: 0xa5f3fc, wireframe: true });
+    const stormInnerHalo = new THREE.Mesh(innerHaloGeo, innerHaloMat);
+    stormInnerHalo.rotation.x = Math.PI / 2;
+    stormHaloGroup.add(stormInnerHalo);
+
+    const stormHaloLight = new THREE.PointLight(0x38bdf8, 1.4, 55);
+    stormHaloLight.position.y = 1.0;
+    stormHaloGroup.add(stormHaloLight);
+
+    stormShoalGroup.add(stormHaloGroup);
+    scene.add(stormShoalGroup);
+
+    // Three Lighthouse Buoys Anchored Far Apart with Fixed English Names
+    const lighthouseData = [
+      { id: 1, name: 'Sunwatch Beacon', pos: new THREE.Vector3(45, 0, -40) },
+      { id: 2, name: 'Southreach Beacon', pos: new THREE.Vector3(80, 0, 50) },
+      { id: 3, name: 'Mistveil Beacon', pos: new THREE.Vector3(-60, 0, 70) }
+    ];
+    const lighthouses = [];
+
+    lighthouseData.forEach((bData) => {
+      const buoyGroup = new THREE.Group();
+      buoyGroup.position.copy(bData.pos);
+
+      const bBase = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.8, 3, 8), new THREE.MeshStandardMaterial({ color: 0x991b1b, roughness: 0.6, flatShading: true }));
+      bBase.position.y = 1.2;
+      buoyGroup.add(bBase);
+
+      const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.8, 8, 6), new THREE.MeshStandardMaterial({ color: 0xf3f4f6, roughness: 0.5, flatShading: true }));
+      spire.position.y = 6.5;
+      buoyGroup.add(spire);
+
+      const cage = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 1.8, 6, 1, true), new THREE.MeshStandardMaterial({ color: 0x374151, metalness: 0.8, roughness: 0.4 }));
+      cage.position.y = 11.2;
+      buoyGroup.add(cage);
+
+      const lanternMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+      const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.85, 10, 10), lanternMat);
+      lantern.position.y = 11.2;
+      buoyGroup.add(lantern);
+
+      // Rotating beacon beam geometry
+      const beamGeo = new THREE.ConeGeometry(2.2, 18, 12, 1, true);
+      const beamMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.0, side: THREE.DoubleSide });
+      const beamMesh = new THREE.Mesh(beamGeo, beamMat);
+      beamMesh.position.set(0, 11.2, 9);
+      beamMesh.rotation.x = -Math.PI / 2;
+      buoyGroup.add(beamMesh);
+
+      const buoyLight = new THREE.PointLight(0xfde047, 0.8, 30);
+      buoyLight.position.y = 11.2;
+      buoyGroup.add(buoyLight);
+
+      scene.add(buoyGroup);
+
+      // Core collider: radius 2.0 so ship can fly within 5.0u without collision
+      colliders.push({
+        type: 'cylinder',
+        pos: bData.pos.clone().setY(6),
+        radius: 2.0,
+        yMin: CLOUD_Y,
+        yMax: 13,
+        name: bData.name
+      });
+
+      lighthouses.push({
+        id: bData.id,
+        name: bData.name,
+        pos: bData.pos,
+        group: buoyGroup,
+        lantern: lantern,
+        lanternMat: lanternMat,
+        light: buoyLight,
+        beam: beamMesh,
+        beamMat: beamMat,
+        lit: false
+      });
+    });
+
+    // Scattered Floating Rock Islets
+    const isletPositions = [
+      { pos: new THREE.Vector3(25, 6, 15), r: 4.5 },
+      { pos: new THREE.Vector3(-15, 8, -65), r: 5.5 },
+      { pos: new THREE.Vector3(65, 5, -15), r: 4.0 },
+      { pos: new THREE.Vector3(-75, 7, -25), r: 6.0 },
+      { pos: new THREE.Vector3(15, 9, 85), r: 5.0 }
+    ];
+    isletPositions.forEach((isletData, idx) => {
+      const isletMesh = new THREE.Mesh(new THREE.DodecahedronGeometry(isletData.r, 1), rockMat);
+      isletMesh.position.copy(isletData.pos);
+      isletMesh.scale.set(1.1, 1.4, 1.0);
+      isletMesh.castShadow = true;
+      isletMesh.receiveShadow = true;
+      scene.add(isletMesh);
+
+      const treeTrunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 2, 5), woodMat);
+      treeTrunk.position.set(isletData.pos.x, isletData.pos.y + isletData.r * 1.2, isletData.pos.z);
+      scene.add(treeTrunk);
+
+      const treeFoliage = new THREE.Mesh(new THREE.ConeGeometry(1.5, 3.5, 6), turfMat);
+      treeFoliage.position.set(isletData.pos.x, isletData.pos.y + isletData.r * 1.2 + 2.2, isletData.pos.z);
+      scene.add(treeFoliage);
+
+      colliders.push({
+        type: 'sphere',
+        pos: isletData.pos.clone(),
+        radius: isletData.r * 1.25,
+        name: `Islet #${idx + 1}`
+      });
+    });
+
+    // Cloud Waterfall on Horizon
+    const waterfallGroup = new THREE.Group();
+    waterfallGroup.position.set(0, -10, -280);
+    const wfGeo = new THREE.CylinderGeometry(50, 60, 45, 24, 1, true, -Math.PI*0.4, Math.PI*0.8);
+    const wfMat = new THREE.MeshStandardMaterial({
+      color: 0xffedd5,
+      emissive: 0xf59e0b,
+      emissiveIntensity: 0.35,
+      roughness: 0.3,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide
+    });
+    const wfMesh = new THREE.Mesh(wfGeo, wfMat);
+    waterfallGroup.add(wfMesh);
+    scene.add(waterfallGroup);
+
+    // Bird Flock Circling a Fixed Loop
+    const birdGroup = new THREE.Group();
+    const birdCount = 7;
+    const birdMeshes = [];
+    const birdWingGeo = new THREE.BufferGeometry();
+    const birdVerts = new Float32Array([
+      -1.2, 0, -0.2,   0, 0, 0.4,   0, 0, -0.4,
+       1.2, 0, -0.2,   0, 0, -0.4,  0, 0, 0.4
+    ]);
+    birdWingGeo.setAttribute('position', new THREE.BufferAttribute(birdVerts, 3));
+    birdWingGeo.computeVertexNormals();
+    const birdMat = new THREE.MeshBasicMaterial({ color: 0x451a03, side: THREE.DoubleSide });
+
+    for (let b = 0; b < birdCount; b++) {
+      const bird = new THREE.Mesh(birdWingGeo, birdMat);
+      birdGroup.add(bird);
+      birdMeshes.push({
+        mesh: bird,
+        offset: (b / birdCount) * Math.PI * 2,
+        wingPhase: b * 1.2
+      });
+    }
+    scene.add(birdGroup);
+
+    /* ==========================================================================
+       THE AIRSHIP SKYLARK & HER ANGLER
+       ========================================================================== */
+    const shipRoot = new THREE.Group();
+    scene.add(shipRoot);
+
+    const shipPitchRollGroup = new THREE.Group();
+    shipRoot.add(shipPitchRollGroup);
+
+    const gasbagSwayGroup = new THREE.Group();
+    shipPitchRollGroup.add(gasbagSwayGroup);
+
+    const gasbagGeo = new THREE.SphereGeometry(3.6, 20, 16);
+    gasbagGeo.scale(1.0, 0.95, 2.6);
+    const gasbagMat = new THREE.MeshStandardMaterial({
+      color: 0xfef3c7,
+      roughness: 0.5,
+      metalness: 0.1,
+      flatShading: true
+    });
+    const gasbagMesh = new THREE.Mesh(gasbagGeo, gasbagMat);
+    gasbagMesh.position.set(0, 3.2, 0);
+    gasbagMesh.castShadow = true;
+    gasbagSwayGroup.add(gasbagMesh);
+
+    for (let s = -4.5; s <= 4.5; s += 3.0) {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(3.2, 0.08, 8, 24),
+        new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.7, roughness: 0.3 })
+      );
+      ring.position.set(0, 3.2, s);
+      gasbagSwayGroup.add(ring);
+    }
+
+    const finGroup = new THREE.Group();
+    finGroup.position.set(0, 3.2, 8.5);
+    gasbagSwayGroup.add(finGroup);
+
+    const topFin = new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.4, 2.2), gasbagMat);
+    topFin.position.set(0, 1.8, 0);
+    finGroup.add(topFin);
+
+    const horizFin = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.15, 1.8), gasbagMat);
+    horizFin.position.set(0, 0, 0);
+    finGroup.add(horizFin);
+
+    const rudderMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.18, 3.2, 1.4),
+      new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.6, flatShading: true })
+    );
+    rudderMesh.position.set(0, 0, 1.0);
+    finGroup.add(rudderMesh);
+
+    const cableMat = new THREE.LineBasicMaterial({ color: 0x451a03, linewidth: 2 });
+    const cablePoints = [
+      [-1.8, 2.0, -3.5], [-1.0, 0.6, -2.5],
+      [-2.2, 2.0,  0.0], [-1.0, 0.6,  0.0],
+      [-1.8, 2.0,  3.5], [-1.0, 0.6,  2.5],
+      [ 1.8, 2.0, -3.5], [ 1.0, 0.6, -2.5],
+      [ 2.2, 2.0,  0.0], [ 1.0, 0.6,  0.0],
+      [ 1.8, 2.0,  3.5], [ 1.0, 0.6,  2.5]
+    ];
+    for (let c = 0; c < cablePoints.length; c += 2) {
+      const cGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(...cablePoints[c]),
+        new THREE.Vector3(...cablePoints[c+1])
+      ]);
+      shipPitchRollGroup.add(new THREE.Line(cGeo, cableMat));
+    }
+
+    const gondolaGroup = new THREE.Group();
+    gondolaGroup.position.set(0, -0.2, 0);
+    shipPitchRollGroup.add(gondolaGroup);
+
+    const hullMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.6, flatShading: true });
+    const hullMesh = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.4, 6.2), hullMat);
+    hullMesh.position.set(0, 0, 0);
+    hullMesh.castShadow = true;
+    gondolaGroup.add(hullMesh);
+
+    const keel = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 0.5, 5.8, 8), hullMat);
+    keel.rotation.x = Math.PI / 2;
+    keel.position.set(0, -0.5, 0);
+    gondolaGroup.add(keel);
+
+    const deckMesh = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.1, 6.0), new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.5 }));
+    deckMesh.position.set(0, 0.75, 0);
+    gondolaGroup.add(deckMesh);
+
+    const railMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.7, roughness: 0.3 });
+    const postPositions = [
+      [-1.1, -2.8], [1.1, -2.8],
+      [-1.1, -1.0], [1.1, -1.0],
+      [-1.1,  1.0], [1.1,  1.0],
+      [-1.1,  2.8], [1.1,  2.8]
+    ];
+    postPositions.forEach(([rx, rz]) => {
+      const pMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.7, 6), railMat);
+      pMesh.position.set(rx, 1.1, rz);
+      gondolaGroup.add(pMesh);
+    });
+    const railLeft = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 5.8), railMat);
+    railLeft.position.set(-1.1, 1.45, 0);
+    gondolaGroup.add(railLeft);
+    const railRight = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 5.8), railMat);
+    railRight.position.set(1.1, 1.45, 0);
+    gondolaGroup.add(railRight);
+
+    const propBlades = [];
+    [-1.65, 1.65].forEach((sideX) => {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.12, 0.2), railMat);
+      arm.position.set(sideX > 0 ? 1.4 : -1.4, 0.4, 1.2);
+      gondolaGroup.add(arm);
+
+      const motorHub = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.5, 8), railMat);
+      motorHub.rotation.x = Math.PI / 2;
+      motorHub.position.set(sideX, 0.4, 1.2);
+      gondolaGroup.add(motorHub);
+
+      const propSpinner = new THREE.Group();
+      propSpinner.position.set(sideX, 0.4, 1.5);
+      gondolaGroup.add(propSpinner);
+
+      const blade = new THREE.Mesh(
+        new THREE.BoxGeometry(0.12, 1.3, 0.04),
+        new THREE.MeshStandardMaterial({ color: 0xca8a04, metalness: 0.6, roughness: 0.3 })
+      );
+      propSpinner.add(blade);
+      propBlades.push(propSpinner);
+    });
+
+    // Articulated Angler
+    const anglerGroup = new THREE.Group();
+    anglerGroup.position.set(0, 0.8, -1.8);
+    gondolaGroup.add(anglerGroup);
+
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xfbcfe8, roughness: 0.7 });
+    const coatMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.6 });
+    const pantsMat = new THREE.MeshStandardMaterial({ color: 0x374151, roughness: 0.7 });
+    const bootsMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.8 });
+    const hatMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.5 });
+    const scarfMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.6 });
+
+    const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.7, 0.24), pantsMat);
+    leftLeg.position.set(-0.2, 0.35, 0);
+    anglerGroup.add(leftLeg);
+    const leftBoot = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.22, 0.35), bootsMat);
+    leftBoot.position.set(-0.2, 0.11, -0.05);
+    anglerGroup.add(leftBoot);
+
+    const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.7, 0.24), pantsMat);
+    rightLeg.position.set(0.2, 0.35, 0);
+    anglerGroup.add(rightLeg);
+    const rightBoot = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.22, 0.35), bootsMat);
+    rightBoot.position.set(0.2, 0.11, -0.05);
+    anglerGroup.add(rightBoot);
+
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.8, 0.4), coatMat);
+    torso.position.set(0, 1.05, 0);
+    torso.castShadow = true;
+    anglerGroup.add(torso);
+
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 8), skinMat);
+    head.position.set(0, 1.6, 0);
+    anglerGroup.add(head);
+
+    const hatBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.52, 0.08, 10), hatMat);
+    hatBrim.position.set(0, 1.72, 0);
+    anglerGroup.add(hatBrim);
+    const hatCrown = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.38, 8), hatMat);
+    hatCrown.position.set(0, 1.9, 0);
+    anglerGroup.add(hatCrown);
+
+    const scarfNeck = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.08, 6, 12), scarfMat);
+    scarfNeck.rotation.x = Math.PI / 2;
+    scarfNeck.position.set(0, 1.45, 0);
+    anglerGroup.add(scarfNeck);
+
+    const scarfTailGroup = new THREE.Group();
+    scarfTailGroup.position.set(0, 1.45, 0.2);
+    anglerGroup.add(scarfTailGroup);
+
+    const scarfTailMesh = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.1, 1.1), scarfMat);
+    scarfTailMesh.position.set(0, -0.1, 0.55);
+    scarfTailGroup.add(scarfTailMesh);
+
+    const armLeftGroup = new THREE.Group();
+    armLeftGroup.position.set(-0.4, 1.35, 0);
+    anglerGroup.add(armLeftGroup);
+    const armLeft = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.65, 0.18), coatMat);
+    armLeft.position.set(0, -0.25, -0.2);
+    armLeft.rotation.x = -Math.PI / 4;
+    armLeftGroup.add(armLeft);
+
+    const armRightGroup = new THREE.Group();
+    armRightGroup.position.set(0.4, 1.35, 0);
+    anglerGroup.add(armRightGroup);
+    const armRight = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.65, 0.18), coatMat);
+    armRight.position.set(0, -0.25, -0.2);
+    armRight.rotation.x = -Math.PI / 3;
+    armRightGroup.add(armRight);
+
+    const rodGroup = new THREE.Group();
+    rodGroup.position.set(0.25, 1.05, -0.4);
+    rodGroup.rotation.x = -Math.PI / 5;
+    anglerGroup.add(rodGroup);
+
+    const rodHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.8, 6), woodMat);
+    rodGroup.add(rodHandle);
+
+    const rodBlank = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.015, 0.04, 3.2, 6),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.2 })
+    );
+    rodBlank.position.set(0, 1.8, 0);
+    rodGroup.add(rodBlank);
+
+    const rodReel = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.15, 8), railMat);
+    rodReel.rotation.z = Math.PI / 2;
+    rodReel.position.set(0, 0.2, 0.1);
+    rodGroup.add(rodReel);
+
+    const rodTip = new THREE.Object3D();
+    rodTip.position.set(0, 3.4, 0);
+    rodGroup.add(rodTip);
+
+    /* ==========================================================================
+       MOUNTED HARPOON LAUNCHER AT GONDOLA'S BOW
+       ========================================================================== */
+    const harpoonLauncherGroup = new THREE.Group();
+    harpoonLauncherGroup.position.set(0, 0.9, -2.8);
+    harpoonLauncherGroup.visible = false;
+    gondolaGroup.add(harpoonLauncherGroup);
+
+    const launcherSwivel = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.5, 8), railMat);
+    harpoonLauncherGroup.add(launcherSwivel);
+
+    const launcherTwinRails = new THREE.Mesh(
+      new THREE.BoxGeometry(0.35, 0.12, 1.8),
+      new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.8, roughness: 0.2 })
+    );
+    launcherTwinRails.position.set(0, 0.3, -0.6);
+    harpoonLauncherGroup.add(launcherTwinRails);
+
+    const winchDrum = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.2, 0.2, 0.35, 8),
+      new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.6 })
+    );
+    winchDrum.rotation.z = Math.PI / 2;
+    winchDrum.position.set(0, 0.15, -0.1);
+    harpoonLauncherGroup.add(winchDrum);
+
+    const launcherBoltMesh = new THREE.Mesh(
+      new THREE.ConeGeometry(0.12, 1.0, 6),
+      new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9 })
+    );
+    launcherBoltMesh.rotation.x = -Math.PI / 2;
+    launcherBoltMesh.position.set(0, 0.35, -1.3);
+    harpoonLauncherGroup.add(launcherBoltMesh);
+
+    // Flying Harpoon Bolt
+    const harpoonBolt = {
+      active: false,
+      startPos: new THREE.Vector3(),
+      targetPos: new THREE.Vector3(),
+      progress: 0,
+      mesh: new THREE.Mesh(
+        new THREE.ConeGeometry(0.2, 1.8, 6),
+        new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9, roughness: 0.2 })
+      )
+    };
+    harpoonBolt.mesh.rotation.x = -Math.PI / 2;
+    harpoonBolt.mesh.visible = false;
+    scene.add(harpoonBolt.mesh);
+
+    // Harpoon tow rope (connecting bow to bolt/whale)
+    const harpoonRopeGeo = new THREE.BufferGeometry();
+    const ropePointsCount = 20;
+    const ropePosArray = new Float32Array(ropePointsCount * 3);
+    harpoonRopeGeo.setAttribute('position', new THREE.BufferAttribute(ropePosArray, 3));
+    const harpoonRopeMat = new THREE.LineBasicMaterial({ color: 0xfef08a, linewidth: 3 });
+    const harpoonRope = new THREE.Line(harpoonRopeGeo, harpoonRopeMat);
+    harpoonRope.frustumCulled = false;
+    harpoonRope.visible = false;
+    scene.add(harpoonRope);
+
+    /* ==========================================================================
+       THE CLOUD WHALE & CLOUD REACH CANYON COURSE
+       ========================================================================== */
+    const whaleData = {
+      x: -75.0,
+      y: CLOUD_Y + 1.2,
+      z: -85.0,
+      heading: Math.PI / 2,
+      phase: 'surfaced',
+      patrolAngle: 0
+    };
+
+    const whaleGroup = new THREE.Group();
+    whaleGroup.position.set(whaleData.x, whaleData.y, whaleData.z);
+    scene.add(whaleGroup);
+
+    const whaleSkinMat = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      roughness: 0.6,
+      metalness: 0.2,
+      flatShading: true
+    });
+    const whaleRuneMat = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x0284c7,
+      emissiveIntensity: 1.2,
+      roughness: 0.3
+    });
+
+    // Vast whale body & back
+    const whaleBodyGeo = new THREE.SphereGeometry(4.8, 16, 12);
+    whaleBodyGeo.scale(1.0, 0.8, 2.8);
+    const whaleBody = new THREE.Mesh(whaleBodyGeo, whaleSkinMat);
+    whaleBody.castShadow = true;
+    whaleBody.receiveShadow = true;
+    whaleGroup.add(whaleBody);
+
+    const spineRidge = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.4, 18), whaleRuneMat);
+    spineRidge.position.set(0, 3.2, -1.0);
+    whaleGroup.add(spineRidge);
+
+    const dorsalFin = new THREE.Mesh(new THREE.ConeGeometry(1.6, 3.5, 6), whaleSkinMat);
+    dorsalFin.position.set(0, 4.2, 2.0);
+    dorsalFin.rotation.x = -0.3;
+    whaleGroup.add(dorsalFin);
+
+    const flukeGroup = new THREE.Group();
+    flukeGroup.position.set(0, 0, 13.0);
+    const flukeMesh = new THREE.Mesh(new THREE.BoxGeometry(11.0, 0.4, 2.6), whaleSkinMat);
+    flukeMesh.rotation.x = 0.15;
+    flukeGroup.add(flukeMesh);
+    whaleGroup.add(flukeGroup);
+
+    [-1, 1].forEach(side => {
+      const pec = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.3, 2.4), whaleSkinMat);
+      pec.position.set(side * 5.2, -0.6, -2.5);
+      pec.rotation.z = side * -0.35;
+      pec.rotation.y = side * -0.25;
+      whaleGroup.add(pec);
+    });
+
+    const singRingMat = new THREE.MeshBasicMaterial({ color: 0x67e8f9, transparent: true, opacity: 0, side: THREE.DoubleSide });
+    const singRing = new THREE.Mesh(new THREE.RingGeometry(2, 3.5, 32), singRingMat);
+    singRing.rotation.x = -Math.PI / 2;
+    singRing.position.y = 0.2;
+    whaleGroup.add(singRing);
+
+    // Canyon Course Spline (90s * 18 u/s = 1620 units total)
+    const canyonWaypoints = [
+      new THREE.Vector3(-110, CLOUD_Y, -85),
+      new THREE.Vector3(-140, CLOUD_Y, -130),
+      new THREE.Vector3(-190, CLOUD_Y, -180),
+      new THREE.Vector3(-260, CLOUD_Y, -210),
+      new THREE.Vector3(-340, CLOUD_Y, -200),
+      new THREE.Vector3(-420, CLOUD_Y, -150),
+      new THREE.Vector3(-480, CLOUD_Y, -80),
+      new THREE.Vector3(-510, CLOUD_Y, 0),
+      new THREE.Vector3(-500, CLOUD_Y, 90),
+      new THREE.Vector3(-450, CLOUD_Y, 170),
+      new THREE.Vector3(-370, CLOUD_Y, 230),
+      new THREE.Vector3(-280, CLOUD_Y, 270),
+      new THREE.Vector3(-180, CLOUD_Y, 290)
+    ];
+    const canyonCurve = new THREE.CatmullRomCurve3(canyonWaypoints, false, 'catmullrom', 0.25);
+    const canyonLength = canyonCurve.getLength();
+
+    // 24 Floating Score Rings
+    const scoreRings = [];
+    const ringMat = new THREE.MeshStandardMaterial({
+      color: 0xfacc15,
+      emissive: 0xeab308,
+      emissiveIntensity: 1.5,
+      roughness: 0.2
+    });
+    const ringGeo = new THREE.TorusGeometry(2.4, 0.28, 8, 24);
+
+    for (let i = 0; i < 24; i++) {
+      const u = Math.min(0.98, ((3.5 + i * 3.5) * 18.0) / canyonLength);
+      const pt = canyonCurve.getPointAt(u);
+      const tan = canyonCurve.getTangentAt(u).normalize();
+      const norm = new THREE.Vector3(-tan.z, 0, tan.x);
+      const latOffset = (((i * 7 + 4) % 11) - 5) * 1.1;
+      const ringPos = pt.clone().addScaledVector(norm, latOffset);
+      ringPos.y = CLOUD_Y + 3.8;
+
+      const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+      ringMesh.position.copy(ringPos);
+      ringMesh.rotation.y = Math.atan2(tan.x, tan.z);
+      scene.add(ringMesh);
+
+      scoreRings.push({
+        id: i,
+        pos: ringPos,
+        mesh: ringMesh,
+        collected: false
+      });
+    }
+
+    // Canyon Rock Pillars
+    const canyonPillars = [];
+    const pillarMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.9, flatShading: true });
+    const pillarTimestamps = [10, 16, 26, 33, 40, 52, 60, 66, 76, 83];
+    const pillarOffsets = [-3.8, 3.8, -3.2, 3.2, 0, -4.0, 4.0, 0, -3.5, 3.5];
+
+    pillarTimestamps.forEach((ts, idx) => {
+      const u = Math.min(0.98, (ts * 18.0) / canyonLength);
+      const pt = canyonCurve.getPointAt(u);
+      const tan = canyonCurve.getTangentAt(u).normalize();
+      const norm = new THREE.Vector3(-tan.z, 0, tan.x);
+      const pPos = pt.clone().addScaledVector(norm, pillarOffsets[idx]);
+      pPos.y = CLOUD_Y + 10.0;
+
+      const pillarMesh = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.6, 22, 8), pillarMat);
+      pillarMesh.position.copy(pPos);
+      pillarMesh.castShadow = true;
+      pillarMesh.receiveShadow = true;
+      scene.add(pillarMesh);
+
+      canyonPillars.push({
+        id: idx,
+        pos: pPos,
+        radius: 2.2,
+        hitCooldown: 0
+      });
+    });
+
+    function resetCanyonProps() {
+      scoreRings.forEach(r => {
+        r.collected = false;
+        r.mesh.visible = true;
+      });
+      canyonPillars.forEach(p => {
+        p.hitCooldown = 0;
+      });
+      if (typeof singRingMat !== 'undefined') singRingMat.opacity = 0;
+    }
+
+    /* ==========================================================================
+       WINDS, THERMALS, AND RIVAL AIRSHIPS
+       ========================================================================== */
+    const windLanesData = [
+      {
+        id: 1,
+        name: 'Gilded Zephyr (West-East)',
+        startX: -80, startY: CLOUD_Y + 12, startZ: 6,
+        endX: 70, endY: CLOUD_Y + 12, endZ: 6,
+        dirX: 1.0, dirY: 0, dirZ: 0,
+        width: 22,
+        minX: -80, maxX: 70,
+        minZ: -5, maxZ: 17,
+        minY: CLOUD_Y, maxY: CLOUD_Y + 28,
+        shipInside: false
+      },
+      {
+        id: 2,
+        name: 'Boreal Chute (South-North)',
+        startX: 20, startY: CLOUD_Y + 12, startZ: 65,
+        endX: 20, endY: CLOUD_Y + 12, endZ: -75,
+        dirX: 0, dirY: 0, dirZ: -1.0,
+        width: 22,
+        minX: 9, maxX: 31,
+        minZ: -75, maxZ: 65,
+        minY: CLOUD_Y, maxY: CLOUD_Y + 28,
+        shipInside: false
+      }
+    ];
+
+    // Visual wind lanes: ribbons / streaks
+    const windRibbonCount = 36;
+    const windRibbonGeo = new THREE.BoxGeometry(3.5, 0.08, 0.4);
+    const windRibbonMat = new THREE.MeshBasicMaterial({ color: 0xffedd5, transparent: true, opacity: 0.55 });
+    const windInstMesh = new THREE.InstancedMesh(windRibbonGeo, windRibbonMat, windRibbonCount);
+    scene.add(windInstMesh);
+
+    const windParticles = [];
+    for (let i = 0; i < windRibbonCount; i++) {
+      const laneIdx = (i < windRibbonCount / 2) ? 0 : 1;
+      windParticles.push({
+        laneIdx,
+        u: (i % (windRibbonCount / 2)) / (windRibbonCount / 2),
+        latOffset: (((i * 5 + 3) % 9) - 4) * 2.2,
+        altOffset: (((i * 7 + 2) % 7) - 3) * 3.0
+      });
+    }
+
+    const thermalsData = [
+      { id: 1, x: 45, y: CLOUD_Y, z: 20, radius: 10.0, shipInside: false },
+      { id: 2, x: -70, y: CLOUD_Y, z: -40, radius: 10.0, shipInside: false },
+      { id: 3, x: -5, y: CLOUD_Y, z: 70, radius: 10.0, shipInside: false }
+    ];
+
+    // Visual thermal columns: shimmering haze rings
+    const thermalHazeGroups = [];
+    thermalsData.forEach(th => {
+      const g = new THREE.Group();
+      g.position.set(th.x, th.y, th.z);
+      for (let r = 0; r < 5; r++) {
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(th.radius * 0.4 + r * 1.4, th.radius * 0.45 + r * 1.4, 28),
+          new THREE.MeshBasicMaterial({ color: 0xfef08a, transparent: true, opacity: 0.28, side: THREE.DoubleSide })
+        );
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.y = 2.0 + r * 5.0;
+        g.add(ring);
+      }
+      scene.add(g);
+      thermalHazeGroups.push(g);
+    });
+
+    // Two Rival Airships
+    function createRivalAirship(gasbagColorHex) {
+      const root = new THREE.Group();
+      root.scale.set(0.65, 0.65, 0.65);
+
+      const rGasbagGeo = new THREE.SphereGeometry(3.0, 14, 12);
+      rGasbagGeo.scale(1.0, 0.9, 2.4);
+      const rGasbagMat = new THREE.MeshStandardMaterial({ color: gasbagColorHex, roughness: 0.5 });
+      const rGasbag = new THREE.Mesh(rGasbagGeo, rGasbagMat);
+      rGasbag.position.y = 2.6;
+      root.add(rGasbag);
+
+      const rGondola = new THREE.Mesh(
+        new THREE.BoxGeometry(2.0, 1.2, 4.8),
+        new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.7 })
+      );
+      rGondola.position.y = -0.2;
+      root.add(rGondola);
+
+      const rRudder = new THREE.Mesh(
+        new THREE.BoxGeometry(0.12, 1.8, 1.4),
+        new THREE.MeshStandardMaterial({ color: gasbagColorHex })
+      );
+      rRudder.position.set(0, 2.6, 6.2);
+      root.add(rRudder);
+
+      // Angler silhouette
+      const rAngler = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.2, 0.3, 1.2, 6),
+        new THREE.MeshStandardMaterial({ color: 0x1f2937 })
+      );
+      rAngler.position.set(0, 0.8, -1.2);
+      root.add(rAngler);
+
+      root.visible = false;
+      scene.add(root);
+      return root;
+    }
+
+    // Rival circuits
+    const r1Waypoints = [
+      { x: -35, y: 16, z: -15, pause: 0 },
+      { x: 20, y: 14, z: 5, pause: 0 },
+      { x: 55, y: 11, z: 15, pause: 4.0 },  // East Shallows pause
+      { x: 30, y: 13, z: 50, pause: 0 },
+      { x: -10, y: 11, z: 75, pause: 4.0 }, // South Deep Glow pause
+      { x: -30, y: 14, z: 30, pause: 0 },
+      { x: -35, y: 16, z: -15, pause: 0 }
+    ];
+
+    const r2Waypoints = [
+      { x: -35, y: 17, z: -5, pause: 0 },
+      { x: -60, y: 14, z: -15, pause: 0 },
+      { x: -95, y: 11, z: -25, pause: 4.0 }, // West Dart Run pause
+      { x: -70, y: 15, z: -60, pause: 0 },
+      { x: -35, y: 12, z: -75, pause: 4.0 }, // North Storm Shoal pause
+      { x: -30, y: 13, z: -40, pause: 0 },
+      { x: -35, y: 17, z: -5, pause: 0 }
+    ];
+
+    const rivalAirships = [
+      {
+        id: 1,
+        mesh: createRivalAirship(0x991b1b),
+        waypoints: r1Waypoints,
+        wpIdx: 0,
+        pauseTimer: 0,
+        heading: 0,
+        speed: 7.0
+      },
+      {
+        id: 2,
+        mesh: createRivalAirship(0x065f46),
+        waypoints: r2Waypoints,
+        wpIdx: 0,
+        pauseTimer: 0,
+        heading: 0,
+        speed: 7.0
+      }
+    ];
+
+    /* ==========================================================================
+       AIM RETICLE, BOBBER, HANGING BAIT SINKER, AND FISHING LINE
+       ========================================================================== */
+    const reticleGroup = new THREE.Group();
+    const reticleRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.8, 1.0, 24),
+      new THREE.MeshBasicMaterial({ color: 0xfde047, side: THREE.DoubleSide, transparent: true, opacity: 0.85 })
+    );
+    reticleRing.rotation.x = -Math.PI / 2;
+    reticleGroup.add(reticleRing);
+
+    const reticleDot = new THREE.Mesh(
+      new THREE.CircleGeometry(0.2, 12),
+      new THREE.MeshBasicMaterial({ color: 0xf97316, side: THREE.DoubleSide, transparent: true, opacity: 0.9 })
+    );
+    reticleDot.rotation.x = -Math.PI / 2;
+    reticleGroup.add(reticleDot);
+    scene.add(reticleGroup);
+
+    // Bobber Model with hanging bait sinker
+    const bobberMesh = new THREE.Group();
+    const bobberTop = new THREE.Mesh(
+      new THREE.SphereGeometry(0.35, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 })
+    );
+    bobberMesh.add(bobberTop);
+    const bobberBottom = new THREE.Mesh(
+      new THREE.SphereGeometry(0.35, 10, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 })
+    );
+    bobberMesh.add(bobberBottom);
+    const bobberPin = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.04, 0.04, 0.7, 6),
+      new THREE.MeshStandardMaterial({ color: 0xfacc15 })
+    );
+    bobberPin.position.y = 0.25;
+    bobberMesh.add(bobberPin);
+
+    // Hanging Bait Sinker below bobber
+    const sinkerMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.22, 8, 8),
+      new THREE.MeshStandardMaterial({
+        color: 0xfacc15,
+        emissive: 0xf59e0b,
+        emissiveIntensity: 0.9,
+        roughness: 0.3,
+        metalness: 0.5
+      })
+    );
+    sinkerMesh.position.y = -1.0; // Dynamic based on baitDepth
+    bobberMesh.add(sinkerMesh);
+
+    // Leader line from bobber to sinker
+    const leaderLineGeo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, -1.0, 0)
+    ]);
+    const leaderLineMat = new THREE.LineBasicMaterial({ color: 0xfef08a, transparent: true, opacity: 0.7 });
+    const leaderLine = new THREE.Line(leaderLineGeo, leaderLineMat);
+    bobberMesh.add(leaderLine);
+
+    bobberMesh.visible = false;
+    scene.add(bobberMesh);
+
+    function updateBaitDepthVisual() {
+      const depth = gameState.baitDepth;
+      sinkerMesh.position.y = -depth;
+      const pts = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -depth, 0)];
+      leaderLine.geometry.setFromPoints(pts);
+    }
+
+    // Dynamic Main Fishing Line
+    const linePointCount = 20;
+    const linePositions = new Float32Array(linePointCount * 3);
+    const lineGeometry = new THREE.BufferGeometry();
+    lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+    const lineMaterial = new THREE.LineBasicMaterial({
+      color: 0xffedd5,
+      linewidth: 1.5,
+      transparent: true,
+      opacity: 0.85
+    });
+    const fishingLine = new THREE.Line(lineGeometry, lineMaterial);
+    fishingLine.frustumCulled = false;
+    fishingLine.visible = false;
+    scene.add(fishingLine);
+
+    /* ==========================================================================
+       THREE SPECIES: SUN CARP, SILVER DART, MOON PUFFER
+       ========================================================================== */
+    // Helper to create 3D meshes for each species
+    function createSunCarpMesh() {
+      const g = new THREE.Group();
+      const bodyMat = new THREE.MeshStandardMaterial({
+        color: 0xf97316,
+        emissive: 0xff6b00,
+        emissiveIntensity: 0.85,
+        roughness: 0.4,
+        metalness: 0.2
+      });
+      const bodyGeo = new THREE.ConeGeometry(0.9, 3.2, 8);
+      bodyGeo.rotateX(Math.PI / 2);
+      bodyGeo.scale(0.8, 1.2, 1.0);
+      g.add(new THREE.Mesh(bodyGeo, bodyMat));
+
+      const tailFin = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.4, 1.2), bodyMat);
+      tailFin.position.set(0, 0, 1.8);
+      g.add(tailFin);
+
+      const dorsal = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.8, 1.4), bodyMat);
+      dorsal.position.set(0, 0.9, 0);
+      g.add(dorsal);
+
+      const pect = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.08, 0.8), bodyMat);
+      pect.position.set(0, -0.2, -0.4);
+      g.add(pect);
+
+      g.position.y = CLOUD_Y - 1.0;
+      return g;
+    }
+
+    function createSilverDartMesh() {
+      const g = new THREE.Group();
+      const dartMat = new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        emissive: 0x0284c7,
+        emissiveIntensity: 0.9,
+        roughness: 0.2,
+        metalness: 0.7
+      });
+      // Slim elongated needlefish body
+      const bodyGeo = new THREE.ConeGeometry(0.5, 4.4, 7);
+      bodyGeo.rotateX(Math.PI / 2);
+      bodyGeo.scale(0.6, 0.9, 1.0);
+      g.add(new THREE.Mesh(bodyGeo, dartMat));
+
+      const tailFin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.2, 1.4), dartMat);
+      tailFin.position.set(0, 0, 2.2);
+      g.add(tailFin);
+
+      const dorsal = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.6, 1.2), dartMat);
+      dorsal.position.set(0, 0.6, 0.2);
+      g.add(dorsal);
+
+      g.position.y = CLOUD_Y - 3.0;
+      return g;
+    }
+
+    function createMoonPufferMesh() {
+      const g = new THREE.Group();
+      const pufferMat = new THREE.MeshStandardMaterial({
+        color: 0xc084fc,
+        emissive: 0x7e22ce,
+        emissiveIntensity: 0.85,
+        roughness: 0.5,
+        metalness: 0.1
+      });
+      // Round spherical body
+      const bodyGeo = new THREE.SphereGeometry(1.4, 12, 10);
+      bodyGeo.scale(1.1, 1.0, 1.2);
+      g.add(new THREE.Mesh(bodyGeo, pufferMat));
+
+      const tailFin = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.0, 0.9), pufferMat);
+      tailFin.position.set(0, 0, 1.6);
+      g.add(tailFin);
+
+      const pectLeft = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.5), pufferMat);
+      pectLeft.position.set(-1.2, 0, 0);
+      g.add(pectLeft);
+      const pectRight = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.5), pufferMat);
+      pectRight.position.set(1.2, 0, 0);
+      g.add(pectRight);
+
+      g.position.y = CLOUD_Y - 6.0;
+      return g;
+    }
+
+    function createStormEelMesh() {
+      const g = new THREE.Group();
+      const eelMat = new THREE.MeshStandardMaterial({
+        color: 0x0f172a,
+        emissive: 0x0284c7,
+        emissiveIntensity: 1.2,
+        roughness: 0.3,
+        metalness: 0.7
+      });
+
+      // Head: tapered elongated snout
+      const headGeo = new THREE.ConeGeometry(0.55, 2.2, 8);
+      headGeo.rotateX(Math.PI / 2);
+      headGeo.scale(0.75, 0.65, 1.0);
+      const headMesh = new THREE.Mesh(headGeo, eelMat);
+      headMesh.position.set(0, 0, -1.1);
+      g.add(headMesh);
+
+      // Sinuous body segments
+      const segmentCount = 6;
+      const bodySegments = [];
+      for (let i = 0; i < segmentCount; i++) {
+        const segRadius = 0.52 * (1.0 - (i / segmentCount) * 0.65);
+        const segLen = 1.2;
+        const segGeo = new THREE.CylinderGeometry(segRadius * 0.85, segRadius, segLen, 7);
+        segGeo.rotateX(Math.PI / 2);
+        const segMesh = new THREE.Mesh(segGeo, eelMat);
+        segMesh.position.set(0, 0, i * 1.05);
+        g.add(segMesh);
+        bodySegments.push(segMesh);
+      }
+
+      // Dorsal ribbon fin
+      const finGeo = new THREE.BoxGeometry(0.06, 0.45, 6.8);
+      const finMat = new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        emissive: 0x38bdf8,
+        emissiveIntensity: 0.9,
+        transparent: true,
+        opacity: 0.85
+      });
+      const finMesh = new THREE.Mesh(finGeo, finMat);
+      finMesh.position.set(0, 0.4, 2.4);
+      g.add(finMesh);
+
+      g.userData.segments = bodySegments;
+      g.userData.eelMat = eelMat;
+      g.position.y = CLOUD_Y - 6.0; // Deep bait depth
+      return g;
+    }
+
+    // 1. Sunlit Shallows (East of market): 5 Sun Carp (shallow, 1u, weight 1, 10 coins, speed 2)
+    const carpConfigs = [
+      { id: 1, cx: 30, cz: -10, radius: 16.0, startAngle: 0.0 },
+      { id: 2, cx: 55, cz: 15, radius: 20.0, startAngle: 1.25 },
+      { id: 3, cx: 40, cz: 45, radius: 18.0, startAngle: 2.5 },
+      { id: 4, cx: 75, cz: -25, radius: 22.0, startAngle: 3.75 },
+      { id: 5, cx: 90, cz: 25, radius: 19.0, startAngle: 5.0 }
+    ];
+
+    // 2. Dart Run (West of market): 4 Silver Darts (mid, 3u, weight 2, 25 coins, speed 3)
+    const dartConfigs = [
+      { id: 6, cx: -80, cz: -30, radius: 18.0, startAngle: 0.5 },
+      { id: 7, cx: -105, cz: 0, radius: 22.0, startAngle: 2.1 },
+      { id: 8, cx: -85, cz: 30, radius: 16.0, startAngle: 3.8 },
+      { id: 9, cx: -115, cz: -20, radius: 20.0, startAngle: 5.2 }
+    ];
+
+    // 3. Deep Glow (South of market): 3 Moon Puffers (deep, 6u, weight 4, 60 coins, speed 1)
+    const pufferConfigs = [
+      { id: 10, cx: -35, cz: 65, radius: 15.0, startAngle: 1.0 },
+      { id: 11, cx: -10, cz: 85, radius: 18.0, startAngle: 3.1 },
+      { id: 12, cx: 15, cz: 60, radius: 20.0, startAngle: 5.0 }
+    ];
+
+    // 4. Storm Shoal (North of market): 3 Storm Eels (deep, 6u, weight 3, 80 coins, speed 2)
+    const eelConfigs = [
+      { id: 13, cx: -45, cz: -82, radius: 14.0, startAngle: 0.4 },
+      { id: 14, cx: -22, cz: -86, radius: 17.0, startAngle: 2.3 },
+      { id: 15, cx: -35, cz: -70, radius: 15.0, startAngle: 4.2 }
+    ];
+
+    // Instantiate all fish with deterministic fixed size multiplier and weight
+    function initFishGroup(configs, speciesName, reqDepth, speciesWeight, coinValue, speedVal, meshCreator) {
+      configs.forEach((c, k) => {
+        const mesh = meshCreator();
+        scene.add(mesh);
+
+        const sizeMultiplier = 0.8 + 0.2 * k;
+        const weight = Math.round((speciesWeight * sizeMultiplier) * 10) / 10;
+        mesh.scale.set(sizeMultiplier, sizeMultiplier, sizeMultiplier);
+
+        const initialX = c.cx + Math.cos(c.startAngle) * c.radius;
+        const initialZ = c.cz + Math.sin(c.startAngle) * c.radius;
+        mesh.position.x = initialX;
+        mesh.position.z = initialZ;
+
+        gameState.fish.push({
+          id: c.id,
+          species: speciesName,
+          state: 'patrol', // 'patrol' | 'divert' | 'strike' | 'hooked' | 'caught'
+          reqDepth: reqDepth,
+          speciesWeight: speciesWeight,
+          sizeMultiplier: sizeMultiplier,
+          weight: weight,
+          value: coinValue,
+          speed: speedVal,
+          mesh: mesh,
+          config: c,
+          k: k,
+          angle: c.startAngle,
+          divertTimer: 0,
+          scaredTimer: 0,
+          tailWiggle: 0
+        });
+      });
+    }
+
+    initFishGroup(carpConfigs, 'Sun Carp', 1, 1, 10, 2.0, createSunCarpMesh);
+    initFishGroup(dartConfigs, 'Silver Dart', 3, 2, 25, 3.0, createSilverDartMesh);
+    initFishGroup(pufferConfigs, 'Moon Puffer', 6, 4, 60, 1.0, createMoonPufferMesh);
+    initFishGroup(eelConfigs, 'Storm Eel', 6, 3, 80, 2.0, createStormEelMesh);
+
+    /* ==========================================================================
+       PARTICLE SYSTEMS (SPLASHES, CLOUD WISPS)
+       ========================================================================== */
+    const MAX_PARTICLES = 120;
+    const particleGeo = new THREE.DodecahedronGeometry(0.2, 0);
+    const particleMat = new THREE.MeshBasicMaterial({ color: 0xffedd5, transparent: true, opacity: 0.8 });
+    const particleInst = new THREE.InstancedMesh(particleGeo, particleMat, MAX_PARTICLES);
+    const dummy = new THREE.Object3D();
+    scene.add(particleInst);
+
+    const activeParticles = [];
+    for (let i = 0; i < MAX_PARTICLES; i++) {
+      activeParticles.push({
+        active: false,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        life: 0,
+        maxLife: 1,
+        scale: 1
+      });
+      dummy.position.set(0, -999, 0);
+      dummy.updateMatrix();
+      particleInst.setMatrixAt(i, dummy.matrix);
+    }
+    particleInst.instanceMatrix.needsUpdate = true;
+
+    function spawnSplash(x, y, z, count = 12, speedScale = 1.0) {
+      let spawned = 0;
+      for (let p of activeParticles) {
+        if (!p.active) {
+          p.active = true;
+          p.pos.set(x, y, z);
+          const ang = (spawned / count) * Math.PI * 2;
+          const spd = (1.5 + (spawned % 3) * 0.8) * speedScale;
+          p.vel.set(Math.cos(ang) * spd, 2.5 + (spawned % 2) * 1.5, Math.sin(ang) * spd);
+          p.life = 0;
+          p.maxLife = 0.8 + (spawned % 4) * 0.2;
+          p.scale = 0.8 + (spawned % 3) * 0.4;
+          spawned++;
+          if (spawned >= count) break;
+        }
+      }
+    }
+
+    /* ==========================================================================
+       USER INPUT SYSTEM
+       ========================================================================== */
+    const keys = {
+      KeyW: false,
+      KeyS: false,
+      KeyA: false,
+      KeyD: false,
+      KeyQ: false,
+      KeyE: false,
+      KeyF: false,
+      KeyT: false,
+      KeyB: false,
+      KeyG: false,
+      KeyH: false,
+      KeyJ: false,
+      Digit1: false,
+      Digit2: false,
+      Digit3: false,
+      Space: false,
+      ShiftLeft: false,
+      ShiftRight: false,
+      Enter: false,
+      KeyR: false
+    };
+
+    function setKeyState(code, key, isDown) {
+      const c = (code || '').toLowerCase();
+      const k = (key || '').toLowerCase();
+
+      if (c === 'keyw' || k === 'w') keys.KeyW = isDown;
+      if (c === 'keys' || k === 's') keys.KeyS = isDown;
+      if (c === 'keya' || k === 'a') keys.KeyA = isDown;
+      if (c === 'keyd' || k === 'd') keys.KeyD = isDown;
+      if (c === 'keyq' || k === 'q') keys.KeyQ = isDown;
+      if (c === 'keye' || k === 'e') keys.KeyE = isDown;
+      if (c === 'keyf' || k === 'f') keys.KeyF = isDown;
+      if (c === 'keyt' || k === 't') keys.KeyT = isDown;
+      if (c === 'keyb' || k === 'b') keys.KeyB = isDown;
+      if (c === 'keyg' || k === 'g') keys.KeyG = isDown;
+      if (c === 'keyh' || k === 'h') keys.KeyH = isDown;
+      if (c === 'keyj' || k === 'j') keys.KeyJ = isDown;
+      if (c === 'digit1' || k === '1') keys.Digit1 = isDown;
+      if (c === 'digit2' || k === '2') keys.Digit2 = isDown;
+      if (c === 'digit3' || k === '3') keys.Digit3 = isDown;
+      if (c === 'keyr' || k === 'r') keys.KeyR = isDown;
+      if (c === 'space' || k === ' ' || k === 'spacebar') keys.Space = isDown;
+      if (c === 'shiftleft' || c === 'shiftright' || k === 'shift') {
+        keys.ShiftLeft = isDown;
+        keys.ShiftRight = isDown;
+      }
+      if (c === 'enter' || k === 'enter') keys.Enter = isDown;
+    }
+
+    window.addEventListener('keydown', (e) => {
+      setKeyState(e.code, e.key, true);
+
+      const k = (e.key || '').toLowerCase();
+      const c = (e.code || '').toLowerCase();
+
+      if (c === 'enter' || k === 'enter') {
+        if (gameState.phase === 'ready') {
+          startGame();
+        }
+      }
+      if (c === 'keyr' || k === 'r') {
+        if (gameState.phase === 'gameover' || gameState.phase === 'playing') {
+          resetGame();
+        }
+      }
+
+      // Skylark Cup tournament key J
+      if (c === 'keyj' || k === 'j') {
+        if (gameState.phase === 'playing') {
+          handleStartTournament();
+        }
+      }
+
+      // Whale hunt key H (accepts/disarms hunt inside dock ring)
+      if (c === 'keyh' || k === 'h') {
+        if (gameState.phase === 'playing') {
+          handleHarpoonBoard();
+        }
+      }
+
+      // Tackle choice key G (only when no line is cast and not towing)
+      if (c === 'keyg' || k === 'g') {
+        if (gameState.phase === 'playing' && gameState.hunt.state !== 'towing') {
+          handleToggleTackle();
+        }
+      }
+
+      // Bait depth keys 1, 2, 3 (can change any time before a bite, when not towing)
+      if (gameState.phase === 'playing' && gameState.fishing.state !== 'fight' && gameState.fishing.state !== 'strike' && gameState.hunt.state !== 'towing') {
+        if (c === 'digit1' || k === '1') {
+          gameState.baitDepth = 1;
+          updateBaitDepthVisual();
+          updateHUD();
+          exportArenaState();
+          showToast('Bait Depth: Shallow (1u) - Sun Carp');
+        } else if (c === 'digit2' || k === '2') {
+          gameState.baitDepth = 3;
+          updateBaitDepthVisual();
+          updateHUD();
+          exportArenaState();
+          showToast('Bait Depth: Mid (3u) - Silver Darts');
+        } else if (c === 'digit3' || k === '3') {
+          gameState.baitDepth = 6;
+          updateBaitDepthVisual();
+          updateHUD();
+          exportArenaState();
+          showToast('Bait Depth: Deep (6u) - Moon Puffers / Storm Eels');
+        }
+      }
+
+      // Space key handling: Sleighride breach winch OR strike window OR early twitch
+      if (c === 'space' || k === ' ' || k === 'spacebar') {
+        if (gameState.phase === 'playing') {
+          if (gameState.hunt.state === 'towing') {
+            const isBreaching = (whaleData.phase === 'breaching');
+            if (isBreaching) {
+              if (!gameState.hunt.breachWinchedThisBreach) {
+                gameState.hunt.breachWinchedThisBreach = true;
+                gameState.hunt.ropeLength = Math.max(6.0, gameState.hunt.ropeLength - 3.0);
+                gameState.coins += 20;
+                gameState.hunt.breachWinches++;
+                gameState.stats.whaleHunt.winches = gameState.hunt.breachWinches;
+                showToast(`WINCHED! Rope: ${gameState.hunt.ropeLength.toFixed(0)}m (+20 Gold Bonus)!`);
+                updateHUD();
+                exportArenaState();
+              }
+            } else {
+              showToast('Too strong to reel!');
+            }
+          } else if (gameState.strikeWindowOpen) {
+            handleCleanStrike();
+          } else if (gameState.fishing.state === 'cast' || gameState.fishing.state === 'divert') {
+            handleEarlyTwitch();
+          }
+        }
+      }
+
+      // Shift key handling during tow: cuts rope
+      if (c === 'shiftleft' || c === 'shiftright' || k === 'shift') {
+        if (gameState.phase === 'playing' && gameState.hunt.state === 'towing') {
+          gameState.hunt.state = 'failed';
+          gameState.stats.whaleHunt.outcome = 'failed';
+          harpoonRope.visible = false;
+          updateLauncherVisibility();
+          showToast('Rope cut! The hunt is abandoned and the whale swims off.');
+          updateHUD();
+          exportArenaState();
+        }
+      }
+
+      if (c === 'keyf' || k === 'f') {
+        if (gameState.phase === 'playing') {
+          handleCastButton();
+        }
+      }
+      if (c === 'keyt' || k === 't') {
+        if (gameState.phase === 'playing') {
+          handleSellButton();
+        }
+      }
+      if (c === 'keyb' || k === 'b') {
+        if (gameState.phase === 'playing') {
+          handleBuySpool();
+        }
+      }
+      if (c === 'keyk' || k === 'k') {
+        if (gameState.phase === 'playing') {
+          handleEndTheDay();
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      setKeyState(e.code, e.key, false);
+    });
+
+    function showToast(msg, dur = 2200) {
+      const toast = document.getElementById('status-toast');
+      toast.innerText = msg;
+      toast.style.display = 'block';
+      setTimeout(() => {
+        toast.style.display = 'none';
+      }, dur);
+    }
+
+    function startGame() {
+      gameState.phase = 'playing';
+      document.getElementById('ready-screen').style.display = 'none';
+      document.getElementById('gameover-screen').style.display = 'none';
+      showToast('Welcome to the Skylark! Set depth [1/2/3] and cast ahead [F].');
+      exportArenaState();
+    }
+
+    function updateLauncherVisibility() {
+      const isArmedOrTowing = (gameState.hunt.state === 'armed' || gameState.hunt.state === 'towing');
+      if (typeof harpoonLauncherGroup !== 'undefined') {
+        harpoonLauncherGroup.visible = isArmedOrTowing;
+      }
+      if (typeof rodGroup !== 'undefined') {
+        rodGroup.visible = !isArmedOrTowing;
+      }
+      if (typeof armLeftGroup !== 'undefined' && typeof armRightGroup !== 'undefined') {
+        if (isArmedOrTowing) {
+          armLeftGroup.rotation.x = -Math.PI / 2.5;
+          armRightGroup.rotation.x = -Math.PI / 2.5;
+        } else {
+          armLeftGroup.rotation.x = -Math.PI / 4;
+          armRightGroup.rotation.x = -Math.PI / 3;
+        }
+      }
+    }
+
+    function handleHarpoonBoard() {
+      const distToDock = Math.hypot(gameState.ship.x - DOCK_BERTH_X, gameState.ship.z - DOCK_BERTH_Z);
+      if (distToDock <= DOCK_BERTH_RADIUS) {
+        if (gameState.tournament.active) {
+          showToast('Cannot accept Whale Hunt during the Skylark Cup contest!');
+          return;
+        }
+        if (gameState.hunt.state === 'none' || gameState.hunt.state === 'done' || gameState.hunt.state === 'failed') {
+          gameState.hunt.state = 'armed';
+          gameState.hunt.towTime = 0;
+          gameState.hunt.ropeLength = 15.0;
+          gameState.hunt.ropeStrain = 0;
+          gameState.hunt.ringsCollected = 0;
+          gameState.hunt.breachWinches = 0;
+          gameState.hunt.lateralOffset = 0;
+          resetCanyonProps();
+          updateLauncherVisibility();
+          showToast('Whale Hunt accepted! Harpoon launcher armed at bow. Find the Cloud Whale Northwest of Market!');
+          updateHUD();
+          exportArenaState();
+        } else if (gameState.hunt.state === 'armed') {
+          gameState.hunt.state = 'none';
+          updateLauncherVisibility();
+          showToast('Whale Hunt disarmed. Fishing rod returned.');
+          updateHUD();
+          exportArenaState();
+        }
+      } else {
+        showToast('Must be inside dock ring at the market pier to accept Whale Hunt.');
+      }
+    }
+
+    function handleStartTournament() {
+      const distToDock = Math.hypot(gameState.ship.x - DOCK_BERTH_X, gameState.ship.z - DOCK_BERTH_Z);
+      if (distToDock > DOCK_BERTH_RADIUS) {
+        showToast('Must be inside dock ring at the market pier to start the Skylark Cup!');
+        return;
+      }
+      if (gameState.hunt.state === 'armed' || gameState.hunt.state === 'towing') {
+        showToast('Cannot start Skylark Cup while Whale Hunt is active!');
+        return;
+      }
+      if (gameState.tournament.active) {
+        showToast(`Skylark Cup already underway! Time left: ${gameState.tournament.timeLeft.toFixed(0)}s`);
+        return;
+      }
+
+      gameState.tournament.active = true;
+      gameState.tournament.timeLeft = 150.0;
+      gameState.tournament.score = 0;
+      gameState.tournament.targetSpecies = 'Sun Carp';
+      gameState.tournament.finished = false;
+      gameState.tournament.trophy = '';
+
+      // Reset & launch rival airships
+      if (typeof rivalAirships !== 'undefined') {
+        rivalAirships.forEach((r) => {
+          r.wpIdx = 0;
+          r.pauseTimer = 0;
+          const wp0 = r.waypoints[0];
+          r.mesh.position.set(wp0.x, wp0.y, wp0.z);
+          r.mesh.visible = true;
+        });
+      }
+
+      showToast('🏆 THE SKYLARK CUP HAS BEGUN! 150s Contest! Target: Sun Carp (x3 Score)!');
+      updateHUD();
+      exportArenaState();
+    }
+
+    function showTournamentResults(holdEarned, trophyBonus, trophyName) {
+      const modal = document.getElementById('tournament-results');
+      if (!modal) return;
+      document.getElementById('tourney-final-trophy').innerText =
+        trophyName === 'GOLD' ? '🥇 GOLD TROPHY (+300c)' :
+        trophyName === 'SILVER' ? '🥈 SILVER TROPHY (+150c)' :
+        trophyName === 'BRONZE' ? '🥉 BRONZE TROPHY (+50c)' : 'NO TROPHY';
+      document.getElementById('tourney-final-score').innerText = `${gameState.tournament.score}`;
+      document.getElementById('tourney-hold-earned').innerText = `+${holdEarned}`;
+      document.getElementById('tourney-trophy-bonus').innerText = `+${trophyBonus}`;
+      document.getElementById('tourney-total-gold').innerText = `${holdEarned + trophyBonus} Gold (Total: ${gameState.coins})`;
+      modal.style.display = 'flex';
+    }
+
+    function handleToggleTackle() {
+      if (gameState.fishing.state === 'idle' && gameState.phase === 'playing' && gameState.hunt.state !== 'towing') {
+        gameState.tackle = (gameState.tackle === 'light') ? 'heavy' : 'light';
+        showToast(`Tackle: ${gameState.tackle.toUpperCase()} hook (Snap: ${getSnapThreshold()})`);
+        updateHUD();
+        exportArenaState();
+      } else if (gameState.fishing.state !== 'idle') {
+        showToast('Cannot change hook while line is out!');
+      }
+    }
+
+    function resetGame() {
+      gameState.phase = 'ready';
+      gameState.gameoverReason = '';
+      gameState.coins = 0;
+      gameState.hold = [];
+      gameState.spools = 3;
+      gameState.linesBurned = 0;
+      gameState.strikesMissed = 0;
+      gameState.tackle = 'light';
+      gameState.simTime = 0;
+      gameState.baitDepth = 1;
+      gameState.baitSinkTimer = 0;
+      gameState.baitSinkDuration = 1.0;
+      gameState.strikeWindowOpen = false;
+      gameState.hunt = {
+        state: 'none',
+        towTime: 0,
+        ropeLength: 15.0,
+        ropeStrain: 0,
+        ringsCollected: 0,
+        breachWinches: 0,
+        lateralOffset: 0,
+        breachWinchedThisBreach: false,
+        whaleTiredTimer: 0
+      };
+      gameState.tournament = {
+        active: false,
+        timeLeft: 150.0,
+        score: 0,
+        targetSpecies: 'Sun Carp',
+        finished: false,
+        trophy: ''
+      };
+      if (typeof rivalAirships !== 'undefined') {
+        rivalAirships.forEach(r => r.mesh.visible = false);
+      }
+      const tourneyHudEl = document.getElementById('tournament-hud');
+      if (tourneyHudEl) tourneyHudEl.style.display = 'none';
+      const tourneyResultsEl = document.getElementById('tournament-results');
+      if (tourneyResultsEl) tourneyResultsEl.style.display = 'none';
+
+      whaleData.x = -75.0;
+      whaleData.y = CLOUD_Y + 1.2;
+      whaleData.z = -85.0;
+      whaleData.heading = Math.PI / 2;
+      whaleData.phase = 'surfaced';
+      whaleData.patrolAngle = 0;
+      whaleGroup.position.set(whaleData.x, whaleData.y, whaleData.z);
+      whaleGroup.rotation.set(0, 0, 0);
+
+      harpoonBolt.active = false;
+      harpoonBolt.mesh.visible = false;
+      harpoonRope.visible = false;
+      resetCanyonProps();
+      updateLauncherVisibility();
+
+      const whaleSigilEl = document.getElementById('whale-sigil');
+      if (whaleSigilEl) whaleSigilEl.style.display = 'none';
+      const sleighHudEl = document.getElementById('sleighride-hud');
+      if (sleighHudEl) sleighHudEl.style.display = 'none';
+
+      gameState.ship.x = 0;
+      gameState.ship.y = 12.0;
+      gameState.ship.z = 35.0;
+      gameState.ship.heading = 0;
+      gameState.ship.speed = 0;
+      gameState.ship.climbSpeed = 0;
+      gameState.ship.angularVel = 0;
+      gameState.ship.pitch = 0;
+      gameState.ship.roll = 0;
+      gameState.ship.swayOffset = 0;
+      gameState.ship.swayVel = 0;
+
+      shipRoot.position.set(0, 12.0, 35.0);
+      shipRoot.rotation.set(0, 0, 0);
+      shipPitchRollGroup.rotation.set(0, 0, 0);
+      gasbagSwayGroup.position.set(0, 0, 0);
+      gasbagSwayGroup.rotation.set(0, 0, 0);
+      gasbagMesh.scale.set(1.0, 0.95, 2.6);
+
+      gameState.fishing.state = 'idle';
+      gameState.fishing.tension = 0;
+      gameState.fishing.lineLength = 0;
+      gameState.fishing.hookedFishId = null;
+      gameState.fishing.targetFishId = null;
+      gameState.fishing.strikeTimer = 0;
+      gameState.fishing.fightTimer = 0;
+      gameState.fishing.isPulling = false;
+      gameState.fishing.pullPhaseName = 'RESTING';
+      gameState.fishing.rerigTimer = 0;
+      gameState.fishing.eelPhase = null;
+      bobberMesh.visible = false;
+      fishingLine.visible = false;
+      if (fishingLine && fishingLine.material) fishingLine.material.color.setHex(0xffffff);
+
+      // Reset all fish positions and scales
+      gameState.fish.forEach((f) => {
+        f.state = 'patrol';
+        f.angle = f.config.startAngle;
+        f.divertTimer = 0;
+        f.scaredTimer = 0;
+        const ix = f.config.cx + Math.cos(f.config.startAngle) * f.config.radius;
+        const iz = f.config.cz + Math.sin(f.config.startAngle) * f.config.radius;
+        f.mesh.position.set(ix, CLOUD_Y - f.reqDepth, iz);
+        f.mesh.scale.set(f.sizeMultiplier, f.sizeMultiplier, f.sizeMultiplier);
+        f.mesh.visible = true;
+        if (f.mesh.userData.eelMat) {
+          f.mesh.userData.eelMat.emissiveIntensity = 1.2;
+          f.mesh.userData.eelMat.emissive.setHex(0x0284c7);
+        }
+      });
+
+      gameState.checkpoints = {
+        active: null,
+        respawnsRemaining: 3,
+        respawnsUsed: 0,
+        respawning: false,
+        respawnTimer: 0
+      };
+      gameState.stats = {
+        catches: {
+          'Sun Carp': { count: 0, heaviest: 0 },
+          'Silver Dart': { count: 0, heaviest: 0 },
+          'Moon Puffer': { count: 0, heaviest: 0 },
+          'Storm Eel': { count: 0, heaviest: 0 }
+        },
+        linesSnapped: 0,
+        linesBurned: 0,
+        strikesMissed: 0,
+        whaleHunt: {
+          outcome: 'not attempted',
+          rings: 0,
+          winches: 0
+        },
+        tournament: {
+          bestScore: 0,
+          trophy: 'NONE'
+        },
+        respawnsUsed: 0
+      };
+
+      if (typeof lighthouses !== 'undefined') {
+        lighthouses.forEach(lh => {
+          lh.lit = false;
+          lh.lanternMat.color.setHex(0xfef08a);
+          lh.light.intensity = 0.8;
+          lh.light.color.setHex(0xfde047);
+          lh.beamMat.opacity = 0.0;
+        });
+      }
+
+      const whiteoutEl = document.getElementById('whiteout-screen');
+      if (whiteoutEl) whiteoutEl.style.opacity = '0';
+      const reckoningEl = document.getElementById('reckoning-screen');
+      if (reckoningEl) reckoningEl.style.display = 'none';
+
+      updateBaitDepthVisual();
+      document.getElementById('ready-screen').style.display = 'flex';
+      document.getElementById('gameover-screen').style.display = 'none';
+      document.getElementById('fight-hud').style.display = 'none';
+      document.getElementById('strike-prompt').style.display = 'none';
+      updateHUD();
+      exportArenaState();
+    }
+
+    function openReckoning(reason) {
+      gameState.phase = 'gameover';
+      gameState.gameoverReason = reason;
+
+      const screen = document.getElementById('reckoning-screen');
+      if (!screen) return;
+
+      document.getElementById('reckoning-subtitle').innerText = reason;
+
+      // Catches breakdown
+      const c = gameState.stats.catches;
+      document.getElementById('rec-carp').innerText = `🐟 Sun Carp: ${c['Sun Carp'].count} landed (heaviest: ${c['Sun Carp'].heaviest.toFixed(1)}kg)`;
+      document.getElementById('rec-dart').innerText = `🐟 Silver Dart: ${c['Silver Dart'].count} landed (heaviest: ${c['Silver Dart'].heaviest.toFixed(1)}kg)`;
+      document.getElementById('rec-puffer').innerText = `🐡 Moon Puffer: ${c['Moon Puffer'].count} landed (heaviest: ${c['Moon Puffer'].heaviest.toFixed(1)}kg)`;
+      document.getElementById('rec-eel').innerText = `⚡ Storm Eel: ${c['Storm Eel'].count} landed (heaviest: ${c['Storm Eel'].heaviest.toFixed(1)}kg)`;
+
+      // Incidents
+      document.getElementById('rec-snapped').innerText = gameState.stats.linesSnapped;
+      document.getElementById('rec-burned').innerText = gameState.stats.linesBurned;
+      document.getElementById('rec-missed').innerText = gameState.stats.strikesMissed;
+
+      // Whale hunt
+      const wh = gameState.stats.whaleHunt;
+      const whOutcomeText = wh.outcome.toUpperCase();
+      document.getElementById('rec-whale-outcome').innerText = `Outcome: ${whOutcomeText}`;
+      document.getElementById('rec-whale-details').innerText = `${wh.rings}/24 Rings • ${wh.winches} Winches`;
+
+      // Tournament
+      const tr = gameState.stats.tournament;
+      document.getElementById('rec-tourney-score').innerText = `Best Score: ${tr.bestScore} pts`;
+      document.getElementById('rec-tourney-trophy').innerText = `Trophy: ${tr.trophy || 'NONE'}`;
+
+      // Respawns & Coins
+      document.getElementById('rec-respawns').innerText = `${gameState.checkpoints.respawnsUsed} / 3`;
+      document.getElementById('rec-total-coins').innerText = `${gameState.coins} Gold`;
+
+      // Day Rating
+      const rating = computeDayRating();
+      const badgeEl = document.getElementById('reckoning-rating-badge');
+      const descEl = document.getElementById('reckoning-rating-desc');
+      badgeEl.innerText = rating;
+      if (rating === 'S') {
+        badgeEl.style.color = '#facc15';
+        badgeEl.style.textShadow = '0 0 25px #eab308';
+        descEl.innerText = 'Legendary Master Aeronaut & Whaler (1500g + Whale Hunt)';
+      } else if (rating === 'A') {
+        badgeEl.style.color = '#38bdf8';
+        badgeEl.style.textShadow = '0 0 25px #0284c7';
+        descEl.innerText = 'Expert Angler & Sky Captain (1000g+)';
+      } else if (rating === 'B') {
+        badgeEl.style.color = '#4ade80';
+        badgeEl.style.textShadow = '0 0 25px #16a34a';
+        descEl.innerText = 'Seasoned Cloud Voyager (500g+)';
+      } else {
+        badgeEl.style.color = '#cbd5e1';
+        badgeEl.style.textShadow = '0 0 15px #64748b';
+        descEl.innerText = 'Apprentice Deckhand (<500g)';
+      }
+
+      screen.style.display = 'flex';
+
+      // Hide other HUD overlays
+      document.getElementById('ready-screen').style.display = 'none';
+      document.getElementById('gameover-screen').style.display = 'none';
+      document.getElementById('tournament-results').style.display = 'none';
+      document.getElementById('fight-hud').style.display = 'none';
+      document.getElementById('strike-prompt').style.display = 'none';
+      if (typeof bobberMesh !== 'undefined') bobberMesh.visible = false;
+      if (typeof fishingLine !== 'undefined') fishingLine.visible = false;
+
+      exportArenaState();
+    }
+
+    function triggerGameOver(reason) {
+      shipPitchRollGroup.rotation.z = 0.65;
+      shipPitchRollGroup.rotation.x = -0.45;
+      openReckoning(reason);
+    }
+
+    function handleCrash(reason) {
+      if (gameState.checkpoints.respawning) return;
+
+      // Crash during whale tow fails the hunt
+      if (gameState.hunt.state === 'towing') {
+        gameState.hunt.state = 'failed';
+        gameState.stats.whaleHunt.outcome = 'failed';
+        if (typeof harpoonRope !== 'undefined') harpoonRope.visible = false;
+        updateLauncherVisibility();
+      }
+
+      // Crash during tournament aborts contest with no auto-sell and no trophy
+      if (gameState.tournament.active) {
+        gameState.tournament.active = false;
+        gameState.tournament.finished = true;
+        const tourneyHud = document.getElementById('tournament-hud');
+        if (tourneyHud) tourneyHud.style.display = 'none';
+        if (typeof rivalAirships !== 'undefined') {
+          rivalAirships.forEach(r => r.mesh.visible = false);
+        }
+      }
+
+      // Check if checkpoint is active AND respawnsRemaining > 0
+      if (gameState.checkpoints.active && gameState.checkpoints.respawnsRemaining > 0) {
+        gameState.checkpoints.respawning = true;
+        gameState.checkpoints.respawnTimer = 2.0;
+        gameState.checkpoints.respawnsRemaining -= 1;
+        gameState.checkpoints.respawnsUsed += 1;
+        gameState.stats.respawnsUsed = gameState.checkpoints.respawnsUsed;
+
+        // Salvage fee 20 coins (never drops below 0)
+        const fee = Math.min(20, gameState.coins);
+        gameState.coins = Math.max(0, gameState.coins - 20);
+
+        // Screen whites out
+        const whiteout = document.getElementById('whiteout-screen');
+        if (whiteout) whiteout.style.opacity = '1';
+
+        showToast(`Crash! Salvaged by ${gameState.checkpoints.active.name} (-${fee} Gold, ${gameState.checkpoints.respawnsRemaining} respawns left).`);
+        updateHUD();
+        exportArenaState();
+      } else {
+        // Fourth crash or no checkpoint lit is a true GAME OVER
+        triggerGameOver(reason);
+      }
+    }
+
+    function handleEndTheDay() {
+      const distToDock = Math.hypot(gameState.ship.x - DOCK_BERTH_X, gameState.ship.z - DOCK_BERTH_Z);
+      if (distToDock <= DOCK_BERTH_RADIUS) {
+        openReckoning('Day Concluded at Market Dock');
+      } else {
+        showToast('Must be inside dock ring at market pier to End the Day [K]!');
+      }
+    }
+
+    function getRodTipWorldPos() {
+      const tipPos = new THREE.Vector3();
+      rodTip.getWorldPosition(tipPos);
+      return tipPos;
+    }
+
+    function launchHarpoonBolt() {
+      if (harpoonBolt.active) return;
+
+      shipRoot.position.set(gameState.ship.x, gameState.ship.y, gameState.ship.z);
+      shipRoot.rotation.y = gameState.ship.heading;
+      shipRoot.updateMatrixWorld(true);
+
+      const launcherPos = new THREE.Vector3();
+      launcherBoltMesh.getWorldPosition(launcherPos);
+
+      const aimDist = AIM_DIST + 3.1;
+      const targetX = gameState.ship.x - Math.sin(gameState.ship.heading) * aimDist;
+      const targetZ = gameState.ship.z - Math.cos(gameState.ship.heading) * aimDist;
+
+      harpoonBolt.active = true;
+      harpoonBolt.startPos.copy(launcherPos);
+      harpoonBolt.targetPos.set(targetX, CLOUD_Y + 0.5, targetZ);
+      harpoonBolt.progress = 0;
+      harpoonBolt.mesh.position.copy(launcherPos);
+      harpoonBolt.mesh.visible = true;
+      harpoonRope.visible = true;
+
+      showToast('Harpoon bolt launched!');
+    }
+
+    function handleCastButton() {
+      // If Whale Hunt is armed: launch harpoon bolt instead of casting!
+      if (gameState.hunt.state === 'armed') {
+        launchHarpoonBolt();
+        return;
+      }
+
+      const fState = gameState.fishing.state;
+
+      // Recall line if out and nothing hooked
+      if (fState === 'flying' || fState === 'cast' || fState === 'divert' || fState === 'strike') {
+        if ((fState === 'divert' || fState === 'strike') && gameState.fishing.targetFishId !== null) {
+          const tf = gameState.fish.find(f => f.id === gameState.fishing.targetFishId);
+          if (tf && (tf.state === 'divert' || tf.state === 'strike')) {
+            tf.state = 'patrol';
+            tf.divertTimer = 0;
+          }
+        }
+        gameState.fishing.state = 'idle';
+        gameState.fishing.targetFishId = null;
+        gameState.strikeWindowOpen = false;
+        bobberMesh.visible = false;
+        fishingLine.visible = false;
+        document.getElementById('strike-prompt').style.display = 'none';
+        showToast('Line recalled.');
+        updateHUD();
+        exportArenaState();
+        return;
+      }
+
+      // Cast to aim point
+      if (fState === 'idle') {
+        if (gameState.spools <= 0) {
+          showToast('Out of line — buy spools at the market');
+          exportArenaState();
+          return;
+        }
+
+        const curHoldWeight = getHoldWeight();
+        if (curHoldWeight >= 12.0) {
+          showToast('Hold full — sell at the market');
+          exportArenaState();
+          return;
+        }
+
+        const tipPos = getRodTipWorldPos();
+        const aimDistFromCenter = AIM_DIST + 3.1;
+        const aimX = gameState.ship.x - Math.sin(gameState.ship.heading) * aimDistFromCenter;
+        const aimZ = gameState.ship.z - Math.cos(gameState.ship.heading) * aimDistFromCenter;
+
+        gameState.fishing.state = 'flying';
+        gameState.fishing.castStart.copy(tipPos);
+        gameState.fishing.castTarget.set(aimX, CLOUD_Y, aimZ);
+        gameState.fishing.castProgress = 0;
+        gameState.fishing.tension = 0;
+
+        bobberMesh.position.copy(tipPos);
+        updateBaitDepthVisual();
+        bobberMesh.visible = true;
+        fishingLine.visible = true;
+        updateHUD();
+        exportArenaState();
+      }
+    }
+
+    function handleCleanStrike() {
+      const fish = gameState.fish.find(f => f.id === gameState.fishing.targetFishId);
+      if (!fish) return;
+
+      gameState.strikeWindowOpen = false;
+      document.getElementById('strike-prompt').style.display = 'none';
+      startFight(fish, 0); // Clean strike at 0 tension
+      showToast(`CLEAN STRIKE! Hook set on ${fish.species} (${fish.weight}kg)!`);
+      exportArenaState();
+    }
+
+    function handleMissedStrike() {
+      gameState.strikeWindowOpen = false;
+      gameState.strikesMissed += 1;
+      gameState.stats.strikesMissed += 1;
+      document.getElementById('strike-prompt').style.display = 'none';
+
+      const fish = gameState.fish.find(f => f.id === gameState.fishing.targetFishId);
+      if (fish) {
+        fish.state = 'patrol';
+        fish.divertTimer = 0;
+        fish.scaredTimer = 10.0; // ignores that bobber for 10 seconds
+        showToast(`Strike window missed! The ${fish.species} spit the bait and fled.`);
+      }
+
+      // The bobber pops back up
+      gameState.fishing.bobberPos.y = CLOUD_Y;
+      bobberMesh.position.copy(gameState.fishing.bobberPos);
+      spawnSplash(gameState.fishing.bobberPos.x, CLOUD_Y, gameState.fishing.bobberPos.z, 8, 1.0);
+
+      gameState.fishing.state = 'cast';
+      gameState.fishing.targetFishId = null;
+      updateHUD();
+      exportArenaState();
+    }
+
+    function handleEarlyTwitch() {
+      // Twitch bobber up and splash
+      gameState.fishing.bobberPos.y = CLOUD_Y + 0.4;
+      spawnSplash(gameState.fishing.bobberPos.x, CLOUD_Y, gameState.fishing.bobberPos.z, 6, 0.8);
+
+      // If a fish was diverting, scare it off for 10s
+      if (gameState.fishing.targetFishId !== null) {
+        const tf = gameState.fish.find(f => f.id === gameState.fishing.targetFishId);
+        if (tf && tf.state === 'divert') {
+          tf.state = 'patrol';
+          tf.divertTimer = 0;
+          tf.scaredTimer = 10.0;
+          showToast(`Early twitch spooked the ${tf.species}! Ignoring for 10s.`);
+        }
+        gameState.fishing.targetFishId = null;
+        gameState.fishing.state = 'cast';
+      } else {
+        showToast('Twitched bobber.');
+      }
+      exportArenaState();
+    }
+
+    function startFight(fish, initialTension) {
+      fish.state = 'hooked';
+      gameState.fishing.state = 'fight';
+      gameState.fishing.hookedFishId = fish.id;
+      gameState.fishing.fightTimer = 0;
+      gameState.fishing.tension = initialTension;
+      gameState.fishing.eelPhase = (fish.species === 'Storm Eel') ? 'pull' : null;
+
+      const rodPos = getRodTipWorldPos();
+      gameState.fishing.lineLength = rodPos.distanceTo(fish.mesh.position);
+
+      spawnSplash(gameState.fishing.bobberPos.x, CLOUD_Y, gameState.fishing.bobberPos.z, 24, 1.4);
+      updateHUD();
+      exportArenaState();
+    }
+
+    function handleLineBurn(fish) {
+      gameState.linesBurned += 1;
+      gameState.stats.linesBurned += 1;
+      gameState.spools = Math.max(0, gameState.spools - 1);
+      gameState.fishing.state = 'rerig';
+      gameState.fishing.rerigTimer = 2.0;
+      gameState.fishing.tension = 0;
+      gameState.fishing.hookedFishId = null;
+      gameState.fishing.eelPhase = null;
+
+      bobberMesh.visible = false;
+      fishingLine.visible = false;
+      if (fishingLine && fishingLine.material) fishingLine.material.color.setHex(0xffffff);
+
+      if (fish.mesh.userData.eelMat) {
+        fish.mesh.userData.eelMat.emissiveIntensity = 1.2;
+        fish.mesh.userData.eelMat.emissive.setHex(0x0284c7);
+      }
+
+      fish.state = 'patrol';
+      fish.scaredTimer = 6.0;
+
+      spawnSplash(gameState.fishing.bobberPos.x, CLOUD_Y, gameState.fishing.bobberPos.z, 28, 2.4);
+      showToast(`⚡ LINE BURNED! Tension was above 20 during eel discharge! [${gameState.spools} spools left]`);
+      updateHUD();
+      exportArenaState();
+    }
+
+    function handleBuySpool() {
+      const distToDock = Math.hypot(gameState.ship.x - DOCK_BERTH_X, gameState.ship.z - DOCK_BERTH_Z);
+      if (distToDock <= DOCK_BERTH_RADIUS) {
+        if (gameState.coins >= 15) {
+          gameState.coins -= 15;
+          gameState.spools += 1;
+          showToast(`Purchased 1 Line Spool for 15 Gold! (${gameState.spools} spools ready)`);
+          updateHUD();
+          exportArenaState();
+        } else {
+          showToast('Not enough coins! Line spools cost 15 Gold.');
+          updateHUD();
+          exportArenaState();
+        }
+      } else {
+        showToast('Must be inside dock ring to buy line spools.');
+      }
+    }
+
+    function handleSellButton() {
+      if (gameState.tournament.active) {
+        showToast('Selling is disabled during the Skylark Cup contest!');
+        return;
+      }
+      const distToDock = Math.hypot(gameState.ship.x - DOCK_BERTH_X, gameState.ship.z - DOCK_BERTH_Z);
+      if (distToDock <= DOCK_BERTH_RADIUS) {
+        if (gameState.hold.length > 0) {
+          const count = gameState.hold.length;
+          const totalWeight = getHoldWeight();
+          let earned = 0;
+          gameState.hold.forEach(h => earned += h.value);
+          gameState.coins += earned;
+          gameState.hold = [];
+          showToast(`Sold ${count} fish (${totalWeight.toFixed(1)}kg) for ${earned} Gold! Light trim restored.`);
+          updateHUD();
+          exportArenaState();
+        } else {
+          showToast('Hold is empty! Catch fish to sell at the dock.');
+        }
+      }
+    }
+
+    /* ==========================================================================
+       SIMULATION & PHYSICS (100% DETERMINISTIC)
+       ========================================================================== */
+    function updateSimulation(dt) {
+      dt = Math.min(dt, 0.05);
+
+      // Circling birds
+      birdMeshes.forEach(b => {
+        b.offset += dt * 0.4;
+        const bx = Math.cos(b.offset) * 35 - 10;
+        const bz = Math.sin(b.offset) * 35 + 10;
+        const by = 24 + Math.sin(b.offset * 2) * 3;
+        b.mesh.position.set(bx, by, bz);
+        b.mesh.rotation.y = -b.offset + Math.PI / 2;
+        b.wingPhase += dt * 10;
+        b.mesh.rotation.z = Math.sin(b.wingPhase) * 0.35;
+      });
+
+      // Drifting clouds
+      gameState.clouds.forEach(puff => {
+        puff.position.x += dt * 0.8;
+        if (puff.position.x > 250) {
+          puff.position.x = -250;
+        }
+      });
+
+      // Storm Shoal crackling halo animation
+      if (typeof stormHaloGroup !== 'undefined' && stormHaloGroup) {
+        stormHaloGroup.rotation.y += dt * 0.4;
+        stormInnerHalo.rotation.z -= dt * 0.8;
+        stormHaloLight.intensity = 1.2 + Math.sin(gameState.simTime * 9.0) * 0.4 + Math.sin(gameState.simTime * 21.0) * 0.3;
+      }
+
+      // Active particles
+      for (let i = 0; i < MAX_PARTICLES; i++) {
+        const p = activeParticles[i];
+        if (p.active) {
+          p.life += dt;
+          if (p.life >= p.maxLife) {
+            p.active = false;
+            dummy.position.set(0, -999, 0);
+          } else {
+            p.pos.addScaledVector(p.vel, dt);
+            p.vel.y -= dt * 9.8;
+            const prog = p.life / p.maxLife;
+            const curScale = p.scale * (1.0 - prog);
+            dummy.position.copy(p.pos);
+            dummy.scale.set(curScale, curScale, curScale);
+          }
+          dummy.updateMatrix();
+          particleInst.setMatrixAt(i, dummy.matrix);
+        }
+      }
+      particleInst.instanceMatrix.needsUpdate = true;
+
+      // Handle Re-rigging Line timer
+      if (gameState.fishing.state === 'rerig') {
+        gameState.fishing.rerigTimer -= dt;
+        if (gameState.fishing.rerigTimer <= 0) {
+          gameState.fishing.state = 'idle';
+          showToast('Fresh line rigged! Ready to cast.');
+          exportArenaState();
+        }
+      }
+
+      // Animate wind ribbons (streaming ribbons at all times)
+      if (typeof windParticles !== 'undefined' && typeof windInstMesh !== 'undefined') {
+        const dummyWind = new THREE.Object3D();
+        for (let i = 0; i < windRibbonCount; i++) {
+          const wp = windParticles[i];
+          wp.u = (wp.u + dt * 0.35) % 1.0;
+          const lane = windLanesData[wp.laneIdx];
+          const px = lerp(lane.startX, lane.endX, wp.u) + (lane.dirX === 0 ? wp.latOffset : 0);
+          const pz = lerp(lane.startZ, lane.endZ, wp.u) + (lane.dirZ === 0 ? wp.latOffset : 0);
+          const py = lane.startY + wp.altOffset;
+          dummyWind.position.set(px, py, pz);
+          dummyWind.rotation.y = lane.dirX !== 0 ? Math.PI / 2 : 0;
+          dummyWind.updateMatrix();
+          windInstMesh.setMatrixAt(i, dummyWind.matrix);
+        }
+        windInstMesh.instanceMatrix.needsUpdate = true;
+      }
+
+      // Animate thermal haze rings (shimmering rising haze at all times)
+      if (typeof thermalHazeGroups !== 'undefined') {
+        thermalHazeGroups.forEach((tg) => {
+          tg.children.forEach((ring, rIdx) => {
+            ring.position.y += dt * 3.5;
+            if (ring.position.y > 28.0) ring.position.y = 2.0;
+            ring.rotation.z += dt * (rIdx % 2 === 0 ? 0.3 : -0.3);
+          });
+        });
+      }
+
+      // Tournament countdown & target rotation
+      if (gameState.tournament.active) {
+        gameState.tournament.timeLeft -= dt;
+        const elapsed = 150.0 - gameState.tournament.timeLeft;
+
+        // Target rotation: 0-50s Carp, 50-100s Dart, 100-150s Puffer
+        if (elapsed < 50.0) {
+          gameState.tournament.targetSpecies = 'Sun Carp';
+        } else if (elapsed < 100.0) {
+          gameState.tournament.targetSpecies = 'Silver Dart';
+        } else {
+          gameState.tournament.targetSpecies = 'Moon Puffer';
+        }
+
+        // Contest finish at 150s
+        if (gameState.tournament.timeLeft <= 0) {
+          gameState.tournament.timeLeft = 0;
+          gameState.tournament.active = false;
+          gameState.tournament.finished = true;
+
+          // Auto-sell hold at normal coin prices
+          let holdEarned = 0;
+          gameState.hold.forEach(h => holdEarned += h.value);
+          gameState.coins += holdEarned;
+          gameState.hold = [];
+
+          // Trophy bonus: 400+ bronze (+50), 700+ silver (+150), 1000+ gold (+300)
+          let trophyBonus = 0;
+          let trophyName = 'NONE';
+          if (gameState.tournament.score >= 1000) {
+            trophyName = 'GOLD';
+            trophyBonus = 300;
+          } else if (gameState.tournament.score >= 700) {
+            trophyName = 'SILVER';
+            trophyBonus = 150;
+          } else if (gameState.tournament.score >= 400) {
+            trophyName = 'BRONZE';
+            trophyBonus = 50;
+          }
+          gameState.tournament.trophy = trophyName;
+          gameState.coins += trophyBonus;
+
+          if (gameState.tournament.score > gameState.stats.tournament.bestScore) {
+            gameState.stats.tournament.bestScore = gameState.tournament.score;
+            gameState.stats.tournament.trophy = trophyName;
+          }
+
+          // Despawn rivals
+          if (typeof rivalAirships !== 'undefined') {
+            rivalAirships.forEach(r => r.mesh.visible = false);
+          }
+
+          showTournamentResults(holdEarned, trophyBonus, trophyName);
+          showToast(`🏆 Skylark Cup finished! ${trophyName} Trophy! Score: ${gameState.tournament.score} (+${holdEarned + trophyBonus}g)!`);
+          updateHUD();
+          exportArenaState();
+        }
+      }
+
+      if (gameState.phase !== 'playing') {
+        exportArenaState();
+        return;
+      }
+
+      // Check Respawn Delay (2s whiteout)
+      if (gameState.checkpoints.respawning) {
+        gameState.checkpoints.respawnTimer -= dt;
+        if (gameState.checkpoints.respawnTimer <= 0) {
+          gameState.checkpoints.respawning = false;
+          const whiteoutEl = document.getElementById('whiteout-screen');
+          if (whiteoutEl) whiteoutEl.style.opacity = '0';
+
+          const cp = gameState.checkpoints.active;
+          if (cp) {
+            gameState.ship.x = cp.x;
+            gameState.ship.y = cp.y;
+            gameState.ship.z = cp.z;
+          }
+          gameState.ship.heading = 0;
+          gameState.ship.speed = 0;
+          gameState.ship.climbSpeed = 0;
+          gameState.ship.angularVel = 0;
+          gameState.ship.pitch = 0;
+          gameState.ship.roll = 0;
+          gameState.ship.swayOffset = 0;
+          gameState.ship.swayVel = 0;
+
+          shipRoot.position.set(gameState.ship.x, gameState.ship.y, gameState.ship.z);
+          shipRoot.rotation.set(0, 0, 0);
+          shipPitchRollGroup.rotation.set(0, 0, 0);
+
+          if (gameState.fishing.state !== 'idle') {
+            gameState.fishing.state = 'idle';
+            gameState.fishing.tension = 0;
+            gameState.fishing.hookedFishId = null;
+            gameState.fishing.targetFishId = null;
+            bobberMesh.visible = false;
+            fishingLine.visible = false;
+          }
+
+          showToast(`Airship refloated at ${cp ? cp.name : 'Beacon'}! Hold, spools & tackle intact.`);
+          updateHUD();
+          exportArenaState();
+        }
+        return;
+      }
+
+      gameState.simTime += dt;
+
+      /* ----------------------------------------------------
+         1. FLIGHT DYNAMICS OR WHALE SLEIGHRIDE TOW
+         ---------------------------------------------------- */
+      const ship = gameState.ship;
+
+      // Update Mounted Harpoon Launcher and Rod visibility based on hunt state
+      const isHuntArmedOrTowing = (gameState.hunt.state === 'armed' || gameState.hunt.state === 'towing');
+      if (typeof harpoonLauncherGroup !== 'undefined') {
+        harpoonLauncherGroup.visible = isHuntArmedOrTowing;
+      }
+      if (typeof rodGroup !== 'undefined') {
+        rodGroup.visible = !isHuntArmedOrTowing;
+      }
+      if (isHuntArmedOrTowing) {
+        armLeftGroup.rotation.x = -Math.PI / 2.5;
+        armRightGroup.rotation.x = -Math.PI / 2.5;
+      }
+
+      // Flying Harpoon Bolt Update
+      if (harpoonBolt.active) {
+        harpoonBolt.progress += dt * 3.5;
+        const bp = Math.min(1.0, harpoonBolt.progress);
+        const bx = lerp(harpoonBolt.startPos.x, harpoonBolt.targetPos.x, bp);
+        const bz = lerp(harpoonBolt.startPos.z, harpoonBolt.targetPos.z, bp);
+        const by = lerp(harpoonBolt.startPos.y, harpoonBolt.targetPos.y, bp) + Math.sin(bp * Math.PI) * 1.5;
+
+        harpoonBolt.mesh.position.set(bx, by, bz);
+        harpoonBolt.mesh.lookAt(harpoonBolt.targetPos.x, harpoonBolt.targetPos.y, harpoonBolt.targetPos.z);
+
+        const launcherPos = new THREE.Vector3();
+        launcherBoltMesh.getWorldPosition(launcherPos);
+        for (let r = 0; r < ropePointsCount; r++) {
+          const rt = r / (ropePointsCount - 1);
+          const rx = lerp(launcherPos.x, bx, rt);
+          const rz = lerp(launcherPos.z, bz, rt);
+          const ry = lerp(launcherPos.y, by, rt) - Math.sin(rt * Math.PI) * 0.8;
+          ropePosArray[r * 3 + 0] = rx;
+          ropePosArray[r * 3 + 1] = ry;
+          ropePosArray[r * 3 + 2] = rz;
+        }
+        harpoonRope.geometry.attributes.position.needsUpdate = true;
+
+        if (bp >= 1.0) {
+          harpoonBolt.active = false;
+          harpoonBolt.mesh.visible = false;
+          const distToWhale = Math.hypot(bx - whaleData.x, bz - whaleData.z);
+          if (whaleData.phase === 'surfaced' && distToWhale <= 18.0) {
+            gameState.hunt.state = 'towing';
+            gameState.stats.whaleHunt.outcome = 'failed';
+            gameState.hunt.towTime = 0;
+            gameState.hunt.ropeLength = 15.0;
+            gameState.hunt.ropeStrain = 0;
+            gameState.hunt.lateralOffset = 0;
+            resetCanyonProps();
+            spawnSplash(whaleData.x, CLOUD_Y, whaleData.z, 40, 2.8);
+            showToast('HARPOON STRUCK THE SURFACED BACK! The whale dives and tows the Skylark into Cloud Reach!');
+            updateHUD();
+            exportArenaState();
+          } else {
+            harpoonRope.visible = false;
+            spawnSplash(bx, CLOUD_Y, bz, 15, 1.2);
+            if (distToWhale <= 18.0 && whaleData.phase !== 'surfaced') {
+              showToast('Harpoon bounced off! Whale was submerged — strike when its back breaks the surface!');
+            } else {
+              showToast('Harpoon missed! Aim for the vast surfaced back.');
+            }
+          }
+        }
+      }
+
+      // Cloud Whale Patrol when NOT towing
+      if (gameState.hunt.state !== 'towing') {
+        if (gameState.hunt.state === 'done' && gameState.hunt.whaleTiredTimer > 0) {
+          gameState.hunt.whaleTiredTimer -= dt;
+          whaleData.phase = 'tired';
+          whaleData.y = CLOUD_Y + 1.2;
+          singRing.material.opacity = Math.sin(gameState.simTime * 6.0) * 0.4 + 0.4;
+          singRing.scale.setScalar(1.0 + (gameState.simTime % 2.0) * 6.0);
+        } else {
+          singRing.material.opacity = 0;
+          whaleData.patrolAngle += (3.0 / 35.0) * dt;
+          whaleData.x = -110 + Math.cos(whaleData.patrolAngle) * 35.0;
+          whaleData.z = -85 + Math.sin(whaleData.patrolAngle) * 35.0;
+          whaleData.heading = whaleData.patrolAngle + Math.PI / 2;
+
+          const tCycle = gameState.simTime % 24.0;
+          if (tCycle < 12.0) {
+            whaleData.phase = 'surfaced';
+            whaleData.y = CLOUD_Y + 1.2;
+          } else if (tCycle < 16.0) {
+            whaleData.phase = 'diving';
+            whaleData.y = CLOUD_Y + 1.2 - ((tCycle - 12.0) / 4.0) * 6.2;
+          } else if (tCycle < 20.0) {
+            whaleData.phase = 'submerged';
+            whaleData.y = CLOUD_Y - 5.0;
+          } else {
+            whaleData.phase = 'surfacing';
+            whaleData.y = CLOUD_Y - 5.0 + ((tCycle - 20.0) / 4.0) * 6.2;
+          }
+        }
+        whaleGroup.position.set(whaleData.x, whaleData.y, whaleData.z);
+        whaleGroup.rotation.y = whaleData.heading;
+        whaleGroup.rotation.x = 0;
+        flukeGroup.rotation.x = Math.sin(gameState.simTime * 4.0) * 0.35;
+      }
+
+      if (gameState.hunt.state === 'towing') {
+        // --- SLEIGHRIDE TOW MODE ---
+        gameState.hunt.towTime += dt;
+        const tt = gameState.hunt.towTime;
+
+        // Steering sled: A/D slide laterally up to 8 units at 6 units/sec
+        let steerInput = 0;
+        if (keys.KeyA) steerInput -= 1;
+        if (keys.KeyD) steerInput += 1;
+        gameState.hunt.lateralOffset += steerInput * 6.0 * dt;
+        gameState.hunt.lateralOffset = clamp(gameState.hunt.lateralOffset, -8.0, 8.0);
+
+        const u = Math.min(1.0, (tt * 18.0) / canyonLength);
+        const pt = canyonCurve.getPointAt(u);
+        const tan = canyonCurve.getTangentAt(u).normalize();
+        const norm = new THREE.Vector3(-tan.z, 0, tan.x);
+
+        // Breaches at exactly 20, 45, 70s for 2s
+        const isBreach1 = (tt >= 20.0 && tt <= 22.0);
+        const isBreach2 = (tt >= 45.0 && tt <= 47.0);
+        const isBreach3 = (tt >= 70.0 && tt <= 72.0);
+        const isBreaching = isBreach1 || isBreach2 || isBreach3;
+
+        if (isBreaching) {
+          whaleData.phase = 'breaching';
+          const bStart = isBreach1 ? 20.0 : isBreach2 ? 45.0 : 70.0;
+          const bProg = (tt - bStart) / 2.0;
+          whaleData.y = CLOUD_Y + Math.sin(bProg * Math.PI) * 12.0;
+          whaleGroup.rotation.x = (0.5 - bProg) * 1.2;
+          if ((Math.floor(tt * 20) % 4) === 0) {
+            spawnSplash(pt.x, CLOUD_Y, pt.z, 6, 2.0);
+          }
+        } else {
+          whaleData.phase = 'towing';
+          whaleData.y = CLOUD_Y + 0.5;
+          whaleGroup.rotation.x = 0;
+          gameState.hunt.breachWinchedThisBreach = false;
+        }
+
+        whaleData.x = pt.x;
+        whaleData.z = pt.z;
+        whaleData.heading = Math.atan2(tan.x, tan.z);
+        whaleGroup.position.set(whaleData.x, whaleData.y, whaleData.z);
+        whaleGroup.rotation.y = whaleData.heading;
+        flukeGroup.rotation.x = Math.sin(tt * 8.0) * 0.45;
+
+        // Ship towed behind whale on rope
+        ship.x = whaleData.x - tan.x * gameState.hunt.ropeLength + norm.x * gameState.hunt.lateralOffset;
+        ship.z = whaleData.z - tan.z * gameState.hunt.ropeLength + norm.z * gameState.hunt.lateralOffset;
+        ship.y = CLOUD_Y + 3.8;
+        ship.heading = Math.atan2(-tan.x, -tan.z);
+        ship.speed = 18.0;
+        ship.climbSpeed = 0;
+        ship.roll = lerp(ship.roll, steerInput * -0.28, dt * 8.0);
+        ship.pitch = 0;
+
+        shipRoot.position.set(ship.x, ship.y, ship.z);
+        shipRoot.rotation.y = ship.heading;
+        shipPitchRollGroup.rotation.z = ship.roll;
+        shipPitchRollGroup.rotation.x = ship.pitch;
+
+        rudderMesh.rotation.y = -steerInput * 0.45;
+
+        const propSpeed = 16.0;
+        propBlades.forEach((prop, idx) => {
+          prop.rotation.z += (idx === 0 ? 1 : -1) * propSpeed * dt;
+        });
+
+        scarfTailGroup.rotation.x = -0.9;
+        scarfTailGroup.scale.z = 1.4;
+
+        // Update tow rope
+        harpoonRope.visible = true;
+        const bowPos = new THREE.Vector3(ship.x, ship.y - 0.4, ship.z);
+        const whlPos = new THREE.Vector3(whaleData.x, whaleData.y + 1.2, whaleData.z);
+        const slackSag = isBreaching ? 5.0 : 0.4;
+        for (let r = 0; r < ropePointsCount; r++) {
+          const rt = r / (ropePointsCount - 1);
+          const rx = lerp(bowPos.x, whlPos.x, rt);
+          const rz = lerp(bowPos.z, whlPos.z, rt);
+          const ry = lerp(bowPos.y, whlPos.y, rt) - Math.sin(rt * Math.PI) * slackSag;
+          ropePosArray[r * 3 + 0] = rx;
+          ropePosArray[r * 3 + 1] = ry;
+          ropePosArray[r * 3 + 2] = rz;
+        }
+        harpoonRope.geometry.attributes.position.needsUpdate = true;
+
+        // Check Score Rings (24 rings)
+        scoreRings.forEach(ring => {
+          if (!ring.collected) {
+            const d = Math.hypot(ship.x - ring.pos.x, ship.z - ring.pos.z);
+            if (d < 3.5 && Math.abs(ship.y - ring.pos.y) < 4.0) {
+              ring.collected = true;
+              ring.mesh.visible = false;
+              gameState.coins += 5;
+              gameState.hunt.ringsCollected++;
+              gameState.stats.whaleHunt.rings = gameState.hunt.ringsCollected;
+              spawnSplash(ring.pos.x, ring.pos.y, ring.pos.z, 15, 1.2);
+              showToast(`+5 Gold! Score Ring (${gameState.hunt.ringsCollected}/24)`);
+              updateHUD();
+              exportArenaState();
+            }
+          }
+        });
+
+        // Check Canyon Rock Pillars
+        canyonPillars.forEach(pil => {
+          if (pil.hitCooldown > 0) pil.hitCooldown -= dt;
+          const d = Math.hypot(ship.x - pil.pos.x, ship.z - pil.pos.z);
+          if (d < (pil.radius + 1.2) && pil.hitCooldown <= 0) {
+            pil.hitCooldown = 3.0;
+            if (gameState.hunt.ropeStrain === 0) {
+              gameState.hunt.ropeStrain = 1;
+              showToast('WARNING: LINE STRAIN 1/2! Hull shuddered on canyon pillar!');
+              updateHUD();
+              exportArenaState();
+            } else if (gameState.hunt.ropeStrain === 1) {
+              gameState.hunt.ropeStrain = 2;
+              gameState.hunt.state = 'failed';
+              gameState.stats.whaleHunt.outcome = 'failed';
+              harpoonRope.visible = false;
+              updateLauncherVisibility();
+              showToast('LINE SNAPPED! The second strike snapped the tow rope! The whale escaped.');
+              updateHUD();
+              exportArenaState();
+            }
+          }
+        });
+
+        // Check 90 Seconds Survival
+        if (gameState.hunt.towTime >= 90.0) {
+          gameState.hunt.state = 'done';
+          gameState.stats.whaleHunt.outcome = 'completed';
+          gameState.coins += 300;
+          whaleData.phase = 'tired';
+          gameState.hunt.whaleTiredTimer = 15.0;
+          harpoonRope.visible = false;
+          updateLauncherVisibility();
+          showToast('SURVIVED THE SLEIGHRIDE! Cloud Whale settles & sings! +300 Gold & Whale Sigil awarded!');
+          updateHUD();
+          exportArenaState();
+        }
+      } else {
+        // --- NORMAL FLIGHT DYNAMICS ---
+        // Throttle W/S
+        let throttleInput = 0;
+        if (keys.KeyW) throttleInput += 1;
+        if (keys.KeyS) throttleInput -= 1;
+
+        if (throttleInput > 0) {
+          const a = TOP_SPEED_FWD / ACCEL_TIME;
+          ship.speed = Math.min(TOP_SPEED_FWD, ship.speed + a * dt);
+        } else if (throttleInput < 0) {
+          const a = TOP_SPEED_REV / ACCEL_TIME;
+          ship.speed = Math.max(-TOP_SPEED_REV, ship.speed - a * dt);
+        } else {
+          if (ship.speed > 0) {
+            const d = TOP_SPEED_FWD / COAST_TIME;
+            ship.speed = Math.max(0, ship.speed - d * dt);
+          } else if (ship.speed < 0) {
+            const d = TOP_SPEED_REV / COAST_TIME;
+            ship.speed = Math.min(0, ship.speed + d * dt);
+          }
+        }
+
+        // Turn Rate A/D: 45 deg/sec
+        let turnInput = 0;
+        if (keys.KeyA) turnInput += 1;
+        if (keys.KeyD) turnInput -= 1;
+        ship.angularVel = turnInput * TURN_RATE;
+        ship.heading += ship.angularVel * dt;
+
+        // Cargo Buoyancy & Trim tiers
+        const curHoldWeight = getHoldWeight();
+        const loadTier = (curHoldWeight >= 7.0) ? 'Laden' : 'Light';
+        const curCeiling = (loadTier === 'Laden') ? 20.0 : 30.0;
+        const curMaxClimb = (loadTier === 'Laden') ? 1.5 : 3.0;
+
+        // Ballast Climb Q / Descend E: climb halves to 1.5 u/s when Laden; descent remains 3.0 u/s
+        let climbInput = 0;
+        if (keys.KeyQ) climbInput += 1;
+        if (keys.KeyE) climbInput -= 1;
+
+        if (climbInput > 0) {
+          ship.climbSpeed = climbInput * curMaxClimb;
+        } else if (climbInput < 0) {
+          ship.climbSpeed = climbInput * CLIMB_RATE;
+        } else {
+          ship.climbSpeed = 0;
+        }
+
+        // Base ship displacement from engines
+        const fwdX = -Math.sin(ship.heading);
+        const fwdZ = -Math.cos(ship.heading);
+        let shipDispX = fwdX * ship.speed * dt;
+        let shipDispZ = fwdZ * ship.speed * dt;
+
+        // THE FISH PULLS BACK: Tow drift during pulling phases
+        // At 0.3 units/second per unit of that fish's weight
+        if (gameState.fishing.state === 'fight' && gameState.fishing.isPulling) {
+          const fish = gameState.fish.find(f => f.id === gameState.fishing.hookedFishId);
+          if (fish) {
+            const driftSpeed = 0.3 * fish.weight;
+            const pullV = gameState.fishing.pullVector;
+            shipDispX += pullV.x * driftSpeed * dt;
+            shipDispZ += pullV.z * driftSpeed * dt;
+          }
+        }
+
+        ship.x += shipDispX;
+        ship.z += shipDispZ;
+
+        // WIND LANES: push the ship 4 units/second along lane's axis
+        if (typeof windLanesData !== 'undefined') {
+          windLanesData.forEach(lane => {
+            const inX = (ship.x >= lane.minX && ship.x <= lane.maxX);
+            const inZ = (ship.z >= lane.minZ && ship.z <= lane.maxZ);
+            const inY = (ship.y >= lane.minY && ship.y <= lane.maxY);
+            lane.shipInside = (inX && inZ && inY);
+            if (lane.shipInside) {
+              ship.x += lane.dirX * 4.0 * dt;
+              ship.z += lane.dirZ * 4.0 * dt;
+            }
+          });
+        }
+
+        // Vertical altitude update:
+        // If the ship sits above 20 when it becomes Laden, it sinks at 1.5 units/second to the new ceiling.
+        if (ship.y > CLOUD_Y + curCeiling) {
+          if (loadTier === 'Laden') {
+            ship.y = Math.max(CLOUD_Y + curCeiling, ship.y - 1.5 * dt);
+          } else {
+            ship.y = CLOUD_Y + curCeiling;
+          }
+          if (climbInput < 0) {
+            ship.y = Math.max(GONDOLA_CRASH_Y, ship.y + ship.climbSpeed * dt);
+          }
+        } else {
+          ship.y += ship.climbSpeed * dt;
+          if (ship.y > CLOUD_Y + curCeiling) {
+            ship.y = CLOUD_Y + curCeiling;
+          }
+        }
+
+        // THERMAL COLUMNS: lift ship 2 units/second stopping at current ceiling
+        if (typeof thermalsData !== 'undefined') {
+          thermalsData.forEach(th => {
+            const hDist = Math.hypot(ship.x - th.x, ship.z - th.z);
+            const inY = (ship.y >= th.y && ship.y <= th.y + 30.0);
+            th.shipInside = (hDist <= th.radius && inY);
+            if (th.shipInside) {
+              const ceilingY = CLOUD_Y + curCeiling;
+              ship.y = Math.min(ceilingY, ship.y + 2.0 * dt);
+            }
+          });
+        }
+
+        // LIGHTHOUSE CHECKPOINTS: Flying within 5 units lights beacon & sets active checkpoint
+        if (typeof lighthouses !== 'undefined') {
+          lighthouses.forEach(lh => {
+            const dLantern = Math.hypot(ship.x - lh.pos.x, ship.y - 11.2, ship.z - lh.pos.z);
+            const dHoriz = Math.hypot(ship.x - lh.pos.x, ship.z - lh.pos.z);
+            const inRange = (dLantern <= 5.0) || (dHoriz <= 5.0 && ship.y >= 6.0 && ship.y <= 16.0);
+
+            if (inRange) {
+              if (!lh.lit) {
+                lh.lit = true;
+                lh.lanternMat.color.setHex(0x38bdf8);
+                lh.light.intensity = 2.8;
+                lh.light.color.setHex(0x38bdf8);
+                lh.beamMat.opacity = 0.45;
+              }
+              if (!gameState.checkpoints.active || gameState.checkpoints.active.name !== lh.name) {
+                gameState.checkpoints.active = {
+                  id: lh.id,
+                  name: lh.name,
+                  x: lh.pos.x + 6.0,
+                  y: 12.0,
+                  z: lh.pos.z + 6.0
+                };
+                showToast(`Checkpoint — ${lh.name}`);
+                updateHUD();
+                exportArenaState();
+              }
+            }
+            if (lh.lit) {
+              lh.beam.rotation.z += 1.5 * dt;
+            }
+          });
+        }
+
+        // Gondola crash
+        if (ship.y <= GONDOLA_CRASH_Y) {
+          ship.y = GONDOLA_CRASH_Y;
+          handleCrash('The gondola touched the dense cloud sea and foundered!');
+          return;
+        }
+
+        // Visual Banking, Pitch, Rudder, Propellers, Gasbag sway
+        const targetRoll = -turnInput * 0.35;
+        ship.roll = lerp(ship.roll, targetRoll, dt * 6.0);
+
+        const targetPitch = (ship.climbSpeed / (curMaxClimb || 1.0)) * 0.12 - (ship.speed / TOP_SPEED_FWD) * 0.06;
+        ship.pitch = lerp(ship.pitch, targetPitch, dt * 5.0);
+
+        const targetSway = -ship.speed * 0.04;
+        ship.swayVel += (targetSway - ship.swayOffset) * 12.0 * dt;
+        ship.swayVel *= Math.exp(-4.0 * dt);
+        ship.swayOffset += ship.swayVel * dt;
+        gasbagSwayGroup.position.z = ship.swayOffset;
+        gasbagSwayGroup.rotation.x = -ship.swayOffset * 0.1;
+
+        // Visibly rides lower with gasbag straining when Laden
+        if (loadTier === 'Laden') {
+          gasbagMesh.scale.set(1.08, 0.88, 2.65);
+          shipRoot.position.set(ship.x, ship.y - 0.35, ship.z);
+        } else {
+          gasbagMesh.scale.set(1.0, 0.95, 2.6);
+          shipRoot.position.set(ship.x, ship.y, ship.z);
+        }
+        shipRoot.rotation.y = ship.heading;
+        shipPitchRollGroup.rotation.z = ship.roll;
+        shipPitchRollGroup.rotation.x = ship.pitch;
+
+        rudderMesh.rotation.y = -turnInput * 0.45;
+
+        const propSpeed = 6.0 + Math.abs(ship.speed) * 4.5;
+        propBlades.forEach((prop, idx) => {
+          prop.rotation.z += (idx === 0 ? 1 : -1) * propSpeed * dt;
+        });
+
+        const scarfStream = clamp(Math.abs(ship.speed) / TOP_SPEED_FWD, 0.1, 1.0);
+        scarfTailGroup.rotation.x = -scarfStream * 0.9;
+        scarfTailGroup.scale.z = 0.8 + scarfStream * 0.6;
+
+        if (!isHuntArmedOrTowing) {
+          if (Math.abs(turnInput) > 0) {
+            armLeftGroup.rotation.y = turnInput * 0.3;
+            armRightGroup.rotation.y = turnInput * 0.3;
+          } else {
+            armLeftGroup.rotation.y = 0;
+            armRightGroup.rotation.y = 0;
+          }
+        }
+
+        /* ----------------------------------------------------
+           2. HONEST COLLISION DETECTION
+           ---------------------------------------------------- */
+        const shipCenter = new THREE.Vector3(ship.x, ship.y + 1.2, ship.z);
+        const shipHullRadius = 2.8;
+
+        for (let col of colliders) {
+          if (col.type === 'sphere') {
+            const dist = shipCenter.distanceTo(col.pos);
+            if (dist < (shipHullRadius + col.radius)) {
+              handleCrash(`Hull impact with ${col.name}!`);
+              return;
+            }
+          } else if (col.type === 'cylinder') {
+            if (shipCenter.y >= col.yMin && shipCenter.y <= col.yMax) {
+              const hDist = Math.hypot(shipCenter.x - col.pos.x, shipCenter.z - col.pos.z);
+              if (hDist < (shipHullRadius + col.radius)) {
+                handleCrash(`Collision with ${col.name}!`);
+                return;
+              }
+            }
+          }
+        }
+
+        // Rival Airships update & solid collision
+        if (typeof rivalAirships !== 'undefined') {
+          if (gameState.tournament.active) {
+            rivalAirships.forEach(rival => {
+              if (!rival.mesh.visible) rival.mesh.visible = true;
+
+              const targetWp = rival.waypoints[rival.wpIdx];
+              if (rival.pauseTimer > 0) {
+                rival.pauseTimer -= dt;
+              } else {
+                const dx = targetWp.x - rival.mesh.position.x;
+                const dz = targetWp.z - rival.mesh.position.z;
+                const dist = Math.hypot(dx, dz);
+                if (dist < 1.0) {
+                  if (targetWp.pause > 0) {
+                    rival.pauseTimer = targetWp.pause;
+                  }
+                  rival.wpIdx = (rival.wpIdx + 1) % rival.waypoints.length;
+                } else {
+                  rival.heading = Math.atan2(dx, dz);
+                  rival.mesh.position.x += (dx / dist) * rival.speed * dt;
+                  rival.mesh.position.z += (dz / dist) * rival.speed * dt;
+                  rival.mesh.position.y = lerp(rival.mesh.position.y, targetWp.y, dt * 2.0);
+                  rival.mesh.rotation.y = rival.heading + Math.PI;
+                }
+              }
+
+              // Solid collision with rival airship!
+              const rPos = rival.mesh.position;
+              const hDistToRival = Math.hypot(ship.x - rPos.x, ship.z - rPos.z);
+              const vDistToRival = Math.abs(ship.y - rPos.y);
+              if (hDistToRival < 4.2 && vDistToRival < 3.2) {
+                handleCrash('Mid-air collision with rival airship!');
+                return;
+              }
+            });
+          } else {
+            rivalAirships.forEach(r => r.mesh.visible = false);
+          }
+        }
+      }
+
+      /* ----------------------------------------------------
+         3. FISH AI & DEPTH-MATCHING APPROACH
+         ---------------------------------------------------- */
+      gameState.fish.forEach(f => {
+        f.tailWiggle += dt * (f.species === 'Silver Dart' ? 14.0 : 7.0);
+        if (f.species === 'Storm Eel' && f.mesh.userData.segments) {
+          f.mesh.userData.segments.forEach((seg, sIdx) => {
+            seg.position.x = Math.sin(f.tailWiggle - sIdx * 0.8) * 0.35 * (sIdx + 1) * 0.28;
+          });
+        } else if (f.mesh.children[1]) {
+          f.mesh.children[1].rotation.y = Math.sin(f.tailWiggle) * 0.4;
+        }
+
+        if (f.scaredTimer > 0) {
+          f.scaredTimer -= dt;
+        }
+
+        if (f.state === 'patrol') {
+          const angSpeed = f.speed / f.config.radius;
+          f.angle += angSpeed * dt;
+
+          const fx = f.config.cx + Math.cos(f.angle) * f.config.radius;
+          const fz = f.config.cz + Math.sin(f.angle) * f.config.radius;
+          f.mesh.position.x = fx;
+          f.mesh.position.z = fz;
+
+          const tangX = -Math.sin(f.angle);
+          const tangZ = Math.cos(f.angle);
+          f.mesh.rotation.y = Math.atan2(tangX, tangZ) + Math.PI;
+
+          // Check if floating bobber is within 4 units AND bait depth matches species AND bait finished sinking!
+          if (gameState.fishing.state === 'cast' && f.scaredTimer <= 0) {
+            const baitReady = (gameState.baitSinkTimer <= 0);
+            if (baitReady && gameState.baitDepth === f.reqDepth) {
+              const bPos = gameState.fishing.bobberPos;
+              const distToBobber = Math.hypot(fx - bPos.x, fz - bPos.z);
+              if (distToBobber <= LURE_DIST) {
+                f.state = 'divert';
+                f.divertTimer = 0;
+                gameState.fishing.state = 'divert';
+                gameState.fishing.targetFishId = f.id;
+                showToast(`A ${f.species} spotted the ${gameState.baitDepth}u bait and is approaching!`);
+              }
+            }
+          }
+        } else if (f.state === 'divert') {
+          f.divertTimer += dt;
+          const bPos = gameState.fishing.bobberPos;
+          const dirX = bPos.x - f.mesh.position.x;
+          const dirZ = bPos.z - f.mesh.position.z;
+          const dist = Math.hypot(dirX, dirZ);
+
+          if (dist > 0.05) {
+            f.mesh.position.x += (dirX / dist) * f.speed * dt;
+            f.mesh.position.z += (dirZ / dist) * f.speed * dt;
+            f.mesh.rotation.y = Math.atan2(dirX, dirZ) + Math.PI;
+          }
+
+          // BITE after exactly 3.0 seconds -> opens STRIKE WINDOW!
+          if (f.divertTimer >= BITE_DELAY) {
+            f.state = 'strike';
+            gameState.fishing.state = 'strike';
+            gameState.strikeWindowOpen = true;
+            gameState.fishing.strikeTimer = STRIKE_WINDOW_DUR;
+
+            // Bobber plunges
+            gameState.fishing.bobberPos.y = CLOUD_Y - 0.7;
+            bobberMesh.position.copy(gameState.fishing.bobberPos);
+
+            spawnSplash(bPos.x, CLOUD_Y, bPos.z, 20, 1.4);
+            document.getElementById('strike-prompt').style.display = 'block';
+          }
+        } else if (f.state === 'strike') {
+          // Stay beneath plunging bobber during strike window
+          f.mesh.position.x = gameState.fishing.bobberPos.x;
+          f.mesh.position.z = gameState.fishing.bobberPos.z;
+        } else if (f.state === 'hooked') {
+          // Controlled by fight script
+        }
+      });
+
+      // Advance Strike Window timer: lapses spit bait (no auto-set assist!)
+      if (gameState.fishing.state === 'strike' && gameState.strikeWindowOpen) {
+        gameState.fishing.strikeTimer -= dt;
+        if (gameState.fishing.strikeTimer <= 0) {
+          handleMissedStrike();
+        }
+      }
+
+      /* ----------------------------------------------------
+         4. AIM RETICLE & CASTING ARC
+         ---------------------------------------------------- */
+      const aimDistFromCenter = AIM_DIST + 3.1;
+      const aimX = ship.x - Math.sin(ship.heading) * aimDistFromCenter;
+      const aimZ = ship.z - Math.cos(ship.heading) * aimDistFromCenter;
+      reticleGroup.position.set(aimX, CLOUD_Y + 0.05, aimZ);
+
+      if (gameState.fishing.state === 'idle') {
+        rodGroup.rotation.x = -Math.PI / 5;
+      } else if (gameState.fishing.state === 'fight') {
+        rodGroup.rotation.x = -Math.PI / 2.6;
+      } else {
+        rodGroup.rotation.x = -Math.PI / 3;
+      }
+
+      if (gameState.fishing.state === 'flying') {
+        gameState.fishing.castProgress += dt * 1.8;
+        const t = Math.min(1.0, gameState.fishing.castProgress);
+        const start = gameState.fishing.castStart;
+        const target = gameState.fishing.castTarget;
+
+        const curX = lerp(start.x, target.x, t);
+        const curZ = lerp(start.z, target.z, t);
+        const curY = lerp(start.y, target.y, t) + Math.sin(t * Math.PI) * 5.0;
+
+        gameState.fishing.bobberPos.set(curX, curY, curZ);
+        bobberMesh.position.copy(gameState.fishing.bobberPos);
+
+        if (t >= 1.0) {
+          gameState.fishing.state = 'cast';
+          gameState.fishing.bobberPos.y = CLOUD_Y;
+          bobberMesh.position.copy(gameState.fishing.bobberPos);
+          spawnSplash(curX, CLOUD_Y, curZ, 12, 1.0);
+          // Bait begins sinking upon splashdown: Light 1s, Heavy 3s
+          gameState.baitSinkDuration = (gameState.tackle === 'heavy') ? 3.0 : 1.0;
+          gameState.baitSinkTimer = gameState.baitSinkDuration;
+        }
+      }
+
+      if (gameState.fishing.state === 'cast' || gameState.fishing.state === 'divert') {
+        const bPos = gameState.fishing.bobberPos;
+        bPos.y = CLOUD_Y + Math.sin(gameState.simTime * 3.0) * 0.06;
+        bobberMesh.position.copy(bPos);
+
+        if (gameState.baitSinkTimer > 0) {
+          gameState.baitSinkTimer -= dt;
+          const sinkProg = 1.0 - clamp(gameState.baitSinkTimer / gameState.baitSinkDuration, 0, 1.0);
+          const curD = gameState.baitDepth * sinkProg;
+          sinkerMesh.position.y = -curD;
+          leaderLine.geometry.setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -curD, 0)]);
+        } else {
+          sinkerMesh.position.y = -gameState.baitDepth;
+          leaderLine.geometry.setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -gameState.baitDepth, 0)]);
+        }
+      }
+
+      /* ----------------------------------------------------
+         5. THE TENSION FIGHT & RETUNED FIGHT SCRIPTS
+         ---------------------------------------------------- */
+      if (gameState.fishing.state === 'fight') {
+        const fish = gameState.fish.find(f => f.id === gameState.fishing.hookedFishId);
+        if (!fish) return;
+
+        gameState.fishing.fightTimer += dt;
+        const ft = gameState.fishing.fightTimer;
+
+        const isReeling = keys.Space;
+        const isSlacking = keys.ShiftLeft || keys.ShiftRight;
+
+        let tensionDelta = 0;
+        let linePayoutRate = 0;
+        let reelShortenRate = 0;
+        let isPullingPhase = false;
+        let pullPhaseName = 'RESTING';
+        let pullVec = new THREE.Vector3();
+
+        const rodPos = getRodTipWorldPos();
+        const shipCenter = new THREE.Vector3(ship.x, ship.y + 1.2, ship.z);
+        // Vector from ship to fish horizontally
+        const dirShipToFish = new THREE.Vector3(fish.mesh.position.x - ship.x, 0, fish.mesh.position.z - ship.z).normalize();
+        const lateralVec = new THREE.Vector3(-dirShipToFish.z, 0, dirShipToFish.x); // Left lateral vector
+
+        if (fish.species === 'Sun Carp') {
+          // Sun Carp: 2s surge / 4s rest (reeling surge: +30/s, reeling rest: +10/s)
+          const cycle = ft % 6.0;
+          if (cycle < 2.0) {
+            isPullingPhase = true;
+            pullPhaseName = 'SURGE';
+            pullVec.copy(dirShipToFish); // Darts away from ship
+            if ((Math.floor(ft * 15) % 3) === 0) {
+              spawnSplash(gameState.fishing.bobberPos.x, CLOUD_Y, gameState.fishing.bobberPos.z, 2, 1.2);
+            }
+            if (isReeling) tensionDelta = +30.0;
+            else if (isSlacking) { tensionDelta = -10.0; linePayoutRate = 2.0; }
+            else tensionDelta = +10.0;
+          } else {
+            pullPhaseName = 'REST';
+            if (isReeling) { tensionDelta = +10.0; reelShortenRate = 3.0; }
+            else if (isSlacking) { tensionDelta = -20.0; linePayoutRate = 2.0; }
+            else tensionDelta = -5.0;
+          }
+        } else if (fish.species === 'Silver Dart') {
+          // Silver Dart: 8s loop: 2s pull-left (+22 reeling), 1s pause (+10 reeling), 2s pull-right (+22 reeling), 3s rest (+10 reeling)
+          const cycle = ft % 8.0;
+          if (cycle < 2.0) {
+            isPullingPhase = true;
+            pullPhaseName = 'PULL LEFT';
+            pullVec.copy(lateralVec); // pulls to the left
+            if (isReeling) tensionDelta = +22.0;
+            else if (isSlacking) { tensionDelta = -12.0; linePayoutRate = 2.0; }
+            else tensionDelta = +8.0;
+
+            // Dart sweeps sideways visibly
+            fish.mesh.position.addScaledVector(lateralVec, Math.sin(cycle * Math.PI) * 2.5 * dt);
+          } else if (cycle < 3.0) {
+            pullPhaseName = 'PAUSE';
+            if (isReeling) { tensionDelta = +10.0; reelShortenRate = 3.0; }
+            else if (isSlacking) { tensionDelta = -20.0; linePayoutRate = 2.0; }
+            else tensionDelta = -5.0;
+          } else if (cycle < 5.0) {
+            isPullingPhase = true;
+            pullPhaseName = 'PULL RIGHT';
+            pullVec.copy(lateralVec).negate(); // pulls to the right
+            if (isReeling) tensionDelta = +22.0;
+            else if (isSlacking) { tensionDelta = -12.0; linePayoutRate = 2.0; }
+            else tensionDelta = +8.0;
+
+            fish.mesh.position.addScaledVector(lateralVec, -Math.sin((cycle - 3.0) * Math.PI) * 2.5 * dt);
+          } else {
+            pullPhaseName = 'REST';
+            if (isReeling) { tensionDelta = +10.0; reelShortenRate = 3.0; }
+            else if (isSlacking) { tensionDelta = -20.0; linePayoutRate = 2.0; }
+            else tensionDelta = -5.0;
+          }
+        } else if (fish.species === 'Moon Puffer') {
+          // Moon Puffer: Inflates over 1s, then loops 10s heavy drag (neutral: +14/s), 3s exhausted
+          if (ft < 1.0) {
+            const inflProg = ft / 1.0;
+            const curScale = fish.sizeMultiplier * lerp(1.0, 1.6, inflProg);
+            fish.mesh.scale.set(curScale, curScale, curScale);
+          }
+
+          const loopTime = (ft > 1.0 ? (ft - 1.0) : 0) % 13.0;
+          if (loopTime < 10.0) {
+            isPullingPhase = true;
+            pullPhaseName = 'HEAVY DRAG';
+            pullVec.copy(dirShipToFish);
+            const curScale = fish.sizeMultiplier * 1.6;
+            fish.mesh.scale.set(curScale, curScale, curScale);
+
+            if (isReeling) tensionDelta = +22.0;
+            else if (isSlacking) { tensionDelta = -8.0; linePayoutRate = 2.0; }
+            else tensionDelta = +14.0;
+          } else {
+            pullPhaseName = 'EXHAUSTED';
+            const deflProg = (loopTime - 10.0) / 3.0;
+            const curScale = fish.sizeMultiplier * lerp(1.6, 1.0, deflProg);
+            fish.mesh.scale.set(curScale, curScale, curScale);
+
+            if (isReeling) { tensionDelta = +5.0; reelShortenRate = 4.0; }
+            else if (isSlacking) { tensionDelta = -20.0; linePayoutRate = 2.0; }
+            else tensionDelta = -10.0;
+          }
+        } else if (fish.species === 'Storm Eel') {
+          // Storm Eel: 12-second loop: 3s pull, 1.5s charge, 2s discharge (burn at tension > 15), 5.5s rest (+10 reeling)
+          const cycle = ft % 12.0;
+
+          if (cycle < 3.0) {
+            // PULL (3s): reel +20, neutral +10, slack -10 paying out 2 u/s; tows ship
+            isPullingPhase = true;
+            pullPhaseName = 'PULL';
+            gameState.fishing.eelPhase = 'pull';
+            pullVec.copy(dirShipToFish);
+
+            if (isReeling) tensionDelta = +20.0;
+            else if (isSlacking) { tensionDelta = -10.0; linePayoutRate = 2.0; }
+            else tensionDelta = +10.0;
+
+            if (fish.mesh.userData.eelMat) {
+              fish.mesh.userData.eelMat.emissiveIntensity = 1.2;
+              fish.mesh.userData.eelMat.emissive.setHex(0x0284c7);
+            }
+          } else if (cycle < 4.5) {
+            // CHARGE (1.5s): eel's whole body brightens steadily with crackling sparks
+            pullPhaseName = 'CHARGE';
+            gameState.fishing.eelPhase = 'charge';
+            const chargeProg = (cycle - 3.0) / 1.5;
+
+            // During charge: reel +15, neutral -5, slack -20 paying out 2 u/s
+            if (isReeling) tensionDelta = +15.0;
+            else if (isSlacking) { tensionDelta = -20.0; linePayoutRate = 2.0; }
+            else tensionDelta = -5.0;
+
+            if (fish.mesh.userData.eelMat) {
+              fish.mesh.userData.eelMat.emissiveIntensity = 1.2 + chargeProg * 2.8;
+              fish.mesh.userData.eelMat.emissive.setHex(0x38bdf8);
+            }
+            if ((Math.floor(ft * 18) % 3) === 0) {
+              spawnSplash(fish.mesh.position.x + Math.sin(ft * 25) * 1.5, CLOUD_Y, fish.mesh.position.z + Math.cos(ft * 25) * 1.5, 2, 1.5);
+            }
+          } else if (cycle < 6.5) {
+            // DISCHARGE (2.0s): arcs flash down the line (burn at tension > 15)
+            pullPhaseName = 'DISCHARGE';
+            gameState.fishing.eelPhase = 'discharge';
+
+            // During discharge: reel +15, neutral -5, slack -20 paying out 2 u/s
+            if (isReeling) tensionDelta = +15.0;
+            else if (isSlacking) { tensionDelta = -20.0; linePayoutRate = 2.0; }
+            else tensionDelta = -5.0;
+
+            if (fish.mesh.userData.eelMat) {
+              fish.mesh.userData.eelMat.emissiveIntensity = 3.8 + Math.sin(ft * 45) * 1.2;
+              fish.mesh.userData.eelMat.emissive.setHex(0xa5f3fc);
+            }
+
+            // Arcs flash down line
+            if (fishingLine.visible) {
+              fishingLine.material.color.setHex((Math.floor(ft * 25) % 2 === 0) ? 0x38bdf8 : 0xffffff);
+            }
+
+            // Instant burn check: at any moment during discharge when tension > 15
+            if (gameState.fishing.tension > 15.0) {
+              handleLineBurn(fish);
+              return;
+            }
+          } else {
+            // REST (5.5s): carp rest rates with reeling +10 (shortening 3 u/s, neutral -5, slack -20 paying out 2 u/s)
+            pullPhaseName = 'REST';
+            gameState.fishing.eelPhase = 'rest';
+
+            if (isReeling) { tensionDelta = +10.0; reelShortenRate = 3.0; }
+            else if (isSlacking) { tensionDelta = -20.0; linePayoutRate = 2.0; }
+            else tensionDelta = -5.0;
+
+            if (fish.mesh.userData.eelMat) {
+              fish.mesh.userData.eelMat.emissiveIntensity = 1.2;
+              fish.mesh.userData.eelMat.emissive.setHex(0x0284c7);
+            }
+            if (fishingLine.visible) {
+              fishingLine.material.color.setHex(0xffffff);
+            }
+          }
+        }
+
+        gameState.fishing.isPulling = isPullingPhase;
+        gameState.fishing.pullPhaseName = pullPhaseName;
+        gameState.fishing.pullVector.copy(pullVec);
+
+        // FLYING AWAY PENALTY: Flying away during a pulling phase adds +18 tension per second
+        if (isPullingPhase) {
+          const shipVelVec = new THREE.Vector3(-Math.sin(ship.heading) * ship.speed, 0, -Math.cos(ship.heading) * ship.speed);
+          const dirAwayFromFish = new THREE.Vector3().subVectors(shipCenter, fish.mesh.position).normalize();
+          dirAwayFromFish.y = 0;
+          if (shipVelVec.dot(dirAwayFromFish) > 0.05) {
+            tensionDelta += 18.0;
+          }
+        }
+
+        // Apply reel shortening (scaled by tackle: 0.75x for Heavy hook) or slack payout to fish position
+        const dirFishToRod = new THREE.Vector3().subVectors(rodPos, fish.mesh.position);
+        dirFishToRod.y = 0;
+        const curHorizDist = dirFishToRod.length();
+        if (curHorizDist > 0.05) {
+          dirFishToRod.normalize();
+          const reelShortenMult = (gameState.tackle === 'heavy') ? 0.75 : 1.0;
+          if (reelShortenRate > 0) {
+            fish.mesh.position.addScaledVector(dirFishToRod, reelShortenRate * reelShortenMult * dt);
+          }
+          if (linePayoutRate > 0) {
+            fish.mesh.position.addScaledVector(dirFishToRod, -linePayoutRate * dt);
+          }
+        }
+
+        // Line length is the true rod-tip-to-fish distance, recomputed as either end moves
+        const trueDistance = rodPos.distanceTo(fish.mesh.position);
+        gameState.fishing.lineLength = clamp(trueDistance, 0.5, MAX_LINE_LEN);
+
+        // Bobber floats at cloud sea surface directly above fish
+        gameState.fishing.bobberPos.x = fish.mesh.position.x;
+        gameState.fishing.bobberPos.z = fish.mesh.position.z;
+        gameState.fishing.bobberPos.y = CLOUD_Y - (isPullingPhase ? 0.35 : 0.15);
+        bobberMesh.position.copy(gameState.fishing.bobberPos);
+
+        // Apply tension delta
+        gameState.fishing.tension = Math.max(0, gameState.fishing.tension + tensionDelta * dt);
+
+        // Immediate burn if tension just exceeded 15 during eel discharge
+        if (fish.species === 'Storm Eel' && gameState.fishing.eelPhase === 'discharge' && gameState.fishing.tension > 15.0) {
+          handleLineBurn(fish);
+          return;
+        }
+
+        // SNAP CONDITION: Tension >= active hook's snap threshold (90 for Light, 110 for Heavy)
+        const snapThreshold = getSnapThreshold();
+        if (gameState.fishing.tension >= snapThreshold) {
+          gameState.spools = Math.max(0, gameState.spools - 1);
+          gameState.stats.linesSnapped += 1;
+          gameState.fishing.state = 'rerig';
+          gameState.fishing.rerigTimer = 2.0;
+          gameState.fishing.tension = 0;
+          bobberMesh.visible = false;
+          fishingLine.visible = false;
+          if (fishingLine && fishingLine.material) fishingLine.material.color.setHex(0xffffff);
+
+          fish.state = 'patrol';
+          fish.scaredTimer = 6.0;
+          if (fish.species === 'Moon Puffer') {
+            fish.mesh.scale.set(fish.sizeMultiplier, fish.sizeMultiplier, fish.sizeMultiplier);
+          }
+          if (fish.mesh.userData.eelMat) {
+            fish.mesh.userData.eelMat.emissiveIntensity = 1.2;
+            fish.mesh.userData.eelMat.emissive.setHex(0x0284c7);
+          }
+          gameState.fishing.hookedFishId = null;
+          gameState.fishing.eelPhase = null;
+
+          spawnSplash(gameState.fishing.bobberPos.x, CLOUD_Y, gameState.fishing.bobberPos.z, 25, 2.0);
+          showToast(`LINE SNAPPED! The ${fish.species} broke free! Re-rigging line (2s)... [${gameState.spools} spools left]`);
+          updateHUD();
+          exportArenaState();
+        }
+
+        // CATCH CONDITION: Line length <= 2
+        if (gameState.fishing.lineLength <= CATCH_LINE_LEN) {
+          gameState.fishing.state = 'idle';
+          gameState.fishing.tension = 0;
+          gameState.fishing.eelPhase = null;
+          bobberMesh.visible = false;
+          fishingLine.visible = false;
+          if (fishingLine && fishingLine.material) fishingLine.material.color.setHex(0xffffff);
+
+          fish.state = 'caught';
+          fish.mesh.visible = false;
+          gameState.hold.push({
+            id: fish.id,
+            species: fish.species,
+            weight: fish.weight,
+            value: fish.value
+          });
+          gameState.stats.catches[fish.species].count += 1;
+          if (fish.weight > gameState.stats.catches[fish.species].heaviest) {
+            gameState.stats.catches[fish.species].heaviest = fish.weight;
+          }
+          gameState.fishing.hookedFishId = null;
+
+          spawnSplash(rodPos.x, rodPos.y, rodPos.z, 30, 2.2);
+
+          if (gameState.tournament.active) {
+            const isTarget = (fish.species === gameState.tournament.targetSpecies);
+            const multiplier = isTarget ? 3 : 1;
+            const pointsEarned = fish.value * multiplier;
+            gameState.tournament.score += pointsEarned;
+            showToast(`LANDED ${fish.species}! +${pointsEarned} Cup Pts (${isTarget ? 'x3 TARGET BONUS!' : 'x1'})!`);
+          } else {
+            showToast(`LANDED ${fish.species}! Weight: ${fish.weight.toFixed(1)}kg (+${fish.value}g at Dock)!`);
+          }
+          updateHUD();
+          exportArenaState();
+        }
+      }
+
+      /* ----------------------------------------------------
+         6. RENDER DYNAMIC FISHING LINE (CATENARY / SAG)
+         ---------------------------------------------------- */
+      if (fishingLine.visible) {
+        const rodTipPos = getRodTipWorldPos();
+        const bobPos = gameState.fishing.bobberPos;
+        const linePosArr = fishingLine.geometry.attributes.position.array;
+
+        let sagAmount = 0.8;
+        if (gameState.fishing.state === 'fight') {
+          sagAmount = lerp(1.1, 0.04, gameState.fishing.tension / 100);
+        } else if (gameState.fishing.state === 'flying') {
+          sagAmount = 0.2;
+        }
+
+        for (let i = 0; i < linePointCount; i++) {
+          const t = i / (linePointCount - 1);
+          const px = lerp(rodTipPos.x, bobPos.x, t);
+          const pz = lerp(rodTipPos.z, bobPos.z, t);
+          const py = lerp(rodTipPos.y, bobPos.y, t) - Math.sin(t * Math.PI) * sagAmount;
+
+          linePosArr[i * 3 + 0] = px;
+          linePosArr[i * 3 + 1] = py;
+          linePosArr[i * 3 + 2] = pz;
+        }
+        fishingLine.geometry.attributes.position.needsUpdate = true;
+      }
+
+      /* ----------------------------------------------------
+         7. SMOOTH THIRD-PERSON CHASE CAMERA
+         ---------------------------------------------------- */
+      const idealCamOffset = new THREE.Vector3(0, 5.5, 14.0);
+      idealCamOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), ship.heading);
+      const idealCamPos = new THREE.Vector3(ship.x, ship.y, ship.z).add(idealCamOffset);
+      idealCamPos.y = Math.max(idealCamPos.y, CLOUD_Y + 1.8);
+
+      camera.position.lerp(idealCamPos, dt * 5.0);
+
+      const lookAtTarget = new THREE.Vector3(
+        ship.x - Math.sin(ship.heading) * 4.0,
+        ship.y + 0.5,
+        ship.z - Math.cos(ship.heading) * 4.0
+      );
+      if (gameState.fishing.state === 'fight' || gameState.fishing.state === 'cast' || gameState.fishing.state === 'strike') {
+        lookAtTarget.lerp(gameState.fishing.bobberPos, 0.25);
+      }
+      camera.lookAt(lookAtTarget);
+
+      exportArenaState();
+      updateHUD();
+    }
+
+    /* ==========================================================================
+       UI & HUD UPDATES
+       ========================================================================== */
+    const hudSpeed = document.getElementById('hud-speed');
+    const hudAltitude = document.getElementById('hud-altitude');
+    const hudSpools = document.getElementById('hud-spools');
+    const hudHold = document.getElementById('hud-hold');
+    const hudTier = document.getElementById('hud-tier');
+    const hudCoins = document.getElementById('hud-coins');
+    const hudTackle = document.getElementById('hud-tackle');
+    const hudBaitDepth = document.getElementById('hud-bait-depth');
+    const hudLineStatus = document.getElementById('hud-line-status');
+    const fightHud = document.getElementById('fight-hud');
+    const fightSpeciesName = document.getElementById('fight-species-name');
+    const tensionFill = document.getElementById('tension-fill');
+    const eelWarning = document.getElementById('eel-warning');
+    const hudTension = document.getElementById('hud-tension');
+    const hudLineLen = document.getElementById('hud-line-len');
+    const fishLoopState = document.getElementById('fish-loop-state');
+    const dockPrompt = document.getElementById('dock-prompt');
+
+    function updateHUD() {
+      hudSpeed.innerText = `${Math.abs(gameState.ship.speed).toFixed(1)} u/s`;
+      hudAltitude.innerText = `${(gameState.ship.y - CLOUD_Y).toFixed(1)} u`;
+      if (hudSpools) hudSpools.innerText = `${gameState.spools}`;
+
+      const curHoldWeight = getHoldWeight();
+      const loadTier = (curHoldWeight >= 7.0) ? 'Laden' : 'Light';
+      hudHold.innerText = `${gameState.hold.length} Fish (${curHoldWeight.toFixed(1)}kg)`;
+      if (hudTier) {
+        hudTier.innerText = loadTier.toUpperCase();
+        hudTier.style.color = (loadTier === 'Laden') ? '#f87171' : '#6ee7b7';
+      }
+      hudCoins.innerText = `${gameState.coins} Gold`;
+
+      const hudCp = document.getElementById('hud-checkpoint');
+      if (hudCp) {
+        hudCp.innerText = gameState.checkpoints.active ? gameState.checkpoints.active.name : 'None';
+        hudCp.style.color = gameState.checkpoints.active ? '#38bdf8' : '#94a3b8';
+      }
+      const hudResp = document.getElementById('hud-respawns');
+      if (hudResp) {
+        hudResp.innerText = `${gameState.checkpoints.respawnsRemaining}/3`;
+        hudResp.style.color = (gameState.checkpoints.respawnsRemaining === 0) ? '#f87171' : (gameState.checkpoints.respawnsRemaining === 1) ? '#fb923c' : '#4ade80';
+      }
+
+      // Tackle choice
+      if (hudTackle) {
+        if (gameState.tackle === 'heavy') {
+          hudTackle.innerText = 'Heavy Hook (Snap 110)';
+          hudTackle.style.color = '#f59e0b';
+        } else {
+          hudTackle.innerText = 'Light Hook (Snap 90)';
+          hudTackle.style.color = '#38bdf8';
+        }
+      }
+
+      // Bait depth
+      const d = gameState.baitDepth;
+      if (d === 1) hudBaitDepth.innerText = 'Shallow (1u) [Carp]';
+      else if (d === 3) hudBaitDepth.innerText = 'Mid (3u) [Dart]';
+      else if (d === 6) hudBaitDepth.innerText = 'Deep (6u) [Puffer/Eel]';
+
+      // Line status
+      const fState = gameState.fishing.state;
+      if (gameState.hunt.state === 'armed') {
+        hudLineStatus.innerText = 'Whale Hunt Armed [F Harpoon]';
+        hudLineStatus.style.color = '#38bdf8';
+      } else if (gameState.hunt.state === 'towing') {
+        hudLineStatus.innerText = 'Sleighride Towing!';
+        hudLineStatus.style.color = '#f59e0b';
+      } else if (gameState.spools <= 0 && fState === 'idle') {
+        hudLineStatus.innerText = 'Out of line — buy spools at the market';
+        hudLineStatus.style.color = '#ef4444';
+      } else if (curHoldWeight >= 12.0 && fState === 'idle') {
+        hudLineStatus.innerText = 'Hold full — sell at the market';
+        hudLineStatus.style.color = '#f59e0b';
+      } else if (fState === 'idle') {
+        hudLineStatus.innerText = 'Ready to Cast [F]';
+        hudLineStatus.style.color = '#6ee7b7';
+      } else if (fState === 'flying') {
+        hudLineStatus.innerText = 'Casting...';
+        hudLineStatus.style.color = '#fde047';
+      } else if (fState === 'cast') {
+        if (gameState.baitSinkTimer > 0) {
+          hudLineStatus.innerText = `Sinking Bait (${gameState.baitSinkTimer.toFixed(1)}s)...`;
+          hudLineStatus.style.color = '#fde047';
+        } else {
+          hudLineStatus.innerText = 'Floating (Waiting) [F Recall]';
+          hudLineStatus.style.color = '#93c5fd';
+        }
+      } else if (fState === 'divert') {
+        hudLineStatus.innerText = 'Fish Approaching!';
+        hudLineStatus.style.color = '#f97316';
+      } else if (fState === 'strike') {
+        hudLineStatus.innerText = 'BITE! PRESS SPACE!';
+        hudLineStatus.style.color = '#ef4444';
+      } else if (fState === 'fight') {
+        hudLineStatus.innerText = 'FIGHTING!';
+        hudLineStatus.style.color = '#ef4444';
+      } else if (fState === 'rerig') {
+        hudLineStatus.innerText = `Re-rigging (${gameState.fishing.rerigTimer.toFixed(1)}s)`;
+        hudLineStatus.style.color = '#f87171';
+      }
+
+      // Sleighride HUD
+      const sleighHud = document.getElementById('sleighride-hud');
+      const sleighTimer = document.getElementById('sleigh-timer');
+      const sleighBreach = document.getElementById('sleigh-breach-warning');
+      const sleighRope = document.getElementById('sleigh-rope');
+      const sleighStrain = document.getElementById('sleigh-strain');
+      const sleighRings = document.getElementById('sleigh-rings');
+      const whaleSigil = document.getElementById('whale-sigil');
+
+      if (whaleSigil) {
+        whaleSigil.style.display = (gameState.hunt.state === 'done') ? 'inline-block' : 'none';
+      }
+
+      if (gameState.hunt.state === 'towing') {
+        if (sleighHud) sleighHud.style.display = 'block';
+        if (sleighTimer) sleighTimer.innerText = `TOW: ${gameState.hunt.towTime.toFixed(1)}s / 90s`;
+        if (sleighRope) sleighRope.innerText = `${gameState.hunt.ropeLength.toFixed(1)}m`;
+        if (sleighStrain) {
+          sleighStrain.innerText = `LINE STRAIN ${gameState.hunt.ropeStrain}/2`;
+          sleighStrain.style.color = (gameState.hunt.ropeStrain === 0) ? '#4ade80' : '#f87171';
+        }
+        if (sleighRings) sleighRings.innerText = `${gameState.hunt.ringsCollected}/24 (+${gameState.hunt.ringsCollected * 5}g)`;
+        if (sleighBreach) {
+          sleighBreach.style.display = (whaleData.phase === 'breaching') ? 'block' : 'none';
+        }
+      } else {
+        if (sleighHud) sleighHud.style.display = 'none';
+      }
+
+      // Fight HUD
+      if (fState === 'fight') {
+        fightHud.style.display = 'block';
+        const fish = gameState.fish.find(f => f.id === gameState.fishing.hookedFishId);
+        if (fish) {
+          fightSpeciesName.innerText = `FIGHTING: ${fish.species.toUpperCase()} (${fish.weight.toFixed(1)}kg)`;
+          if (fish.species === 'Storm Eel') {
+            tensionFill.classList.add('eel-tint');
+            if (gameState.fishing.eelPhase === 'charge') {
+              if (eelWarning) {
+                eelWarning.style.display = 'block';
+                eelWarning.innerText = '⚡ WARNING: EEL CHARGING! SLACK LINE (KEEP TENSION ≤ 15)!';
+                eelWarning.style.color = '#38bdf8';
+              }
+            } else if (gameState.fishing.eelPhase === 'discharge') {
+              if (eelWarning) {
+                eelWarning.style.display = 'block';
+                eelWarning.innerText = '⚡ DISCHARGING! KEEP TENSION ≤ 15!';
+                eelWarning.style.color = '#f43f5e';
+              }
+            } else {
+              if (eelWarning) eelWarning.style.display = 'none';
+            }
+          } else {
+            tensionFill.classList.remove('eel-tint');
+            if (eelWarning) eelWarning.style.display = 'none';
+          }
+        }
+        const snapThresh = getSnapThreshold();
+        const pct = clamp((gameState.fishing.tension / snapThresh) * 100, 0, 100);
+        tensionFill.style.width = `${pct.toFixed(1)}%`;
+        hudTension.innerText = `${Math.round(gameState.fishing.tension)} / ${snapThresh}`;
+        hudLineLen.innerText = `${gameState.fishing.lineLength.toFixed(1)}m`;
+
+        fishLoopState.innerText = gameState.fishing.pullPhaseName;
+        fishLoopState.className = gameState.fishing.isPulling ? 'fish-phase-badge phase-pull' : 'fish-phase-badge phase-rest';
+      } else {
+        fightHud.style.display = 'none';
+        tensionFill.classList.remove('eel-tint');
+        if (eelWarning) eelWarning.style.display = 'none';
+      }
+
+      // Tournament HUD
+      const tourneyHud = document.getElementById('tournament-hud');
+      const tourneyTimer = document.getElementById('tourney-timer');
+      const tourneyScore = document.getElementById('tourney-score');
+      const tourneyTarget = document.getElementById('tourney-target');
+
+      if (gameState.tournament.active) {
+        if (tourneyHud) tourneyHud.style.display = 'block';
+        if (tourneyTimer) tourneyTimer.innerText = `${gameState.tournament.timeLeft.toFixed(1)}s`;
+        if (tourneyScore) tourneyScore.innerText = `${gameState.tournament.score}`;
+        if (tourneyTarget) {
+          tourneyTarget.innerText = `TARGET: ${gameState.tournament.targetSpecies.toUpperCase()} (x3)`;
+        }
+      } else {
+        if (tourneyHud) tourneyHud.style.display = 'none';
+      }
+
+      // Berth prompt
+      const distToDock = Math.hypot(gameState.ship.x - DOCK_BERTH_X, gameState.ship.z - DOCK_BERTH_Z);
+      if (distToDock <= DOCK_BERTH_RADIUS) {
+        dockPrompt.style.display = 'block';
+        const huntAction = (gameState.hunt.state === 'armed') ? 'Disarm' : 'Accept';
+        const tourneyAction = gameState.tournament.active ? `Cup: ${gameState.tournament.timeLeft.toFixed(0)}s (${gameState.tournament.score}pts)` : '[J] Skylark Cup';
+        const endDayAction = '&bull; [K] End the Day';
+        dockPrompt.innerHTML = `Dock Berth: [T] Sell Hold (${gameState.hold.length} fish) &bull; [B] Buy Spool (15c) &bull; [H] ${huntAction} Whale Hunt &bull; ${tourneyAction} ${endDayAction}`;
+      } else {
+        dockPrompt.style.display = 'none';
+      }
+    }
+
+    /* ==========================================================================
+       MAIN ANIMATION / RENDER LOOP
+       ========================================================================== */
+    let lastTime = performance.now();
+
+    function animate(currentTime) {
+      requestAnimationFrame(animate);
+      const dt = (currentTime - lastTime) * 0.001;
+      lastTime = currentTime;
+
+      updateSimulation(dt);
+      renderer.render(scene, camera);
+    }
+
+    window.__arena_step = updateSimulation;
+
+    exportArenaState();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

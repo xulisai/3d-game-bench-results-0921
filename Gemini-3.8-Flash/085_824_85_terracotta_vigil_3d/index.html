@@ -1,0 +1,2656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TERRACOTTA VIGIL</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body, html { width: 100%; height: 100%; overflow: hidden; background: #050403; font-family: 'Cinzel', 'Trajan Pro', 'Georgia', serif; color: #d8c29d; }
+    #canvas-container { width: 100%; height: 100%; position: absolute; left: 0; top: 0; }
+    
+    /* Crosshair */
+    #crosshair {
+      position: absolute; top: 50%; left: 50%;
+      width: 6px; height: 6px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      border-radius: 50%;
+      background: rgba(220, 180, 120, 0.4);
+      box-shadow: 0 0 4px rgba(255, 170, 50, 0.6);
+      transition: all 0.2s;
+    }
+    #crosshair.active-interact {
+      width: 14px; height: 14px;
+      border: 2px solid #e67e22;
+      background: rgba(230, 126, 34, 0.3);
+      box-shadow: 0 0 10px #e67e22;
+    }
+
+    /* HUD */
+    #hud {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none;
+      display: none; flex-direction: column; justify-content: space-between;
+      padding: 24px 32px;
+      box-sizing: border-box;
+      z-index: 10;
+    }
+    .hud-top {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(200, 120, 40, 0.3);
+    }
+    .hud-block {
+      background: linear-gradient(135deg, rgba(20, 15, 12, 0.75), rgba(10, 8, 6, 0.85));
+      border: 1px solid rgba(160, 120, 70, 0.35);
+      border-radius: 4px;
+      padding: 12px 20px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.8), inset 0 0 10px rgba(0,0,0,0.5);
+    }
+    .hud-title {
+      font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; color: #a89078; margin-bottom: 4px;
+    }
+    .hud-val {
+      font-size: 26px; font-weight: bold; letter-spacing: 1px; color: #f5dfbe;
+    }
+    .oil-meter {
+      width: 180px; height: 8px; background: rgba(30,20,15,0.8);
+      border: 1px solid #7c5a36; border-radius: 4px; margin-top: 6px; overflow: hidden;
+    }
+    .oil-fill {
+      width: 100%; height: 100%;
+      background: linear-gradient(90deg, #d35400, #f39c12, #f1c40f);
+      box-shadow: 0 0 8px #f39c12;
+      transition: width 0.1s linear;
+    }
+    .strike-dots {
+      display: flex; gap: 8px; margin-top: 6px;
+    }
+    .strike-dot {
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 1px solid #7c3636; background: rgba(50, 20, 20, 0.6);
+      transition: all 0.3s;
+    }
+    .strike-dot.filled {
+      background: #c0392b;
+      box-shadow: 0 0 12px #e74c3c, inset 0 0 4px #ff7979;
+      border-color: #ff7979;
+    }
+
+    /* Objective & Progress */
+    #objective-hud {
+      position: absolute; top: 24px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+    }
+    .stele-badges {
+      display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; justify-content: center;
+    }
+    .stele-badge {
+      padding: 4px 8px; font-size: 11px; letter-spacing: 1.5px;
+      border: 1px solid #5a422d; background: rgba(25, 18, 14, 0.8);
+      border-radius: 3px; color: #8c735a;
+    }
+    .stele-badge.current {
+      border-color: #e67e22; color: #f39c12; background: rgba(60, 35, 15, 0.85);
+      box-shadow: 0 0 10px rgba(230, 126, 34, 0.5);
+    }
+    .stele-badge.completed {
+      border-color: #27ae60; color: #2ecc71; background: rgba(20, 45, 25, 0.85);
+      text-decoration: line-through;
+    }
+
+    /* Prompt & Rubbing Bar */
+    #interact-prompt {
+      position: absolute; top: 62%; left: 50%; transform: translate(-50%, -50%);
+      font-size: 15px; letter-spacing: 2px; text-transform: uppercase;
+      background: rgba(12, 10, 8, 0.85); padding: 8px 18px; border: 1px solid #e67e22;
+      border-radius: 4px; box-shadow: 0 0 15px rgba(230, 126, 34, 0.4);
+      display: none;
+    }
+    #rubbing-container {
+      position: absolute; top: 56%; left: 50%; transform: translate(-50%, -50%);
+      display: none; flex-direction: column; align-items: center; gap: 6px;
+    }
+    .rubbing-bar {
+      width: 220px; height: 10px; background: rgba(20, 15, 10, 0.9);
+      border: 1px solid #e67e22; border-radius: 5px; overflow: hidden;
+      box-shadow: 0 0 12px rgba(230, 126, 34, 0.6);
+    }
+    .rubbing-fill {
+      width: 0%; height: 100%;
+      background: linear-gradient(90deg, #d35400, #f39c12);
+    }
+    .rubbing-label {
+      font-size: 11px; letter-spacing: 2px; color: #f39c12; text-shadow: 0 0 5px #000;
+    }
+
+    /* Warnings: Wind, Drum, Darkness, Mirror */
+    #alerts-container {
+      position: absolute; bottom: 85px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+    }
+    .status-alert {
+      padding: 6px 16px; border-radius: 4px; font-size: 13px; letter-spacing: 2px; text-transform: uppercase;
+      font-weight: bold; display: none; text-shadow: 0 0 8px rgba(0,0,0,0.9);
+      animation: alertPulse 1.2s infinite ease-in-out;
+    }
+    #wind-alert {
+      background: rgba(45, 60, 75, 0.85); border: 1px solid #5dade2; color: #aed6f1;
+      box-shadow: 0 0 15px rgba(93, 173, 226, 0.5);
+    }
+    #drum-alert {
+      background: rgba(90, 20, 20, 0.85); border: 1px solid #e74c3c; color: #f1948a;
+      box-shadow: 0 0 20px rgba(231, 76, 60, 0.8);
+    }
+    #darkness-alert {
+      background: rgba(80, 0, 0, 0.9); border: 1px solid #ff3333; color: #ff9999;
+      box-shadow: 0 0 25px rgba(255, 0, 0, 0.9);
+    }
+    #mirror-alert {
+      background: rgba(60, 50, 20, 0.9); border: 1px solid #f1c40f; color: #f9e79f;
+      box-shadow: 0 0 25px rgba(241, 196, 15, 0.7);
+    }
+    @keyframes alertPulse {
+      0%, 100% { opacity: 0.85; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.05); }
+    }
+
+    /* Vignette & Immunity overlay */
+    #vignette {
+      position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+      pointer-events: none;
+      box-shadow: inset 0 0 120px rgba(0,0,0,0.95);
+      transition: background-color 0.3s;
+    }
+    #vignette.hit {
+      background-color: rgba(180, 20, 20, 0.4);
+    }
+
+    /* Overlay screens */
+    .screen-overlay {
+      position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+      background: rgba(5, 4, 3, 0.92);
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      text-align: center; z-index: 100;
+      backdrop-filter: blur(4px);
+    }
+    .screen-overlay h1 {
+      font-size: 52px; letter-spacing: 10px; color: #e67e22; margin-bottom: 12px;
+      text-shadow: 0 0 25px rgba(230, 126, 34, 0.6), 0 4px 10px #000;
+    }
+    .screen-overlay h2 {
+      font-size: 40px; letter-spacing: 8px; color: #e74c3c; margin-bottom: 16px;
+      text-shadow: 0 0 20px rgba(231, 76, 60, 0.7);
+    }
+    .screen-overlay p {
+      font-size: 15px; letter-spacing: 2px; color: #bdc3c7; line-height: 1.8; max-width: 680px; margin-bottom: 24px;
+    }
+    .prompt-blink {
+      font-size: 18px; letter-spacing: 4px; color: #f39c12; text-transform: uppercase;
+      animation: blink 1.5s infinite; margin-top: 15px; font-weight: bold;
+    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    /* Main Menu Single Entry */
+    .menu-options {
+      display: flex; flex-direction: column; align-items: center; gap: 16px; margin-top: 20px;
+    }
+    .menu-btn {
+      padding: 18px 48px; font-size: 20px; letter-spacing: 4px; font-family: inherit;
+      color: #f5dfbe; background: linear-gradient(135deg, rgba(50, 38, 25, 0.9), rgba(25, 18, 12, 0.95));
+      border: 2px solid #b7950b; border-radius: 6px; cursor: pointer;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.8), 0 0 15px rgba(183, 149, 11, 0.3);
+      transition: all 0.2s; pointer-events: auto;
+    }
+    .menu-btn:hover {
+      background: linear-gradient(135deg, rgba(70, 50, 30, 0.95), rgba(35, 25, 15, 0.98));
+      border-color: #f39c12; color: #ffffff;
+      box-shadow: 0 6px 25px rgba(243, 156, 18, 0.6);
+      transform: translateY(-2px);
+    }
+
+    /* Result Card & C9 Vigil Log */
+    #result-card {
+      background: linear-gradient(135deg, rgba(25, 20, 15, 0.95), rgba(12, 10, 8, 0.98));
+      border: 2px solid #b7950b; border-radius: 8px;
+      padding: 32px 48px; width: 500px; box-shadow: 0 0 35px rgba(243, 156, 18, 0.35);
+      margin-bottom: 24px; text-align: left;
+      transition: width 0.3s ease, max-width 0.3s ease, padding 0.3s ease;
+    }
+    #result-card.vigil-log-mode {
+      width: 820px;
+      max-width: 94vw;
+      padding: 24px 32px;
+    }
+    .result-row {
+      display: flex; justify-content: space-between; font-size: 15px; letter-spacing: 2px;
+      padding: 8px 0; border-bottom: 1px dashed rgba(180, 140, 70, 0.3);
+      opacity: 0; transform: translateY(10px); transition: all 0.5s ease-out;
+    }
+    .result-row.visible { opacity: 1; transform: translateY(0); }
+    .result-row.total-row {
+      border-top: 2px solid #e67e22; border-bottom: none;
+      font-size: 20px; font-weight: bold; color: #f1c40f; margin-top: 10px;
+    }
+    .result-val { font-weight: bold; }
+    .val-pos { color: #2ecc71; }
+    .val-neg { color: #e74c3c; }
+
+    /* C9 Vigil Log Styles */
+    #vigil-log-container {
+      width: 100%;
+    }
+    .vigil-cards-wrapper {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+    .vigil-card {
+      flex: 1;
+      background: linear-gradient(135deg, rgba(32, 25, 18, 0.95), rgba(16, 12, 10, 0.98));
+      border: 2px solid #b7950b;
+      border-radius: 8px;
+      padding: 14px 18px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.7), 0 0 10px rgba(183, 149, 11, 0.2);
+      text-align: left;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.5s ease-out;
+    }
+    .vigil-card.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .vigil-card-title {
+      font-size: 13px;
+      letter-spacing: 2px;
+      font-weight: bold;
+      color: #e67e22;
+      border-bottom: 1px solid rgba(183, 149, 11, 0.4);
+      padding-bottom: 6px;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    .vigil-card-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      letter-spacing: 1.5px;
+      padding: 5px 0;
+      color: #bdc3c7;
+      border-bottom: 1px dashed rgba(180, 140, 70, 0.2);
+    }
+    .vigil-card-row.vigil-card-score {
+      border-top: 1px solid #e67e22;
+      border-bottom: none;
+      margin-top: 8px;
+      padding-top: 8px;
+      font-size: 15px;
+      font-weight: bold;
+      color: #f1c40f;
+    }
+    .vigil-val { font-weight: bold; color: #ecf0f1; }
+    .vigil-summary {
+      background: linear-gradient(135deg, rgba(38, 28, 20, 0.95), rgba(18, 14, 10, 0.98));
+      border: 2px solid #e67e22;
+      border-radius: 8px;
+      padding: 14px 24px;
+      box-shadow: 0 0 20px rgba(230, 126, 34, 0.3);
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.5s ease-out;
+    }
+    .vigil-summary.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .vigil-total-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 17px;
+      letter-spacing: 3px;
+      font-weight: bold;
+      color: #f5dfbe;
+      padding-bottom: 8px;
+      border-bottom: 1px dashed rgba(230, 126, 34, 0.4);
+    }
+    .vigil-total-val {
+      font-size: 22px;
+      color: #f1c40f;
+      font-weight: bold;
+    }
+    .vigil-rating-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+      font-size: 17px;
+      letter-spacing: 3px;
+      font-weight: bold;
+      color: #f5dfbe;
+    }
+    .vigil-rating-val {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: 4px;
+      padding: 2px 20px;
+      border-radius: 6px;
+      border: 2px solid;
+    }
+    .rating-S { color: #f1c40f; border-color: #f1c40f; text-shadow: 0 0 15px #f1c40f; }
+    .rating-A { color: #2ecc71; border-color: #2ecc71; text-shadow: 0 0 15px #2ecc71; }
+    .rating-B { color: #3498db; border-color: #3498db; text-shadow: 0 0 15px #3498db; }
+    .rating-C { color: #e74c3c; border-color: #e74c3c; text-shadow: 0 0 15px #e74c3c; }
+
+    .result-actions {
+      display: flex; gap: 16px; margin-top: 15px; pointer-events: auto;
+    }
+    .action-btn {
+      padding: 10px 24px; font-size: 14px; letter-spacing: 2px; font-family: inherit;
+      color: #f5dfbe; background: rgba(30, 22, 16, 0.85); border: 1px solid #e67e22;
+      border-radius: 4px; cursor: pointer; transition: all 0.2s;
+    }
+    .action-btn:hover {
+      background: #e67e22; color: #000; box-shadow: 0 0 12px #e67e22;
+    }
+  </style>
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="crosshair"></div>
+  <div id="vignette"></div>
+
+  <div id="hud">
+    <div class="hud-top">
+      <div class="hud-block">
+        <div class="hud-title">CANDLE OIL</div>
+        <div class="hud-val" id="oil-text">100%</div>
+        <div class="oil-meter"><div class="oil-fill" id="oil-bar"></div></div>
+      </div>
+      
+      <div id="objective-hud" class="hud-block">
+        <div class="hud-title" style="text-align: center;" id="night-banner">NIGHT 1 &bull; OBJECTIVE</div>
+        <div style="font-size: 14px; letter-spacing: 1.5px; color: #f5dfbe;" id="objective-text">RUB STELE S1</div>
+        <div class="stele-badges" id="stele-badges-container"></div>
+      </div>
+
+      <div style="display: flex; gap: 16px;">
+        <div class="hud-block">
+          <div class="hud-title">VIGIL TIME</div>
+          <div class="hud-val" id="clock-text">0.0s</div>
+        </div>
+        <div class="hud-block">
+          <div class="hud-title">STRIKES</div>
+          <div class="strike-dots">
+            <div class="strike-dot" id="strike-1"></div>
+            <div class="strike-dot" id="strike-2"></div>
+            <div class="strike-dot" id="strike-3"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="alerts-container">
+      <div id="wind-alert" class="status-alert">DRAFT CORRIDOR: DRAIN &times;2 | LIGHT &times;0.5</div>
+      <div id="drum-alert" class="status-alert">NIGHT DRUM ROLL: STATUES SPEED BOOST</div>
+      <div id="darkness-alert" class="status-alert">DARKNESS SURGE: STATUES ENRAGED</div>
+      <div id="mirror-alert" class="status-alert">BRONZE MIRROR ACTIVE: REFLECTED GAZE ENGAGED</div>
+    </div>
+
+    <div id="rubbing-container">
+      <div class="rubbing-label">TAKING RUBBING (HOLD E)...</div>
+      <div class="rubbing-bar"><div class="rubbing-fill" id="rubbing-fill"></div></div>
+    </div>
+
+    <div id="interact-prompt">[E] INTERACT</div>
+  </div>
+
+  <!-- Main Menu Overlay (C7/C8 Single Campaign Entry) -->
+  <div id="main-menu" class="screen-overlay">
+    <h1>TERRACOTTA VIGIL</h1>
+    <p>
+      An Imperial Tomb Horror Survival.<br>
+      Keep vigil across the ancient halls by candlelight.<br>
+      Maintain your gaze to freeze statues, manage your oil reserves, and rub the ancient steles.<br>
+      On touch, statues freeze in place as solid obstacles (20s soldiers/officials, 12s generals).<br>
+      Night 3 unlocks the Mirror Gallery: use bronze mirrors to freeze the elusive Shadow Guard.<br>
+      Press [R] at any time to reset the campaign.
+    </p>
+    <div class="menu-options">
+      <button class="menu-btn" id="btn-campaign" onclick="startCampaign()">Press N — Three-Night Vigil</button>
+    </div>
+    <div style="margin-top: 30px; font-size: 13px; color: #8c735a; letter-spacing: 2px;">
+      [Press N or ENTER to Start Campaign &bull; Press R to Reset at any time]
+    </div>
+  </div>
+
+  <!-- Ready Overlay (per night) -->
+  <div id="ready-screen" class="screen-overlay" style="display: none;">
+    <h1 id="ready-title">NIGHT 1 &mdash; HALL ONE</h1>
+    <p id="ready-desc">
+      Hall One (60 &times; 40m). Eye height 1.7m. Gaze-freeze half-angle 32&deg; within 25m.<br>
+      Sliding stone doors M1 (0, 8) and M2 (0, -8).<br>
+      Statues freeze in place on touch (20s soldiers/officials, 12s generals).<br>
+      Beware General G1 and Civil Officials E1 &amp; E2.<br><br>
+      <b>OBJECTIVE:</b> Rub Steles S1 &rarr; S2 &rarr; S3, refuel at braziers, and reach the exit pad.
+    </p>
+    <p style="font-size: 13px; color: #95a5a6;">
+      [WASD] Walk (4.0 m/s) &bull; [SHIFT] Run (6.0 m/s) &bull; [MOUSE] Look &bull; [E] Rub / Refuel / Toggle Door
+    </p>
+    <div class="prompt-blink">Press ENTER to Begin Vigil</div>
+  </div>
+
+  <!-- Caught Overlay -->
+  <div id="caught-screen" class="screen-overlay" style="display: none;">
+    <h2>CAUGHT</h2>
+    <p>The terracotta army has claimed you in the silent dark.</p>
+    <div class="result-actions">
+      <button class="action-btn" onclick="retryCurrentNight()">[ENTER] RETRY NIGHT</button>
+      <button class="action-btn" onclick="fullResetGame()">[R] RESET CAMPAIGN</button>
+    </div>
+  </div>
+
+  <!-- Overtime Overlay -->
+  <div id="overtime-screen" class="screen-overlay" style="display: none;">
+    <h2>OVERTIME</h2>
+    <p id="overtime-desc">Time limit exceeded. The tomb seals forever.</p>
+    <div class="result-actions">
+      <button class="action-btn" onclick="retryCurrentNight()">[ENTER] RETRY NIGHT</button>
+      <button class="action-btn" onclick="fullResetGame()">[R] RESET CAMPAIGN</button>
+    </div>
+  </div>
+
+  <!-- Victory / Result Card Overlay / Totals Board -->
+  <div id="victory-screen" class="screen-overlay" style="display: none;">
+    <h1 style="color: #f1c40f;" id="victory-title">VIGIL COMPLETE</h1>
+    <div id="result-card">
+      <div id="single-night-rows">
+        <div class="result-row" id="row-time">
+          <span>TIME TAKEN (<span id="res-time-val">0.0</span>s)</span>
+          <span class="result-val val-pos" id="res-time-pts">+0</span>
+        </div>
+        <div class="result-row" id="row-oil">
+          <span>OIL BONUS (<span id="res-oil-val">0.0</span>%)</span>
+          <span class="result-val val-pos" id="res-oil-pts">+0</span>
+        </div>
+        <div class="result-row" id="row-strikes">
+          <span>STRIKE PENALTY (<span id="res-strike-val">0</span>)</span>
+          <span class="result-val val-neg" id="res-strike-pts">-0</span>
+        </div>
+        <div class="result-row total-row" id="row-total">
+          <span>NIGHT SCORE</span>
+          <span class="result-val" id="res-total-pts">0</span>
+        </div>
+      </div>
+      <!-- C9: The Vigil Log (Replacing the plain totals board) -->
+      <div id="vigil-log-container" style="display: none;">
+        <div class="vigil-cards-wrapper">
+          <!-- Night 1 Card -->
+          <div class="vigil-card" id="vigil-card-1">
+            <div class="vigil-card-title">NIGHT 1 &bull; HALL ONE</div>
+            <div class="vigil-card-row">
+              <span>Time (t)</span>
+              <span class="vigil-val" id="vigil-n1-time">0.0s</span>
+            </div>
+            <div class="vigil-card-row">
+              <span>Strikes</span>
+              <span class="vigil-val" id="vigil-n1-strikes">0</span>
+            </div>
+            <div class="vigil-card-row">
+              <span>Oil Left</span>
+              <span class="vigil-val" id="vigil-n1-oil">0.0%</span>
+            </div>
+            <div class="vigil-card-row vigil-card-score">
+              <span>Score</span>
+              <span class="vigil-val val-pos" id="vigil-n1-score">0</span>
+            </div>
+          </div>
+
+          <!-- Night 2 Card -->
+          <div class="vigil-card" id="vigil-card-2">
+            <div class="vigil-card-title">NIGHT 2 &bull; HALL TWO</div>
+            <div class="vigil-card-row">
+              <span>Time (t)</span>
+              <span class="vigil-val" id="vigil-n2-time">0.0s</span>
+            </div>
+            <div class="vigil-card-row">
+              <span>Strikes</span>
+              <span class="vigil-val" id="vigil-n2-strikes">0</span>
+            </div>
+            <div class="vigil-card-row">
+              <span>Oil Left</span>
+              <span class="vigil-val" id="vigil-n2-oil">0.0%</span>
+            </div>
+            <div class="vigil-card-row vigil-card-score">
+              <span>Score</span>
+              <span class="vigil-val val-pos" id="vigil-n2-score">0</span>
+            </div>
+          </div>
+
+          <!-- Night 3 Card -->
+          <div class="vigil-card" id="vigil-card-3">
+            <div class="vigil-card-title">NIGHT 3 &bull; MIRROR GALLERY</div>
+            <div class="vigil-card-row">
+              <span>Time (t)</span>
+              <span class="vigil-val" id="vigil-n3-time">0.0s</span>
+            </div>
+            <div class="vigil-card-row">
+              <span>Strikes</span>
+              <span class="vigil-val" id="vigil-n3-strikes">0</span>
+            </div>
+            <div class="vigil-card-row">
+              <span>Oil Left</span>
+              <span class="vigil-val" id="vigil-n3-oil">0.0%</span>
+            </div>
+            <div class="vigil-card-row vigil-card-score">
+              <span>Score</span>
+              <span class="vigil-val val-pos" id="vigil-n3-score">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Campaign Summary & Rating -->
+        <div class="vigil-summary" id="vigil-summary-block">
+          <div class="vigil-total-row">
+            <span>CAMPAIGN TOTAL SCORE</span>
+            <span class="vigil-total-val" id="vigil-grand-score">0 PTS</span>
+          </div>
+          <div class="vigil-rating-row">
+            <span>RATING</span>
+            <span class="vigil-rating-val rating-S" id="vigil-rating-val">S</span>
+          </div>
+        </div>
+
+        <!-- Backward compatible IDs if queried -->
+        <div id="campaign-totals-rows" style="display: none;">
+          <span id="tot-n1-pts">0</span>
+          <span id="tot-n2-pts">0</span>
+          <span id="tot-n3-pts">0</span>
+          <span id="tot-grand-pts">0</span>
+        </div>
+      </div>
+    </div>
+    <div class="result-actions" id="victory-actions"></div>
+  </div>
+
+  <script>
+    /* =========================================================================
+       TERRACOTTA VIGIL — C9 Three-Night Campaign & The Vigil Log
+       ========================================================================= */
+
+    // WebAudio Synthesizer
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.initialized = false;
+        this.droneOsc = null;
+        this.droneGain = null;
+        this.candleNoise = null;
+        this.candleFilter = null;
+        this.candleGain = null;
+        this.scrapeNoise = null;
+        this.scrapeGain = null;
+        this.lastBeatIndex = -1;
+      }
+
+      init() {
+        if (this.initialized) return;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        this.ctx = new AudioContext();
+
+        this.droneOsc = this.ctx.createOscillator();
+        this.droneOsc.type = 'sawtooth';
+        this.droneOsc.frequency.setValueAtTime(55, this.ctx.currentTime);
+        const droneFilter = this.ctx.createBiquadFilter();
+        droneFilter.type = 'lowpass';
+        droneFilter.frequency.setValueAtTime(120, this.ctx.currentTime);
+        this.droneGain = this.ctx.createGain();
+        this.droneGain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+        this.droneOsc.connect(droneFilter);
+        droneFilter.connect(this.droneGain);
+        this.droneGain.connect(this.ctx.destination);
+        this.droneOsc.start();
+
+        const bufferSize = this.ctx.sampleRate * 2;
+        const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = noiseBuffer.getChannelData(0);
+        let b0 = 0, b1 = 0, b2 = 0;
+        for (let i = 0; i < bufferSize; i++) {
+          const white = ((Math.sin(i * 12.9898) * 43758.5453) % 1) * 2 - 1;
+          b0 = 0.99886 * b0 + white * 0.0555179;
+          b1 = 0.99332 * b1 + white * 0.0750759;
+          b2 = 0.96900 * b2 + white * 0.1538520;
+          data[i] = (b0 + b1 + b2) * 0.05;
+        }
+        this.candleNoise = this.ctx.createBufferSource();
+        this.candleNoise.buffer = noiseBuffer;
+        this.candleNoise.loop = true;
+        this.candleFilter = this.ctx.createBiquadFilter();
+        this.candleFilter.type = 'bandpass';
+        this.candleFilter.frequency.setValueAtTime(450, this.ctx.currentTime);
+        this.candleGain = this.ctx.createGain();
+        this.candleGain.gain.setValueAtTime(0.03, this.ctx.currentTime);
+        this.candleNoise.connect(this.candleFilter);
+        this.candleFilter.connect(this.candleGain);
+        this.candleGain.connect(this.ctx.destination);
+        this.candleNoise.start();
+
+        const scrapeBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const sData = scrapeBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          const w = ((Math.sin(i * 91.345) * 23421.63) % 1) * 2 - 1;
+          sData[i] = w * 0.2;
+        }
+        this.scrapeNoise = this.ctx.createBufferSource();
+        this.scrapeNoise.buffer = scrapeBuffer;
+        this.scrapeNoise.loop = true;
+        const sFilter = this.ctx.createBiquadFilter();
+        sFilter.type = 'lowpass';
+        sFilter.frequency.setValueAtTime(320, this.ctx.currentTime);
+        this.scrapeGain = this.ctx.createGain();
+        this.scrapeGain.gain.setValueAtTime(0, this.ctx.currentTime);
+        this.scrapeNoise.connect(sFilter);
+        sFilter.connect(this.scrapeGain);
+        this.scrapeGain.connect(this.ctx.destination);
+        this.scrapeNoise.start();
+
+        this.initialized = true;
+      }
+
+      update(oilRatio, anyStatueMoving, drumActive, clock) {
+        if (!this.initialized) return;
+        const now = this.ctx.currentTime;
+        this.candleGain.gain.setTargetAtTime(Math.max(0.003, 0.04 * oilRatio), now, 0.1);
+        this.candleFilter.frequency.setTargetAtTime(200 + 350 * oilRatio, now, 0.1);
+
+        const targetScrape = anyStatueMoving ? 0.08 : 0.0;
+        this.scrapeGain.gain.setTargetAtTime(targetScrape, now, 0.05);
+
+        if (drumActive) {
+          const beatIndex = Math.floor(clock / 0.6);
+          const beatPhase = (clock % 0.6);
+          if (beatPhase < 0.05 && this.lastBeatIndex !== beatIndex) {
+            this.lastBeatIndex = beatIndex;
+            this.playDrumThud();
+          }
+        }
+      }
+
+      playDrumThud() {
+        if (!this.initialized) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(80, t);
+        osc.frequency.exponentialRampToValueAtTime(35, t + 0.4);
+        gain.gain.setValueAtTime(0.4, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.5);
+      }
+
+      playDoorMove() {
+        if (!this.initialized) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(90, t);
+        osc.frequency.exponentialRampToValueAtTime(45, t + 0.6);
+        gain.gain.setValueAtTime(0.2, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.6);
+      }
+
+      playStrike() {
+        if (!this.initialized) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(180, t);
+        osc.frequency.exponentialRampToValueAtTime(40, t + 0.8);
+        gain.gain.setValueAtTime(0.6, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.8);
+      }
+
+      playRefuel() {
+        if (!this.initialized) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(260, t);
+        osc.frequency.exponentialRampToValueAtTime(520, t + 0.4);
+        gain.gain.setValueAtTime(0.2, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.4);
+      }
+
+      playSteleComplete() {
+        if (!this.initialized) return;
+        const t = this.ctx.currentTime;
+        [330, 440, 550].forEach((freq, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, t + idx * 0.12);
+          gain.gain.setValueAtTime(0.2, t + idx * 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + idx * 0.12 + 0.6);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(t + idx * 0.12);
+          osc.stop(t + idx * 0.12 + 0.6);
+        });
+      }
+
+      playFail() {
+        if (!this.initialized) return;
+        const t = this.ctx.currentTime;
+        [150, 130, 110, 90].forEach((freq, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(freq, t + idx * 0.25);
+          gain.gain.setValueAtTime(0.3, t + idx * 0.25);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + idx * 0.25 + 0.5);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(t + idx * 0.25);
+          osc.stop(t + idx * 0.25 + 0.5);
+        });
+      }
+    }
+
+    const audio = new SoundEngine();
+
+    // ==========================================
+    // NIGHT CONFIGURATIONS (NIGHTS 1, 2, 3)
+    // ==========================================
+    const NIGHTS = {
+      1: {
+        name: 'Night 1',
+        hallName: 'Hall One',
+        width: 60,
+        depth: 40,
+        bounds: { minX: -30, maxX: 30, minZ: -20, maxZ: 20 },
+        playerStart: { x: 0, z: -17, yaw: 0 },
+        exitPad: { x: 0, z: -19, r: 2.0 },
+        timeLimit: 300.0,
+        innerWalls: [
+          { id: 'W1', x1: -15, z1: -8, x2: -15, z2: 8 },
+          { id: 'W2', x1: 15, z1: -8, x2: 15, z2: 8 },
+          { id: 'W3', x1: -15, z1: 8, x2: -6, z2: 8 },
+          { id: 'W4', x1: 6, z1: 8, x2: 15, z2: 8 },
+          { id: 'W5', x1: -15, z1: -8, x2: -6, z2: -8 },
+          { id: 'W6', x1: 6, z1: -8, x2: 15, z2: -8 }
+        ],
+        doors: [
+          { id: 'M1', x: 0, z: 8, width: 2.0, thickness: 0.5 },
+          { id: 'M2', x: 0, z: -8, width: 2.0, thickness: 0.5 }
+        ],
+        mirrors: [],
+        pillars: [
+          { id: 'C1', x: -10, z: 0, r: 0.8 },
+          { id: 'C2', x: 10, z: 0, r: 0.8 },
+          { id: 'C3', x: -4, z: 0, r: 0.8 },
+          { id: 'C4', x: 4, z: 0, r: 0.8 },
+          { id: 'C5', x: 0, z: 4, r: 0.8 },
+          { id: 'C6', x: 0, z: -4, r: 0.8 }
+        ],
+        corridors: [
+          { type: 'x', min: -20, max: -15 },
+          { type: 'x', min: 15, max: 20 }
+        ],
+        steles: [
+          { id: 'S1', x: 0, z: 7.5, name: 'S1' },
+          { id: 'S2', x: -18, z: 0, name: 'S2' },
+          { id: 'S3', x: 18, z: 0, name: 'S3' }
+        ],
+        braziers: [
+          { id: 'B1', x: 0, z: -12, reserve: 60, initialReserve: 60 },
+          { id: 'B2', x: -18, z: 15, reserve: 40, initialReserve: 40 },
+          { id: 'B3', x: 18, z: 15, reserve: 40, initialReserve: 40 }
+        ],
+        statues: [
+          { id: 'A1', type: 'soldier', pedX: -12, pedZ: 4, baseSpeed: 1.2, strikeFreezeDuration: 20.0 },
+          { id: 'A2', type: 'soldier', pedX: 12, pedZ: 4, baseSpeed: 1.2, strikeFreezeDuration: 20.0 },
+          { id: 'A3', type: 'soldier', pedX: -12, pedZ: -4, baseSpeed: 1.2, strikeFreezeDuration: 20.0 },
+          { id: 'A4', type: 'soldier', pedX: 12, pedZ: -4, baseSpeed: 1.2, strikeFreezeDuration: 20.0 },
+          { id: 'G1', type: 'general', pedX: 0, pedZ: 15, baseSpeed: 1.8, strikeFreezeDuration: 12.0 },
+          { id: 'E1', type: 'civil', pedX: -8, pedZ: 15, baseSpeed: 1.0, strikeFreezeDuration: 20.0 },
+          { id: 'E2', type: 'civil', pedX: 8, pedZ: 15, baseSpeed: 1.0, strikeFreezeDuration: 20.0 }
+        ],
+        evalDrum: function(t) {
+          const drum1 = (t >= 60 && t <= 70);
+          const drum2 = (t >= 180 && t <= 190);
+          return {
+            active: drum1 || drum2,
+            generalMultiplier: (drum1 || drum2) ? 1.8 : 1.0,
+            shadowMultiplier: 1.0,
+            othersMultiplier: (drum1 || drum2) ? 1.8 : 1.0
+          };
+        }
+      },
+      2: {
+        name: 'Night 2',
+        hallName: 'Hall Two',
+        width: 70,
+        depth: 45,
+        bounds: { minX: -35, maxX: 35, minZ: -22.5, maxZ: 22.5 },
+        playerStart: { x: 0, z: -19.5, yaw: 0 },
+        exitPad: { x: 0, z: -21.5, r: 2.0 },
+        timeLimit: 360.0,
+        innerWalls: [
+          { id: 'U1', x1: -25, z1: -10, x2: -25, z2: 12 },
+          { id: 'U2', x1: 25, z1: -10, x2: 25, z2: 12 },
+          { id: 'U3', x1: -25, z1: 12, x2: -8, z2: 12 },
+          { id: 'U4', x1: 8, z1: 12, x2: 25, z2: 12 },
+          { id: 'U5', x1: -25, z1: -10, x2: -8, z2: -10 },
+          { id: 'U6', x1: 8, z1: -10, x2: 25, z2: -10 },
+          { id: 'U7', x1: -8, z1: 12, x2: -8, z2: 18 },
+          { id: 'U8', x1: 8, z1: 12, x2: 8, z2: 18 }
+        ],
+        doors: [
+          { id: 'M3', x: 0, z: 12, width: 2.0, thickness: 0.5 }
+        ],
+        mirrors: [],
+        pillars: [
+          { id: 'P1', x: 15, z: 0, r: 0.8 },
+          { id: 'P2', x: -15, z: 0, r: 0.8 },
+          { id: 'P3', x: 15, z: 6, r: 0.8 },
+          { id: 'P4', x: -15, z: 6, r: 0.8 },
+          { id: 'P5', x: 15, z: -6, r: 0.8 },
+          { id: 'P6', x: -15, z: -6, r: 0.8 },
+          { id: 'P7', x: 5, z: 0, r: 0.8 },
+          { id: 'P8', x: -5, z: 0, r: 0.8 }
+        ],
+        corridors: [
+          { type: 'x', min: 25, max: 35 }
+        ],
+        steles: [
+          { id: 'T1', x: 0, z: 10.5, name: 'T1' },
+          { id: 'T2', x: -30, z: 0, name: 'T2' },
+          { id: 'T3', x: 30, z: 0, name: 'T3' },
+          { id: 'T4', x: 0, z: 20, name: 'T4' }
+        ],
+        braziers: [
+          { id: 'F1', x: 0, z: -14, reserve: 60, initialReserve: 60 },
+          { id: 'F2', x: -30, z: 16, reserve: 40, initialReserve: 40 },
+          { id: 'F3', x: 30, z: 16, reserve: 40, initialReserve: 40 }
+        ],
+        statues: [
+          { id: 'D1', type: 'soldier', pedX: -20, pedZ: 6, baseSpeed: 1.2, strikeFreezeDuration: 20.0 },
+          { id: 'D2', type: 'soldier', pedX: 20, pedZ: 6, baseSpeed: 1.2, strikeFreezeDuration: 20.0 },
+          { id: 'D3', type: 'soldier', pedX: -20, pedZ: -4, baseSpeed: 1.2, strikeFreezeDuration: 20.0 },
+          { id: 'D4', type: 'soldier', pedX: 20, pedZ: -4, baseSpeed: 1.2, strikeFreezeDuration: 20.0 },
+          { id: 'D5', type: 'soldier', pedX: -5, pedZ: 16, baseSpeed: 1.2, strikeFreezeDuration: 20.0 },
+          { id: 'D6', type: 'soldier', pedX: 5, pedZ: 16, baseSpeed: 1.2, strikeFreezeDuration: 20.0 },
+          { id: 'G2', type: 'general', pedX: -12, pedZ: 0, baseSpeed: 1.8, strikeFreezeDuration: 12.0 },
+          { id: 'G3', type: 'general', pedX: 12, pedZ: 0, baseSpeed: 1.8, strikeFreezeDuration: 12.0 },
+          { id: 'E1', type: 'civil', pedX: 0, pedZ: 16, baseSpeed: 1.0, strikeFreezeDuration: 20.0 },
+          { id: 'E2', type: 'civil', pedX: 0, pedZ: 6, baseSpeed: 1.0, strikeFreezeDuration: 20.0 }
+        ],
+        evalDrum: function(t) {
+          const all90 = (t >= 90 && t <= 100);
+          const all210 = (t >= 210 && t <= 220);
+          const all300 = (t >= 300 && t <= 310);
+          const gen150 = (t >= 150 && t <= 160);
+          const isAll = (all90 || all210 || all300);
+          return {
+            active: isAll || gen150,
+            generalMultiplier: isAll ? 1.8 : (gen150 ? 2.2 : 1.0),
+            shadowMultiplier: 1.0,
+            othersMultiplier: isAll ? 1.8 : 1.0
+          };
+        }
+      },
+      3: {
+        name: 'Night 3',
+        hallName: 'The Mirror Gallery',
+        width: 60,
+        depth: 40,
+        bounds: { minX: -30, maxX: 30, minZ: -20, maxZ: 20 },
+        playerStart: { x: 0, z: -17, yaw: 0 },
+        exitPad: { x: 0, z: -19, r: 2.0 },
+        timeLimit: 420.0,
+        innerWalls: [
+          { id: 'V1', x1: -15, z1: -6, x2: -15, z2: 10 },
+          { id: 'V2', x1: 15, z1: -6, x2: 15, z2: 10 },
+          { id: 'V3', x1: -15, z1: 10, x2: -4, z2: 10 },
+          { id: 'V4', x1: 4, z1: 10, x2: 15, z2: 10 },
+          { id: 'V5', x1: -15, z1: -6, x2: -4, z2: -6 },
+          { id: 'V6', x1: 4, z1: -6, x2: 15, z2: -6 }
+        ],
+        doors: [
+          { id: 'M4', x: 0, z: -6, width: 2.0, thickness: 0.5 }
+        ],
+        // Four bronze mirrors: 2m wide, 3m high
+        mirrors: [
+          { id: 'MR1', x: 0, z: 10, nx: 0, nz: -1, width: 2.0, height: 3.0, name: 'MR1 (South)' },
+          { id: 'MR2', x: -15, z: 2, nx: 1, nz: 0, width: 2.0, height: 3.0, name: 'MR2 (East)' },
+          { id: 'MR3', x: 15, z: 2, nx: -1, nz: 0, width: 2.0, height: 3.0, name: 'MR3 (West)' },
+          { id: 'MR4', x: 0, z: -6.4, nx: 0, nz: 1, width: 2.0, height: 3.0, name: 'MR4 (North)' }
+        ],
+        pillars: [],
+        corridors: [
+          { type: 'z', min: -19, max: -6 } // South corridor z in [-19, -6]
+        ],
+        steles: [
+          { id: 'L1', x: 0, z: 14, name: 'L1' },
+          { id: 'L2', x: -18, z: -12, name: 'L2' },
+          { id: 'L3', x: 18, z: -12, name: 'L3' },
+          { id: 'L4', x: -18, z: 16, name: 'L4' },
+          { id: 'L5', x: 18, z: 16, name: 'L5' }
+        ],
+        braziers: [
+          { id: 'N3B1', x: 0, z: -12, reserve: 60, initialReserve: 60 },
+          { id: 'N3B2', x: -18, z: -2, reserve: 40, initialReserve: 40 },
+          { id: 'N3B3', x: 18, z: -2, reserve: 40, initialReserve: 40 },
+          { id: 'N3B4', x: 0, z: 2, reserve: 30, initialReserve: 30 }
+        ],
+        statues: [
+          { id: 'H1', type: 'soldier', pedX: -10, pedZ: 16, baseSpeed: 1.2, strikeFreezeDuration: 20.0 },
+          { id: 'H2', type: 'soldier', pedX: 10, pedZ: 16, baseSpeed: 1.2, strikeFreezeDuration: 20.0 },
+          { id: 'H3', type: 'soldier', pedX: -10, pedZ: -12, baseSpeed: 1.2, strikeFreezeDuration: 20.0 },
+          { id: 'H4', type: 'soldier', pedX: 10, pedZ: -12, baseSpeed: 1.2, strikeFreezeDuration: 20.0 },
+          { id: 'G4', type: 'general', pedX: -18, pedZ: 2, baseSpeed: 1.8, strikeFreezeDuration: 12.0 },
+          { id: 'G5', type: 'general', pedX: 18, pedZ: 2, baseSpeed: 1.8, strikeFreezeDuration: 12.0 },
+          { id: 'E3', type: 'civil', pedX: -5, pedZ: 2, baseSpeed: 1.0, strikeFreezeDuration: 20.0 },
+          { id: 'E4', type: 'civil', pedX: 5, pedZ: 2, baseSpeed: 1.0, strikeFreezeDuration: 20.0 },
+          // Shadow Guard K1: speed 2.0 m/s, frozen ONLY through mirror virtual gaze
+          { id: 'K1', type: 'shadow', pedX: 0, pedZ: 16, baseSpeed: 2.0, strikeFreezeDuration: 20.0 }
+        ],
+        evalDrum: function(t) {
+          // at t = 80, 200, 320 every statue moves at x1.8 for 10 s
+          const all80 = (t >= 80 && t <= 90);
+          const all200 = (t >= 200 && t <= 210);
+          const all320 = (t >= 320 && t <= 330);
+          // at t = 140 only shadow guard moves at x2.4 for 10 s
+          const shadow140 = (t >= 140 && t <= 150);
+
+          const isAll = (all80 || all200 || all320);
+          return {
+            active: isAll || shadow140,
+            generalMultiplier: isAll ? 1.8 : 1.0,
+            shadowMultiplier: isAll ? 1.8 : (shadow140 ? 2.4 : 1.0),
+            othersMultiplier: isAll ? 1.8 : 1.0
+          };
+        }
+      }
+    };
+
+    // ACTIVE RUNTIME STATE
+    const STATE = {
+      currentNightIndex: 1,
+      phase: 'menu',
+      clock: 0,
+      oil: 100.0,
+      strikes: 0,
+      strikeImmunityTimer: 0,
+      rubbingProgress: 0.0,
+      nextSteleIndex: 0,
+      eHeld: false,
+      inWindCorridor: false,
+      drumActive: false,
+      darknessSurge: false,
+      mirrorActive: false,
+      score: { timePts: 0, oilBonus: 0, strikePenalty: 0, total: 0 },
+      bankedScores: {},
+      bankedRecords: {}
+    };
+
+    // Global arena state export
+    window.__arena_state = {
+      night: 1,
+      currentNightIndex: 1,
+      phase: 'menu',
+      nightClock: 0,
+      oil: 100.0,
+      strikes: 0,
+      statues: [],
+      doors: [],
+      mirrors: [],
+      virtualViewpoint: null,
+      shadowGuard: null,
+      darknessMultipliers: { soldier: 1.0, general: 1.0, civil: 1.0, shadow: 1.0 },
+      rubbingProgress: 0,
+      nextSteleIndex: 0,
+      currentStele: 1,
+      braziers: [],
+      inWindCorridor: false,
+      drumActive: false,
+      score: { timePts: 0, oilBonus: 0, strikePenalty: 0, total: 0 },
+      campaignProgress: { currentNight: 1, bankedScores: {}, bankedRecords: {}, vigilLog: [], campaignTotal: 0, rating: null },
+      vigilLog: [],
+      vigilLogRows: [],
+      campaignTotal: 0,
+      rating: null
+    };
+
+    // THREE.JS SCENE SETUP
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x050403);
+    scene.fog = new THREE.FogExp2(0x050403, 0.045);
+
+    const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 120);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    const player = {
+      x: 0,
+      y: 1.7,
+      z: -17,
+      pitch: 0,
+      yaw: 0,
+      radius: 0.45,
+      isMoving: false,
+      isRunning: false
+    };
+
+    const ambientLight = new THREE.AmbientLight(0x1a1410, 0.35);
+    scene.add(ambientLight);
+
+    const candleLight = new THREE.PointLight(0xffa238, 2.4, 12, 1.8);
+    candleLight.castShadow = true;
+    candleLight.shadow.bias = -0.002;
+    scene.add(candleLight);
+
+    const candleGroup = new THREE.Group();
+    const candleMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.015, 0.02, 0.22, 12),
+      new THREE.MeshStandardMaterial({ color: 0xdfd4b8, roughness: 0.6 })
+    );
+    candleMesh.position.set(0.28, -0.22, -0.45);
+    candleGroup.add(candleMesh);
+
+    const holderMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.06, 0.08, 0.03, 16),
+      new THREE.MeshStandardMaterial({ color: 0x8b6528, roughness: 0.4, metalness: 0.8 })
+    );
+    holderMesh.position.set(0.28, -0.34, -0.45);
+    candleGroup.add(holderMesh);
+
+    const flameMesh = new THREE.Mesh(
+      new THREE.ConeGeometry(0.018, 0.06, 8),
+      new THREE.MeshBasicMaterial({ color: 0xffcc33 })
+    );
+    flameMesh.position.set(0.28, -0.08, -0.45);
+    candleGroup.add(flameMesh);
+    scene.add(candleGroup);
+
+    // Common Materials
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x221c18, roughness: 0.9, metalness: 0.1 });
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x362c24, roughness: 0.85, metalness: 0.05 });
+    const pillarMat = new THREE.MeshStandardMaterial({ color: 0x2d251f, roughness: 0.8 });
+    const doorMat = new THREE.MeshStandardMaterial({ color: 0x483a30, roughness: 0.7, metalness: 0.3 });
+    const terracottaMat = new THREE.MeshStandardMaterial({ color: 0x934828, roughness: 0.82, metalness: 0.08 });
+    const generalMat = new THREE.MeshStandardMaterial({ color: 0x73351d, roughness: 0.75, metalness: 0.25 });
+    const civilMat = new THREE.MeshStandardMaterial({ color: 0x5a4132, roughness: 0.88, metalness: 0.05 });
+    const shadowGuardMat = new THREE.MeshStandardMaterial({ color: 0x111116, roughness: 0.4, metalness: 0.8 });
+    const goldArmorMat = new THREE.MeshStandardMaterial({ color: 0xb58a3a, roughness: 0.5, metalness: 0.6 });
+    const brazierMat = new THREE.MeshStandardMaterial({ color: 0x4a3b32, roughness: 0.7, metalness: 0.5 });
+    const steleMat = new THREE.MeshStandardMaterial({ color: 0x1f2421, roughness: 0.6, metalness: 0.1 });
+    const mirrorBronzeMat = new THREE.MeshStandardMaterial({
+      color: 0x8a6d3b, roughness: 0.15, metalness: 0.95
+    });
+
+    const levelGroup = new THREE.Group();
+    scene.add(levelGroup);
+
+    let activeStatues = [];
+    let activeSteles = [];
+    let activeBraziers = [];
+    let activeDoors = [];
+    let activeMirrors = [];
+    let dustPoints = null;
+    let dustPositions = null;
+    let dustCount = 0;
+
+    function buildStatueMesh(type) {
+      const g = new THREE.Group();
+      let baseMat = terracottaMat;
+      if (type === 'general') baseMat = generalMat;
+      else if (type === 'civil') baseMat = civilMat;
+      else if (type === 'shadow') baseMat = shadowGuardMat;
+
+      const ped = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.35, 1.1), pillarMat);
+      ped.position.y = 0.175;
+      ped.castShadow = true;
+      g.add(ped);
+
+      const legs = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.8, 0.45), baseMat);
+      legs.position.y = 0.75;
+      legs.castShadow = true;
+      g.add(legs);
+
+      const torsoH = (type === 'general' || type === 'shadow') ? 0.95 : 0.85;
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.75, torsoH, 0.5), baseMat);
+      torso.position.y = 1.5;
+      torso.castShadow = true;
+      g.add(torso);
+
+      if (type === 'general' || type === 'shadow') {
+        const pauldronL = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.25, 0.4), (type === 'shadow') ? baseMat : goldArmorMat);
+        pauldronL.position.set(-0.48, 1.85, 0);
+        g.add(pauldronL);
+        const pauldronR = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.25, 0.4), (type === 'shadow') ? baseMat : goldArmorMat);
+        pauldronR.position.set(0.48, 1.85, 0);
+        g.add(pauldronR);
+
+        const breast = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.1), (type === 'shadow') ? baseMat : goldArmorMat);
+        breast.position.set(0, 1.55, 0.26);
+        g.add(breast);
+      } else if (type === 'civil') {
+        const sleeveL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.7, 0.35), baseMat);
+        sleeveL.position.set(-0.46, 1.35, 0);
+        g.add(sleeveL);
+        const sleeveR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.7, 0.35), baseMat);
+        sleeveR.position.set(0.46, 1.35, 0);
+        g.add(sleeveR);
+      }
+
+      if (type !== 'civil') {
+        const armL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.75, 0.22), baseMat);
+        armL.position.set(-0.46, 1.4, 0.05);
+        armL.rotation.x = 0.2;
+        g.add(armL);
+
+        const armR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.75, 0.22), baseMat);
+        armR.position.set(0.46, 1.4, 0.05);
+        armR.rotation.x = 0.2;
+        g.add(armR);
+      }
+
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.42, 0.36), baseMat);
+      head.position.y = 2.15;
+      head.castShadow = true;
+      g.add(head);
+
+      if (type === 'general' || type === 'shadow') {
+        const hat = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.22, 0.42), (type === 'shadow') ? baseMat : goldArmorMat);
+        hat.position.y = 2.42;
+        g.add(hat);
+        const crest = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.35, 0.2), baseMat);
+        crest.position.y = 2.65;
+        g.add(crest);
+      } else if (type === 'civil') {
+        const cap = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.15, 0.48), pillarMat);
+        cap.position.y = 2.4;
+        g.add(cap);
+      } else {
+        const knot = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.18, 8), baseMat);
+        knot.position.set(0.08, 2.45, -0.04);
+        g.add(knot);
+      }
+
+      if (type === 'soldier' || type === 'shadow') {
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 2.6, 8), pillarMat);
+        shaft.position.set(0.55, 1.3, 0.2);
+        g.add(shaft);
+      } else if (type === 'civil') {
+        const hu = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.55, 0.04), goldArmorMat);
+        hu.position.set(0, 1.5, 0.32);
+        hu.rotation.x = 0.25;
+        g.add(hu);
+      }
+
+      // Shadow guard glowing eyes
+      if (type === 'shadow') {
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc });
+        const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, 0.04), eyeMat);
+        eyeL.position.set(-0.08, 2.18, 0.19);
+        g.add(eyeL);
+        const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, 0.04), eyeMat);
+        eyeR.position.set(0.08, 2.18, 0.19);
+        g.add(eyeR);
+      }
+
+      return g;
+    }
+
+    function buildHall(nightNum) {
+      while (levelGroup.children.length > 0) {
+        levelGroup.remove(levelGroup.children[0]);
+      }
+      activeStatues = [];
+      activeSteles = [];
+      activeBraziers = [];
+      activeDoors = [];
+      activeMirrors = [];
+
+      const cfg = NIGHTS[nightNum];
+      const wallH = 6.0;
+
+      const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(cfg.width, cfg.depth), floorMat);
+      floorMesh.rotation.x = -Math.PI / 2;
+      floorMesh.receiveShadow = true;
+      levelGroup.add(floorMesh);
+
+      const ceilingMesh = new THREE.Mesh(new THREE.PlaneGeometry(cfg.width, cfg.depth), wallMat);
+      ceilingMesh.position.y = wallH;
+      ceilingMesh.rotation.x = Math.PI / 2;
+      levelGroup.add(ceilingMesh);
+
+      function addBox(w, h, d, x, y, z) {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
+        m.position.set(x, y, z);
+        m.castShadow = true;
+        m.receiveShadow = true;
+        levelGroup.add(m);
+        return m;
+      }
+
+      const hw = cfg.width / 2;
+      const hd = cfg.depth / 2;
+      addBox(cfg.width, wallH, 1, 0, wallH/2, hd + 0.5);  // North
+      addBox(cfg.width, wallH, 1, 0, wallH/2, -hd - 0.5); // South
+      addBox(1, wallH, cfg.depth, -hw - 0.5, wallH/2, 0); // West
+      addBox(1, wallH, cfg.depth, hw + 0.5, wallH/2, 0);  // East
+
+      cfg.innerWalls.forEach(w => {
+        const dx = w.x2 - w.x1;
+        const dz = w.z2 - w.z1;
+        const len = Math.hypot(dx, dz);
+        const midX = (w.x1 + w.x2) / 2;
+        const midZ = (w.z1 + w.z2) / 2;
+        const isX = Math.abs(dx) > Math.abs(dz);
+        if (isX) {
+          addBox(len + 0.5, wallH, 0.5, midX, wallH/2, midZ);
+        } else {
+          addBox(0.5, wallH, len + 0.5, midX, wallH/2, midZ);
+        }
+      });
+
+      // Sliding Doors
+      cfg.doors.forEach(d => {
+        const g = new THREE.Group();
+        addBox(0.3, wallH, d.thickness + 0.2, d.x - d.width/2 - 0.15, wallH/2, d.z);
+        addBox(0.3, wallH, d.thickness + 0.2, d.x + d.width/2 + 0.15, wallH/2, d.z);
+        
+        const leafMesh = new THREE.Mesh(new THREE.BoxGeometry(d.width, wallH - 0.2, d.thickness), doorMat);
+        leafMesh.position.set(0, wallH/2, 0);
+        leafMesh.castShadow = true;
+        leafMesh.receiveShadow = true;
+        g.add(leafMesh);
+
+        g.position.set(d.x, 0, d.z);
+        levelGroup.add(g);
+
+        activeDoors.push({
+          id: d.id,
+          x: d.x,
+          z: d.z,
+          width: d.width,
+          thickness: d.thickness,
+          group: g,
+          leafMesh: leafMesh,
+          isOpen: false,
+          openRatio: 0.0,
+          autoOpenTimer: 0.0,
+          isHoldingStatue: false
+        });
+      });
+
+      // Bronze Mirrors (Night 3)
+      cfg.mirrors.forEach(m => {
+        const g = new THREE.Group();
+        // Stand / Frame
+        const frameMesh = new THREE.Mesh(new THREE.BoxGeometry(m.width + 0.2, m.height + 0.2, 0.2), doorMat);
+        frameMesh.position.set(0, m.height/2, 0);
+        g.add(frameMesh);
+
+        // Reflective Bronze face
+        const mirrorFaceMat = new THREE.MeshStandardMaterial({
+          color: 0xc8a655, roughness: 0.12, metalness: 0.95, emissive: 0x4a3a10, emissiveIntensity: 0.1
+        });
+        const faceMesh = new THREE.Mesh(new THREE.PlaneGeometry(m.width, m.height), mirrorFaceMat);
+        faceMesh.position.set(0, m.height/2, 0.11);
+        g.add(faceMesh);
+
+        // Align mirror facing its outward normal (m.nx, m.nz)
+        const angle = Math.atan2(m.nx, m.nz);
+        g.rotation.y = angle;
+        g.position.set(m.x, 0, m.z);
+        levelGroup.add(g);
+
+        activeMirrors.push({
+          id: m.id,
+          x: m.x,
+          z: m.z,
+          nx: m.nx,
+          nz: m.nz,
+          width: m.width,
+          height: m.height,
+          faceMesh: faceMesh,
+          faceMat: mirrorFaceMat,
+          active: false
+        });
+      });
+
+      // Pillars
+      cfg.pillars.forEach(p => {
+        const cMesh = new THREE.Mesh(new THREE.CylinderGeometry(p.r, p.r, wallH, 24), pillarMat);
+        cMesh.position.set(p.x, wallH/2, p.z);
+        cMesh.castShadow = true;
+        levelGroup.add(cMesh);
+
+        const bMesh = new THREE.Mesh(new THREE.CylinderGeometry(p.r + 0.2, p.r + 0.25, 0.4, 24), pillarMat);
+        bMesh.position.set(p.x, 0.2, p.z);
+        levelGroup.add(bMesh);
+      });
+
+      // Exit Pad
+      const exitPadMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(cfg.exitPad.r, cfg.exitPad.r, 0.08, 32),
+        new THREE.MeshStandardMaterial({ color: 0x1b4f72, roughness: 0.5, emissive: 0x0e2f44, emissiveIntensity: 0.6 })
+      );
+      exitPadMesh.position.set(cfg.exitPad.x, 0.04, cfg.exitPad.z);
+      levelGroup.add(exitPadMesh);
+
+      const ringMesh = new THREE.Mesh(
+        new THREE.RingGeometry(1.6, 1.85, 32),
+        new THREE.MeshBasicMaterial({ color: 0x5dade2, side: THREE.DoubleSide })
+      );
+      ringMesh.rotation.x = -Math.PI / 2;
+      ringMesh.position.set(cfg.exitPad.x, 0.09, cfg.exitPad.z);
+      levelGroup.add(ringMesh);
+
+      // Corridors
+      cfg.corridors.forEach(cor => {
+        let markerGeo;
+        let cX = 0, cZ = 0;
+        if (cor.type === 'x') {
+          const w = cor.max - cor.min;
+          cX = (cor.min + cor.max) / 2;
+          markerGeo = new THREE.PlaneGeometry(w, cfg.depth);
+        } else {
+          const d = cor.max - cor.min;
+          cZ = (cor.min + cor.max) / 2;
+          markerGeo = new THREE.PlaneGeometry(cfg.width, d);
+        }
+        const marker = new THREE.Mesh(
+          markerGeo,
+          new THREE.MeshBasicMaterial({ color: 0x34495e, transparent: true, opacity: 0.12, side: THREE.DoubleSide })
+        );
+        marker.rotation.x = -Math.PI / 2;
+        marker.position.set(cX, 0.02, cZ);
+        levelGroup.add(marker);
+      });
+
+      // Dust Particles
+      dustCount = 300;
+      const dustGeo = new THREE.BufferGeometry();
+      dustPositions = new Float32Array(dustCount * 3);
+      for (let i = 0; i < dustCount; i++) {
+        const cor = cfg.corridors[i % cfg.corridors.length];
+        let px = 0, pz = 0;
+        if (cor.type === 'x') {
+          px = cor.min + ((i * 1.37) % (cor.max - cor.min));
+          pz = (-cfg.depth/2 + 2) + ((i * 7.91) % (cfg.depth - 4));
+        } else {
+          px = (-cfg.width/2 + 2) + ((i * 7.91) % (cfg.width - 4));
+          pz = cor.min + ((i * 1.37) % (cor.max - cor.min));
+        }
+        const py = ((i * 3.14) % 5.5) + 0.2;
+        dustPositions[i*3] = px;
+        dustPositions[i*3+1] = py;
+        dustPositions[i*3+2] = pz;
+      }
+      dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+      dustPoints = new THREE.Points(dustGeo, new THREE.PointsMaterial({
+        color: 0x95a5a6, size: 0.08, transparent: true, opacity: 0.45
+      }));
+      levelGroup.add(dustPoints);
+
+      // Rubbing Steles
+      cfg.steles.forEach(s => {
+        const g = new THREE.Group();
+        const bMesh = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.4, 0.9), pillarMat);
+        bMesh.position.y = 0.2;
+        g.add(bMesh);
+
+        const tMesh = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.4, 0.35), steleMat);
+        tMesh.position.y = 1.5;
+        tMesh.castShadow = true;
+        g.add(tMesh);
+
+        const cMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.35, 16, 1, false, 0, Math.PI), steleMat);
+        cMesh.rotation.z = Math.PI / 2;
+        cMesh.rotation.y = Math.PI / 2;
+        cMesh.position.set(0, 2.7, 0);
+        g.add(cMesh);
+
+        const lineMesh = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.8, 1.6),
+          new THREE.MeshBasicMaterial({ color: 0x7f8c8d, side: THREE.DoubleSide })
+        );
+        lineMesh.position.set(0, 1.5, 0.18);
+        g.add(lineMesh);
+
+        g.position.set(s.x, 0, s.z);
+        levelGroup.add(g);
+        activeSteles.push({ id: s.id, name: s.name, x: s.x, z: s.z, group: g, lineMesh: lineMesh, completed: false });
+      });
+
+      // Braziers
+      cfg.braziers.forEach(b => {
+        const g = new THREE.Group();
+        const bBase = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.45, 0.8, 16), brazierMat);
+        bBase.position.y = 0.4;
+        bBase.castShadow = true;
+        g.add(bBase);
+
+        const emberMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.58, 0.1, 16), new THREE.MeshBasicMaterial({ color: 0xff4500 }));
+        emberMesh.position.y = 0.8;
+        g.add(emberMesh);
+
+        const pLight = new THREE.PointLight(0xff5500, 0.8, 4.0);
+        pLight.position.y = 1.2;
+        g.add(pLight);
+
+        g.position.set(b.x, 0, b.z);
+        levelGroup.add(g);
+        activeBraziers.push({ id: b.id, x: b.x, z: b.z, reserve: b.reserve, initialReserve: b.initialReserve, group: g, embers: emberMesh, light: pLight });
+      });
+
+      // Statues
+      cfg.statues.forEach(st => {
+        const mesh = buildStatueMesh(st.type);
+        mesh.position.set(st.pedX, 0, st.pedZ);
+        levelGroup.add(mesh);
+        activeStatues.push({
+          id: st.id,
+          type: st.type,
+          pedX: st.pedX,
+          pedZ: st.pedZ,
+          x: st.pedX,
+          z: st.pedZ,
+          baseSpeed: st.baseSpeed,
+          strikeFreezeDuration: st.strikeFreezeDuration,
+          frozen: true,
+          freezeSource: 'none',
+          freezeTimer: 0,
+          reactionTimer: 0,
+          velocity: 0,
+          mesh: mesh
+        });
+      });
+
+      const badgeContainer = document.getElementById('stele-badges-container');
+      badgeContainer.innerHTML = '';
+      cfg.steles.forEach((s, idx) => {
+        const badge = document.createElement('div');
+        badge.id = `badge-${s.id}`;
+        badge.className = (idx === 0) ? 'stele-badge current' : 'stele-badge';
+        badge.innerText = `${s.name} (${s.x}, ${s.z})`;
+        badgeContainer.appendChild(badge);
+      });
+
+      document.getElementById('night-banner').innerText = `${cfg.name.toUpperCase()} \u2022 OBJECTIVE`;
+      document.getElementById('objective-text').innerText = `RUB STELE ${cfg.steles[0].name}`;
+    }
+
+    // CONTROLS & NAVIGATION
+    const keys = {};
+    const mouseSensitivity = 0.0022;
+
+    window.addEventListener('keydown', e => {
+      keys[e.code] = true;
+      if (e.code === 'KeyE') {
+        STATE.eHeld = true;
+        handleInstantE();
+      }
+      if (e.code === 'Enter') {
+        handleEnterKey();
+      }
+      if (e.code === 'KeyN' && STATE.phase === 'menu') {
+        startCampaign();
+      }
+      if (e.code === 'KeyR') {
+        fullResetGame();
+      }
+    });
+
+    window.addEventListener('keyup', e => {
+      keys[e.code] = false;
+      if (e.code === 'KeyE') {
+        STATE.eHeld = false;
+        STATE.rubbingProgress = 0;
+      }
+    });
+
+    window.addEventListener('mousemove', e => {
+      if (document.pointerLockElement !== document.body) return;
+      if (STATE.phase !== 'playing') return;
+      if (isRubbingActive()) return;
+
+      player.yaw -= e.movementX * mouseSensitivity;
+      player.pitch -= e.movementY * mouseSensitivity;
+      player.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, player.pitch));
+    });
+
+    function lockPointer() {
+      if (document.pointerLockElement !== document.body) {
+        document.body.requestPointerLock();
+      }
+    }
+
+    function handleEnterKey() {
+      audio.init();
+      if (STATE.phase === 'menu') {
+        startCampaign();
+      } else if (STATE.phase === 'ready') {
+        STATE.phase = 'playing';
+        document.getElementById('ready-screen').style.display = 'none';
+        document.getElementById('hud').style.display = 'flex';
+        lockPointer();
+      } else if (STATE.phase === 'caught' || STATE.phase === 'overtime') {
+        retryCurrentNight();
+      } else if (STATE.phase === 'victory') {
+        if (STATE.currentNightIndex === 1) {
+          advanceToNight(2);
+        } else if (STATE.currentNightIndex === 2) {
+          advanceToNight(3);
+        } else {
+          fullResetGame();
+        }
+      }
+    }
+
+    function startCampaign() {
+      audio.init();
+      STATE.bankedScores = {};
+      STATE.bankedRecords = {};
+      advanceToNight(1);
+    }
+
+    function advanceToNight(nightIndex) {
+      audio.init();
+      STATE.currentNightIndex = nightIndex;
+      window.__arena_state.night = nightIndex;
+      window.__arena_state.currentNightIndex = nightIndex;
+
+      buildHall(nightIndex);
+      resetNightState();
+
+      STATE.phase = 'ready';
+      document.getElementById('main-menu').style.display = 'none';
+      document.getElementById('caught-screen').style.display = 'none';
+      document.getElementById('overtime-screen').style.display = 'none';
+      document.getElementById('victory-screen').style.display = 'none';
+
+      const cfg = NIGHTS[nightIndex];
+      document.getElementById('ready-title').innerText = `${cfg.name.toUpperCase()} \u2014 ${cfg.hallName.toUpperCase()}`;
+      if (nightIndex === 1) {
+        document.getElementById('ready-desc').innerHTML =
+          `Hall One (60 &times; 40m). Eye height 1.7m. Gaze-freeze half-angle 32&deg; within 25m.<br>` +
+          `Sliding doors M1 (0, 8) and M2 (0, -8).<br>` +
+          `Statues freeze in place on touch (20s soldiers/officials, 12s generals).<br>` +
+          `Beware General G1 and Civil Officials E1 &amp; E2.<br><br>` +
+          `<b>OBJECTIVE:</b> Rub Steles S1 &rarr; S2 &rarr; S3, refuel at braziers, and reach the exit pad.`;
+      } else if (nightIndex === 2) {
+        document.getElementById('ready-desc').innerHTML =
+          `Hall Two (70 &times; 45m). Time limit 360s.<br>` +
+          `Sliding door M3 (0, 12). 6 soldiers, 2 generals, and 2 civil officials.<br>` +
+          `Drum timetable: t=90s, 210s, 300s (all &times;1.8), and t=150s (generals &times;2.2).<br>` +
+          `East wind corridor at x &in; [25, 35]. North side chamber holds stele T4.<br><br>` +
+          `<b>OBJECTIVE:</b> Rub Steles T1 &rarr; T2 &rarr; T3 &rarr; T4, refuel, and escape at (0, -21.5).`;
+      } else {
+        document.getElementById('ready-desc').innerHTML =
+          `Hall Three — The Mirror Gallery (60 &times; 40m). Time limit 420s.<br>` +
+          `Sliding door M4 (0, -6). South wind corridor at z &in; [-19, -6].<br>` +
+          `4 Bronze Mirrors (MR1–MR4): gaze at active mirror to project reflected virtual gaze.<br>` +
+          `Beware the Shadow Guard K1: impervious to direct gaze; freezeable ONLY via active mirrors!<br><br>` +
+          `<b>OBJECTIVE:</b> Rub Steles L1 &rarr; L2 &rarr; L3 &rarr; L4 &rarr; L5, refuel, and escape at (0, -19).`;
+      }
+      document.getElementById('ready-screen').style.display = 'flex';
+      exportArenaState();
+    }
+
+    function retryCurrentNight() {
+      resetNightState();
+      STATE.phase = 'playing';
+      document.getElementById('caught-screen').style.display = 'none';
+      document.getElementById('overtime-screen').style.display = 'none';
+      document.getElementById('victory-screen').style.display = 'none';
+      document.getElementById('hud').style.display = 'flex';
+      lockPointer();
+    }
+
+    function fullResetGame() {
+      document.exitPointerLock();
+      STATE.bankedScores = {};
+      STATE.bankedRecords = {};
+      STATE.currentNightIndex = 1;
+      STATE.phase = 'menu';
+      document.getElementById('hud').style.display = 'none';
+      document.getElementById('ready-screen').style.display = 'none';
+      document.getElementById('caught-screen').style.display = 'none';
+      document.getElementById('overtime-screen').style.display = 'none';
+      document.getElementById('victory-screen').style.display = 'none';
+      document.getElementById('main-menu').style.display = 'flex';
+      buildHall(1);
+      resetNightState();
+      exportArenaState();
+    }
+
+    function resetNightState() {
+      const cfg = NIGHTS[STATE.currentNightIndex];
+      STATE.clock = 0;
+      STATE.oil = 100.0;
+      STATE.strikes = 0;
+      STATE.strikeImmunityTimer = 0;
+      STATE.rubbingProgress = 0;
+      STATE.nextSteleIndex = 0;
+      STATE.eHeld = false;
+      STATE.inWindCorridor = false;
+      STATE.drumActive = false;
+      STATE.darknessSurge = false;
+      STATE.mirrorActive = false;
+
+      player.x = cfg.playerStart.x;
+      player.y = 1.7;
+      player.z = cfg.playerStart.z;
+      player.pitch = 0;
+      player.yaw = cfg.playerStart.yaw;
+
+      activeDoors.forEach(d => {
+        d.isOpen = false;
+        d.openRatio = 0.0;
+        d.autoOpenTimer = 0.0;
+        d.isHoldingStatue = false;
+        d.leafMesh.position.x = 0;
+      });
+
+      activeMirrors.forEach(m => {
+        m.active = false;
+        m.faceMat.emissiveIntensity = 0.1;
+      });
+
+      activeStatues.forEach(st => {
+        st.x = st.pedX;
+        st.z = st.pedZ;
+        st.frozen = true;
+        st.freezeSource = 'none';
+        st.freezeTimer = 0;
+        st.reactionTimer = 0;
+        st.velocity = 0;
+        st.mesh.position.set(st.x, 0, st.z);
+        st.mesh.rotation.y = 0;
+      });
+
+      activeBraziers.forEach(b => {
+        b.reserve = b.initialReserve;
+        b.embers.material.color.setHex(0xff4500);
+        b.light.intensity = 0.8;
+      });
+
+      activeSteles.forEach((s, idx) => {
+        s.completed = false;
+        s.lineMesh.material.color.setHex(0x7f8c8d);
+        const badge = document.getElementById(`badge-${s.id}`);
+        if (badge) badge.className = (idx === 0) ? 'stele-badge current' : 'stele-badge';
+      });
+
+      document.getElementById('objective-text').innerText = `RUB STELE ${cfg.steles[0].name}`;
+      updateStrikeUI();
+    }
+
+    function isRubbingActive() {
+      if (STATE.phase !== 'playing') return false;
+      if (!STATE.eHeld) return false;
+      const cfg = NIGHTS[STATE.currentNightIndex];
+      if (STATE.nextSteleIndex >= cfg.steles.length) return false;
+      const targetStele = activeSteles[STATE.nextSteleIndex];
+      const dist = Math.hypot(player.x - targetStele.x, player.z - targetStele.z);
+      return dist <= 1.5;
+    }
+
+    function handleInstantE() {
+      if (STATE.phase !== 'playing') return;
+
+      let toggledDoor = false;
+      activeDoors.forEach(d => {
+        const dist = Math.hypot(player.x - d.x, player.z - d.z);
+        if (dist <= 2.5) {
+          d.isOpen = !d.isOpen;
+          audio.playDoorMove();
+          toggledDoor = true;
+        }
+      });
+      if (toggledDoor) return;
+
+      activeBraziers.forEach(b => {
+        const dist = Math.hypot(player.x - b.x, player.z - b.z);
+        if (dist <= 2.0 && b.reserve > 0) {
+          STATE.oil = Math.min(100, STATE.oil + b.reserve);
+          b.reserve = 0;
+          b.embers.material.color.setHex(0x331100);
+          b.light.intensity = 0.05;
+          audio.playRefuel();
+        }
+      });
+    }
+
+    // GEOMETRY & COLLISION UTILITIES
+    function distToSegment(px, pz, x1, z1, x2, z2) {
+      const l2 = (x2 - x1) ** 2 + (z2 - z1) ** 2;
+      if (l2 === 0) return Math.hypot(px - x1, pz - z1);
+      let t = ((px - x1) * (x2 - x1) + (pz - z1) * (z2 - z1)) / l2;
+      t = Math.max(0, Math.min(1, t));
+      return Math.hypot(px - (x1 + t * (x2 - x1)), pz - (z1 + t * (z2 - z1)));
+    }
+
+    function segmentsIntersect(a1x, a1z, a2x, a2z, b1x, b2x, b1z, b2z) {
+      function ccw(ax, az, bx, bz, cx, cz) {
+        return (cz - az) * (bx - ax) > (bz - az) * (cx - ax);
+      }
+      return (ccw(a1x, a1z, b1x, b1z, b2x, b2z) !== ccw(a2x, a2z, b1x, b1z, b2x, b2z)) &&
+             (ccw(a1x, a1z, a2x, a2z, b1x, b1z) !== ccw(a1x, a1z, a2x, a2z, b2x, b2z));
+    }
+
+    function checkCollision(px, pz, radius) {
+      const cfg = NIGHTS[STATE.currentNightIndex];
+      if (px - radius < cfg.bounds.minX || px + radius > cfg.bounds.maxX ||
+          pz - radius < cfg.bounds.minZ || pz + radius > cfg.bounds.maxZ) {
+        return true;
+      }
+      for (let i = 0; i < cfg.innerWalls.length; i++) {
+        const w = cfg.innerWalls[i];
+        if (distToSegment(px, pz, w.x1, w.z1, w.x2, w.z2) < (radius + 0.25)) {
+          return true;
+        }
+      }
+      for (let i = 0; i < activeDoors.length; i++) {
+        const d = activeDoors[i];
+        if (d.openRatio < 0.8) {
+          const halfW = d.width / 2;
+          if (distToSegment(px, pz, d.x - halfW, d.z, d.x + halfW, d.z) < (radius + d.thickness/2)) {
+            return true;
+          }
+        }
+      }
+      for (let i = 0; i < cfg.pillars.length; i++) {
+        const p = cfg.pillars[i];
+        if (Math.hypot(px - p.x, pz - p.z) < (radius + p.r)) {
+          return true;
+        }
+      }
+      // Statues (frozen statues keep collision and act as obstacles!)
+      for (let i = 0; i < activeStatues.length; i++) {
+        const st = activeStatues[i];
+        if (Math.hypot(px - st.x, pz - st.z) < (radius + 0.45)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function statueHitsWallOrPillarOrDoor(sx, sz, radius) {
+      const cfg = NIGHTS[STATE.currentNightIndex];
+      if (sx - radius < cfg.bounds.minX || sx + radius > cfg.bounds.maxX ||
+          sz - radius < cfg.bounds.minZ || sz + radius > cfg.bounds.maxZ) {
+        return { blocked: true, hitDoor: null };
+      }
+      for (let i = 0; i < cfg.innerWalls.length; i++) {
+        const w = cfg.innerWalls[i];
+        if (distToSegment(sx, sz, w.x1, w.z1, w.x2, w.z2) < (radius + 0.25)) {
+          return { blocked: true, hitDoor: null };
+        }
+      }
+      for (let i = 0; i < activeDoors.length; i++) {
+        const d = activeDoors[i];
+        if (d.openRatio < 0.8) {
+          const halfW = d.width / 2;
+          if (distToSegment(sx, sz, d.x - halfW, d.z, d.x + halfW, d.z) < (radius + d.thickness/2)) {
+            return { blocked: true, hitDoor: d };
+          }
+        }
+      }
+      for (let i = 0; i < cfg.pillars.length; i++) {
+        const p = cfg.pillars[i];
+        if (Math.hypot(sx - p.x, sz - p.z) < (radius + p.r)) {
+          return { blocked: true, hitDoor: null };
+        }
+      }
+      return { blocked: false, hitDoor: null };
+    }
+
+    function hasLineOfSight(px, pz, sx, sz) {
+      const cfg = NIGHTS[STATE.currentNightIndex];
+      for (let i = 0; i < cfg.innerWalls.length; i++) {
+        const w = cfg.innerWalls[i];
+        if (segmentsIntersect(px, pz, sx, sz, w.x1, w.x2, w.z1, w.z2)) {
+          return false;
+        }
+      }
+      for (let i = 0; i < activeDoors.length; i++) {
+        const d = activeDoors[i];
+        if (d.openRatio < 0.8) {
+          const halfW = d.width / 2;
+          if (segmentsIntersect(px, pz, sx, sz, d.x - halfW, d.z, d.x + halfW, d.z)) {
+            return false;
+          }
+        }
+      }
+      for (let i = 0; i < cfg.pillars.length; i++) {
+        const p = cfg.pillars[i];
+        if (distToSegment(p.x, p.z, px, pz, sx, sz) < p.r) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    // GAME LOOP
+    let lastTime = performance.now();
+
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const dt = Math.min((now - lastTime) / 1000, 0.05);
+      lastTime = now;
+
+      if (STATE.phase === 'playing') {
+        updateGame(dt);
+      }
+
+      render();
+    }
+
+    function updateGame(dt) {
+      const cfg = NIGHTS[STATE.currentNightIndex];
+      STATE.clock += dt;
+
+      // 1. Drum Timetable
+      const drumStatus = cfg.evalDrum(STATE.clock);
+      STATE.drumActive = drumStatus.active;
+
+      // 2. Wind Corridor
+      let inCorridor = false;
+      for (let i = 0; i < cfg.corridors.length; i++) {
+        const c = cfg.corridors[i];
+        if (c.type === 'x') {
+          if (player.x >= c.min && player.x <= c.max) { inCorridor = true; break; }
+        } else {
+          if (player.z >= c.min && player.z <= c.max) { inCorridor = true; break; }
+        }
+      }
+      STATE.inWindCorridor = inCorridor;
+
+      // 3. Candle Drain & Radius
+      let drainRate = 0.3;
+      if (player.isMoving) {
+        drainRate = player.isRunning ? 1.4 : 0.6;
+      }
+      if (STATE.inWindCorridor) {
+        drainRate *= 2.0;
+      }
+      STATE.oil = Math.max(0, STATE.oil - drainRate * dt);
+
+      let candleRadius = 3.0 + 9.0 * (STATE.oil / 100.0);
+      if (STATE.inWindCorridor) {
+        candleRadius *= 0.5;
+      }
+      if (STATE.oil <= 0) {
+        candleRadius = 1.0;
+      }
+      candleLight.distance = candleRadius;
+      candleLight.intensity = (STATE.oil <= 0) ? 0.9 : (1.4 + 1.2 * (STATE.oil / 100.0));
+
+      STATE.darknessSurge = (STATE.oil <= 0);
+
+      const flickerAmp = STATE.inWindCorridor ? 0.03 : 0.008;
+      const flickerTime = STATE.clock * (STATE.inWindCorridor ? 24.0 : 12.0);
+      const flickerOffset = Math.sin(flickerTime) * flickerAmp;
+      flameMesh.scale.set(
+        1 + flickerOffset * 8,
+        1 + Math.cos(flickerTime * 1.3) * flickerAmp * 12,
+        1 + flickerOffset * 8
+      );
+
+      // Strike immunity
+      if (STATE.strikeImmunityTimer > 0) {
+        STATE.strikeImmunityTimer = Math.max(0, STATE.strikeImmunityTimer - dt);
+        document.getElementById('vignette').classList.add('hit');
+      } else {
+        document.getElementById('vignette').classList.remove('hit');
+      }
+
+      // Update doors
+      updateDoors(dt);
+
+      // Update Bronze Mirrors (Night 3)
+      let activeVirtualVP = updateMirrors();
+      STATE.mirrorActive = (activeVirtualVP !== null);
+
+      // Player Movement & Rubbing
+      handlePlayerMovement(dt);
+      handleRubbing(dt);
+
+      // Statues AI with direct gaze & mirror virtual gaze
+      handleStatues(dt, drumStatus, activeVirtualVP);
+
+      // Exit Pad Check
+      checkExitPad();
+
+      // Overtime Check
+      if (STATE.clock >= cfg.timeLimit && STATE.phase === 'playing') {
+        STATE.phase = 'overtime';
+        audio.playFail();
+        document.exitPointerLock();
+        document.getElementById('overtime-desc').innerText = `${cfg.timeLimit} seconds have elapsed. The tomb seals forever.`;
+        document.getElementById('overtime-screen').style.display = 'flex';
+      }
+
+      const anyMoving = activeStatues.some(st => !st.frozen && st.velocity > 0);
+      audio.update(STATE.oil / 100.0, anyMoving, STATE.drumActive, STATE.clock);
+
+      updateUI();
+      exportArenaState(activeVirtualVP);
+    }
+
+    function updateDoors(dt) {
+      activeDoors.forEach(d => {
+        const targetRatio = d.isOpen ? 1.0 : 0.0;
+        const slideSpeed = 2.5;
+        if (d.openRatio < targetRatio) {
+          d.openRatio = Math.min(targetRatio, d.openRatio + slideSpeed * dt);
+        } else if (d.openRatio > targetRatio) {
+          d.openRatio = Math.max(targetRatio, d.openRatio - slideSpeed * dt);
+        }
+
+        d.leafMesh.position.x = d.openRatio * (d.width + 0.1);
+
+        if (!d.isOpen && d.isHoldingStatue) {
+          d.autoOpenTimer += dt;
+          if (d.autoOpenTimer >= 5.0) {
+            d.isOpen = true;
+            d.autoOpenTimer = 0.0;
+            d.isHoldingStatue = false;
+            audio.playDoorMove();
+          }
+        } else {
+          d.autoOpenTimer = 0.0;
+        }
+        d.isHoldingStatue = false;
+      });
+    }
+
+    // Bronze Mirrors evaluation (Night 3)
+    // Returns active virtual viewpoint { x, z, dirX, dirZ, mirror } or null
+    function updateMirrors() {
+      if (activeMirrors.length === 0) return null;
+
+      const eyeX = player.x;
+      const eyeZ = player.z;
+      const viewDirX = Math.sin(player.yaw);
+      const viewDirZ = Math.cos(player.yaw);
+      const cos30 = Math.cos(30 * Math.PI / 180); // approx 0.8660
+
+      let primaryActiveVP = null;
+
+      activeMirrors.forEach(m => {
+        // Condition 1: Player eye within 8m and on normal-facing side
+        const dx = eyeX - m.x;
+        const dz = eyeZ - m.z;
+        const dist = Math.hypot(dx, dz);
+        const dotNormal = dx * m.nx + dz * m.nz; // > 0 means in front of mirror
+
+        let isActive = false;
+        if (dist <= 8.0 && dotNormal > 0) {
+          // Condition 2: Angle between view direction and direction toward mirror surface <= 30 deg
+          const dirToMirrorX = (m.x - eyeX) / dist;
+          const dirToMirrorZ = (m.z - eyeZ) / dist;
+          const dotView = viewDirX * dirToMirrorX + viewDirZ * dirToMirrorZ;
+
+          if (dotView >= cos30) {
+            isActive = true;
+          }
+        }
+
+        m.active = isActive;
+        if (isActive) {
+          m.faceMat.emissiveIntensity = 0.6;
+
+          // Virtual viewpoint reflection across mirror plane
+          // Vector from mirror center to eye
+          const distNorm = dx * m.nx + dz * m.nz;
+          // Reflected virtual eye position
+          const vx = eyeX - 2 * distNorm * m.nx;
+          const vz = eyeZ - 2 * distNorm * m.nz;
+
+          // Reflected view direction
+          const vDotNorm = viewDirX * m.nx + viewDirZ * m.nz;
+          const vrx = viewDirX - 2 * vDotNorm * m.nx;
+          const vrz = viewDirZ - 2 * vDotNorm * m.nz;
+
+          primaryActiveVP = {
+            mirrorId: m.id,
+            x: vx,
+            y: player.y,
+            z: vz,
+            dirX: vrx,
+            dirZ: vrz,
+            mirror: m
+          };
+        } else {
+          m.faceMat.emissiveIntensity = 0.1;
+        }
+      });
+
+      return primaryActiveVP;
+    }
+
+    function handlePlayerMovement(dt) {
+      let moveF = 0, moveR = 0;
+      if (keys['KeyW']) moveF += 1;
+      if (keys['KeyS']) moveF -= 1;
+      if (keys['KeyA']) moveR -= 1;
+      if (keys['KeyD']) moveR += 1;
+
+      player.isRunning = (keys['ShiftLeft'] || keys['ShiftRight']) && moveF > 0;
+      const speed = player.isRunning ? 6.0 : 4.0;
+      player.isMoving = (moveF !== 0 || moveR !== 0);
+
+      if (player.isMoving) {
+        const forwardX = Math.sin(player.yaw);
+        const forwardZ = Math.cos(player.yaw);
+        const rightX = Math.cos(player.yaw);
+        const rightZ = -Math.sin(player.yaw);
+
+        let dx = (forwardX * moveF + rightX * moveR);
+        let dz = (forwardZ * moveF + rightZ * moveR);
+        const mag = Math.hypot(dx, dz);
+        if (mag > 0.001) {
+          dx = (dx / mag) * speed * dt;
+          dz = (dz / mag) * speed * dt;
+
+          if (!checkCollision(player.x + dx, player.z, player.radius)) {
+            player.x += dx;
+          }
+          if (!checkCollision(player.x, player.z + dz, player.radius)) {
+            player.z += dz;
+          }
+        }
+      }
+    }
+
+    function handleRubbing(dt) {
+      const rubbingPrompt = document.getElementById('interact-prompt');
+      const rubbingBar = document.getElementById('rubbing-container');
+      const rubbingFill = document.getElementById('rubbing-fill');
+
+      let canInteractAny = false;
+
+      activeDoors.forEach(d => {
+        const dist = Math.hypot(player.x - d.x, player.z - d.z);
+        if (dist <= 2.5) {
+          canInteractAny = true;
+          rubbingPrompt.innerText = d.isOpen ? `[E] CLOSE DOOR (${d.id})` : `[E] OPEN DOOR (${d.id})`;
+          rubbingPrompt.style.display = 'block';
+        }
+      });
+
+      if (!canInteractAny) {
+        activeBraziers.forEach(b => {
+          const dist = Math.hypot(player.x - b.x, player.z - b.z);
+          if (dist <= 2.0 && b.reserve > 0) {
+            canInteractAny = true;
+            rubbingPrompt.innerText = `[E] REFUEL CANDLE (+${b.reserve}%)`;
+            rubbingPrompt.style.display = 'block';
+          }
+        });
+      }
+
+      const cfg = NIGHTS[STATE.currentNightIndex];
+      if (STATE.nextSteleIndex < activeSteles.length) {
+        const targetStele = activeSteles[STATE.nextSteleIndex];
+        const distToStele = Math.hypot(player.x - targetStele.x, player.z - targetStele.z);
+
+        if (distToStele <= 1.5) {
+          canInteractAny = true;
+          rubbingPrompt.innerText = `HOLD [E] TO RUB ${targetStele.name}`;
+          rubbingPrompt.style.display = 'block';
+
+          if (STATE.eHeld) {
+            const targetYaw = Math.atan2(targetStele.x - player.x, targetStele.z - player.z);
+            player.yaw = targetYaw;
+            player.pitch = 0.05;
+
+            STATE.rubbingProgress += dt / 3.0;
+            rubbingBar.style.display = 'flex';
+            rubbingFill.style.width = `${Math.min(100, STATE.rubbingProgress * 100)}%`;
+
+            if (STATE.rubbingProgress >= 1.0) {
+              completeStele(STATE.nextSteleIndex);
+              STATE.rubbingProgress = 0;
+            }
+          } else {
+            STATE.rubbingProgress = 0;
+            rubbingBar.style.display = 'none';
+          }
+        } else {
+          rubbingBar.style.display = 'none';
+          STATE.rubbingProgress = 0;
+        }
+      } else {
+        rubbingBar.style.display = 'none';
+      }
+
+      if (!canInteractAny) {
+        rubbingPrompt.style.display = 'none';
+      }
+
+      const crosshair = document.getElementById('crosshair');
+      if (canInteractAny) crosshair.classList.add('active-interact');
+      else crosshair.classList.remove('active-interact');
+    }
+
+    function completeStele(index) {
+      activeSteles[index].completed = true;
+      activeSteles[index].lineMesh.material.color.setHex(0x2ecc71);
+      audio.playSteleComplete();
+
+      const badge = document.getElementById(`badge-${activeSteles[index].id}`);
+      if (badge) badge.className = 'stele-badge completed';
+
+      STATE.nextSteleIndex++;
+      if (STATE.nextSteleIndex < activeSteles.length) {
+        const nextBadge = document.getElementById(`badge-${activeSteles[STATE.nextSteleIndex].id}`);
+        if (nextBadge) nextBadge.className = 'stele-badge current';
+        document.getElementById('objective-text').innerText = `RUB STELE ${activeSteles[STATE.nextSteleIndex].name}`;
+      } else {
+        document.getElementById('objective-text').innerText = 'PROCEED TO EXIT PAD (SOUTH)';
+      }
+    }
+
+    function handleStatues(dt, drumStatus, activeVP) {
+      const isDark = (STATE.oil <= 0);
+      const eyeX = player.x;
+      const eyeZ = player.z;
+
+      const viewDirX = Math.sin(player.yaw);
+      const viewDirZ = Math.cos(player.yaw);
+      const viewMag = Math.hypot(viewDirX, viewDirZ);
+      const cosHalfAngle = Math.cos(32 * Math.PI / 180);
+
+      // Virtual viewpoint frustum parameters: half-angle 25 deg, range <= 15m
+      const cosVirtualHalfAngle = Math.cos(25 * Math.PI / 180); // approx 0.9063
+
+      activeStatues.forEach(st => {
+        if (st.freezeTimer > 0) {
+          st.freezeTimer = Math.max(0, st.freezeTimer - dt);
+          st.frozen = true;
+          st.freezeSource = 'strike';
+          st.velocity = 0;
+          return;
+        }
+
+        const toEyeX = eyeX - st.x;
+        const toEyeZ = eyeZ - st.z;
+        const dist = Math.hypot(toEyeX, toEyeZ);
+
+        let observedDirect = false;
+        let observedMirror = false;
+
+        // Direct gaze check (Shadow Guard K1 is completely immune to direct gaze!)
+        if (!isDark && dist <= 25.0 && st.type !== 'shadow') {
+          const dirStatueX = st.x - eyeX;
+          const dirStatueZ = st.z - eyeZ;
+          const dot = (viewDirX * dirStatueX + viewDirZ * dirStatueZ) / (viewMag * dist);
+
+          if (dot >= cosHalfAngle) {
+            if (hasLineOfSight(eyeX, eyeZ, st.x, st.z)) {
+              observedDirect = true;
+            }
+          }
+        }
+
+        // Virtual mirror gaze check (applies to ALL statues including Shadow Guard K1)
+        if (!isDark && activeVP !== null) {
+          const m = activeVP.mirror;
+          // Statue must be in front of the mirror (normal-facing side)
+          const dotMirrorFront = (st.x - m.x) * m.nx + (st.z - m.z) * m.nz;
+          if (dotMirrorFront >= 0) {
+            const toVpX = st.x - activeVP.x;
+            const toVpZ = st.z - activeVP.z;
+            const distVp = Math.hypot(toVpX, toVpZ);
+
+            if (distVp <= 15.0) {
+              const vpMag = Math.hypot(activeVP.dirX, activeVP.dirZ);
+              const dotVp = (activeVP.dirX * toVpX + activeVP.dirZ * toVpZ) / (vpMag * distVp);
+
+              if (dotVp >= cosVirtualHalfAngle) {
+                // Check LoS from virtual viewpoint to statue
+                if (hasLineOfSight(activeVP.x, activeVP.z, st.x, st.z)) {
+                  observedMirror = true;
+                }
+              }
+            }
+          }
+        }
+
+        const observed = (observedDirect || observedMirror);
+
+        if (st.type === 'civil') {
+          if (observed) {
+            st.reactionTimer = 0.4;
+            st.frozen = true;
+            st.freezeSource = 'gaze';
+            st.velocity = 0;
+          } else {
+            if (st.reactionTimer > 0) {
+              st.reactionTimer = Math.max(0, st.reactionTimer - dt);
+              st.frozen = true;
+              st.freezeSource = 'gaze';
+              st.velocity = 0;
+            } else {
+              st.frozen = false;
+              st.freezeSource = 'none';
+            }
+          }
+        } else {
+          st.frozen = observed;
+          st.freezeSource = observed ? 'gaze' : 'none';
+          if (st.frozen) st.velocity = 0;
+        }
+
+        if (!st.frozen) {
+          let drumMult = drumStatus.othersMultiplier;
+          if (st.type === 'general') drumMult = drumStatus.generalMultiplier;
+          else if (st.type === 'shadow') drumMult = drumStatus.shadowMultiplier;
+
+          let darkMult = 1.0;
+          if (isDark) {
+            darkMult = (st.type === 'general') ? 2.4 : 1.5;
+          }
+
+          const currentSpeed = st.baseSpeed * drumMult * darkMult;
+          st.velocity = currentSpeed;
+
+          const moveStep = currentSpeed * dt;
+          const stepX = (toEyeX / dist) * moveStep;
+          const stepZ = (toEyeZ / dist) * moveStep;
+
+          const nextX = st.x + stepX;
+          const nextZ = st.z + stepZ;
+
+          const hitCheck = statueHitsWallOrPillarOrDoor(nextX, nextZ, 0.45);
+          if (!hitCheck.blocked) {
+            st.x = nextX;
+            st.z = nextZ;
+          } else {
+            st.velocity = 0;
+            if (hitCheck.hitDoor) {
+              hitCheck.hitDoor.isHoldingStatue = true;
+            }
+          }
+
+          st.mesh.rotation.y = Math.atan2(toEyeX, toEyeZ);
+        }
+
+        st.mesh.position.set(st.x, 0, st.z);
+
+        // Touch trigger radius: 1.0m
+        const touchDist = Math.hypot(st.x - player.x, st.z - player.z);
+        if (touchDist < 1.0) {
+          if (STATE.strikeImmunityTimer <= 0) {
+            STATE.strikes++;
+            STATE.strikeImmunityTimer = 3.0;
+            audio.playStrike();
+            updateStrikeUI();
+
+            st.freezeTimer = st.strikeFreezeDuration;
+            st.frozen = true;
+            st.freezeSource = 'strike';
+            st.velocity = 0;
+
+            if (STATE.strikes >= 3) {
+              STATE.phase = 'caught';
+              audio.playFail();
+              document.exitPointerLock();
+              document.getElementById('caught-screen').style.display = 'flex';
+            }
+          }
+        }
+      });
+    }
+
+    function checkExitPad() {
+      const cfg = NIGHTS[STATE.currentNightIndex];
+      if (STATE.nextSteleIndex >= activeSteles.length) {
+        const dist = Math.hypot(player.x - cfg.exitPad.x, player.z - cfg.exitPad.z);
+        if (dist <= cfg.exitPad.r) {
+          completeNight();
+        }
+      }
+    }
+
+    function completeNight() {
+      STATE.phase = 'victory';
+      document.exitPointerLock();
+
+      const timePts = Math.max(0, Math.round(2400 - 10 * STATE.clock));
+      const oilBonus = Math.round(3 * STATE.oil);
+      const strikePenalty = -200 * STATE.strikes;
+      const totalScore = timePts + oilBonus + strikePenalty;
+
+      STATE.score = {
+        timePts: timePts,
+        oilBonus: oilBonus,
+        strikePenalty: strikePenalty,
+        total: totalScore
+      };
+
+      STATE.bankedScores[STATE.currentNightIndex] = totalScore;
+      STATE.bankedRecords[STATE.currentNightIndex] = {
+        night: STATE.currentNightIndex,
+        t: STATE.clock,
+        time: STATE.clock,
+        strikes: STATE.strikes,
+        oilLeft: STATE.oil,
+        oil: STATE.oil,
+        score: totalScore
+      };
+
+      const resultCard = document.getElementById('result-card');
+      const singleRows = document.getElementById('single-night-rows');
+      const vigilContainer = document.getElementById('vigil-log-container');
+      const actContainer = document.getElementById('victory-actions');
+      actContainer.innerHTML = '';
+
+      if (STATE.currentNightIndex < 3) {
+        if (resultCard) resultCard.classList.remove('vigil-log-mode');
+        singleRows.style.display = 'block';
+        if (vigilContainer) vigilContainer.style.display = 'none';
+
+        document.getElementById('res-time-val').innerText = STATE.clock.toFixed(1);
+        document.getElementById('res-time-pts').innerText = `+${timePts}`;
+        document.getElementById('res-oil-val').innerText = STATE.oil.toFixed(1);
+        document.getElementById('res-oil-pts').innerText = `+${oilBonus}`;
+        document.getElementById('res-strike-val').innerText = STATE.strikes;
+        document.getElementById('res-strike-pts').innerText = `${strikePenalty}`;
+        document.getElementById('res-total-pts').innerText = totalScore;
+
+        const nextNight = STATE.currentNightIndex + 1;
+        document.getElementById('victory-title').innerText = `NIGHT ${STATE.currentNightIndex} COMPLETE`;
+        actContainer.innerHTML = `
+          <button class="action-btn" onclick="advanceToNight(${nextNight})">[ENTER] CONTINUE TO NIGHT ${nextNight} &rarr;</button>
+          <button class="action-btn" onclick="retryCurrentNight()">REPLAY NIGHT ${STATE.currentNightIndex}</button>
+          <button class="action-btn" onclick="fullResetGame()">[R] RESET CAMPAIGN</button>
+        `;
+
+        const rows = ['row-time', 'row-oil', 'row-strikes', 'row-total'];
+        rows.forEach((rId, idx) => {
+          const el = document.getElementById(rId);
+          if (el) {
+            el.classList.remove('visible');
+            setTimeout(() => el.classList.add('visible'), 300 * (idx + 1));
+          }
+        });
+      } else {
+        // C9 The Vigil Log for completing the Three-Night Vigil!
+        if (resultCard) resultCard.classList.add('vigil-log-mode');
+        singleRows.style.display = 'none';
+        if (vigilContainer) vigilContainer.style.display = 'block';
+
+        const n1Rec = STATE.bankedRecords[1] || { t: 0, strikes: 0, oilLeft: 100, score: STATE.bankedScores[1] || 0 };
+        const n2Rec = STATE.bankedRecords[2] || { t: 0, strikes: 0, oilLeft: 100, score: STATE.bankedScores[2] || 0 };
+        const n3Rec = STATE.bankedRecords[3] || { t: STATE.clock, strikes: STATE.strikes, oilLeft: STATE.oil, score: totalScore };
+        const grandTotal = (n1Rec.score || 0) + (n2Rec.score || 0) + (n3Rec.score || 0);
+
+        let rating = 'C';
+        if (grandTotal >= 3000) rating = 'S';
+        else if (grandTotal >= 2600) rating = 'A';
+        else if (grandTotal >= 2000) rating = 'B';
+
+        document.getElementById('victory-title').innerText = 'THE VIGIL LOG';
+
+        // Night 1 Card values
+        document.getElementById('vigil-n1-time').innerText = `${n1Rec.t.toFixed(1)}s`;
+        document.getElementById('vigil-n1-strikes').innerText = n1Rec.strikes;
+        document.getElementById('vigil-n1-oil').innerText = `${n1Rec.oilLeft.toFixed(1)}%`;
+        document.getElementById('vigil-n1-score').innerText = `${n1Rec.score} PTS`;
+
+        // Night 2 Card values
+        document.getElementById('vigil-n2-time').innerText = `${n2Rec.t.toFixed(1)}s`;
+        document.getElementById('vigil-n2-strikes').innerText = n2Rec.strikes;
+        document.getElementById('vigil-n2-oil').innerText = `${n2Rec.oilLeft.toFixed(1)}%`;
+        document.getElementById('vigil-n2-score').innerText = `${n2Rec.score} PTS`;
+
+        // Night 3 Card values
+        document.getElementById('vigil-n3-time').innerText = `${n3Rec.t.toFixed(1)}s`;
+        document.getElementById('vigil-n3-strikes').innerText = n3Rec.strikes;
+        document.getElementById('vigil-n3-oil').innerText = `${n3Rec.oilLeft.toFixed(1)}%`;
+        document.getElementById('vigil-n3-score').innerText = `${n3Rec.score} PTS`;
+
+        // Summary values
+        document.getElementById('vigil-grand-score').innerText = `${grandTotal} PTS`;
+        const ratingEl = document.getElementById('vigil-rating-val');
+        if (ratingEl) {
+          ratingEl.innerText = rating;
+          ratingEl.className = `vigil-rating-val rating-${rating}`;
+        }
+
+        // Compatibility legacy elements
+        const t1 = document.getElementById('tot-n1-pts'); if (t1) t1.innerText = `${n1Rec.score} PTS`;
+        const t2 = document.getElementById('tot-n2-pts'); if (t2) t2.innerText = `${n2Rec.score} PTS`;
+        const t3 = document.getElementById('tot-n3-pts'); if (t3) t3.innerText = `${n3Rec.score} PTS`;
+        const tg = document.getElementById('tot-grand-pts'); if (tg) tg.innerText = `${grandTotal} PTS`;
+
+        actContainer.innerHTML = `
+          <button class="action-btn" onclick="retryCurrentNight()">REPLAY NIGHT 3</button>
+          <button class="action-btn" onclick="fullResetGame()">[ENTER / R] RETURN TO MAIN MENU</button>
+        `;
+
+        const cards = ['vigil-card-1', 'vigil-card-2', 'vigil-card-3', 'vigil-summary-block'];
+        cards.forEach((cId, idx) => {
+          const el = document.getElementById(cId);
+          if (el) {
+            el.classList.remove('visible');
+            setTimeout(() => el.classList.add('visible'), 200 * (idx + 1));
+          }
+        });
+      }
+
+      document.getElementById('victory-screen').style.display = 'flex';
+      audio.playSteleComplete();
+      exportArenaState();
+    }
+
+    function updateStrikeUI() {
+      for (let i = 1; i <= 3; i++) {
+        const dot = document.getElementById(`strike-${i}`);
+        if (i <= STATE.strikes) dot.classList.add('filled');
+        else dot.classList.remove('filled');
+      }
+    }
+
+    function updateUI() {
+      document.getElementById('oil-text').innerText = `${Math.ceil(STATE.oil)}%`;
+      document.getElementById('oil-bar').style.width = `${Math.max(0, STATE.oil)}%`;
+      document.getElementById('clock-text').innerText = `${STATE.clock.toFixed(1)}s`;
+
+      document.getElementById('wind-alert').style.display = STATE.inWindCorridor ? 'block' : 'none';
+      document.getElementById('drum-alert').style.display = STATE.drumActive ? 'block' : 'none';
+      document.getElementById('darkness-alert').style.display = STATE.darknessSurge ? 'block' : 'none';
+      document.getElementById('mirror-alert').style.display = STATE.mirrorActive ? 'block' : 'none';
+    }
+
+    function exportArenaState(activeVP) {
+      window.__arena_state.night = STATE.currentNightIndex;
+      window.__arena_state.currentNightIndex = STATE.currentNightIndex;
+      window.__arena_state.phase = STATE.phase;
+      window.__arena_state.nightClock = STATE.clock;
+      window.__arena_state.oil = STATE.oil;
+      window.__arena_state.strikes = STATE.strikes;
+      window.__arena_state.rubbingProgress = STATE.rubbingProgress;
+      window.__arena_state.nextSteleIndex = STATE.nextSteleIndex;
+      window.__arena_state.currentStele = STATE.nextSteleIndex < activeSteles.length ? (STATE.nextSteleIndex + 1) : null;
+      window.__arena_state.inWindCorridor = STATE.inWindCorridor;
+      window.__arena_state.drumActive = STATE.drumActive;
+      window.__arena_state.score = Object.assign({}, STATE.score);
+
+      // C9 Vigil Log state calculation
+      const logRows = [1, 2, 3].map(nightNum => {
+        const rec = STATE.bankedRecords[nightNum];
+        if (rec) {
+          return {
+            night: nightNum,
+            t: rec.t,
+            time: rec.t,
+            strikes: rec.strikes,
+            oilLeft: rec.oilLeft,
+            oil: rec.oilLeft,
+            score: rec.score
+          };
+        }
+        return null;
+      }).filter(Boolean);
+
+      let campaignTotal = 0;
+      logRows.forEach(r => { campaignTotal += r.score; });
+
+      let campaignRating = null;
+      if (logRows.length === 3 || (STATE.phase === 'victory' && STATE.currentNightIndex === 3)) {
+        if (campaignTotal >= 3000) campaignRating = 'S';
+        else if (campaignTotal >= 2600) campaignRating = 'A';
+        else if (campaignTotal >= 2000) campaignRating = 'B';
+        else campaignRating = 'C';
+      }
+
+      window.__arena_state.vigilLog = logRows;
+      window.__arena_state.vigilLogRows = logRows;
+      window.__arena_state.campaignTotal = campaignTotal;
+      window.__arena_state.rating = campaignRating;
+
+      window.__arena_state.campaignProgress = {
+        currentNight: STATE.currentNightIndex,
+        bankedScores: Object.assign({}, STATE.bankedScores),
+        bankedRecords: Object.assign({}, STATE.bankedRecords),
+        vigilLog: logRows,
+        campaignTotal: campaignTotal,
+        rating: campaignRating
+      };
+
+      const isDark = (STATE.oil <= 0);
+      window.__arena_state.darknessMultipliers = {
+        soldier: isDark ? 1.5 : 1.0,
+        general: isDark ? 2.4 : 1.0,
+        civil: isDark ? 1.5 : 1.0,
+        shadow: isDark ? 1.5 : 1.0
+      };
+
+      // C8: Mirrors & Virtual Viewpoint
+      window.__arena_state.mirrors = activeMirrors.map(m => ({
+        id: m.id,
+        active: m.active,
+        normal: { x: m.nx, z: m.nz }
+      }));
+
+      window.__arena_state.virtualViewpoint = activeVP ? {
+        inUse: true,
+        mirrorId: activeVP.mirrorId,
+        x: activeVP.x,
+        y: activeVP.y,
+        z: activeVP.z,
+        dirX: activeVP.dirX,
+        dirZ: activeVP.dirZ
+      } : null;
+
+      // C8: Shadow guard state
+      const sg = activeStatues.find(st => st.type === 'shadow');
+      window.__arena_state.shadowGuard = sg ? {
+        id: sg.id,
+        position: { x: sg.x, y: 0, z: sg.z },
+        frozen: sg.frozen,
+        velocity: sg.velocity
+      } : null;
+
+      window.__arena_state.doors = activeDoors.map(d => ({
+        id: d.id,
+        state: d.isOpen ? 'open' : 'closed',
+        openRatio: d.openRatio,
+        autoOpenTimer: d.autoOpenTimer
+      }));
+
+      window.__arena_state.braziers = activeBraziers.map(b => ({
+        id: b.id,
+        reserve: b.reserve
+      }));
+
+      window.__arena_state.statues = activeStatues.map(st => ({
+        id: st.id,
+        type: st.type,
+        position: { x: st.x, y: 0, z: st.z },
+        frozen: st.frozen,
+        freezeSource: st.freezeSource,
+        freezeTimer: st.freezeTimer,
+        remainingFreezeTime: st.freezeTimer,
+        velocity: st.velocity
+      }));
+    }
+
+    function render() {
+      camera.position.set(player.x, player.y, player.z);
+      camera.rotation.order = 'YXZ';
+      camera.rotation.y = player.yaw;
+      camera.rotation.x = player.pitch;
+
+      candleLight.position.set(
+        player.x + Math.sin(player.yaw) * 0.28,
+        player.y - 0.08,
+        player.z + Math.cos(player.yaw) * 0.28
+      );
+      candleGroup.position.copy(camera.position);
+      candleGroup.rotation.copy(camera.rotation);
+
+      if (dustPoints && dustPositions) {
+        const positions = dustPoints.geometry.attributes.position.array;
+        const cfg = NIGHTS[STATE.currentNightIndex];
+        const halfDepth = cfg.depth / 2;
+        for (let i = 0; i < dustCount; i++) {
+          positions[i*3+1] += 0.006;
+          positions[i*3+2] += 0.012;
+          if (positions[i*3+1] > 5.5) positions[i*3+1] = 0.3;
+          if (positions[i*3+2] > halfDepth - 1) positions[i*3+2] = -halfDepth + 1;
+        }
+        dustPoints.geometry.attributes.position.needsUpdate = true;
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    buildHall(1);
+    exportArenaState(null);
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

@@ -1,0 +1,3163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ICEBOUND TIP-UPS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body, html { width: 100%; height: 100%; overflow: hidden; background: #0c141f; font-family: 'Courier New', Courier, monospace; color: #eaf6ff; }
+    #canvas-container { width: 100%; height: 100%; position: absolute; left: 0; top: 0; }
+    
+    /* Overlay Title Card */
+    #title-card {
+      position: absolute; inset: 0;
+      background: radial-gradient(circle at center, rgba(16, 28, 44, 0.94) 0%, rgba(6, 12, 20, 0.98) 100%);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 100; text-align: center; padding: 20px;
+    }
+    #title-card h1 {
+      font-size: 52px; letter-spacing: 8px; color: #aee2ff;
+      text-shadow: 0 0 24px rgba(120, 200, 255, 0.7), 0 4px 10px rgba(0,0,0,0.8);
+      margin-bottom: 8px; font-weight: 900;
+    }
+    #title-card h2 {
+      font-size: 16px; letter-spacing: 4px; color: #7ab3d6; margin-bottom: 24px; text-transform: uppercase;
+    }
+    .instruction-box {
+      background: rgba(14, 28, 45, 0.85); border: 1px solid #32587a;
+      border-radius: 6px; padding: 18px 26px; max-width: 660px; margin-bottom: 24px;
+      line-height: 1.7; font-size: 13px; color: #b9d8ee; text-align: left;
+    }
+    .instruction-box kbd {
+      background: #1c3652; border: 1px solid #4a7a9e; border-radius: 3px;
+      padding: 2px 6px; color: #fff; font-weight: bold; font-size: 12px;
+    }
+    #start-btn {
+      padding: 12px 36px; font-size: 18px; letter-spacing: 3px; font-weight: bold;
+      background: #1e6292; color: #ffffff; border: 2px solid #5ab8f0; border-radius: 4px;
+      cursor: pointer; text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+      box-shadow: 0 0 18px rgba(30, 140, 220, 0.5); transition: all 0.2s;
+    }
+    #start-btn:hover { background: #297ab3; border-color: #8be0ff; box-shadow: 0 0 25px rgba(50, 170, 255, 0.8); }
+
+    /* HUD */
+    #hud {
+      position: absolute; inset: 0; pointer-events: none; z-index: 10;
+      display: flex; flex-direction: column; justify-content: space-between; padding: 16px;
+    }
+    .hud-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .hud-card {
+      background: rgba(10, 22, 35, 0.86); border: 1px solid #284b68;
+      border-radius: 4px; padding: 10px 14px; backdrop-filter: blur(4px);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    }
+    .hud-title { font-size: 10px; letter-spacing: 2px; color: #6e99b8; margin-bottom: 4px; text-transform: uppercase; }
+    .hud-val { font-size: 18px; font-weight: bold; color: #dff0fc; }
+    
+    .phase-chip {
+      display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 12px;
+      font-weight: bold; letter-spacing: 1px; margin-left: 6px;
+    }
+    .phase-DAWN { background: #824b28; color: #ffd1a4; border: 1px solid #c97d49; }
+    .phase-NOON { background: #23587a; color: #a7e0ff; border: 1px solid #4390c2; }
+    .phase-DUSK { background: #583158; color: #f6b6f6; border: 1px solid #945394; }
+
+    /* Three Tip-Up Status Panel */
+    #tipups-container { display: flex; gap: 8px; }
+    .tipup-card {
+      min-width: 140px; background: rgba(12, 25, 40, 0.88); border: 1px solid #2b4f70;
+      border-radius: 4px; padding: 8px 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    }
+    .tipup-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .tipup-color-tag {
+      font-size: 10px; font-weight: bold; letter-spacing: 1px; padding: 1px 5px; border-radius: 2px;
+    }
+    .tag-red { background: #7a1c1c; color: #ffb4b4; border: 1px solid #d43b3b; }
+    .tag-blue { background: #1c4b7a; color: #b4d8ff; border: 1px solid #3b8cd4; }
+    .tag-yellow { background: #7a6a1c; color: #fff3b4; border: 1px solid #d4b83b; }
+
+    .status-badge {
+      display: inline-block; padding: 1px 5px; border-radius: 2px; font-size: 9px; font-weight: bold;
+    }
+    .status-SET { background: #1c4b27; color: #7aee94; border: 1px solid #2e7a40; }
+    .status-BITE { background: #871c1c; color: #ff9191; border: 1px solid #d43b3b; animation: flash-bite 0.6s infinite alternate; }
+    .status-OFF { background: #3a3a3a; color: #a0a0a0; border: 1px solid #666; }
+    @keyframes flash-bite { 0% { opacity: 0.7; transform: scale(0.96); } 100% { opacity: 1; transform: scale(1.04); } }
+
+    .bar-wrap { width: 100%; height: 6px; background: #132433; border: 1px solid #26435c; border-radius: 3px; overflow: hidden; margin-top: 4px; }
+    .bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #3aa354, #d4b53b, #d43b3b); transition: width 0.05s ease-out; }
+
+    /* Sonar Panel */
+    #sonar-panel { min-width: 230px; }
+    .sonar-readings { display: flex; gap: 6px; margin-top: 4px; font-size: 11px; }
+    .sonar-layer { flex: 1; padding: 4px 6px; border-radius: 3px; background: rgba(14, 28, 45, 0.9); border: 1px solid #233e57; text-align: center; }
+    .sonar-val { font-weight: bold; margin-top: 2px; }
+    .val-HIGH { color: #52ff8f; }
+    .val-MED { color: #ffe359; }
+    .val-LOW { color: #ff9a47; }
+    .val-NONE { color: #6b8699; }
+
+    /* Center Notifications */
+    .center-notify {
+      position: absolute; left: 50%; top: 22%; transform: translate(-50%, -50%);
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+    }
+    #bite-alert {
+      font-size: 50px; font-weight: 900; color: #ff3838; letter-spacing: 8px;
+      text-shadow: 0 0 30px #ff0000, 0 0 10px #ffffff; display: none;
+      animation: alert-pulse 0.4s infinite alternate;
+    }
+    @keyframes alert-pulse { 0% { transform: scale(1); } 100% { transform: scale(1.1); } }
+    
+    #catch-banner {
+      font-size: 24px; font-weight: 800; color: #ffec85; letter-spacing: 3px;
+      background: rgba(12, 28, 48, 0.95); border: 2px solid #e0be3a;
+      border-radius: 6px; padding: 12px 26px; box-shadow: 0 0 26px rgba(230, 195, 60, 0.6);
+      display: none; text-align: center;
+    }
+    #catch-banner .sub { font-size: 12px; color: #a4c9e6; margin-top: 4px; letter-spacing: 1px; }
+
+    /* Cold Front Banner (Round 6) */
+    #cold-front-banner {
+      display: none; text-align: center;
+      background: rgba(10, 32, 54, 0.94); border: 2px solid #57c4f5;
+      border-radius: 6px; padding: 10px 24px; box-shadow: 0 0 24px rgba(87, 196, 245, 0.6);
+      animation: front-pulse 1.2s infinite alternate;
+    }
+    @keyframes front-pulse {
+      0% { box-shadow: 0 0 16px rgba(87, 196, 245, 0.4); transform: scale(1); }
+      100% { box-shadow: 0 0 28px rgba(87, 196, 245, 0.85); transform: scale(1.02); }
+    }
+    .cold-front-title {
+      font-size: 22px; font-weight: 900; color: #bdf0ff; letter-spacing: 3px;
+    }
+    .cold-front-sub {
+      font-size: 11px; color: #7ec7ea; margin-top: 3px; letter-spacing: 1.5px; font-weight: bold;
+    }
+
+    /* Snow Squall Banner (Round 8) */
+    #squall-banner {
+      display: none; text-align: center;
+      background: rgba(30, 48, 70, 0.94); border: 2px solid #e0f2fe;
+      border-radius: 6px; padding: 10px 24px; box-shadow: 0 0 28px rgba(224, 242, 254, 0.7);
+      animation: squall-pulse 1.0s infinite alternate;
+    }
+    @keyframes squall-pulse {
+      0% { box-shadow: 0 0 16px rgba(224, 242, 254, 0.5); transform: scale(1); }
+      100% { box-shadow: 0 0 32px rgba(224, 242, 254, 0.95); transform: scale(1.02); }
+    }
+    .squall-title {
+      font-size: 22px; font-weight: 900; color: #ffffff; letter-spacing: 3px;
+    }
+    .squall-sub {
+      font-size: 11px; color: #bae6fd; margin-top: 3px; letter-spacing: 1.5px; font-weight: bold;
+    }
+
+    /* Slip Alert (Round 8) */
+    #slip-alert {
+      font-size: 52px; font-weight: 900; color: #38bdf8; letter-spacing: 8px;
+      text-shadow: 0 0 30px #0284c7, 0 0 10px #ffffff; display: none;
+      animation: alert-pulse 0.3s infinite alternate;
+    }
+
+    /* Fight Overlay Panel */
+    #fight-overlay {
+      position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%);
+      width: 440px; background: rgba(10, 24, 38, 0.94); border: 2px solid #4a8bb8;
+      border-radius: 6px; padding: 14px 20px; box-shadow: 0 0 30px rgba(0, 50, 100, 0.8);
+      display: none; flex-direction: column; gap: 8px; pointer-events: none; z-index: 40;
+    }
+    .fight-header { display: flex; justify-content: space-between; align-items: center; }
+    .fight-species { font-size: 15px; font-weight: 900; color: #ffeb99; letter-spacing: 2px; }
+    .fight-phase-chip { padding: 3px 10px; border-radius: 3px; font-size: 13px; font-weight: 900; letter-spacing: 2px; }
+    .fight-phase-RUN { background: #a62424; color: #ffcfcf; border: 1px solid #ff4d4d; animation: run-pulse 0.4s infinite alternate; }
+    .fight-phase-REST { background: #206e3d; color: #c4ffd8; border: 1px solid #4ade80; }
+    @keyframes run-pulse { 0% { transform: scale(0.97); } 100% { transform: scale(1.03); } }
+
+    .fight-bar-label { display: flex; justify-content: space-between; font-size: 11px; color: #8bb1cb; margin-top: 2px; }
+    .tension-bar-wrap { width: 100%; height: 16px; background: #0c1a26; border: 1px solid #2d5577; border-radius: 4px; overflow: hidden; position: relative; }
+    .tension-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #3aa354 0%, #3aa354 50%, #d4b53b 70%, #d43b3b 75%, #ff1111 100%); transition: width 0.05s linear; }
+    .tension-marker-70 { position: absolute; left: 70%; top: 0; bottom: 0; width: 2px; background: #ffaa33; }
+    .tension-marker-75 { position: absolute; left: 75%; top: 0; bottom: 0; width: 2px; background: #ff3333; }
+    .tension-marker-80 { position: absolute; left: 75%; top: 0; bottom: 0; width: 2px; background: #ff3333; }
+    
+    .lineout-bar-wrap { width: 100%; height: 10px; background: #0c1a26; border: 1px solid #2d5577; border-radius: 3px; overflow: hidden; margin-top: 2px; }
+    .lineout-bar-fill { height: 100%; width: 32%; background: #4ca3ff; }
+
+    .fight-footer { display: flex; justify-content: space-between; font-size: 11px; color: #a0c4de; margin-top: 4px; }
+
+    /* Landing Modal Panel (Round 7) */
+    #landing-panel {
+      position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%);
+      width: 420px; background: rgba(8, 22, 38, 0.96); border: 2px solid #57c4f5;
+      border-radius: 8px; padding: 18px 24px; box-shadow: 0 0 35px rgba(0, 50, 100, 0.9);
+      display: none; flex-direction: column; gap: 10px; z-index: 45; text-align: center;
+    }
+    .landing-title { font-size: 13px; font-weight: bold; color: #7bb5dc; letter-spacing: 2px; text-transform: uppercase; }
+    .landing-species-name { font-size: 24px; font-weight: 900; color: #ffeb99; letter-spacing: 3px; }
+    .landing-metrics { display: flex; justify-content: space-around; margin: 8px 0; background: rgba(12, 28, 48, 0.8); border: 1px solid #234668; border-radius: 4px; padding: 8px; }
+    .metric-box { display: flex; flex-direction: column; align-items: center; }
+    .metric-label { font-size: 10px; color: #7ba3c2; letter-spacing: 1px; }
+    .metric-val { font-size: 16px; font-weight: bold; color: #eaf6ff; margin-top: 2px; }
+    .landing-legal-chip { display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 12px; font-weight: 900; letter-spacing: 1.5px; margin: 4px auto; }
+    .legal-yes { background: #165e34; color: #c3ffd8; border: 1px solid #38d472; }
+    .legal-no { background: #6b1d1d; color: #ffcfcf; border: 1px solid #ff4d4d; }
+    .landing-keys { display: flex; justify-content: center; gap: 14px; margin-top: 8px; }
+    .landing-btn {
+      padding: 8px 16px; border-radius: 4px; font-size: 12px; font-weight: bold;
+      letter-spacing: 1.5px; cursor: pointer; border: 1px solid transparent; font-family: inherit;
+    }
+    .btn-tag { background: #257850; color: #e6fff0; border-color: #4ade80; }
+    .btn-tag:hover { background: #2f9463; }
+    .btn-release { background: #3b5266; color: #d6eaff; border-color: #6385a3; }
+    .btn-release:hover { background: #4b6882; }
+    .landing-alert-box {
+      font-size: 14px; font-weight: 900; color: #ff4d4d; letter-spacing: 2px;
+      margin-top: 6px; min-height: 18px; display: none;
+    }
+
+    /* Tag Board HUD (Round 7) */
+    #tag-board {
+      margin-top: 8px; min-width: 210px;
+    }
+    .tag-board-grid {
+      display: flex; flex-direction: column; gap: 4px; margin-top: 6px;
+    }
+    .tag-board-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; padding: 3px 6px; border-radius: 3px;
+      background: rgba(14, 28, 45, 0.7); border: 1px solid #1e3b56;
+    }
+    .tag-pips { display: flex; gap: 4px; align-items: center; }
+    .tag-pip { width: 8px; height: 8px; border-radius: 50%; border: 1px solid #4a7596; background: transparent; }
+    .tag-pip.filled { background: #ffcc00; border-color: #ffe680; box-shadow: 0 0 6px rgba(255, 204, 0, 0.7); }
+    .tag-count-text { font-weight: bold; min-width: 24px; text-align: right; }
+    .tag-count-full { color: #52ff8f; }
+
+    #drill-progress-wrap {
+      position: absolute; left: 50%; top: 65%; transform: translate(-50%, -50%);
+      display: none; flex-direction: column; align-items: center;
+    }
+    #drill-ring {
+      width: 54px; height: 54px; border-radius: 50%; border: 4px solid rgba(100, 180, 240, 0.2);
+      border-top-color: #55c3ff; animation: spin-ring 0.8s linear infinite;
+    }
+    @keyframes spin-ring { 100% { transform: rotate(360deg); } }
+    #drill-text { font-size: 12px; font-weight: bold; color: #bde4ff; margin-top: 8px; letter-spacing: 2px; }
+
+    /* Action Prompt */
+    #prompt-toast {
+      position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: rgba(8, 20, 32, 0.9); border: 1px solid #3c658a;
+      border-radius: 4px; padding: 8px 18px; font-size: 13px; color: #d0e8fa;
+      letter-spacing: 1px; display: none; text-align: center;
+    }
+    #prompt-toast kbd { background: #1c3d5e; padding: 2px 5px; border-radius: 3px; font-weight: bold; color: #fff; }
+
+    /* Season Screen Modal (Round 10) */
+    #season-screen {
+      position: absolute; inset: 0; background: rgba(4, 10, 18, 0.88);
+      z-index: 55; display: none; align-items: center; justify-content: center;
+      backdrop-filter: blur(5px);
+    }
+    .season-card {
+      width: 480px; background: #0a1726; border: 2px solid #38bdf8;
+      border-radius: 8px; padding: 22px; box-shadow: 0 0 45px rgba(2, 132, 199, 0.6);
+      display: flex; flex-direction: column; gap: 14px; text-align: center;
+    }
+    .season-title { font-size: 20px; font-weight: 900; color: #e0f2fe; letter-spacing: 3px; }
+    .season-sub { font-size: 11px; color: #7dd3fc; letter-spacing: 1.5px; }
+    .season-rating-wrap {
+      display: flex; align-items: center; justify-content: center; gap: 20px;
+      background: rgba(12, 28, 48, 0.85); border: 1px solid #1e40af; border-radius: 6px; padding: 12px;
+    }
+    .rating-badge {
+      width: 54px; height: 54px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 30px; font-weight: 900; box-shadow: 0 0 20px currentColor;
+    }
+    .rating-S { background: #3b2a00; color: #facc15; border: 2px solid #facc15; }
+    .rating-A { background: #063d27; color: #4ade80; border: 2px solid #4ade80; }
+    .rating-B { background: #0c3559; color: #38bdf8; border: 2px solid #38bdf8; }
+    .rating-C { background: #451212; color: #f87171; border: 2px solid #f87171; }
+    .season-score-box { display: flex; flex-direction: column; align-items: flex-start; }
+    .score-label { font-size: 10px; color: #94a3b8; letter-spacing: 1.5px; }
+    .score-num { font-size: 30px; font-weight: 900; color: #ffffff; letter-spacing: 2px; }
+    .season-breakdown {
+      display: flex; flex-direction: column; gap: 6px; text-align: left;
+      background: rgba(15, 23, 42, 0.7); border: 1px solid #1e293b; border-radius: 4px; padding: 12px;
+    }
+    .breakdown-row { display: flex; justify-content: space-between; font-size: 12px; }
+    .row-label { color: #cbd5e1; flex: 2; }
+    .row-calc { color: #94a3b8; flex: 1; text-align: right; }
+    .row-val { font-weight: bold; width: 60px; text-align: right; }
+    .row-positive .row-val { color: #4ade80; }
+    .row-negative .row-val { color: #f87171; }
+    .season-scale {
+      display: flex; justify-content: space-around; font-size: 11px; color: #94a3b8;
+      border-top: 1px solid #1e293b; padding-top: 10px;
+    }
+    .season-footer {
+      display: flex; justify-content: space-between; font-size: 11px; color: #64748b; margin-top: 4px;
+    }
+    .season-footer kbd { background: #1e293b; color: #e2e8f0; padding: 2px 6px; border-radius: 3px; font-weight: bold; }
+
+    /* Fast-forward tag */
+    #ff-tag {
+      position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+      background: rgba(220, 40, 40, 0.9); color: white; padding: 4px 12px;
+      border-radius: 3px; font-weight: bold; font-size: 12px; letter-spacing: 2px;
+      display: none; z-index: 20; box-shadow: 0 0 12px rgba(255, 60, 60, 0.7);
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="ff-tag">FAST FORWARD 12×</div>
+
+  <!-- Title Card -->
+  <div id="title-card">
+    <h1>ICEBOUND TIP-UPS</h1>
+    <h2>Frozen Lake Angling Simulation — Round 10: The Ice Season Score</h2>
+    <div class="instruction-box">
+      <p><strong>CONTROLS & SIMULATION MECHANICS:</strong></p>
+      <p><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> : Walk Lake (2.5 u/s camera-relative)</p>
+      <p><kbd>E</kbd> : Drill Hole (4s on open ice) | Hold 1s at tip-up: Retrieve to sled</p>
+      <p><kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd> : Deploy Tip-Up #1 (Red) / #2 (Blue) / #3 (Yellow) over hole within 1.5u</p>
+      <p><kbd>←</kbd> / <kbd>→</kbd> (Beside tip-up) : Set Depth (<span style="color:#7ee">SHALLOW</span> / <span style="color:#fe7">MID</span> / <span style="color:#f7a">DEEP</span>)</p>
+      <p><kbd>Space</kbd> (Beside biting hole) : <strong>SET HOOK & ENTER FIGHT</strong> (12s response window!)</p>
+      <p><strong>FIGHT:</strong> Instant snap at 75 tension! Max 2 excursions over 70.</p>
+      <p><strong>ON LANDING:</strong> <kbd>Enter</kbd> TAG (legal length only, max 2) | <kbd>Q</kbd> RELEASE</p>
+      <p><strong>CRACK SEAMS:</strong> 1.2u slip bands (West & East). Stepping in triggers 2s skate at 3 u/s!</p>
+      <p><strong>SNOW SQUALLS:</strong> t=250–310s, then every 300s (60s duration). Fog collapses to 18u.</p>
+      <p><kbd>Tab</kbd> : Season Score & Rating | <kbd>F</kbd> : Push Sonar (5u scan) | <kbd>C</kbd> : Camera | <kbd>T</kbd> : 12× Fast Forward | <kbd>R</kbd> : Reset</p>
+    </div>
+    <button id="start-btn">STEP ONTO ICE [ENTER]</button>
+  </div>
+
+  <!-- Landing / Tagging Panel (Round 7) -->
+  <div id="landing-panel">
+    <div class="landing-title">CATCH LANDED</div>
+    <div class="landing-species-name" id="landing-species">YELLOW PERCH</div>
+    <div class="landing-metrics">
+      <div class="metric-box">
+        <span class="metric-label">LENGTH</span>
+        <span class="metric-val" id="landing-length">0.85m</span>
+      </div>
+      <div class="metric-box">
+        <span class="metric-label">THRESHOLD</span>
+        <span class="metric-val" id="landing-threshold">0.70m</span>
+      </div>
+    </div>
+    <div id="landing-status-badge" class="landing-legal-chip legal-yes">LEGAL SIZE</div>
+    <div class="landing-keys">
+      <button class="landing-btn btn-tag" id="btn-tag"><kbd>Enter</kbd> TAG FISH</button>
+      <button class="landing-btn btn-release" id="btn-release"><kbd>Q</kbd> RELEASE</button>
+    </div>
+    <div class="landing-alert-box" id="landing-alert"></div>
+  </div>
+
+  <!-- Season Screen Modal (Round 10) -->
+  <div id="season-screen">
+    <div class="season-card">
+      <div class="season-header">
+        <div class="season-title">ICE SEASON REPORT</div>
+        <div class="season-sub">LAKE ANGLER PERFORMANCE EVALUATION</div>
+      </div>
+      <div class="season-rating-wrap">
+        <div class="rating-badge rating-C" id="season-rating-badge">C</div>
+        <div class="season-score-box">
+          <span class="score-label">TOTAL SEASON SCORE</span>
+          <span class="score-num" id="season-total-score">0</span>
+        </div>
+      </div>
+      <div class="season-breakdown">
+        <div class="breakdown-row row-positive">
+          <span class="row-label">Legal Tags (max 12):</span>
+          <span class="row-calc" id="row-tags-calc">0 × 80</span>
+          <span class="row-val" id="row-tags-val">+0</span>
+        </div>
+        <div class="breakdown-row row-positive">
+          <span class="row-label">Species Awards (max 6):</span>
+          <span class="row-calc" id="row-awards-calc">0 × 60</span>
+          <span class="row-val" id="row-awards-val">+0</span>
+        </div>
+        <div class="breakdown-row row-negative">
+          <span class="row-label">Escapes (missed & shed):</span>
+          <span class="row-calc" id="row-escapes-calc">0 × 15</span>
+          <span class="row-val" id="row-escapes-val">-0</span>
+        </div>
+        <div class="breakdown-row row-negative">
+          <span class="row-label">Snapped Lines (tension breaks):</span>
+          <span class="row-calc" id="row-snaps-calc">0 × 25</span>
+          <span class="row-val" id="row-snaps-val">-0</span>
+        </div>
+      </div>
+      <div class="season-scale">
+        <span class="scale-item"><strong>S</strong> ≥ 950</span>
+        <span class="scale-item"><strong>A</strong> ≥ 800</span>
+        <span class="scale-item"><strong>B</strong> ≥ 650</span>
+        <span class="scale-item"><strong>C</strong> &lt; 650</span>
+      </div>
+      <div class="season-footer">
+        <span><kbd>Tab</kbd> Close Screen</span>
+        <span><kbd>R</kbd> Master Reset</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-top">
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <div class="hud-card" id="clock-card">
+          <div class="hud-title">LAKE TIME</div>
+          <div class="hud-val">
+            <span id="hud-clock">00:00</span>
+            <span id="hud-phase" class="phase-chip phase-DAWN">DAWN</span>
+            <span id="hud-phase-mult" style="font-size:11px; color:#95c6ea; font-weight:bold; margin-left:4px;">×1.5</span>
+          </div>
+          <div style="font-size:10px; color:#5b82a0; margin-top:4px;">EPOCH <span id="hud-epoch">e0</span> (NEXT: <span id="hud-epoch-timer">100s</span>)</div>
+        </div>
+
+        <div class="hud-card" id="tag-board">
+          <div class="hud-title" style="display:flex; justify-content:space-between;">
+            <span>CREEL TAGS</span>
+            <span style="font-size:9px; color:#6fa0c2;">MAX 2/SPECIES</span>
+          </div>
+          <div class="tag-board-grid" id="tag-board-grid"></div>
+        </div>
+      </div>
+
+      <div class="center-notify">
+        <div id="squall-banner">
+          <div class="squall-title">SNOW SQUALL — <span id="squall-timer">60.0</span>s</div>
+          <div class="squall-sub">VISIBILITY COLLAPSED TO 18u</div>
+        </div>
+        <div id="cold-front-banner">
+          <div class="cold-front-title">COLD FRONT — <span id="cold-front-timer">90.0</span>s</div>
+          <div class="cold-front-sub">LAKE ACTIVITY ×0.6 &bull; BLIZZARD GALE</div>
+        </div>
+        <div id="slip-alert">SLIP!</div>
+        <div id="bite-alert">BITE!</div>
+        <div id="catch-banner">
+          <div id="catch-text">YELLOW PERCH — 0.85</div>
+          <div class="sub" id="catch-sub">FISH LANDED SUCCESSFULLY</div>
+        </div>
+      </div>
+
+      <!-- Three Tip-Up Status Chips -->
+      <div id="tipups-container">
+        <!-- Tip-Up #1 (Red) -->
+        <div class="tipup-card" id="card-tipup-0">
+          <div class="tipup-header">
+            <span class="tipup-color-tag tag-red">#1 RED</span>
+            <span class="status-badge status-OFF" id="badge-tipup-0">OFF</span>
+          </div>
+          <div style="font-size:11px; font-weight:bold;" id="depth-tipup-0">SHALLOW 2m</div>
+          <div class="bar-wrap">
+            <div class="bar-fill" id="attract-bar-0"></div>
+          </div>
+          <div class="bar-wrap" style="margin-top:3px;">
+            <div class="bar-fill" id="tension-bar-0" style="background:#e64c4c;"></div>
+          </div>
+        </div>
+
+        <!-- Tip-Up #2 (Blue) -->
+        <div class="tipup-card" id="card-tipup-1">
+          <div class="tipup-header">
+            <span class="tipup-color-tag tag-blue">#2 BLUE</span>
+            <span class="status-badge status-OFF" id="badge-tipup-1">OFF</span>
+          </div>
+          <div style="font-size:11px; font-weight:bold;" id="depth-tipup-1">MID 4m</div>
+          <div class="bar-wrap">
+            <div class="bar-fill" id="attract-bar-1"></div>
+          </div>
+          <div class="bar-wrap" style="margin-top:3px;">
+            <div class="bar-fill" id="tension-bar-1" style="background:#4c8be6;"></div>
+          </div>
+        </div>
+
+        <!-- Tip-Up #3 (Yellow) -->
+        <div class="tipup-card" id="card-tipup-2">
+          <div class="tipup-header">
+            <span class="tipup-color-tag tag-yellow">#3 YELLOW</span>
+            <span class="status-badge status-OFF" id="badge-tipup-2">OFF</span>
+          </div>
+          <div style="font-size:11px; font-weight:bold;" id="depth-tipup-2">DEEP 6m</div>
+          <div class="bar-wrap">
+            <div class="bar-fill" id="attract-bar-2"></div>
+          </div>
+          <div class="bar-wrap" style="margin-top:3px;">
+            <div class="bar-fill" id="tension-bar-2" style="background:#e6c84c;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fight HUD Overlay -->
+    <div id="fight-overlay">
+      <div class="fight-header">
+        <span class="fight-species" id="fight-fish-name">FIGHTING YELLOW PERCH</span>
+        <span class="fight-phase-chip fight-phase-RUN" id="fight-phase-badge">RUN 1.5s</span>
+      </div>
+      <div class="fight-bar-label">
+        <span>TENSION: <strong id="fight-tension-val" style="color:#fff;">0</strong> / 100</span>
+        <span id="fight-excursion-text" style="color:#ffaa44;">EXCURSIONS >70: 0/3</span>
+      </div>
+      <div class="tension-bar-wrap">
+        <div class="tension-bar-fill" id="fight-tension-fill"></div>
+        <div class="tension-marker-70" title="Excursion threshold (70)"></div>
+        <div class="tension-marker-75" title="Snap limit (75)"></div>
+      </div>
+
+      <div class="fight-bar-label" style="margin-top:6px;">
+        <span>LINE-OUT: <strong id="fight-lineout-val" style="color:#77c5ff;">8.0u</strong> / 25.0u</span>
+        <span id="fight-action-hint" style="color:#9be0ff;">HOLD SPACE: REEL | RELEASE: GIVE</span>
+      </div>
+      <div class="lineout-bar-wrap">
+        <div class="lineout-bar-fill" id="fight-lineout-fill"></div>
+      </div>
+      <div class="fight-footer">
+        <span>Biting Hole: Tip-Up #<span id="fight-tipup-id">1</span></span>
+        <span>Bring Line-Out to 0u to land!</span>
+      </div>
+    </div>
+
+    <!-- Sonar HUD Readout & Prompt -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+      <div class="hud-card" id="sonar-panel">
+        <div class="hud-title" style="display:flex; justify-content:space-between;">
+          <span>PUSH SONAR [F]</span>
+          <span id="sonar-time" style="font-size:9px; color:#5c839f;">READY</span>
+        </div>
+        <div class="sonar-readings">
+          <div class="sonar-layer">
+            <div>SHALLOW</div>
+            <div class="sonar-val val-NONE" id="sonar-SHALLOW">NONE</div>
+          </div>
+          <div class="sonar-layer">
+            <div>MID</div>
+            <div class="sonar-val val-NONE" id="sonar-MID">NONE</div>
+          </div>
+          <div class="sonar-layer">
+            <div>DEEP</div>
+            <div class="sonar-val val-NONE" id="sonar-DEEP">NONE</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="prompt-toast">PRESS <kbd>E</kbd> TO DRILL HOLE</div>
+    </div>
+  </div>
+
+  <!-- Drill Ring -->
+  <div id="drill-progress-wrap">
+    <div id="drill-ring"></div>
+    <div id="drill-text">DRILLING ICE (0.3m)...</div>
+  </div>
+
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+  <script>
+    /* =========================================================================
+       ICEBOUND TIP-UPS — Complete Round 5 Engine (The Fight)
+       Strict Determinism: Fixed 1/60s step, zero randomness anywhere.
+       ========================================================================= */
+
+    // Audio Synthesis (WebAudio API)
+    class SoundSystem {
+      constructor() {
+        this.ctx = null;
+        this.windGain = null;
+        this.drillGain = null;
+        this.drillOsc = null;
+        this.drillNoise = null;
+        this.initialized = false;
+      }
+      init() {
+        if (this.initialized) return;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        this.ctx = new AudioContext();
+
+        // Wind Bed Looper
+        const bufferSize = this.ctx.sampleRate * 2;
+        const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        let lastOut = 0.0;
+        let s = 45678;
+        for (let i = 0; i < bufferSize; i++) {
+          s = (s * 1664525 + 1013904223) >>> 0;
+          const white = (s / 4294967296.0) * 2 - 1;
+          output[i] = (lastOut + (0.02 * white)) / 1.02;
+          lastOut = output[i];
+          output[i] *= 3.5;
+        }
+        const whiteNoise = this.ctx.createBufferSource();
+        whiteNoise.buffer = noiseBuffer;
+        whiteNoise.loop = true;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(320, this.ctx.currentTime);
+        this.filter = filter;
+
+        this.windGain = this.ctx.createGain();
+        this.windGain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+
+        whiteNoise.connect(filter);
+        filter.connect(this.windGain);
+        this.windGain.connect(this.ctx.destination);
+        whiteNoise.start();
+
+        this.initialized = true;
+      }
+      updateWeather(isColdFront, dt) {
+        if (!this.ctx || !this.windGain || !this.filter) return;
+        const now = this.ctx.currentTime;
+        const targetGain = isColdFront ? 0.46 : 0.18;
+        const targetFreq = isColdFront ? 750 : 320;
+        this.windGain.gain.setTargetAtTime(targetGain, now, 0.2);
+        this.filter.frequency.setTargetAtTime(targetFreq, now, 0.2);
+      }
+      resetWeather() {
+        if (!this.ctx || !this.windGain || !this.filter) return;
+        const now = this.ctx.currentTime;
+        this.windGain.gain.setValueAtTime(0.18, now);
+        this.filter.frequency.setValueAtTime(320, now);
+      }
+      playBiteBell(tipupIndex = 0) {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const pitchProfiles = [
+          [1800, 2700, 3600], // #1 High
+          [1200, 1800, 2400], // #2 Middle
+          [700,  1050, 1400]  // #3 Low
+        ];
+        const freqs = pitchProfiles[tipupIndex] || pitchProfiles[0];
+        freqs.forEach((f, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(f, now);
+          gain.gain.setValueAtTime(0.25 / (idx + 1), now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2 + idx * 0.2);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 1.5);
+        });
+      }
+      playZitherTug(strength = 1.0) {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(110 + strength * 140, now);
+        osc.frequency.exponentialRampToValueAtTime(70, now + 0.22);
+        gain.gain.setValueAtTime(0.3 * strength, now);
+        gain.gain.exponentialRampToValueAtTime(0.005, now + 0.22);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.25);
+      }
+      playLandSound() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + i * 0.08);
+          gain.gain.setValueAtTime(0.18, now + i * 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.6);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + i * 0.08);
+          osc.stop(now + i * 0.08 + 0.7);
+        });
+      }
+      playSnapSound() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(450, now);
+        osc.frequency.exponentialRampToValueAtTime(120, now + 0.15);
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.2);
+      }
+      playSonarPing() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1200, now);
+        osc.frequency.exponentialRampToValueAtTime(800, now + 0.4);
+        gain.gain.setValueAtTime(0.28, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.65);
+      }
+      playDeploySound() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(220, now + 0.15);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.18);
+      }
+      startDrill() {
+        if (!this.ctx || this.drillGain) return;
+        const now = this.ctx.currentTime;
+        this.drillGain = this.ctx.createGain();
+        this.drillGain.gain.setValueAtTime(0.25, now);
+
+        this.drillOsc = this.ctx.createOscillator();
+        this.drillOsc.type = 'sawtooth';
+        this.drillOsc.frequency.setValueAtTime(85, now);
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(450, now);
+        filter.Q.setValueAtTime(2.0, now);
+
+        this.drillOsc.connect(filter);
+        filter.connect(this.drillGain);
+        this.drillGain.connect(this.ctx.destination);
+        this.drillOsc.start(now);
+      }
+      stopDrill() {
+        if (!this.drillGain) return;
+        try {
+          this.drillGain.gain.setValueAtTime(0, this.ctx.currentTime);
+          this.drillOsc.stop();
+        } catch(e) {}
+        this.drillGain = null;
+        this.drillOsc = null;
+      }
+    }
+    const audio = new SoundSystem();
+
+    /* =========================================================================
+       Species & Hot Spots Schedules & Fight Profiles
+       ========================================================================= */
+    const SPECIES_TABLE = [
+      { name: 'BLUEGILL',       layer: 'SHALLOW', favored: 'DAWN', lengths: [0.72, 0.54, 0.66, 0.58], cycleIdx: 0, pull: 1.5, p: 20, r: 3.0, threshold: 0.60, legalLength: 0.60, icon: '🐟' },
+      { name: 'YELLOW PERCH',   layer: 'SHALLOW', favored: 'NOON', lengths: [0.85, 0.66, 0.78, 0.92], cycleIdx: 0, pull: 1.8, p: 22, r: 2.8, threshold: 0.70, legalLength: 0.70, icon: '🐟' },
+      { name: 'NORTHERN PIKE',  layer: 'MID',     favored: 'DAWN', lengths: [1.44, 1.12, 1.33, 1.52], cycleIdx: 0, pull: 3.2, p: 38, r: 3.0, threshold: 1.20, legalLength: 1.20, icon: '🐟' },
+      { name: 'WALLEYE',        layer: 'MID',     favored: 'DUSK', lengths: [1.24, 0.92, 1.08, 0.97], cycleIdx: 0, pull: 2.2, p: 25, r: 2.5, threshold: 1.00, legalLength: 1.00, icon: '🐟' },
+      { name: 'LAKE TROUT',     layer: 'DEEP',    favored: 'NOON', lengths: [1.86, 1.42, 1.65, 1.74], cycleIdx: 0, pull: 3.0, p: 34, r: 2.9, threshold: 1.50, legalLength: 1.50, icon: '🐟' },
+      { name: 'BURBOT',         layer: 'DEEP',    favored: 'DUSK', lengths: [1.35, 1.02, 1.18, 1.44], cycleIdx: 0, pull: 2.4, p: 26, r: 2.4, threshold: 1.10, legalLength: 1.10, icon: '🐟' }
+    ];
+
+    const HOT_SPOTS_SCHEDULE = {
+      WEST_SHOAL: {
+        name: 'WEST SHOAL',
+        epochs: [
+          { x: -18, z: -12, layer: 'SHALLOW' },
+          { x: -6,  z: -20, layer: 'MID' },
+          { x: -16, z: -2,  layer: 'DEEP' },
+          { x: -22, z: -14, layer: 'MID' }
+        ]
+      },
+      EAST_BASIN: {
+        name: 'EAST BASIN',
+        epochs: [
+          { x: 14,  z: -16, layer: 'DEEP' },
+          { x: 22,  z: -6,  layer: 'DEEP' },
+          { x: 8,   z: -10, layer: 'MID' },
+          { x: 18,  z: -18, layer: 'SHALLOW' }
+        ]
+      },
+      SOUTH_FLATS: {
+        name: 'SOUTH FLATS',
+        epochs: [
+          { x: 0,   z: 6,   layer: 'MID' },
+          { x: 10,  z: 4,   layer: 'SHALLOW' },
+          { x: -4,  z: 12,  layer: 'SHALLOW' },
+          { x: 4,   z: 16,  layer: 'DEEP' }
+        ]
+      }
+    };
+
+    function getHotSpots(clock) {
+      const epochIndex = Math.floor(clock / 100);
+      const cycleIdx = ((epochIndex % 4) + 4) % 4;
+      return {
+        epoch: epochIndex,
+        cycleIdx: cycleIdx,
+        spots: {
+          WEST_SHOAL: {
+            name: HOT_SPOTS_SCHEDULE.WEST_SHOAL.name,
+            x: HOT_SPOTS_SCHEDULE.WEST_SHOAL.epochs[cycleIdx].x,
+            z: HOT_SPOTS_SCHEDULE.WEST_SHOAL.epochs[cycleIdx].z,
+            layer: HOT_SPOTS_SCHEDULE.WEST_SHOAL.epochs[cycleIdx].layer
+          },
+          EAST_BASIN: {
+            name: HOT_SPOTS_SCHEDULE.EAST_BASIN.name,
+            x: HOT_SPOTS_SCHEDULE.EAST_BASIN.epochs[cycleIdx].x,
+            z: HOT_SPOTS_SCHEDULE.EAST_BASIN.epochs[cycleIdx].z,
+            layer: HOT_SPOTS_SCHEDULE.EAST_BASIN.epochs[cycleIdx].layer
+          },
+          SOUTH_FLATS: {
+            name: HOT_SPOTS_SCHEDULE.SOUTH_FLATS.name,
+            x: HOT_SPOTS_SCHEDULE.SOUTH_FLATS.epochs[cycleIdx].x,
+            z: HOT_SPOTS_SCHEDULE.SOUTH_FLATS.epochs[cycleIdx].z,
+            layer: HOT_SPOTS_SCHEDULE.SOUTH_FLATS.epochs[cycleIdx].layer
+          }
+        }
+      };
+    }
+
+    /* =========================================================================
+       Round 6: Phase Multipliers & Cold Front Schedule
+       ========================================================================= */
+    function getPhaseMultiplier(phase) {
+      if (phase === 'DAWN') return 1.5;
+      if (phase === 'NOON') return 0.7;
+      if (phase === 'DUSK') return 1.3;
+      return 1.0;
+    }
+
+    function getColdFrontInfo(clock) {
+      if (clock < 90.0) {
+        return {
+          active: false,
+          countdown: 0.0,
+          timeToNext: 90.0 - clock
+        };
+      }
+      const rel = (clock - 90.0) % 300.0;
+      if (rel < 90.0) {
+        return {
+          active: true,
+          countdown: 90.0 - rel,
+          timeToNext: 0.0
+        };
+      } else {
+        return {
+          active: false,
+          countdown: 0.0,
+          timeToNext: 300.0 - rel
+        };
+      }
+    }
+
+    /* =========================================================================
+       Round 8: Crack Seams & Snow Squalls Constants & Helpers
+       ========================================================================= */
+    const WEST_SEAM = [
+      { x: -14, z: 10 },
+      { x: -4,  z: 2 },
+      { x: -6,  z: -8 },
+      { x: -14, z: -16 }
+    ];
+
+    const EAST_SEAM = [
+      { x: 10, z: 14 },
+      { x: 16, z: 4 },
+      { x: 10, z: -6 },
+      { x: 16, z: -16 }
+    ];
+
+    function distToSegmentSquared(px, pz, x1, z1, x2, z2) {
+      const l2 = (x2 - x1) * (x2 - x1) + (z2 - z1) * (z2 - z1);
+      if (l2 === 0) return (px - x1) * (px - x1) + (pz - z1) * (pz - z1);
+      let t = ((px - x1) * (x2 - x1) + (pz - z1) * (z2 - z1)) / l2;
+      t = Math.max(0, Math.min(1, t));
+      const projX = x1 + t * (x2 - x1);
+      const projZ = z1 + t * (z2 - z1);
+      return (px - projX) * (px - projX) + (pz - projZ) * (pz - projZ);
+    }
+
+    function distToPolyline(px, pz, points) {
+      let minDist = Infinity;
+      for (let i = 0; i < points.length - 1; i++) {
+        const d2 = distToSegmentSquared(px, pz, points[i].x, points[i].z, points[i+1].x, points[i+1].z);
+        if (d2 < minDist) minDist = d2;
+      }
+      return Math.sqrt(minDist);
+    }
+
+    function isInsideSlipBand(x, z) {
+      // Slip band is exactly 1.2 units wide (0.6 units to each side of centerline)
+      const dWest = distToPolyline(x, z, WEST_SEAM);
+      const dEast = distToPolyline(x, z, EAST_SEAM);
+      return (dWest <= 0.6 || dEast <= 0.6);
+    }
+
+    function getSquallInfo(clock) {
+      if (clock < 250.0) {
+        return {
+          active: false,
+          countdown: 0.0,
+          timeToNext: 250.0 - clock
+        };
+      }
+      const rel = (clock - 250.0) % 300.0;
+      if (rel < 60.0) {
+        return {
+          active: true,
+          countdown: 60.0 - rel,
+          timeToNext: 0.0
+        };
+      } else {
+        return {
+          active: false,
+          countdown: 0.0,
+          timeToNext: 300.0 - rel
+        };
+      }
+    }
+
+    /* =========================================================================
+       Simulation State & 3 Tip-Ups Configuration
+       ========================================================================= */
+    const DEPTH_LAYERS = [
+      { name: 'SHALLOW', depth: 2, label: 'SHALLOW 2m' },
+      { name: 'MID',     depth: 4, label: 'MID 4m' },
+      { name: 'DEEP',    depth: 6, label: 'DEEP 6m' }
+    ];
+
+    const TIPUP_CONFIGS = [
+      { id: 1, colorName: 'red',    hex: 0xe62b2b, emissive: 0x440808, defaultLayer: 0 },
+      { id: 2, colorName: 'blue',   hex: 0x2b7de6, emissive: 0x082444, defaultLayer: 1 },
+      { id: 3, colorName: 'yellow', hex: 0xe6c82b, emissive: 0x443b08, defaultLayer: 2 }
+    ];
+
+    const state = {
+      gameActive: false,
+      clock: 0.0,
+      phase: 'DAWN',
+      phaseMultiplier: 1.5,
+      coldFront: false,
+      coldFrontCountdown: 0.0,
+      fastForward: false,
+      cameraMode: 'FOLLOW', // 'FOLLOW' or 'OVERHEAD'
+
+      // Angler
+      angler: {
+        x: 0.0,
+        z: 22.0,
+        y: 0.0,
+        rotY: Math.PI,
+        speed: 2.5,
+        isMoving: false,
+        breathTimer: 0.0
+      },
+
+      // Drill & Retrieve
+      isDrilling: false,
+      drillProgress: 0.0,   // 4s to drill
+      retrieveTimer: 0.0,   // 1s hold E to retrieve tip-up
+
+      // Holes
+      holes: [], // Array of { id, x, z, tipupIndex: -1 }
+
+      // Three Tip-Ups
+      tipups: [
+        {
+          id: 1,
+          color: 'red',
+          deployed: false,
+          x: 0,
+          z: 0,
+          holeIndex: -1,
+          layerIndex: 0,
+          status: 'OFF', // 'OFF', 'SET', 'BITE'
+          attractProgress: 0.0,
+          biteWindowTimer: 0.0,
+          flagSpringAngle: 0.0,
+          tension: 0.0,
+          strikingSpecies: 'YELLOW PERCH',
+          strikingLength: 0.85
+        },
+        {
+          id: 2,
+          color: 'blue',
+          deployed: false,
+          x: 0,
+          z: 0,
+          holeIndex: -1,
+          layerIndex: 1,
+          status: 'OFF',
+          attractProgress: 0.0,
+          biteWindowTimer: 0.0,
+          flagSpringAngle: 0.0,
+          tension: 0.0,
+          strikingSpecies: 'NORTHERN PIKE',
+          strikingLength: 1.44
+        },
+        {
+          id: 3,
+          color: 'yellow',
+          deployed: false,
+          x: 0,
+          z: 0,
+          holeIndex: -1,
+          layerIndex: 2,
+          status: 'OFF',
+          attractProgress: 0.0,
+          biteWindowTimer: 0.0,
+          flagSpringAngle: 0.0,
+          tension: 0.0,
+          strikingSpecies: 'LAKE TROUT',
+          strikingLength: 1.86
+        }
+      ],
+
+      // Active Fight System (Round 5)
+      fight: {
+        active: false,
+        tipupIndex: -1,
+        speciesObj: null,
+        clock: 0.0,            // Time elapsed in fight
+        phase: 'RUN',          // 'RUN' (1.5s) or 'REST' (2.0s)
+        tension: 0.0,          // 0 to 100
+        lineOut: 8.0,          // starts at 8.0 units
+        excursionCount: 0,     // crossings above 70
+        isAbove70: false,
+        anchorPos: { x: 0, z: 0 },
+        shadowAngle: 0.0
+      },
+
+      // Push Sonar
+      sonar: {
+        activePulse: false,
+        pulseRadius: 0.0,
+        pulseOrigin: { x: 0, z: 0 },
+        pulseDuration: 0.0,
+        readings: { SHALLOW: 'NONE', MID: 'NONE', DEEP: 'NONE' }
+      },
+
+      // Map Overlay
+      mapOpen: false,
+
+      // Banners
+      bannerTimer: 0.0,
+      bannerText: '',
+      bannerSub: '',
+
+      // Creel Tags (Round 7)
+      tags: {
+        'BLUEGILL': 0,
+        'YELLOW PERCH': 0,
+        'NORTHERN PIKE': 0,
+        'WALLEYE': 0,
+        'LAKE TROUT': 0,
+        'BURBOT': 0
+      },
+
+      // Landing Panel (Round 7)
+      landingPanel: {
+        active: false,
+        species: null,
+        length: 0.0,
+        threshold: 0.0,
+        isLegal: false,
+        isLimited: false,
+        tipupIndex: -1,
+        message: ''
+      },
+
+      // Slip State & Snow Squalls (Round 8)
+      slip: {
+        active: false,
+        timer: 0.0,
+        dirX: 0.0,
+        dirZ: 0.0,
+        speed: 3.0
+      },
+      squall: false,
+      squallCountdown: 0.0,
+
+      // Season Scoring & Stats (Round 10)
+      season: {
+        screenOpen: false,
+        missedWindows: 0,
+        shedHooks: 0,
+        snappedLines: 0
+      }
+    };
+
+    /* =========================================================================
+       Three.js Scene Setup
+       ========================================================================= */
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xa7d8f5);
+    scene.fog = new THREE.Fog(0xa7d8f5, 18, 60);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 300);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    // Lighting
+    const hemiLight = new THREE.HemisphereLight(0xe8f4ff, 0x486b8c, 0.6);
+    scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0xfff3da, 1.1);
+    dirLight.position.set(20, 28, 20);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 1024;
+    dirLight.shadow.mapSize.height = 1024;
+    dirLight.shadow.camera.near = 0.5;
+    dirLight.shadow.camera.far = 120;
+    const d = 35;
+    dirLight.shadow.camera.left = -d;
+    dirLight.shadow.camera.right = d;
+    dirLight.shadow.camera.top = d;
+    dirLight.shadow.camera.bottom = -d;
+    scene.add(dirLight);
+
+    // Camp Fire Light
+    const fireLight = new THREE.PointLight(0xff8b3d, 1.8, 16);
+    fireLight.position.set(0, 1.4, 27);
+    scene.add(fireLight);
+
+    // 1. Lake Floor (60x60)
+    const iceGeo = new THREE.PlaneGeometry(60, 60, 64, 64);
+    const iceMat = new THREE.MeshStandardMaterial({ color: 0x98cbe6, roughness: 0.18, metalness: 0.12 });
+    const iceMesh = new THREE.Mesh(iceGeo, iceMat);
+    iceMesh.rotation.x = -Math.PI / 2;
+    iceMesh.receiveShadow = true;
+    scene.add(iceMesh);
+
+    // Streaks
+    const streaksGroup = new THREE.Group();
+    const streakMat = new THREE.MeshBasicMaterial({ color: 0xcbe9fc, transparent: true, opacity: 0.35 });
+    for (let i = 0; i < 28; i++) {
+      const w = 4 + (i * 7 % 14);
+      const h = 0.4 + (i * 3 % 5) * 0.15;
+      const sMesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), streakMat);
+      sMesh.rotation.x = -Math.PI / 2;
+      sMesh.rotation.z = ((i * 37) % 180) * Math.PI / 180;
+      sMesh.position.set(-24 + ((i * 13) % 48), 0.015, -24 + ((i * 23) % 48));
+      streaksGroup.add(sMesh);
+    }
+    scene.add(streaksGroup);
+
+    // Crack Seams 3D Ribbons (Round 8 - exactly 1.2 units wide)
+    function createSeamMesh(points) {
+      const g = new THREE.Group();
+      const seamMat = new THREE.MeshBasicMaterial({
+        color: 0x081726,
+        transparent: true,
+        opacity: 0.92,
+        depthWrite: false
+      });
+      const halfW = 0.6; // 1.2 width band total
+
+      for (let i = 0; i < points.length - 1; i++) {
+        const p1 = points[i];
+        const p2 = points[i + 1];
+        const dx = p2.x - p1.x;
+        const dz = p2.z - p1.z;
+        const len = Math.hypot(dx, dz);
+        const nx = -dz / len;
+        const nz = dx / len;
+
+        const geom = new THREE.BufferGeometry();
+        const verts = new Float32Array([
+          p1.x + nx * halfW, 0.016, p1.z + nz * halfW,
+          p1.x - nx * halfW, 0.016, p1.z - nz * halfW,
+          p2.x + nx * halfW, 0.016, p2.z + nz * halfW,
+
+          p1.x - nx * halfW, 0.016, p1.z - nz * halfW,
+          p2.x - nx * halfW, 0.016, p2.z - nz * halfW,
+          p2.x + nx * halfW, 0.016, p2.z + nz * halfW
+        ]);
+        geom.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+        const quad = new THREE.Mesh(geom, seamMat);
+        g.add(quad);
+
+        // Cap joint corners
+        const capGeo = new THREE.CircleGeometry(halfW, 16);
+        capGeo.rotateX(-Math.PI / 2);
+        const cap1 = new THREE.Mesh(capGeo, seamMat);
+        cap1.position.set(p1.x, 0.0165, p1.z);
+        g.add(cap1);
+        const cap2 = new THREE.Mesh(capGeo, seamMat);
+        cap2.position.set(p2.x, 0.0165, p2.z);
+        g.add(cap2);
+      }
+      return g;
+    }
+
+    const westSeamMesh = createSeamMesh(WEST_SEAM);
+    const eastSeamMesh = createSeamMesh(EAST_SEAM);
+    scene.add(westSeamMesh);
+    scene.add(eastSeamMesh);
+
+    // 2. Snowbanks Boundary
+    const bankMat = new THREE.MeshStandardMaterial({ color: 0xdff0fc, roughness: 0.9 });
+    const bankGroup = new THREE.Group();
+    function createBank(x, z, sx, sy, sz) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), bankMat);
+      mesh.position.set(x, sy / 2, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      bankGroup.add(mesh);
+    }
+    createBank(0, -31.5, 64, 3.5, 4);
+    createBank(0, 31.5, 64, 3.5, 4);
+    createBank(-31.5, 0, 4, 3.5, 64);
+    createBank(31.5, 0, 4, 3.5, 64);
+    scene.add(bankGroup);
+
+    // 3. Camp & Sled at (0, 27)
+    const campGroup = new THREE.Group();
+    campGroup.position.set(0, 0, 27);
+
+    // Hut
+    const hutMat = new THREE.MeshStandardMaterial({ color: 0x4a321f, roughness: 0.8 });
+    const hut = new THREE.Mesh(new THREE.BoxGeometry(4.5, 3.2, 3.8), hutMat);
+    hut.position.set(-3.2, 1.6, 0);
+    hut.castShadow = true;
+    hut.receiveShadow = true;
+    campGroup.add(hut);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(3.6, 1.4, 4), new THREE.MeshStandardMaterial({ color: 0x24170d, roughness: 0.7 }));
+    roof.position.set(-3.2, 3.9, 0);
+    roof.rotation.y = Math.PI / 4;
+    campGroup.add(roof);
+
+    // Sled
+    const sled = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 3.0), new THREE.MeshStandardMaterial({ color: 0x6e4e37, roughness: 0.7 }));
+    sled.position.set(3.4, 0.25, -0.6);
+    sled.rotation.y = -0.2;
+    campGroup.add(sled);
+
+    // Sled tip-ups visual placeholders
+    const sledTipups = [];
+    TIPUP_CONFIGS.forEach((cfg, i) => {
+      const miniFlag = new THREE.Mesh(
+        new THREE.BoxGeometry(0.18, 0.12, 0.04),
+        new THREE.MeshStandardMaterial({ color: cfg.hex })
+      );
+      miniFlag.position.set(3.2 + (i - 1) * 0.35, 0.65, -0.6);
+      campGroup.add(miniFlag);
+      sledTipups.push(miniFlag);
+    });
+
+    // Fire Barrel
+    const barrel = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.55, 0.55, 1.2, 16),
+      new THREE.MeshStandardMaterial({ color: 0x262729, metalness: 0.6, roughness: 0.4 })
+    );
+    barrel.position.set(0, 0.6, 0);
+    campGroup.add(barrel);
+    scene.add(campGroup);
+
+    // Smoke
+    const smokeGroup = new THREE.Group();
+    const smokeMat = new THREE.MeshBasicMaterial({ color: 0xd8e6f0, transparent: true, opacity: 0.28 });
+    const smokePuffs = [];
+    for (let i = 0; i < 18; i++) {
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(0.25 + i * 0.04, 8, 8), smokeMat);
+      smokeGroup.add(puff);
+      smokePuffs.push(puff);
+    }
+    scene.add(smokeGroup);
+
+    // Falling Snow Particles (Round 6)
+    const snowCount = 600;
+    const snowGeo = new THREE.BufferGeometry();
+    const snowPositions = new Float32Array(snowCount * 3);
+    const snowSpeeds = new Float32Array(snowCount);
+
+    let snowRng = 456789;
+    function snowRand() {
+      snowRng = (snowRng * 1664525 + 1013904223) >>> 0;
+      return snowRng / 4294967296.0;
+    }
+
+    for (let i = 0; i < snowCount; i++) {
+      snowPositions[i * 3 + 0] = (snowRand() * 64.0) - 32.0;
+      snowPositions[i * 3 + 1] = snowRand() * 18.0;
+      snowPositions[i * 3 + 2] = (snowRand() * 64.0) - 32.0;
+      snowSpeeds[i] = 1.4 + snowRand() * 1.6;
+    }
+    snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPositions, 3));
+
+    const snowMat = new THREE.PointsMaterial({
+      color: 0xe6f4ff,
+      size: 0.16,
+      transparent: true,
+      opacity: 0.45
+    });
+    const snowMesh = new THREE.Points(snowGeo, snowMat);
+    scene.add(snowMesh);
+
+    // 4. Stone Island
+    const islandGroup = new THREE.Group();
+    islandGroup.position.set(-8, 0, -22);
+    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x585d63, roughness: 0.9 });
+    for (let i = 0; i < 7; i++) {
+      const r = 1.0 + (i % 3) * 0.5;
+      const b = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 1), stoneMat);
+      const ang = (i / 7) * Math.PI * 2;
+      b.position.set(Math.cos(ang) * 1.4, r * 0.6, Math.sin(ang) * 1.4);
+      b.castShadow = true;
+      islandGroup.add(b);
+    }
+    const snowCap = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.7, 0.7, 16), bankMat);
+    snowCap.position.set(0, 0.35, 0);
+    islandGroup.add(snowCap);
+    scene.add(islandGroup);
+
+    // 5. Angler Character
+    const anglerGroup = new THREE.Group();
+    const parkaMat = new THREE.MeshStandardMaterial({ color: 0x1d4d75, roughness: 0.6 });
+    const ruffMat = new THREE.MeshStandardMaterial({ color: 0xe6dfd1, roughness: 0.9 });
+    const pantsMat = new THREE.MeshStandardMaterial({ color: 0x222e3b, roughness: 0.8 });
+    const bootsMat = new THREE.MeshStandardMaterial({ color: 0x151516, roughness: 0.9 });
+    const mittenMat = new THREE.MeshStandardMaterial({ color: 0xb58048, roughness: 0.8 });
+    const packMat = new THREE.MeshStandardMaterial({ color: 0x475e3c, roughness: 0.7 });
+
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.85, 0.45), parkaMat);
+    torso.position.y = 1.15;
+    torso.castShadow = true;
+    anglerGroup.add(torso);
+
+    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.65, 0.28), packMat);
+    pack.position.set(0, 1.2, -0.32);
+    anglerGroup.add(pack);
+
+    const hood = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 12), parkaMat);
+    hood.position.set(0, 1.76, 0);
+    anglerGroup.add(hood);
+    const ruff = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.08, 8, 16), ruffMat);
+    ruff.position.set(0, 1.74, 0.15);
+    ruff.rotation.x = Math.PI / 2;
+    anglerGroup.add(ruff);
+
+    const legL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.6, 0.25), pantsMat);
+    legL.position.set(-0.2, 0.55, 0);
+    legL.castShadow = true;
+    anglerGroup.add(legL);
+
+    const legR = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.6, 0.25), pantsMat);
+    legR.position.set(0.2, 0.55, 0);
+    legR.castShadow = true;
+    anglerGroup.add(legR);
+
+    const bootL = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.22, 0.4), bootsMat);
+    bootL.position.set(-0.2, 0.11, 0.06);
+    anglerGroup.add(bootL);
+    const bootR = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.22, 0.4), bootsMat);
+    bootR.position.set(0.2, 0.11, 0.06);
+    anglerGroup.add(bootR);
+
+    const armLGroup = new THREE.Group();
+    armLGroup.position.set(-0.46, 1.45, 0);
+    const armL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.6, 0.2), parkaMat);
+    armL.position.y = -0.25;
+    armLGroup.add(armL);
+    const mitL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), mittenMat);
+    mitL.position.y = -0.6;
+    armLGroup.add(mitL);
+    anglerGroup.add(armLGroup);
+
+    const armRGroup = new THREE.Group();
+    armRGroup.position.set(0.46, 1.45, 0);
+    const armR = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.6, 0.2), parkaMat);
+    armR.position.y = -0.25;
+    armRGroup.add(armR);
+    const mitR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), mittenMat);
+    mitR.position.y = -0.6;
+    armRGroup.add(mitR);
+    anglerGroup.add(armRGroup);
+
+    // Auger
+    const augerGroup = new THREE.Group();
+    const augerShaftMat = new THREE.MeshStandardMaterial({ color: 0x33b864, metalness: 0.6, roughness: 0.3 });
+    const augerShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.4, 12), augerShaftMat);
+    augerShaft.position.set(0.38, 0.7, 0.3);
+    augerGroup.add(augerShaft);
+    const augerSpiral = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.6, 8), augerShaftMat);
+    augerSpiral.position.set(0.38, 0.3, 0.3);
+    augerGroup.add(augerSpiral);
+    anglerGroup.add(augerGroup);
+
+    scene.add(anglerGroup);
+
+    // Breath Puffs
+    const breathPuffs = [];
+    const breathMat = new THREE.MeshBasicMaterial({ color: 0xf0f8ff, transparent: true, opacity: 0.4 });
+    for (let i = 0; i < 5; i++) {
+      const p = new THREE.Mesh(new THREE.SphereGeometry(0.08 + i * 0.03, 8, 8), breathMat);
+      p.visible = false;
+      scene.add(p);
+      breathPuffs.push(p);
+    }
+
+    // Boot Prints
+    const printGeo = new THREE.PlaneGeometry(0.22, 0.42);
+    printGeo.rotateX(-Math.PI / 2);
+    const bootPrints = [];
+    let printIndex = 0;
+    for (let i = 0; i < 40; i++) {
+      const pr = new THREE.Mesh(printGeo, new THREE.MeshBasicMaterial({ color: 0x86b9d6, transparent: true, opacity: 0.45 }));
+      pr.position.set(0, 0.005, 0);
+      pr.visible = false;
+      scene.add(pr);
+      bootPrints.push(pr);
+    }
+    function addBootPrint(x, z, rotY, isLeft) {
+      const pr = bootPrints[printIndex];
+      const offset = isLeft ? -0.2 : 0.2;
+      pr.position.set(x + Math.cos(rotY) * offset, 0.005, z - Math.sin(rotY) * offset);
+      pr.rotation.y = rotY;
+      pr.visible = true;
+      printIndex = (printIndex + 1) % 40;
+    }
+
+    // Ice Shavings
+    const shavingParticles = [];
+    for (let i = 0; i < 30; i++) {
+      const sh = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.06), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      sh.visible = false;
+      scene.add(sh);
+      shavingParticles.push({ mesh: sh, vx: 0, vy: 0, vz: 0, life: 0 });
+    }
+
+    // 6. Three Tip-Up 3D Meshes
+    const tipupMeshes = [];
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x7a4c28, roughness: 0.8 });
+    const spoolMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.5 });
+    const springWireMat = new THREE.MeshStandardMaterial({ color: 0xa0a0a0, metalness: 0.9, roughness: 0.2 });
+    const lineMat = new THREE.LineBasicMaterial({ color: 0x2e4453 });
+    const sinkerMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8 });
+
+    TIPUP_CONFIGS.forEach((cfg) => {
+      const g = new THREE.Group();
+      g.visible = false;
+
+      const cross1 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.06, 0.16), woodMat);
+      cross1.position.y = 0.04;
+      g.add(cross1);
+      const cross2 = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.06, 1.2), woodMat);
+      cross2.position.y = 0.04;
+      g.add(cross2);
+
+      const spool = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.18, 16), spoolMat);
+      spool.position.y = -0.12;
+      g.add(spool);
+
+      const armPivot = new THREE.Group();
+      armPivot.position.set(0, 0.06, -0.45);
+      const springWire = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.95, 8), springWireMat);
+      springWire.position.set(0, 0.47, 0);
+      armPivot.add(springWire);
+
+      const flagMat = new THREE.MeshStandardMaterial({ color: cfg.hex, roughness: 0.5, emissive: cfg.emissive });
+      const flag = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.18, 0.02), flagMat);
+      flag.position.set(0.12, 0.86, 0);
+      armPivot.add(flag);
+      g.add(armPivot);
+
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, -2, 0)
+      ]);
+      const line = new THREE.Line(lineGeo, lineMat);
+      g.add(line);
+
+      const sinker = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), sinkerMat);
+      sinker.position.y = -2;
+      g.add(sinker);
+
+      scene.add(g);
+      tipupMeshes.push({ group: g, armPivot: armPivot, line: line, sinker: sinker });
+    });
+
+    // Holes Group
+    const holesGroup = new THREE.Group();
+    scene.add(holesGroup);
+
+    function createHoleMesh(x, z) {
+      const g = new THREE.Group();
+      g.position.set(x, 0.002, z);
+
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(0.48, 24), new THREE.MeshBasicMaterial({ color: 0x051421 }));
+      disc.rotation.x = -Math.PI / 2;
+      g.add(disc);
+
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.09, 8, 24), new THREE.MeshStandardMaterial({ color: 0xdff0fa, roughness: 0.9 }));
+      rim.rotation.x = -Math.PI / 2;
+      rim.position.y = 0.03;
+      g.add(rim);
+
+      holesGroup.add(g);
+      return g;
+    }
+
+    // 7. Fish Shadow Under Ice (Circling during Fight)
+    const fishShadowGroup = new THREE.Group();
+    fishShadowGroup.visible = false;
+    const fishBody = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.28, 1.2, 12),
+      new THREE.MeshBasicMaterial({ color: 0x0d283d, transparent: true, opacity: 0.7 })
+    );
+    fishBody.rotation.z = Math.PI / 2;
+    fishShadowGroup.add(fishBody);
+    const fishTail = new THREE.Mesh(
+      new THREE.ConeGeometry(0.24, 0.5, 8),
+      new THREE.MeshBasicMaterial({ color: 0x0d283d, transparent: true, opacity: 0.6 })
+    );
+    fishTail.position.x = -0.7;
+    fishTail.rotation.z = -Math.PI / 2;
+    fishShadowGroup.add(fishTail);
+    scene.add(fishShadowGroup);
+
+    // Sonar Pulse Mesh
+    const sonarGeo = new THREE.RingGeometry(0.1, 0.25, 48);
+    sonarGeo.rotateX(-Math.PI / 2);
+    const sonarMat = new THREE.MeshBasicMaterial({ color: 0x54e4ff, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+    const sonarMesh = new THREE.Mesh(sonarGeo, sonarMat);
+    sonarMesh.position.set(0, 0.02, 0);
+    sonarMesh.visible = false;
+    scene.add(sonarMesh);
+
+    /* =========================================================================
+       Input Handling & Controls
+       ========================================================================= */
+    const keys = {};
+    window.addEventListener('keydown', (e) => {
+      keys[e.key.toLowerCase()] = true;
+      keys[e.key] = true;
+
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        if (state.gameActive && !state.fight.active) {
+          state.season.screenOpen = !state.season.screenOpen;
+          if (state.season.screenOpen) updateSeasonScreen();
+          const scr = document.getElementById('season-screen');
+          if (scr) scr.style.display = state.season.screenOpen ? 'flex' : 'none';
+        }
+        return;
+      }
+
+      if (state.season && state.season.screenOpen) {
+        if (e.key === 'r' || e.key === 'R') {
+          fullReset();
+          return;
+        } else if (e.key === 'Escape') {
+          state.season.screenOpen = false;
+          const scr = document.getElementById('season-screen');
+          if (scr) scr.style.display = 'none';
+          return;
+        }
+      }
+
+      if (!state.gameActive) {
+        if (e.key === 'Enter') startGame();
+        return;
+      }
+
+      if (e.key === 'r' || e.key === 'R') {
+        fullReset();
+        return;
+      }
+
+      // Check Landing Panel keys if active (Round 7)
+      if (state.landingPanel && state.landingPanel.active) {
+        if (e.key === 'Enter') {
+          handleLandingTag();
+          return;
+        } else if (e.key === 'q' || e.key === 'Q') {
+          handleLandingRelease();
+          return;
+        }
+      }
+
+      if (e.key === 'c' || e.key === 'C') {
+        state.cameraMode = (state.cameraMode === 'FOLLOW') ? 'OVERHEAD' : 'FOLLOW';
+      } else if (e.key === 'f' || e.key === 'F') {
+        triggerSonarPulse();
+      } else if (e.key === '1') {
+        deployTipup(0);
+      } else if (e.key === '2') {
+        deployTipup(1);
+      } else if (e.key === '3') {
+        deployTipup(2);
+      } else if (e.key === 'ArrowLeft') {
+        cycleDepthAtNearestTipup(-1);
+      } else if (e.key === 'ArrowRight') {
+        cycleDepthAtNearestTipup(1);
+      } else if (e.key === ' ' || e.key === 'space') {
+        checkHooksetTrigger();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      keys[e.key.toLowerCase()] = false;
+      keys[e.key] = false;
+    });
+
+    document.getElementById('start-btn').addEventListener('click', startGame);
+    document.getElementById('btn-tag').addEventListener('click', () => { if (state.gameActive) handleLandingTag(); });
+    document.getElementById('btn-release').addEventListener('click', () => { if (state.gameActive) handleLandingRelease(); });
+
+    function startGame() {
+      audio.init();
+      state.gameActive = true;
+      document.getElementById('title-card').style.display = 'none';
+    }
+
+    function fullReset() {
+      state.gameActive = false;
+      state.clock = 0.0;
+      state.phase = 'DAWN';
+      state.phaseMultiplier = 1.5;
+      state.coldFront = false;
+      state.coldFrontCountdown = 0.0;
+      state.fastForward = false;
+      state.cameraMode = 'FOLLOW';
+      state.angler.x = 0.0;
+      state.angler.z = 22.0;
+      state.angler.y = 0.0;
+      state.angler.rotY = Math.PI;
+      state.angler.isMoving = false;
+      state.isDrilling = false;
+      state.drillProgress = 0.0;
+      state.retrieveTimer = 0.0;
+      state.holes = [];
+
+      // Reset Tags & Landing Panel (Round 7)
+      state.tags = {
+        'BLUEGILL': 0,
+        'YELLOW PERCH': 0,
+        'NORTHERN PIKE': 0,
+        'WALLEYE': 0,
+        'LAKE TROUT': 0,
+        'BURBOT': 0
+      };
+      state.landingPanel = {
+        active: false,
+        species: null,
+        length: 0.0,
+        threshold: 0.0,
+        isLegal: false,
+        isLimited: false,
+        tipupIndex: -1,
+        message: ''
+      };
+      const landingEl = document.getElementById('landing-panel');
+      if (landingEl) landingEl.style.display = 'none';
+      updateTagBoardHUD();
+
+      // Reset Fight
+      state.fight.active = false;
+      state.fight.tipupIndex = -1;
+      state.fight.speciesObj = null;
+      state.fight.clock = 0.0;
+      state.fight.phase = 'RUN';
+      state.fight.tension = 0.0;
+      state.fight.lineOut = 8.0;
+      state.fight.excursionCount = 0;
+      state.fight.isAbove70 = false;
+      document.getElementById('fight-overlay').style.display = 'none';
+      fishShadowGroup.visible = false;
+
+      while (holesGroup.children.length > 0) {
+        holesGroup.remove(holesGroup.children[0]);
+      }
+
+      state.tipups.forEach((tu, i) => {
+        tu.deployed = false;
+        tu.status = 'OFF';
+        tu.holeIndex = -1;
+        tu.layerIndex = TIPUP_CONFIGS[i].defaultLayer;
+        tu.attractProgress = 0.0;
+        tu.biteWindowTimer = 0.0;
+        tu.flagSpringAngle = 0.0;
+        tu.tension = 0.0;
+        tipupMeshes[i].group.visible = false;
+        sledTipups[i].visible = true;
+      });
+
+      state.sonar.readings = { SHALLOW: 'NONE', MID: 'NONE', DEEP: 'NONE' };
+      state.sonar.activePulse = false;
+      sonarMesh.visible = false;
+      document.getElementById('title-card').style.display = 'flex';
+      document.getElementById('bite-alert').style.display = 'none';
+      document.getElementById('catch-banner').style.display = 'none';
+      const cfBanner = document.getElementById('cold-front-banner');
+      if (cfBanner) cfBanner.style.display = 'none';
+      const sqBanner = document.getElementById('squall-banner');
+      if (sqBanner) sqBanner.style.display = 'none';
+      const slipAlert = document.getElementById('slip-alert');
+      if (slipAlert) slipAlert.style.display = 'none';
+      document.getElementById('drill-progress-wrap').style.display = 'none';
+      audio.stopDrill();
+      audio.resetWeather();
+      if (typeof snowMat !== 'undefined' && snowMat) {
+        snowMat.opacity = 0.45;
+        snowMat.size = 0.16;
+      }
+      if (scene && scene.fog) {
+        scene.fog.near = 18.0;
+        scene.fog.far = 60.0;
+      }
+
+      // Reset Slip & Squall (Round 8)
+      state.slip = {
+        active: false,
+        timer: 0.0,
+        dirX: 0.0,
+        dirZ: 0.0,
+        speed: 3.0,
+        justStopped: false
+      };
+      state.squall = false;
+      state.squallCountdown = 0.0;
+
+      // Reset Season Stats (Round 10)
+      state.season = {
+        screenOpen: false,
+        missedWindows: 0,
+        shedHooks: 0,
+        snappedLines: 0
+      };
+      const seasonScr = document.getElementById('season-screen');
+      if (seasonScr) seasonScr.style.display = 'none';
+
+      updateAllTipupHUDs();
+    }
+
+    // Deploy Tip-up n (0, 1, 2)
+    function deployTipup(index) {
+      if (!state.gameActive || state.fastForward || state.isDrilling || state.fight.active || state.landingPanel.active || state.season.screenOpen) return;
+      const tu = state.tipups[index];
+
+      let nearestHole = null;
+      let nearestHoleIdx = -1;
+      let minDist = 1.5;
+
+      state.holes.forEach((h, idx) => {
+        const d = Math.hypot(state.angler.x - h.x, state.angler.z - h.z);
+        if (d < minDist) {
+          minDist = d;
+          nearestHole = h;
+          nearestHoleIdx = idx;
+        }
+      });
+
+      if (!nearestHole) return;
+
+      const occupyingTipup = state.tipups.find(t => t.deployed && t.holeIndex === nearestHoleIdx && t.id !== tu.id);
+      if (occupyingTipup) return;
+
+      if (tu.deployed && tu.holeIndex !== -1 && tu.holeIndex !== nearestHoleIdx) {
+        state.holes[tu.holeIndex].tipupIndex = -1;
+      }
+
+      tu.deployed = true;
+      tu.x = nearestHole.x;
+      tu.z = nearestHole.z;
+      tu.holeIndex = nearestHoleIdx;
+      tu.status = 'SET';
+      tu.attractProgress = 0.0;
+      tu.biteWindowTimer = 0.0;
+      tu.flagSpringAngle = 0.0;
+      tu.tension = 0.0;
+      nearestHole.tipupIndex = index;
+
+      const mesh = tipupMeshes[index];
+      mesh.group.position.set(nearestHole.x, 0, nearestHole.z);
+      mesh.group.visible = true;
+      sledTipups[index].visible = false;
+      updateTipupVisual(index);
+      audio.playDeploySound();
+      updateAllTipupHUDs();
+    }
+
+    function cycleDepthAtNearestTipup(dir) {
+      if (state.fight.active) return;
+      let targetTipupIdx = -1;
+      let minDist = 1.8;
+      state.tipups.forEach((tu, idx) => {
+        if (tu.deployed) {
+          const d = Math.hypot(state.angler.x - tu.x, state.angler.z - tu.z);
+          if (d < minDist) {
+            minDist = d;
+            targetTipupIdx = idx;
+          }
+        }
+      });
+
+      if (targetTipupIdx !== -1) {
+        const tu = state.tipups[targetTipupIdx];
+        const oldLayer = tu.layerIndex;
+        tu.layerIndex = (tu.layerIndex + dir + 3) % 3;
+        if (tu.layerIndex !== oldLayer) {
+          tu.attractProgress = 0.0;
+          updateTipupVisual(targetTipupIdx);
+          updateAllTipupHUDs();
+        }
+      }
+    }
+
+    function updateTipupVisual(index) {
+      const tu = state.tipups[index];
+      const mesh = tipupMeshes[index];
+      const layer = DEPTH_LAYERS[tu.layerIndex];
+      mesh.line.geometry.dispose();
+      mesh.line.geometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, -layer.depth, 0)
+      ]);
+      mesh.sinker.position.y = -layer.depth;
+    }
+
+    function updateAllTipupHUDs() {
+      state.tipups.forEach((tu, i) => {
+        const badge = document.getElementById(`badge-tipup-${i}`);
+        const depth = document.getElementById(`depth-tipup-${i}`);
+        const attractBar = document.getElementById(`attract-bar-${i}`);
+        const tensionBar = document.getElementById(`tension-bar-${i}`);
+
+        badge.textContent = tu.status;
+        badge.className = `status-badge status-${tu.status}`;
+
+        const layer = DEPTH_LAYERS[tu.layerIndex];
+        depth.textContent = tu.deployed ? layer.label : 'STOWED (SLED)';
+
+        const progPct = tu.deployed ? Math.min(100, (tu.attractProgress / 30.0) * 100) : 0;
+        attractBar.style.width = `${progPct}%`;
+
+        let dispTension = tu.tension;
+        if (state.fight.active && state.fight.tipupIndex === i) {
+          dispTension = state.fight.tension;
+        }
+        const tensPct = (tu.status === 'BITE' || (state.fight.active && state.fight.tipupIndex === i)) ? Math.min(100, (dispTension / 75.0) * 100) : 0;
+        tensionBar.style.width = `${tensPct}%`;
+      });
+    }
+
+    // Trigger Hookset on Space press beside biting hole
+    function checkHooksetTrigger() {
+      if (!state.gameActive || state.fastForward || state.fight.active) return;
+
+      // Find biting tip-up within 1.5 units
+      let targetIdx = -1;
+      let minDist = 1.5;
+      state.tipups.forEach((tu, idx) => {
+        if (tu.deployed && tu.status === 'BITE') {
+          const d = Math.hypot(state.angler.x - tu.x, state.angler.z - tu.z);
+          if (d <= minDist) {
+            minDist = d;
+            targetIdx = idx;
+          }
+        }
+      });
+
+      if (targetIdx !== -1) {
+        startFight(targetIdx);
+      }
+    }
+
+    function startFight(tipupIndex) {
+      const tu = state.tipups[tipupIndex];
+      const speciesObj = SPECIES_TABLE.find(s => s.name === tu.strikingSpecies) || SPECIES_TABLE[0];
+
+      state.fight.active = true;
+      state.fight.tipupIndex = tipupIndex;
+      state.fight.speciesObj = speciesObj;
+      state.fight.clock = 0.0;
+      state.fight.phase = 'RUN';
+      state.fight.tension = 0.0;
+      state.fight.lineOut = 8.0;
+      state.fight.excursionCount = 0;
+      state.fight.isAbove70 = false;
+      state.fight.anchorPos.x = tu.x;
+      state.fight.anchorPos.z = tu.z;
+      state.fight.shadowAngle = 0.0;
+
+      // Anchor angler facing hole
+      state.angler.x = tu.x - Math.sin(state.angler.rotY) * 0.7;
+      state.angler.z = tu.z - Math.cos(state.angler.rotY) * 0.7;
+
+      // Show Fight UI & Fish Shadow
+      const fightOverlay = document.getElementById('fight-overlay');
+      fightOverlay.style.display = 'flex';
+      document.getElementById('fight-fish-name').textContent = `FIGHTING ${tu.strikingSpecies}`;
+      document.getElementById('fight-tipup-id').textContent = tu.id;
+      fishShadowGroup.position.set(tu.x, -0.15, tu.z);
+      fishShadowGroup.visible = true;
+
+      audio.playZitherTug(1.0);
+    }
+
+    // Push Sonar Pulse
+    function triggerSonarPulse() {
+      state.sonar.activePulse = true;
+      state.sonar.pulseDuration = 0.0;
+      state.sonar.pulseOrigin.x = state.angler.x;
+      state.sonar.pulseOrigin.z = state.angler.z;
+      sonarMesh.position.set(state.angler.x, 0.02, state.angler.z);
+      sonarMesh.visible = true;
+      audio.playSonarPing();
+
+      const spotsInfo = getHotSpots(state.clock);
+      const spots = spotsInfo.spots;
+      const readings = { SHALLOW: 'NONE', MID: 'NONE', DEEP: 'NONE' };
+
+      ['SHALLOW', 'MID', 'DEEP'].forEach(layer => {
+        let targetSpot = null;
+        for (const k in spots) {
+          if (spots[k].layer === layer) {
+            targetSpot = spots[k];
+            break;
+          }
+        }
+        if (targetSpot) {
+          const dist = Math.hypot(state.angler.x - targetSpot.x, state.angler.z - targetSpot.z);
+          if (dist <= 5.0) readings[layer] = 'HIGH';
+          else if (dist <= 10.0) readings[layer] = 'MED';
+          else if (dist <= 18.0) readings[layer] = 'LOW';
+          else readings[layer] = 'NONE';
+        }
+      });
+
+      state.sonar.readings = readings;
+      ['SHALLOW', 'MID', 'DEEP'].forEach(layer => {
+        const el = document.getElementById(`sonar-${layer}`);
+        if (el) {
+          el.textContent = readings[layer];
+          el.className = `sonar-val val-${readings[layer]}`;
+        }
+      });
+      document.getElementById('sonar-time').textContent = 'SCANNED';
+    }
+
+    /* =========================================================================
+       Physics & Collision
+       ========================================================================= */
+    function checkCollision(nx, nz) {
+      if (nx < -28.5 || nx > 28.5 || nz < -28.5 || nz > 28.5) return true;
+      if (nx >= -5.8 && nx <= -0.6 && nz >= 24.8 && nz <= 29.2) return true;
+      const distIsland = Math.hypot(nx - (-8), nz - (-22));
+      if (distIsland < 2.9) return true;
+      return false;
+    }
+
+    /* =========================================================================
+       Deterministic Game Step (1/60s)
+       ========================================================================= */
+    const DT = 1.0 / 60.0;
+    let stepCount = 0;
+
+    function gameStep() {
+      const stepDt = DT;
+      const speedMultiplier = (keys['t'] || keys['T']) ? 12 : 1;
+      state.fastForward = (speedMultiplier > 1);
+      document.getElementById('ff-tag').style.display = state.fastForward ? 'block' : 'none';
+
+      for (let s = 0; s < speedMultiplier; s++) {
+        simulateFrame(stepDt);
+      }
+
+      updateVisuals();
+      renderer.render(scene, camera);
+
+      exportArenaState();
+    }
+
+    function simulateFrame(dt) {
+      stepCount++;
+      state.clock += dt;
+
+      // 1. Day Cycle & Phase
+      const cycleTime = state.clock % 360.0;
+      if (cycleTime < 120.0) state.phase = 'DAWN';
+      else if (cycleTime < 240.0) state.phase = 'NOON';
+      else state.phase = 'DUSK';
+
+      const phaseMult = getPhaseMultiplier(state.phase);
+      const frontInfo = getColdFrontInfo(state.clock);
+      state.phaseMultiplier = phaseMult;
+      state.coldFront = frontInfo.active;
+      state.coldFrontCountdown = frontInfo.countdown;
+
+      const squallInfo = getSquallInfo(state.clock);
+      state.squall = squallInfo.active;
+      state.squallCountdown = squallInfo.countdown;
+
+      // 2. Angler Movement & Slip Physics (Round 8)
+      if (state.slip.active) {
+        state.slip.timer -= dt;
+        const slipDist = state.slip.speed * dt; // 3.0 u/s
+        const nextX = state.angler.x + state.slip.dirX * slipDist;
+        const nextZ = state.angler.z + state.slip.dirZ * slipDist;
+
+        if (!checkCollision(nextX, state.angler.z)) state.angler.x = nextX;
+        if (!checkCollision(state.angler.x, nextZ)) state.angler.z = nextZ;
+
+        state.angler.rotY = Math.atan2(state.slip.dirX, state.slip.dirZ);
+        state.angler.isMoving = true;
+
+        if (state.slip.timer <= 0) {
+          state.slip.active = false;
+          state.slip.timer = 0.0;
+          state.slip.justStopped = true;
+          state.angler.isMoving = false; // stops dead!
+        }
+      } else if (!state.fastForward && !state.isDrilling && !state.fight.active && !state.landingPanel.active && !state.season.screenOpen) {
+        let moveX = 0;
+        let moveZ = 0;
+        if (keys['w'] || keys['arrowup']) moveZ -= 1;
+        if (keys['s'] || keys['arrowdown']) moveZ += 1;
+        if (keys['a']) moveX -= 1;
+        if (keys['d']) moveX += 1;
+
+        if (moveX !== 0 || moveZ !== 0) {
+          let forward = new THREE.Vector3(0, 0, -1);
+          let right = new THREE.Vector3(1, 0, 0);
+
+          if (state.cameraMode === 'FOLLOW') {
+            const camDir = new THREE.Vector3();
+            camera.getWorldDirection(camDir);
+            camDir.y = 0;
+            camDir.normalize();
+            forward.copy(camDir);
+            right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+          }
+
+          const moveDir = new THREE.Vector3();
+          moveDir.addScaledVector(right, moveX);
+          moveDir.addScaledVector(forward, -moveZ);
+          moveDir.normalize();
+
+          const stepDist = state.angler.speed * dt;
+          const nextX = state.angler.x + moveDir.x * stepDist;
+          const nextZ = state.angler.z + moveDir.z * stepDist;
+
+          // Check if stepping into a crack seam slip band
+          const wasInside = isInsideSlipBand(state.angler.x, state.angler.z);
+          const willBeInside = isInsideSlipBand(nextX, nextZ);
+
+          if ((!wasInside && willBeInside) || (willBeInside && !state.slip.justStopped)) {
+            // STEPPING INTO BAND TRIGGERS SLIP!
+            state.slip.active = true;
+            state.slip.timer = 2.0;
+            state.slip.dirX = moveDir.x;
+            state.slip.dirZ = moveDir.z;
+            state.slip.speed = 3.0;
+            state.slip.justStopped = false;
+            audio.playSnapSound();
+          } else {
+            if (!willBeInside) {
+              state.slip.justStopped = false;
+            }
+            if (!checkCollision(nextX, state.angler.z)) state.angler.x = nextX;
+            if (!checkCollision(state.angler.x, nextZ)) state.angler.z = nextZ;
+
+            state.angler.rotY = Math.atan2(moveDir.x, moveDir.z);
+            state.angler.isMoving = true;
+
+            if (stepCount % 16 === 0) {
+              addBootPrint(state.angler.x, state.angler.z, state.angler.rotY, (stepCount % 32 === 0));
+            }
+          }
+        } else {
+          state.angler.isMoving = false;
+        }
+      } else {
+        state.angler.isMoving = false;
+      }
+
+      // Idle Breath
+      if (!state.angler.isMoving && !state.isDrilling && !state.fight.active && !state.landingPanel.active && !state.season.screenOpen) {
+        state.angler.breathTimer += dt;
+        if (state.angler.breathTimer > 2.4) state.angler.breathTimer = 0.0;
+      } else {
+        state.angler.breathTimer = 0.0;
+      }
+
+      // 3. Drilling (E on open ice, 4s) & Retrieval (Hold E for 1s beside deployed tip-up)
+      const promptEl = document.getElementById('prompt-toast');
+      const drillWrap = document.getElementById('drill-progress-wrap');
+
+      let nearbyDeployedTipup = null;
+      let nearbyTipupIdx = -1;
+      state.tipups.forEach((tu, idx) => {
+        if (tu.deployed) {
+          const d = Math.hypot(state.angler.x - tu.x, state.angler.z - tu.z);
+          if (d <= 1.5) {
+            nearbyDeployedTipup = tu;
+            nearbyTipupIdx = idx;
+          }
+        }
+      });
+
+      let nearbyHole = null;
+      state.holes.forEach((h) => {
+        const d = Math.hypot(state.angler.x - h.x, state.angler.z - h.z);
+        if (d <= 1.5) nearbyHole = h;
+      });
+
+      if (!state.fight.active && !state.landingPanel.active && !state.season.screenOpen && (keys['e'] || keys['E']) && !state.fastForward) {
+        if (nearbyDeployedTipup && nearbyDeployedTipup.status !== 'BITE') {
+          // Retrieving tip-up (1s hold)
+          state.retrieveTimer += dt;
+          promptEl.innerHTML = `RETRIEVING TIP-UP #${nearbyDeployedTipup.id} (${(1.0 - state.retrieveTimer).toFixed(1)}s)...`;
+          promptEl.style.display = 'block';
+
+          if (state.retrieveTimer >= 1.0) {
+            if (nearbyDeployedTipup.holeIndex !== -1 && state.holes[nearbyDeployedTipup.holeIndex]) {
+              state.holes[nearbyDeployedTipup.holeIndex].tipupIndex = -1;
+            }
+            nearbyDeployedTipup.deployed = false;
+            nearbyDeployedTipup.status = 'OFF';
+            nearbyDeployedTipup.holeIndex = -1;
+            nearbyDeployedTipup.attractProgress = 0.0;
+            nearbyDeployedTipup.biteWindowTimer = 0.0;
+            nearbyDeployedTipup.flagSpringAngle = 0.0;
+            nearbyDeployedTipup.tension = 0.0;
+
+            tipupMeshes[nearbyTipupIdx].group.visible = false;
+            sledTipups[nearbyTipupIdx].visible = true;
+            state.retrieveTimer = 0.0;
+            updateAllTipupHUDs();
+          }
+        } else if (!state.isDrilling && !nearbyDeployedTipup) {
+          state.isDrilling = true;
+          state.drillProgress = 0.0;
+          audio.startDrill();
+          drillWrap.style.display = 'flex';
+        }
+      } else {
+        state.retrieveTimer = 0.0;
+      }
+
+      if (state.isDrilling) {
+        state.drillProgress += dt;
+        for (let i = 0; i < 4; i++) {
+          const p = shavingParticles[(stepCount * 4 + i) % shavingParticles.length];
+          p.mesh.visible = true;
+          p.mesh.position.set(
+            state.angler.x + Math.sin(state.angler.rotY) * 0.4,
+            0.08,
+            state.angler.z + Math.cos(state.angler.rotY) * 0.4
+          );
+          const ang = ((stepCount * 23 + i * 90) % 360) * Math.PI / 180;
+          p.vx = Math.cos(ang) * 1.5;
+          p.vy = 1.2 + (i % 3) * 0.4;
+          p.vz = Math.sin(ang) * 1.5;
+          p.life = 0.35;
+        }
+
+        if (state.drillProgress >= 4.0) {
+          state.isDrilling = false;
+          state.drillProgress = 0.0;
+          drillWrap.style.display = 'none';
+          audio.stopDrill();
+
+          const hx = state.angler.x + Math.sin(state.angler.rotY) * 0.5;
+          const hz = state.angler.z + Math.cos(state.angler.rotY) * 0.5;
+          const newHole = { id: state.holes.length, x: hx, z: hz, tipupIndex: -1 };
+          state.holes.push(newHole);
+          createHoleMesh(hx, hz);
+        }
+      }
+
+      shavingParticles.forEach(p => {
+        if (p.life > 0) {
+          p.life -= dt;
+          p.mesh.position.x += p.vx * dt;
+          p.mesh.position.y += p.vy * dt;
+          p.mesh.position.z += p.vz * dt;
+          p.vy -= 9.8 * dt;
+          if (p.mesh.position.y <= 0.01) {
+            p.mesh.position.y = 0.01;
+            p.life = 0;
+          }
+        } else {
+          p.mesh.visible = false;
+        }
+      });
+
+      // 4. Hot Spots & Independent Tip-Up Bite Logic
+      const spotsInfo = getHotSpots(state.clock);
+      const spots = spotsInfo.spots;
+
+      let anyBiteActive = false;
+
+      state.tipups.forEach((tu, idx) => {
+        if (tu.deployed && tu.status === 'SET') {
+          const currentLayer = DEPTH_LAYERS[tu.layerIndex].name;
+
+          let strikingSpeciesObj = SPECIES_TABLE.find(s => s.layer === currentLayer && s.favored === state.phase);
+          if (!strikingSpeciesObj) {
+            strikingSpeciesObj = SPECIES_TABLE.find(s => s.layer === currentLayer);
+          }
+
+          const baseRate = (strikingSpeciesObj.favored === state.phase) ? 1.0 : 0.5;
+
+          let targetSpot = null;
+          for (const k in spots) {
+            if (spots[k].layer === currentLayer) {
+              targetSpot = spots[k];
+              break;
+            }
+          }
+
+          let spotFactor = 0.0;
+          if (targetSpot) {
+            const distToHole = Math.hypot(tu.x - targetSpot.x, tu.z - targetSpot.z);
+            if (distToHole <= 5.0) spotFactor = 1.5;
+            else if (distToHole <= 10.0) spotFactor = 1.0;
+            else if (distToHole <= 18.0) spotFactor = 0.5;
+            else spotFactor = 0.0;
+          }
+
+          const effectiveRate = baseRate * spotFactor * phaseMult * (frontInfo.active ? 0.6 : 1.0);
+          tu.attractProgress += effectiveRate * dt;
+
+          if (tu.attractProgress >= 30.0) {
+            tu.attractProgress = 30.0;
+            tu.status = 'BITE';
+            tu.biteWindowTimer = 0.0;
+
+            tu.strikingSpecies = strikingSpeciesObj.name;
+            tu.strikingLength = strikingSpeciesObj.lengths[strikingSpeciesObj.cycleIdx];
+            strikingSpeciesObj.cycleIdx = (strikingSpeciesObj.cycleIdx + 1) % strikingSpeciesObj.lengths.length;
+
+            audio.playBiteBell(idx);
+          }
+        }
+
+        // BITE Window (15s until hookset or fish slips)
+        if (tu.status === 'BITE') {
+          anyBiteActive = true;
+
+          // If this tip-up is not currently in a fight:
+          if (!state.fight.active || state.fight.tipupIndex !== idx) {
+            tu.biteWindowTimer += dt;
+
+            // Spring arm overshoot
+            const t = tu.biteWindowTimer;
+            const springOvershoot = Math.sin(t * 8.0) * Math.exp(-t * 1.5) * 0.4;
+            tu.flagSpringAngle = Math.min(Math.PI / 2, (Math.PI / 2) * (1 - Math.exp(-t * 6.0)) + springOvershoot);
+
+            // Tugs
+            const tugCycle = (t * 2.8) % 1.0;
+            const isTugging = tugCycle < 0.35;
+            if (isTugging) {
+              const tugStrength = Math.sin(tugCycle / 0.35 * Math.PI);
+              tu.tension = 20 + tugStrength * 40;
+              if (stepCount % 12 === 0) audio.playZitherTug(tugStrength);
+            } else {
+              tu.tension = Math.max(0, tu.tension - 80 * dt);
+            }
+
+            // 12 seconds window without hookset -> FISH OFF (Round 9 tightened from 15 to 12s)
+            if (tu.biteWindowTimer >= 12.0) {
+              fishOff(tu);
+            }
+          }
+        } else {
+          if (tu.status === 'SET') {
+            tu.flagSpringAngle = 0.0;
+            tu.tension = 0.0;
+          }
+        }
+      });
+
+      // 5. Active Fight Simulation (Round 5)
+      if (state.fight.active) {
+        simulateFight(dt);
+      }
+
+      // Bite Alert HUD
+      document.getElementById('bite-alert').style.display = (anyBiteActive && !state.fight.active) ? 'block' : 'none';
+
+      // Banner timer
+      if (state.bannerTimer > 0) {
+        state.bannerTimer -= dt;
+        if (state.bannerTimer <= 0) {
+          document.getElementById('catch-banner').style.display = 'none';
+        }
+      }
+
+      // Sonar pulse animation
+      if (state.sonar.activePulse) {
+        state.sonar.pulseDuration += dt;
+        state.sonar.pulseRadius = state.sonar.pulseDuration * 8.0;
+        sonarMesh.scale.set(state.sonar.pulseRadius, 1, state.sonar.pulseRadius);
+        sonarMat.opacity = Math.max(0, 0.85 * (1.0 - state.sonar.pulseRadius / 6.0));
+        if (state.sonar.pulseRadius >= 6.0) {
+          state.sonar.activePulse = false;
+          sonarMesh.visible = false;
+        }
+      }
+
+      // Context-sensitive prompt
+      if (!state.isDrilling && !state.fight.active && !state.landingPanel.active && !state.season.screenOpen && state.retrieveTimer <= 0) {
+        let bitingNearby = state.tipups.find(tu => tu.deployed && tu.status === 'BITE' && Math.hypot(state.angler.x - tu.x, state.angler.z - tu.z) <= 1.5);
+        if (bitingNearby) {
+          promptEl.innerHTML = `PRESS <kbd>SPACE</kbd> TO SET HOOK ON TIP-UP #${bitingNearby.id}!`;
+          promptEl.style.display = 'block';
+        } else if (nearbyDeployedTipup) {
+          promptEl.innerHTML = `HOLD <kbd>E</kbd> TO RETRIEVE TIP-UP #${nearbyDeployedTipup.id} | <kbd>←</kbd>/<kbd>→</kbd> DEPTH`;
+          promptEl.style.display = 'block';
+        } else if (nearbyHole) {
+          promptEl.innerHTML = 'PRESS <kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd> TO DEPLOY TIP-UP OVER HOLE';
+          promptEl.style.display = 'block';
+        } else {
+          promptEl.innerHTML = 'PRESS <kbd>E</kbd> TO DRILL HOLE';
+          promptEl.style.display = 'block';
+        }
+      } else if (state.fight.active || state.landingPanel.active || state.season.screenOpen) {
+        promptEl.style.display = 'none';
+      }
+
+      // Smoke puff rising
+      for (let i = 0; i < smokePuffs.length; i++) {
+        const puff = smokePuffs[i];
+        const age = (state.clock * 1.5 + i * 0.4) % 4.0;
+        puff.position.set(Math.sin(age * 1.8 + i) * 0.35, 1.2 + age * 1.2, 27.0 + (age * 0.2));
+        puff.scale.setScalar(0.4 + age * 0.4);
+      }
+
+      // Weather Audio & Falling Snow (Round 6)
+      audio.updateWeather(frontInfo.active, dt);
+
+      const isFront = frontInfo.active;
+      snowMat.opacity = isFront ? 0.92 : 0.45;
+      snowMat.size = isFront ? 0.28 : 0.16;
+      const fallMult = isFront ? 2.5 : 1.0;
+      const windDriftX = isFront ? 4.2 : 0.8;
+      const windDriftZ = isFront ? 1.5 : 0.3;
+
+      const spos = snowGeo.attributes.position.array;
+      for (let i = 0; i < snowCount; i++) {
+        spos[i * 3 + 1] -= snowSpeeds[i] * fallMult * dt;
+        spos[i * 3 + 0] += windDriftX * dt;
+        spos[i * 3 + 2] += windDriftZ * dt;
+
+        if (spos[i * 3 + 1] < 0.05) {
+          spos[i * 3 + 1] = 18.0;
+          spos[i * 3 + 0] = (((spos[i * 3 + 0] + 32.0) % 64.0) + 64.0) % 64.0 - 32.0;
+          spos[i * 3 + 2] = (((spos[i * 3 + 2] + 32.0) % 64.0) + 64.0) % 64.0 - 32.0;
+        }
+        if (spos[i * 3 + 0] > 32.0) spos[i * 3 + 0] -= 64.0;
+        if (spos[i * 3 + 0] < -32.0) spos[i * 3 + 0] += 64.0;
+        if (spos[i * 3 + 2] > 32.0) spos[i * 3 + 2] -= 64.0;
+        if (spos[i * 3 + 2] < -32.0) spos[i * 3 + 2] += 64.0;
+      }
+      snowGeo.attributes.position.needsUpdate = true;
+
+      // Cold Front Banner Update
+      const cfBanner = document.getElementById('cold-front-banner');
+      const cfTimer = document.getElementById('cold-front-timer');
+      if (cfBanner && cfTimer) {
+        if (frontInfo.active) {
+          cfBanner.style.display = 'block';
+          cfTimer.textContent = `${frontInfo.countdown.toFixed(1)}`;
+        } else {
+          cfBanner.style.display = 'none';
+        }
+      }
+
+      // Slip Alert HUD Update (Round 8)
+      const slipAlert = document.getElementById('slip-alert');
+      if (slipAlert) {
+        slipAlert.style.display = state.slip.active ? 'block' : 'none';
+      }
+
+      // Snow Squall Banner Update (Round 8)
+      const sqBanner = document.getElementById('squall-banner');
+      const sqTimer = document.getElementById('squall-timer');
+      if (sqBanner && sqTimer) {
+        if (squallInfo.active) {
+          sqBanner.style.display = 'block';
+          sqTimer.textContent = `${squallInfo.countdown.toFixed(1)}s`;
+        } else {
+          sqBanner.style.display = 'none';
+        }
+      }
+
+      updateAllTipupHUDs();
+    }
+
+    /* =========================================================================
+       Fight Simulation Logic (Round 5)
+       ========================================================================= */
+    function simulateFight(dt) {
+      const f = state.fight;
+      const tu = state.tipups[f.tipupIndex];
+      const sp = f.speciesObj;
+
+      f.clock += dt;
+
+      // Scripted 1.5s RUN / 2.0s REST cycle (period = 3.5s)
+      const cycleTime = f.clock % 3.5;
+      const isRunPhase = (cycleTime < 1.5);
+      f.phase = isRunPhase ? 'RUN' : 'REST';
+
+      const spaceHeld = (keys[' '] || keys['space']);
+
+      let deltaTension = 0.0;
+      let deltaLineOut = 0.0;
+
+      if (isRunPhase) {
+        if (spaceHeld) {
+          // RUN & Reel: tension +P, line-out -0.8
+          deltaTension = sp.p;
+          deltaLineOut = -0.8;
+          if (stepCount % 10 === 0) audio.playZitherTug(0.6);
+        } else {
+          // RUN & Give: tension -6, line-out +Pull
+          deltaTension = -6.0;
+          deltaLineOut = sp.pull;
+          if (stepCount % 8 === 0) audio.playZitherTug(0.9);
+        }
+      } else { // REST Phase
+        if (spaceHeld) {
+          // REST & Reel: tension +9, line-out -R
+          deltaTension = 9.0;
+          deltaLineOut = -sp.r;
+          if (stepCount % 12 === 0) audio.playZitherTug(0.4);
+        } else {
+          // REST & Give: tension -12, line-out +0.4
+          deltaTension = -12.0;
+          deltaLineOut = 0.4;
+        }
+      }
+
+      const prevTension = f.tension;
+      f.tension += deltaTension * dt;
+      f.lineOut += deltaLineOut * dt;
+
+      // Tension floor at 0
+      if (f.tension < 0.0) f.tension = 0.0;
+
+      // Tip-up flag arm bobs during fight
+      tu.flagSpringAngle = Math.PI / 2 + Math.sin(f.clock * 16.0) * (isRunPhase ? 0.2 : 0.08);
+
+      // Excursions above 70 tracking
+      if (prevTension <= 70.0 && f.tension > 70.0) {
+        f.excursionCount++;
+        // The third excursion snaps at the crossing
+        if (f.excursionCount >= 3) {
+          state.season.snappedLines++;
+          endFight('LINE SNAPPED', '3rd EXCURSION ABOVE 70 TENSION!', false);
+          return;
+        }
+      }
+
+      // Tension crossing above 75 snaps instantly (Round 9 dropped from 80 to 75)
+      if (f.tension > 75.0) {
+        state.season.snappedLines++;
+        endFight('LINE SNAPPED', 'TENSION EXCEEDED 75!', false);
+        return;
+      }
+
+      // Giving line past 25 units of line-out sheds hook
+      if (f.lineOut >= 25.0) {
+        state.season.shedHooks++;
+        endFight('FISH SHED', 'LINE-OUT EXCEEDED 25 UNITS!', false);
+        return;
+      }
+
+      // Line-out reaching 0 lands the fish!
+      if (f.lineOut <= 0.0) {
+        f.lineOut = 0.0;
+        endFight(`${tu.strikingSpecies} — ${tu.strikingLength.toFixed(2)}`, 'FISH LANDED SUCCESSFULLY!', true);
+        return;
+      }
+
+      // Circling Fish Shadow Under Ice
+      f.shadowAngle += (isRunPhase ? 3.5 : 1.8) * dt;
+      const orbitR = 1.0 + (f.lineOut / 25.0) * 1.5;
+      fishShadowGroup.position.set(
+        f.anchorPos.x + Math.cos(f.shadowAngle) * orbitR,
+        -0.15,
+        f.anchorPos.z + Math.sin(f.shadowAngle) * orbitR
+      );
+      fishShadowGroup.rotation.y = -f.shadowAngle - Math.PI / 2;
+
+      // Update Fight HUD
+      const phaseBadge = document.getElementById('fight-phase-badge');
+      phaseBadge.textContent = isRunPhase ? `RUN ${(1.5 - cycleTime).toFixed(1)}s` : `REST ${(3.5 - cycleTime).toFixed(1)}s`;
+      phaseBadge.className = `fight-phase-chip fight-phase-${f.phase}`;
+
+      document.getElementById('fight-tension-val').textContent = Math.round(f.tension);
+      document.getElementById('fight-tension-fill').style.width = `${Math.min(100, f.tension)}%`;
+      document.getElementById('fight-excursion-text').textContent = `EXCURSIONS >70: ${f.excursionCount}/3`;
+
+      document.getElementById('fight-lineout-val').textContent = `${f.lineOut.toFixed(1)}u`;
+      document.getElementById('fight-lineout-fill').style.width = `${Math.min(100, (f.lineOut / 25.0) * 100)}%`;
+      document.getElementById('fight-action-hint').textContent = spaceHeld ? 'REELING (SPACE HELD)' : 'GIVING LINE (SPACE RELEASED)';
+    }
+
+    function endFight(title, sub, success) {
+      const f = state.fight;
+      const tu = state.tipups[f.tipupIndex];
+
+      if (success) {
+        audio.playLandSound();
+
+        // Close fight overlay
+        document.getElementById('fight-overlay').style.display = 'none';
+        fishShadowGroup.visible = false;
+        f.active = false;
+
+        // Open Round 7 Landing & Tagging Panel
+        openLandingPanel(tu, f.tipupIndex);
+      } else {
+        audio.playSnapSound();
+        showCatchBanner(title, sub, false);
+
+        // Reset tip-up state
+        tu.status = 'SET';
+        tu.attractProgress = 0.0;
+        tu.biteWindowTimer = 0.0;
+        tu.flagSpringAngle = 0.0;
+        tu.tension = 0.0;
+
+        // Close fight overlay
+        document.getElementById('fight-overlay').style.display = 'none';
+        fishShadowGroup.visible = false;
+        f.active = false;
+        f.tipupIndex = -1;
+        updateAllTipupHUDs();
+      }
+    }
+
+    /* =========================================================================
+       Round 7: Landing Panel, Tags & Creel Board
+       ========================================================================= */
+    function updateTagBoardHUD() {
+      const container = document.getElementById('tag-board-grid');
+      if (!container) return;
+
+      let html = '';
+      SPECIES_TABLE.forEach(sp => {
+        const count = state.tags[sp.name] || 0;
+        const pips = `
+          <span class="tag-pip ${count >= 1 ? 'filled' : ''}"></span>
+          <span class="tag-pip ${count >= 2 ? 'filled' : ''}"></span>
+        `;
+        const countClass = count >= 2 ? 'tag-count-text tag-count-full' : 'tag-count-text';
+        html += `
+          <div class="tag-board-row">
+            <span style="display:flex; align-items:center; gap:5px;">
+              <span>${sp.icon || '🐟'}</span>
+              <span style="font-weight:bold; font-size:10px;">${sp.name}</span>
+            </span>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <div class="tag-pips">${pips}</div>
+              <span class="${countClass}">${count}/2</span>
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    /* =========================================================================
+       Round 10: Season Scoring & Evaluation
+       ========================================================================= */
+    function computeSeasonRating(score) {
+      if (score >= 950) return 'S';
+      if (score >= 800) return 'A';
+      if (score >= 650) return 'B';
+      return 'C';
+    }
+
+    function getSeasonStats() {
+      const legalTags = Object.values(state.tags).reduce((a, b) => a + b, 0);
+      const speciesAwards = SPECIES_TABLE.filter(sp => (state.tags[sp.name] || 0) >= 1).length;
+      const escapes = state.season.missedWindows + state.season.shedHooks;
+      const snappedLines = state.season.snappedLines;
+      const score = legalTags * 80 + speciesAwards * 60 - escapes * 15 - snappedLines * 25;
+      const rating = computeSeasonRating(score);
+      return {
+        legalTags,
+        speciesAwards,
+        escapes,
+        snappedLines,
+        missedWindows: state.season.missedWindows,
+        shedHooks: state.season.shedHooks,
+        score,
+        rating
+      };
+    }
+
+    function updateSeasonScreen() {
+      const stats = getSeasonStats();
+
+      const badge = document.getElementById('season-rating-badge');
+      if (badge) {
+        badge.textContent = stats.rating;
+        badge.className = `rating-badge rating-${stats.rating}`;
+      }
+
+      const scoreEl = document.getElementById('season-total-score');
+      if (scoreEl) scoreEl.textContent = stats.score;
+
+      const rowTagsCalc = document.getElementById('row-tags-calc');
+      const rowTagsVal = document.getElementById('row-tags-val');
+      if (rowTagsCalc && rowTagsVal) {
+        rowTagsCalc.textContent = `${stats.legalTags} × 80`;
+        rowTagsVal.textContent = `+${stats.legalTags * 80}`;
+      }
+
+      const rowAwardsCalc = document.getElementById('row-awards-calc');
+      const rowAwardsVal = document.getElementById('row-awards-val');
+      if (rowAwardsCalc && rowAwardsVal) {
+        rowAwardsCalc.textContent = `${stats.speciesAwards} × 60`;
+        rowAwardsVal.textContent = `+${stats.speciesAwards * 60}`;
+      }
+
+      const rowEscapesCalc = document.getElementById('row-escapes-calc');
+      const rowEscapesVal = document.getElementById('row-escapes-val');
+      if (rowEscapesCalc && rowEscapesVal) {
+        rowEscapesCalc.textContent = `${stats.escapes} × 15`;
+        rowEscapesVal.textContent = `-${stats.escapes * 15}`;
+      }
+
+      const rowSnapsCalc = document.getElementById('row-snaps-calc');
+      const rowSnapsVal = document.getElementById('row-snaps-val');
+      if (rowSnapsCalc && rowSnapsVal) {
+        rowSnapsCalc.textContent = `${stats.snappedLines} × 25`;
+        rowSnapsVal.textContent = `-${stats.snappedLines * 25}`;
+      }
+    }
+
+    function openLandingPanel(tu, tipupIndex) {
+      const spObj = SPECIES_TABLE.find(s => s.name === tu.strikingSpecies) || SPECIES_TABLE[0];
+      const threshold = spObj.threshold;
+      const length = tu.strikingLength;
+      const isLegal = (length >= threshold);
+      const currentTags = state.tags[tu.strikingSpecies] || 0;
+      const isLimited = (currentTags >= 2);
+
+      state.landingPanel = {
+        active: true,
+        species: tu.strikingSpecies,
+        length: length,
+        threshold: threshold,
+        isLegal: isLegal,
+        isLimited: isLimited,
+        tipupIndex: tipupIndex,
+        message: ''
+      };
+
+      document.getElementById('landing-species').textContent = tu.strikingSpecies;
+      document.getElementById('landing-length').textContent = `${length.toFixed(2)}m`;
+      document.getElementById('landing-threshold').textContent = `${threshold.toFixed(2)}m`;
+
+      const badge = document.getElementById('landing-status-badge');
+      if (!isLegal) {
+        badge.className = 'landing-legal-chip legal-no';
+        badge.textContent = 'UNDERSIZE (< LEGAL)';
+      } else if (isLimited) {
+        badge.className = 'landing-legal-chip legal-no';
+        badge.textContent = 'LIMIT REACHED (2/2 TAGGED)';
+      } else {
+        badge.className = 'landing-legal-chip legal-yes';
+        badge.textContent = `LEGAL SIZE (TAG ${currentTags + 1}/2)`;
+      }
+
+      const alertEl = document.getElementById('landing-alert');
+      alertEl.style.display = 'none';
+      alertEl.textContent = '';
+
+      document.getElementById('landing-panel').style.display = 'flex';
+    }
+
+    function flashLandingAlert(msg) {
+      const alertEl = document.getElementById('landing-alert');
+      if (!alertEl) return;
+      alertEl.textContent = msg;
+      alertEl.style.display = 'block';
+      alertEl.className = 'landing-alert-box alert-flash';
+      state.landingPanel.message = msg;
+      audio.playSnapSound();
+    }
+
+    function showCatchBanner(title, sub, success = true) {
+      const banner = document.getElementById('catch-banner');
+      const textEl = document.getElementById('catch-text');
+      const subEl = document.getElementById('catch-sub');
+
+      textEl.textContent = title;
+      subEl.textContent = sub;
+
+      if (success) {
+        banner.style.borderColor = '#e0be3a';
+        textEl.style.color = '#ffec85';
+      } else {
+        banner.style.borderColor = '#57c4f5';
+        textEl.style.color = '#bdf0ff';
+      }
+
+      banner.style.display = 'block';
+      state.bannerTimer = 4.0;
+    }
+
+    function handleLandingTag() {
+      const lp = state.landingPanel;
+      if (!lp || !lp.active) return;
+
+      if (!lp.isLegal) {
+        // Undersize fish cannot be tagged: pressing Enter on an undersize fish flashes UNDERSIZE and nothing is recorded — only Q clears the panel.
+        flashLandingAlert('UNDERSIZE');
+        return;
+      }
+
+      if (lp.isLimited) {
+        // Bag limit: two legal tags per species. A third legal fish of an already-limited species shows LIMIT — 2 TAGGED and must be released with Q.
+        flashLandingAlert('LIMIT — 2 TAGGED');
+        return;
+      }
+
+      // Legal and under limit -> TAG IT!
+      state.tags[lp.species] = (state.tags[lp.species] || 0) + 1;
+      updateTagBoardHUD();
+      audio.playLandSound();
+
+      showCatchBanner(`TAGGED: ${lp.species} — ${lp.length.toFixed(2)}`, `TAG ${state.tags[lp.species]}/2 RECORDED!`, true);
+
+      // Close panel and re-arm tip-up
+      closeLandingPanelAndRearm();
+    }
+
+    function handleLandingRelease() {
+      const lp = state.landingPanel;
+      if (!lp || !lp.active) return;
+
+      audio.playDeploySound();
+      showCatchBanner(`RELEASED: ${lp.species} — ${lp.length.toFixed(2)}`, 'FISH RETURNED TO LAKE', false);
+
+      // Close panel and re-arm tip-up
+      closeLandingPanelAndRearm();
+    }
+
+    function closeLandingPanelAndRearm() {
+      const lp = state.landingPanel;
+      const tuIdx = lp.tipupIndex;
+
+      lp.active = false;
+      document.getElementById('landing-panel').style.display = 'none';
+
+      if (tuIdx >= 0 && tuIdx < state.tipups.length) {
+        const tu = state.tipups[tuIdx];
+        tu.status = 'SET';
+        tu.attractProgress = 0.0;
+        tu.biteWindowTimer = 0.0;
+        tu.flagSpringAngle = 0.0;
+        tu.tension = 0.0;
+      }
+
+      state.fight.tipupIndex = -1;
+      updateAllTipupHUDs();
+    }
+
+    function fishOff(tu) {
+      state.season.missedWindows++;
+
+      const banner = document.getElementById('catch-banner');
+      const textEl = document.getElementById('catch-text');
+      const subEl = document.getElementById('catch-sub');
+
+      textEl.textContent = 'FISH OFF';
+      subEl.textContent = `FISH SLIPPED FROM TIP-UP #${tu.id}!`;
+      banner.style.borderColor = '#d43b3b';
+      textEl.style.color = '#ff7b7b';
+      banner.style.display = 'block';
+      state.bannerTimer = 4.0;
+
+      tu.status = 'SET';
+      tu.attractProgress = 0.0;
+      tu.biteWindowTimer = 0.0;
+      tu.flagSpringAngle = 0.0;
+      tu.tension = 0.0;
+      updateAllTipupHUDs();
+    }
+
+    /* =========================================================================
+       Visual Updates (Three.js Meshes, Camera, HUD)
+       ========================================================================= */
+    function updateVisuals() {
+      // 1. Sky Tint & Squall Fog Collapse (Round 8)
+      const sqInfo = getSquallInfo(state.clock);
+      if (sqInfo.active) {
+        scene.fog.near = 2.0;
+        scene.fog.far = 18.0;
+      } else {
+        scene.fog.near = 18.0;
+        scene.fog.far = 60.0;
+      }
+
+      if (state.phase === 'DAWN') {
+        scene.background.setHex(0xc79877);
+        scene.fog.color.setHex(0xc79877);
+        dirLight.color.setHex(0xffcb9e);
+        dirLight.intensity = 0.95;
+      } else if (state.phase === 'NOON') {
+        scene.background.setHex(0x9bd0f5);
+        scene.fog.color.setHex(0x9bd0f5);
+        dirLight.color.setHex(0xffffff);
+        dirLight.intensity = 1.25;
+      } else {
+        scene.background.setHex(0x6e4a78);
+        scene.fog.color.setHex(0x6e4a78);
+        dirLight.color.setHex(0xffaa66);
+        dirLight.intensity = 0.85;
+      }
+
+      fireLight.intensity = 1.6 + Math.sin(state.clock * 14.0) * 0.3;
+
+      // 2. Angler Mesh Posture
+      anglerGroup.position.set(state.angler.x, state.angler.y, state.angler.z);
+      anglerGroup.rotation.y = state.angler.rotY;
+
+      if (state.isDrilling) {
+        torso.position.y = 0.85;
+        torso.rotation.x = 0.45;
+        legL.position.set(-0.2, 0.35, -0.2);
+        legR.position.set(0.2, 0.35, -0.2);
+        legL.rotation.x = -0.7;
+        legR.rotation.x = -0.7;
+        augerGroup.position.set(0, -0.2, 0.2);
+        augerGroup.rotation.y += 0.4;
+      } else if (state.fight.active) {
+        // Angler fighting stance
+        torso.position.y = 1.05;
+        torso.rotation.x = 0.25;
+        legL.position.set(-0.24, 0.5, 0.1);
+        legR.position.set(0.24, 0.5, -0.1);
+        armLGroup.rotation.x = 0.5;
+        armRGroup.rotation.x = 0.5;
+        augerGroup.position.set(0, 0, 0);
+      } else if (state.slip.active) {
+        // Angler slipping / arms flailing (Round 8)
+        torso.position.y = 1.08;
+        torso.rotation.x = -0.3; // leaning backward
+        const flail = Math.sin(state.clock * 28.0) * 1.4;
+        armLGroup.rotation.x = flail;
+        armRGroup.rotation.x = -flail;
+        armLGroup.rotation.z = 0.6 + Math.sin(state.clock * 16.0) * 0.3;
+        armRGroup.rotation.z = -0.6 - Math.sin(state.clock * 16.0) * 0.3;
+        legL.rotation.x = 0.4;
+        legR.rotation.x = -0.4;
+        augerGroup.position.set(0, 0, 0);
+      } else {
+        armLGroup.rotation.z = 0;
+        armRGroup.rotation.z = 0;
+        torso.position.y = 1.15;
+        torso.rotation.x = 0;
+        legL.rotation.x = 0;
+        legR.rotation.x = 0;
+        augerGroup.position.set(0, 0, 0);
+
+        if (state.angler.isMoving) {
+          const swing = Math.sin(state.clock * 12.0) * 0.45;
+          armLGroup.rotation.x = swing;
+          armRGroup.rotation.x = -swing;
+          legL.rotation.x = -swing;
+          legR.rotation.x = swing;
+        } else {
+          armLGroup.rotation.x = 0;
+          armRGroup.rotation.x = 0;
+          legL.position.set(-0.2, 0.55, 0);
+          legR.position.set(0.2, 0.55, 0);
+        }
+      }
+
+      // Breath vapor puffs
+      breathPuffs.forEach((puff, idx) => {
+        if (!state.angler.isMoving && !state.isDrilling && state.angler.breathTimer > 0.2) {
+          puff.visible = true;
+          const puffTime = (state.angler.breathTimer - 0.2) + idx * 0.12;
+          const fwdX = Math.sin(state.angler.rotY);
+          const fwdZ = Math.cos(state.angler.rotY);
+          puff.position.set(
+            state.angler.x + fwdX * (0.3 + puffTime * 0.4),
+            1.72 + puffTime * 0.2,
+            state.angler.z + fwdZ * (0.3 + puffTime * 0.4)
+          );
+          puff.material.opacity = Math.max(0, 0.45 * (1.0 - puffTime / 1.5));
+        } else {
+          puff.visible = false;
+        }
+      });
+
+      // 3. Tip-Up Flag Rotations
+      state.tipups.forEach((tu, i) => {
+        if (tu.deployed) {
+          tipupMeshes[i].armPivot.rotation.z = -tu.flagSpringAngle;
+        }
+      });
+
+      // 4. Camera Interpolation
+      const targetPos = new THREE.Vector3();
+      const lookTarget = new THREE.Vector3();
+
+      if (state.fight.active) {
+        // Frame fighting hole smoothly
+        const holeX = state.fight.anchorPos.x;
+        const holeZ = state.fight.anchorPos.z;
+        targetPos.set(holeX + 2.8, 3.2, holeZ + 3.8);
+        lookTarget.set(holeX, 0.4, holeZ);
+      } else if (state.cameraMode === 'FOLLOW') {
+        const backX = -Math.sin(state.angler.rotY) * 6.0;
+        const backZ = -Math.cos(state.angler.rotY) * 6.0;
+        targetPos.set(state.angler.x + backX, state.angler.y + 3.8, state.angler.z + backZ);
+        lookTarget.set(state.angler.x, state.angler.y + 1.4, state.angler.z);
+      } else {
+        // OVERHEAD layout view
+        targetPos.set(state.angler.x, 22.0, state.angler.z + 0.1);
+        lookTarget.set(state.angler.x, 0, state.angler.z);
+      }
+
+      camera.position.lerp(targetPos, 0.08);
+      camera.lookAt(lookTarget);
+
+      // 5. Clock & Epoch HUD
+      const m = Math.floor(state.clock / 60);
+      const s = Math.floor(state.clock % 60);
+      document.getElementById('hud-clock').textContent =
+        `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+      const phaseChip = document.getElementById('hud-phase');
+      phaseChip.textContent = state.phase;
+      phaseChip.className = `phase-chip phase-${state.phase}`;
+
+      const phaseMultEl = document.getElementById('hud-phase-mult');
+      if (phaseMultEl) {
+        phaseMultEl.textContent = `×${getPhaseMultiplier(state.phase).toFixed(1)}`;
+      }
+
+      const epoch = Math.floor(state.clock / 100);
+      const epochTimeLeft = (100 - (state.clock % 100)).toFixed(0);
+      document.getElementById('hud-epoch').textContent = `e${epoch}`;
+      document.getElementById('hud-epoch-timer').textContent = `${epochTimeLeft}s`;
+    }
+
+    /* =========================================================================
+       Arena State Export (Round 6 Extended)
+       ========================================================================= */
+    function exportArenaState() {
+      const spotsInfo = getHotSpots(state.clock);
+      const spots = spotsInfo.spots;
+
+      const deployedTu = state.tipups.find(t => t.deployed) || state.tipups[0];
+      const nearestHole = state.holes.length > 0 ? state.holes[state.holes.length - 1] : null;
+
+      const currentTension = state.fight.active ? state.fight.tension : deployedTu.tension;
+      const shadowSpecies = (state.fight.active && state.fight.speciesObj) ? state.fight.speciesObj.name : null;
+
+      const frontInfo = getColdFrontInfo(state.clock);
+      const phaseMult = getPhaseMultiplier(state.phase);
+      const squallInfo = getSquallInfo(state.clock);
+
+      const tagBoardExport = {
+        'BLUEGILL': state.tags['BLUEGILL'] || 0,
+        'YELLOW PERCH': state.tags['YELLOW PERCH'] || 0,
+        'NORTHERN PIKE': state.tags['NORTHERN PIKE'] || 0,
+        'WALLEYE': state.tags['WALLEYE'] || 0,
+        'LAKE TROUT': state.tags['LAKE TROUT'] || 0,
+        'BURBOT': state.tags['BURBOT'] || 0,
+        BLUEGILL: state.tags['BLUEGILL'] || 0,
+        YELLOW_PERCH: state.tags['YELLOW PERCH'] || 0,
+        NORTHERN_PIKE: state.tags['NORTHERN PIKE'] || 0,
+        WALLEYE: state.tags['WALLEYE'] || 0,
+        LAKE_TROUT: state.tags['LAKE TROUT'] || 0,
+        BURBOT: state.tags['BURBOT'] || 0,
+        Bluegill: state.tags['BLUEGILL'] || 0,
+        YellowPerch: state.tags['YELLOW PERCH'] || 0,
+        NorthernPike: state.tags['NORTHERN PIKE'] || 0,
+        Walleye: state.tags['WALLEYE'] || 0,
+        LakeTrout: state.tags['LAKE TROUT'] || 0,
+        Burbot: state.tags['BURBOT'] || 0
+      };
+
+      const pendingLandingExport = state.landingPanel.active ? {
+        active: true,
+        species: state.landingPanel.species,
+        length: state.landingPanel.length,
+        threshold: state.landingPanel.threshold,
+        legalLength: state.landingPanel.threshold,
+        legal: state.landingPanel.isLegal,
+        isLegal: state.landingPanel.isLegal,
+        undersize: !state.landingPanel.isLegal,
+        isUndersize: !state.landingPanel.isLegal,
+        limited: state.landingPanel.isLimited,
+        isLimited: state.landingPanel.isLimited,
+        tipupIndex: state.landingPanel.tipupIndex,
+        message: state.landingPanel.message
+      } : null;
+
+      window.__arena_state = {
+        clock: state.clock,
+        phase: state.phase,
+        epoch: spotsInfo.epoch,
+        anglerPosition: { x: state.angler.x, y: state.angler.y, z: state.angler.z },
+        holePosition: nearestHole ? { x: nearestHole.x, y: 0, z: nearestHole.z } : null,
+        lineDepth: DEPTH_LAYERS[deployedTu.layerIndex].name,
+        attractProgress: deployedTu.attractProgress,
+        biteState: deployedTu.status,
+        cameraMode: state.cameraMode,
+        strikingSpecies: deployedTu.strikingSpecies,
+        species: deployedTu.strikingSpecies,
+        length: deployedTu.strikingLength,
+        strikingLength: deployedTu.strikingLength,
+        spots: {
+          WEST_SHOAL: { ...spots.WEST_SHOAL },
+          EAST_BASIN: { ...spots.EAST_BASIN },
+          SOUTH_FLATS: { ...spots.SOUTH_FLATS }
+        },
+        sonar: {
+          SHALLOW: state.sonar.readings.SHALLOW,
+          MID: state.sonar.readings.MID,
+          DEEP: state.sonar.readings.DEEP
+        },
+        tipups: state.tipups.map(t => ({
+          id: t.id,
+          color: t.color,
+          deployed: t.deployed,
+          position: t.deployed ? { x: t.x, y: 0, z: t.z } : null,
+          depth: DEPTH_LAYERS[t.layerIndex].name,
+          lineDepth: DEPTH_LAYERS[t.layerIndex].name,
+          progress: t.attractProgress,
+          attractProgress: t.attractProgress,
+          state: t.status,
+          biteState: t.status,
+          strikingSpecies: t.strikingSpecies,
+          length: t.strikingLength
+        })),
+        // Round 5 Fight additions: fight phase, tension, line-out, excursion count, shadow species
+        fightPhase: state.fight.active ? state.fight.phase : null,
+        tension: currentTension,
+        lineOut: state.fight.active ? state.fight.lineOut : 0.0,
+        excursionCount: state.fight.active ? state.fight.excursionCount : 0,
+        shadowSpecies: shadowSpecies,
+        fight: {
+          active: state.fight.active,
+          phase: state.fight.active ? state.fight.phase : null,
+          tension: currentTension,
+          lineOut: state.fight.active ? state.fight.lineOut : 0.0,
+          excursionCount: state.fight.active ? state.fight.excursionCount : 0,
+          shadowSpecies: shadowSpecies
+        },
+        // Round 6 Additions: Phase Activity & Cold Front
+        phaseMultiplier: phaseMult,
+        phaseActivity: phaseMult,
+        front: frontInfo.active,
+        coldFront: frontInfo.active,
+        frontFlag: frontInfo.active,
+        coldFrontFlag: frontInfo.active,
+        frontActive: frontInfo.active,
+        coldFrontActive: frontInfo.active,
+        countdown: frontInfo.countdown,
+        frontCountdown: frontInfo.countdown,
+        coldFrontCountdown: frontInfo.countdown,
+        coldFrontState: {
+          active: frontInfo.active,
+          countdown: frontInfo.countdown,
+          timeToNext: frontInfo.timeToNext,
+          multiplier: frontInfo.active ? 0.6 : 1.0
+        },
+        frontState: {
+          active: frontInfo.active,
+          countdown: frontInfo.countdown,
+          timeToNext: frontInfo.timeToNext,
+          multiplier: frontInfo.active ? 0.6 : 1.0
+        },
+        // Round 7 Additions: Tag Board & Pending Landing Panel
+        tagBoard: tagBoardExport,
+        tags: tagBoardExport,
+        pendingLandingPanel: pendingLandingExport,
+        landingPanel: pendingLandingExport,
+        // Round 8 Additions: Slip State & Snow Squalls
+        slip: state.slip.active,
+        isSlipping: state.slip.active,
+        slipState: {
+          active: state.slip.active,
+          timer: state.slip.timer,
+          direction: { x: state.slip.dirX, z: state.slip.dirZ },
+          speed: state.slip.speed
+        },
+        squall: squallInfo.active,
+        snowSquall: squallInfo.active,
+        squallActive: squallInfo.active,
+        isSquall: squallInfo.active,
+        squallCountdown: squallInfo.countdown,
+        squallState: {
+          active: squallInfo.active,
+          countdown: squallInfo.countdown,
+          timeToNext: squallInfo.timeToNext
+        },
+        // Round 10 Additions: Season Score, Line Items & Rating
+        score: getSeasonStats().score,
+        seasonScore: getSeasonStats().score,
+        rating: getSeasonStats().rating,
+        seasonRating: getSeasonStats().rating,
+        legalTags: getSeasonStats().legalTags,
+        speciesAwards: getSeasonStats().speciesAwards,
+        escapes: getSeasonStats().escapes,
+        snappedLines: getSeasonStats().snappedLines,
+        missedWindows: getSeasonStats().missedWindows,
+        shedHooks: getSeasonStats().shedHooks,
+        season: {
+          score: getSeasonStats().score,
+          rating: getSeasonStats().rating,
+          legalTags: getSeasonStats().legalTags,
+          speciesAwards: getSeasonStats().speciesAwards,
+          escapes: getSeasonStats().escapes,
+          snappedLines: getSeasonStats().snappedLines,
+          missedWindows: getSeasonStats().missedWindows,
+          shedHooks: getSeasonStats().shedHooks,
+          screenOpen: state.season.screenOpen
+        }
+      };
+    }
+
+    // Window Resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Initialize HUDs
+    updateTagBoardHUD();
+
+    // Start Simulation Loop
+    function animate() {
+      requestAnimationFrame(animate);
+      if (state.gameActive) {
+        gameStep();
+      }
+    }
+    animate();
+  </script>
+</body>
+</html>

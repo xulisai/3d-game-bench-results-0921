@@ -1,0 +1,2851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HEARTBEAT MANOR</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #020307;
+      font-family: 'Georgia', 'Palatino Linotype', 'Book Antiqua', serif;
+      color: #e6dfd5;
+    }
+    #canvas-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+    #ui-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      pointer-events: none;
+    }
+    /* Pulse Vignette */
+    #vignette {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.9);
+      transition: box-shadow 0.1s ease;
+      pointer-events: none;
+    }
+    #breath-mist {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 45%;
+      background: radial-gradient(ellipse at bottom, rgba(180, 210, 230, 0.12) 0%, rgba(10, 20, 30, 0) 70%);
+      opacity: 0.1;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    /* HUD Header */
+    #hud-top {
+      position: absolute;
+      top: 24px;
+      left: 32px;
+      right: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.9);
+    }
+    .hud-box {
+      background: rgba(12, 14, 18, 0.72);
+      border: 1px solid rgba(140, 115, 85, 0.4);
+      padding: 10px 18px;
+      border-radius: 4px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+    }
+    .hud-title {
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #9d8b76;
+      margin-bottom: 4px;
+    }
+    .hud-value {
+      font-size: 20px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      color: #ede6dc;
+    }
+    #bpm-counter {
+      color: #e04444;
+      display: inline-block;
+      transition: transform 0.05s ease;
+    }
+    #pulse-indicator {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #e04444;
+      margin-left: 8px;
+      box-shadow: 0 0 10px #e04444;
+      vertical-align: middle;
+    }
+
+    /* Crosshair & Interaction prompt */
+    #reticle {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(220, 205, 185, 0.6);
+      box-shadow: 0 0 4px rgba(0,0,0,0.8);
+      pointer-events: none;
+      transition: transform 0.1s ease, background 0.1s ease;
+    }
+    #reticle.active {
+      transform: translate(-50%, -50%) scale(2.2);
+      background: #f0c040;
+      box-shadow: 0 0 8px #f0c040;
+    }
+    #prompt-msg {
+      position: absolute;
+      top: calc(50% + 22px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(10, 12, 16, 0.85);
+      border: 1px solid rgba(200, 160, 100, 0.5);
+      padding: 6px 14px;
+      border-radius: 3px;
+      font-size: 13px;
+      letter-spacing: 1px;
+      color: #f5eedb;
+      display: none;
+      white-space: nowrap;
+      text-shadow: 0 1px 4px #000;
+    }
+
+    /* Floating Damage / Pulse Surge Text */
+    #floating-damage-container {
+      position: absolute;
+      top: calc(50% - 50px);
+      left: 50%;
+      transform: translateX(-50%);
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      z-index: 20;
+    }
+    .floating-text-item {
+      font-size: 26px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.9);
+      animation: floatUpFade 1.5s forwards ease-out;
+      margin-bottom: 4px;
+    }
+    .floating-text-item.averted {
+      color: #6ee68e;
+      text-shadow: 0 0 12px rgba(110, 230, 142, 0.8), 0 2px 6px #000;
+    }
+    .floating-text-item.sedative {
+      color: #55d6ff;
+      text-shadow: 0 0 14px rgba(85, 214, 255, 0.9), 0 2px 6px #000;
+    }
+    .floating-text-item.full-spike {
+      color: #ff3b3b;
+      text-shadow: 0 0 12px rgba(255, 59, 59, 0.8), 0 2px 6px #000;
+    }
+    .floating-subtext {
+      font-size: 13px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      opacity: 0.9;
+    }
+    @keyframes floatUpFade {
+      0% {
+        opacity: 0;
+        transform: translateY(12px) scale(0.85);
+      }
+      18% {
+        opacity: 1;
+        transform: translateY(0) scale(1.15);
+      }
+      70% {
+        opacity: 0.95;
+        transform: translateY(-24px) scale(1.0);
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-48px) scale(0.95);
+      }
+    }
+
+    /* Notification / Banner */
+    #status-banner {
+      position: absolute;
+      top: 90px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(14, 18, 24, 0.88);
+      border: 1px solid #c9a463;
+      padding: 10px 24px;
+      border-radius: 3px;
+      color: #f7ede1;
+      font-size: 14px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      display: none;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.8);
+    }
+
+    /* 3-Second Blackout Overlay */
+    #blackout-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 95;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      transition: opacity 0.3s ease;
+    }
+    #blackout-text {
+      color: #ff3333;
+      font-size: 32px;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      font-weight: bold;
+      text-shadow: 0 0 16px rgba(255, 30, 30, 0.9);
+      margin-bottom: 12px;
+    }
+    #blackout-sub {
+      color: #e0d0c0;
+      font-size: 16px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    /* Modals / Cards: Title, Faint, Victory */
+    .card-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(4, 5, 8, 0.94);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      z-index: 100;
+      pointer-events: auto;
+    }
+    .card-title {
+      font-size: 42px;
+      letter-spacing: 6px;
+      color: #dfd3c3;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      text-shadow: 0 4px 14px rgba(0,0,0,0.9);
+      border-bottom: 2px solid #8c6d48;
+      padding-bottom: 10px;
+    }
+    .card-subtitle {
+      font-size: 15px;
+      letter-spacing: 2px;
+      color: #9c8a77;
+      margin-bottom: 30px;
+      max-width: 620px;
+      line-height: 1.6;
+    }
+    .card-controls {
+      background: rgba(20, 24, 30, 0.8);
+      border: 1px solid #4a3e30;
+      padding: 18px 28px;
+      border-radius: 4px;
+      margin-bottom: 28px;
+      text-align: left;
+      font-size: 13px;
+      line-height: 2;
+      color: #c8baa8;
+    }
+    .card-controls kbd {
+      background: #2a221a;
+      border: 1px solid #7a6349;
+      border-radius: 3px;
+      padding: 2px 7px;
+      color: #ffeedd;
+      font-weight: bold;
+    }
+    .card-btn-hint {
+      font-size: 16px;
+      letter-spacing: 3px;
+      color: #e4c28d;
+      text-transform: uppercase;
+      animation: blink 1.4s infinite ease-in-out;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+
+    #flash-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #fff;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 90;
+      transition: opacity 0.08s ease;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div id="ui-layer">
+    <div id="vignette"></div>
+    <div id="breath-mist"></div>
+    <div id="flash-overlay"></div>
+    <div id="blackout-overlay">
+      <div id="blackout-text">CONSCIOUSNESS SNAPPED</div>
+      <div id="blackout-sub">&minus;30s NIGHT LIMIT PENALTY &bull; PULSE RESET TO 110 BPM</div>
+    </div>
+
+    <div id="hud-top">
+      <div class="hud-box">
+        <div class="hud-title">Vitals &middot; Syrettes: <span id="sedative-hud" style="color:#55d6ff; font-weight:bold;">2/2</span> <small style="color:#888;">[Q]</small></div>
+        <div class="hud-value"><span id="bpm-counter">70</span> <small style="font-size:12px;color:#888;">BPM</small><span id="pulse-indicator"></span></div>
+      </div>
+      <div class="hud-box" style="text-align:center;">
+        <div class="hud-title">Night <span id="night-counter-hud" style="color:#d6bf96; font-weight:bold;">1</span> / 2 &middot; <span id="objective-step">FUSES</span></div>
+        <div class="hud-value" id="task-hud" style="font-size:15px; color:#d6bf96;">FUSES (0/4)</div>
+      </div>
+      <div class="hud-box" style="text-align:right;">
+        <div class="hud-title"><span id="night-badge" style="color:#aaa;">Night <span id="night-hud">1</span>:</span> <span id="limit-hud" style="color:#d6bf96; font-weight:bold;">440s</span> &middot; Faints: <span id="faint-count" style="color:#d9534f;">0</span></div>
+        <div class="hud-value" id="clock-display">00:00 / 07:20</div>
+      </div>
+    </div>
+
+    <!-- Floating damage/surge notifications -->
+    <div id="floating-damage-container"></div>
+
+    <div id="reticle"></div>
+    <div id="prompt-msg">Press [E] to Interact</div>
+    <div id="status-banner"></div>
+  </div>
+
+  <!-- Title Card Overlay -->
+  <div id="title-card" class="card-overlay">
+    <div class="card-title">HEARTBEAT MANOR</div>
+    <div class="card-subtitle">
+      Spend the night alone in a Victorian manor fixing fuses and unlocking the attic before time runs out.<br>
+      Your pulse is your only health bar. Stand still to calm your heart.
+    </div>
+
+    <!-- Night Selection Bar -->
+    <div style="margin-bottom: 20px; display: flex; gap: 14px; align-items: center; justify-content: center; flex-wrap: wrap;">
+      <div id="night-btn-1" style="cursor: pointer; background: rgba(40, 30, 20, 0.95); border: 2px solid #8c6d48; padding: 8px 16px; border-radius: 4px; color: #f5eedb; font-size: 13px; letter-spacing: 1px;">
+        <strong>[1] NIGHT ONE</strong> (440s Limit &bull; Base Layout)
+      </div>
+      <div id="night-btn-2" style="cursor: pointer; background: rgba(15, 18, 22, 0.7); border: 1px dashed #554433; padding: 8px 16px; border-radius: 4px; color: #887766; font-size: 13px; letter-spacing: 1px;">
+        <strong>[2] NIGHT TWO</strong> (<span id="night-2-status">LOCKED</span> &bull; 410s &bull; Dark Bedroom)
+      </div>
+    </div>
+
+    <div class="card-controls">
+      <div><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> &mdash; Walk (3 units/s)</div>
+      <div><kbd>Mouse</kbd> &mdash; Look around (click canvas to lock view)</div>
+      <div><kbd>E</kbd> &mdash; Interact (Pick up fuses / Fit fuses / Collect keys / Unlock hatch)</div>
+      <div><kbd>Q</kbd> &mdash; Use Sedative Syrette (&minus;30 BPM, floored at 70, 2 available per night)</div>
+      <div><kbd>T</kbd> &mdash; Hold to fast-forward night clock (&times;12)</div>
+      <div><kbd>R</kbd> &mdash; Full reset to title card</div>
+      <div><kbd>1</kbd> / <kbd>2</kbd> &mdash; Select Night One or Night Two</div>
+      <div><kbd>Five Scares</kbd> &mdash; Door-burst, Mirror-figure, Gramophone, Curtain-figure, Hanging-hand</div>
+      <div><kbd>Face Away</kbd> &mdash; During 2.5s tells, face &ge;120&deg; away from stereo audio to cut scare spike &minus;40% (+17 instead of +28)</div>
+    </div>
+    <div class="card-btn-hint" id="title-btn-hint">Press [ENTER] to Enter the Manor (Night 1)</div>
+  </div>
+
+  <!-- Faint Blackout Card Overlay -->
+  <div id="faint-card" class="card-overlay" style="display: none;">
+    <div class="card-title" style="color: #ff4444; border-bottom-color: #aa2222;">BLACKOUT</div>
+    <div class="card-subtitle" id="faint-card-sub">
+      Your pulse crossed 180 BPM. A 3-second blackout seized you, deducting 30s from your night limit.
+    </div>
+    <div class="card-controls" style="text-align:center;">
+      <div style="font-size:16px; margin-bottom:6px;">Total Faints: <span id="faint-card-count" style="color:#ff6666; font-weight:bold;">1</span></div>
+      <div style="font-size:14px; color:#d6bf96; margin-bottom:6px;">Pulse reset to 110 BPM &bull; Night Limit Penalized (&minus;30s)</div>
+      <div style="font-size:13px; color:#998877;">Task progress is preserved. You awaken at the entrance hall door.</div>
+    </div>
+    <div class="card-btn-hint">Press [ENTER] to Awaken &bull; [R] Reset</div>
+  </div>
+
+  <!-- Milestone / Victory Card Overlay -->
+  <div id="victory-card" class="card-overlay" style="display: none;">
+    <div class="card-title" id="victory-title" style="color: #66e077; border-bottom-color: #3b9b4a;">MANOR ESCAPED</div>
+    <div class="card-subtitle" id="victory-card-sub">
+      The heavy iron latch snaps free and morning dawn breaks through the attic hatch.
+    </div>
+    <div class="card-controls" style="text-align:center;">
+      <div style="font-size:15px; margin-bottom:6px;">Time Taken: <span id="victory-time" style="color:#f5eedb; font-weight:bold;">03:45</span> / <span id="victory-limit-total">440</span>s</div>
+      <div style="font-size:15px; margin-bottom:6px;">Final Pulse: <span id="victory-bpm" style="color:#e06666; font-weight:bold;">84</span> BPM &bull; Faints: <span id="victory-faints" style="color:#ff6666; font-weight:bold;">0</span></div>
+      <div style="font-size:13px; color:#998877; margin-top:4px;" id="victory-comment">You survived the terrifying night at Heartbeat Manor!</div>
+    </div>
+    <div class="card-btn-hint" id="victory-btn-hint">Press <strong>[TAB]</strong> for Night Ledger &bull; [ENTER] Next Night &bull; [R] Reset</div>
+  </div>
+
+  <!-- Failed Night Card Overlay -->
+  <div id="failed-card" class="card-overlay" style="display: none;">
+    <div class="card-title" style="color: #ff4444; border-bottom-color: #aa2222;">NIGHT FAILED</div>
+    <div class="card-subtitle" id="failed-card-sub">
+      The night limit expired before the attic hatch was opened. The manor claims another soul.
+    </div>
+    <div class="card-controls" style="text-align:center;">
+      <div style="font-size:15px; margin-bottom:6px;">Time Elapsed: <span id="failed-time" style="color:#f5eedb; font-weight:bold;">07:20</span> &bull; Faints: <span id="failed-faints" style="color:#ff6666; font-weight:bold;">0</span></div>
+      <div style="font-size:13px; color:#998877;">Check your performance review and score breakdown on the night ledger.</div>
+    </div>
+    <div class="card-btn-hint">Press <strong>[TAB]</strong> for Night Ledger &bull; [ENTER] Retry Night &bull; [R] Reset to Title</div>
+  </div>
+
+  <!-- Night Ledger Overlay -->
+  <div id="ledger-card" class="card-overlay" style="display: none;">
+    <div class="card-title" style="color: #d6bf96; border-bottom-color: #8c6d48;">THE NIGHT LEDGER</div>
+    <div class="card-subtitle" id="ledger-subtitle" style="margin-bottom: 18px;">
+      Night Review &bull; Score &amp; Survival Rating
+    </div>
+
+    <div style="background: rgba(18, 20, 26, 0.92); border: 1px solid #5a4832; border-radius: 6px; padding: 18px 28px; width: 560px; max-width: 90%; margin-bottom: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.85); text-align: left; font-family: monospace; font-size: 14px; line-height: 1.8; color: #d0c4b4;">
+      <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #3d3326; padding-bottom: 6px; margin-bottom: 8px; font-weight: bold; color: #e8ded2;">
+        <span>LINE ITEM</span>
+        <span>VALUE</span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span>Fuses Fitted (<span id="ledger-fuses-qty">0</span> &times; 100)</span>
+        <span id="ledger-fuses-val" style="color: #66e077;">+0</span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span>Keys Collected (<span id="ledger-keys-qty">0</span> &times; 200)</span>
+        <span id="ledger-keys-val" style="color: #66e077;">+0</span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span>Attic Hatch Opened</span>
+        <span id="ledger-attic-val" style="color: #66e077;">+0</span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span>Zero-Faint Bonus</span>
+        <span id="ledger-zerofaint-val" style="color: #66e077;">+0</span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span>Faints Incurred (<span id="ledger-faints-qty">0</span> &times; &minus;50)</span>
+        <span id="ledger-faints-val" style="color: #ff6666;">-0</span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span>Overtime Penalty (<span id="ledger-overtime-qty">0s</span>)</span>
+        <span id="ledger-overtime-val" style="color: #ff6666;">-0</span>
+      </div>
+      <div style="border-top: 1px solid #5a4832; margin-top: 10px; padding-top: 10px; display: flex; justify-content: space-between; align-items: baseline;">
+        <span style="font-size: 16px; font-weight: bold; color: #ede6dc;">TOTAL SCORE</span>
+        <span id="ledger-total-score" style="font-size: 24px; font-weight: bold; color: #f5eedb;">0</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+        <span style="font-size: 14px; letter-spacing: 2px; color: #9c8a77;">SURVIVAL RATING</span>
+        <span id="ledger-rating" style="font-size: 32px; font-weight: bold; padding: 2px 14px; border-radius: 4px; border: 2px solid #8c6d48; color: #ffd700;">S</span>
+      </div>
+      <div style="text-align: right; font-size: 11px; color: #887766; margin-top: 4px;">
+        Rating: S &ge; 950 &bull; A &ge; 800 &bull; B &ge; 650 &bull; C &lt; 650
+      </div>
+    </div>
+
+    <div class="card-btn-hint" id="ledger-btn-hint">
+      Press <strong>[TAB]</strong> Close Ledger &bull; <strong>[R]</strong> Master Reset to Title &bull; <strong>[ENTER]</strong> Continue
+    </div>
+  </div>
+
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+  <script>
+    /* =========================================================================
+       HEARTBEAT MANOR - Victorian Survival Horror
+       Deterministic simulation, fixed 1/60s time step, WebAudio synthesis.
+       Round 10: The Night Ledger
+       Score = fuses * 100 + keys * 200 + attic * 200 + zeroFaint * 300 - faints * 50 - overtime(1/10s).
+       Rating: S >= 950 / A >= 800 / B >= 650 / C.
+       Tab opens ledger after night ends (cleared or failed).
+       R from ledger performs master reset back to Title.
+       ========================================================================= */
+
+    // Deterministic state container
+    window.__arena_state = {
+      night: 1,
+      currentNight: 1,
+      nightUnlocked: 1,
+      clock: 0,
+      nightLimit: 440,
+      timeLeft: 440,
+      position: { x: 0, y: 1.6, z: 8 },
+      heartRate: 70,
+      heartRateHistory: [],
+      faints: 0,
+      taskProgress: "0/4",
+      fusesFitted: 0,
+      fusesHeld: 0,
+      lightsRestored: false,
+      keysCollected: 0,
+      atticUnlocked: false,
+      gameWon: false,
+      hasFuseInHand: false,
+      fuseFitted: false,
+      activeScare: null,
+      activeTell: null,
+      facingAngle: 0,
+      isBackTurned: false,
+      lastSpike: 0,
+      lastSpikeAverted: false,
+      sedativesRemaining: 2,
+      sedativesUsed: 0,
+      nightEnded: false,
+      ledgerOpen: false,
+      score: 0,
+      totalScore: 0,
+      rating: "C",
+      fusesScore: 0,
+      keysScore: 0,
+      atticScore: 0,
+      zeroFaintBonus: 300,
+      faintPenalty: 0,
+      overtimePenalty: 0,
+      ledger: null,
+      mode: "TITLE"
+    };
+
+    let _seed = 18920417;
+    function deterministicRandom() {
+      _seed = (_seed * 1664525 + 1013904223) >>> 0;
+      return (_seed >>> 0) / 4294967296;
+    }
+
+    // --- Audio Engine (WebAudio Synthesis) ---
+    class ManorAudioEngine {
+      constructor() {
+        this.ctx = null;
+        this.masterGain = null;
+        this.initialized = false;
+      }
+
+      init() {
+        if (this.initialized) return;
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        this.ctx = new AudioCtx();
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.setValueAtTime(0.85, this.ctx.currentTime);
+        this.masterGain.connect(this.ctx.destination);
+        this.initAmbience();
+        this.initialized = true;
+      }
+
+      initAmbience() {
+        if (!this.ctx) return;
+        const bufferSize = this.ctx.sampleRate * 2;
+        const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        let s = 48271;
+        for (let i = 0; i < bufferSize; i++) {
+          s = (s * 16807) % 2147483647;
+          output[i] = (s / 2147483647) * 2 - 1;
+        }
+
+        const whiteNoise = this.ctx.createBufferSource();
+        whiteNoise.buffer = noiseBuffer;
+        whiteNoise.loop = true;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(320, this.ctx.currentTime);
+
+        const rainGain = this.ctx.createGain();
+        rainGain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+
+        whiteNoise.connect(filter);
+        filter.connect(rainGain);
+        rainGain.connect(this.masterGain);
+        whiteNoise.start();
+
+        const drone = this.ctx.createOscillator();
+        const droneGain = this.ctx.createGain();
+        drone.type = 'sine';
+        drone.frequency.setValueAtTime(55, this.ctx.currentTime);
+        droneGain.gain.setValueAtTime(0.04, this.ctx.currentTime);
+        drone.connect(droneGain);
+        droneGain.connect(this.masterGain);
+        drone.start();
+      }
+
+      playHeartbeat(bpm) {
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime;
+        const intensity = Math.min(1.0, Math.max(0.2, (bpm - 60) / 100));
+
+        const osc1 = this.ctx.createOscillator();
+        const gain1 = this.ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(70 + intensity * 25, t);
+        osc1.frequency.exponentialRampToValueAtTime(35, t + 0.12);
+        gain1.gain.setValueAtTime(0.3 + intensity * 0.45, t);
+        gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+        osc1.connect(gain1);
+        gain1.connect(this.masterGain);
+        osc1.start(t);
+        osc1.stop(t + 0.15);
+
+        const osc2 = this.ctx.createOscillator();
+        const gain2 = this.ctx.createGain();
+        const dubDelay = 0.13 - (bpm / 180) * 0.04;
+        osc2.type = 'triangle';
+        osc2.frequency.setValueAtTime(95 + intensity * 35, t + dubDelay);
+        osc2.frequency.exponentialRampToValueAtTime(40, t + dubDelay + 0.1);
+        gain2.gain.setValueAtTime(0.25 + intensity * 0.5, t + dubDelay);
+        gain2.gain.exponentialRampToValueAtTime(0.001, t + dubDelay + 0.12);
+        osc2.connect(gain2);
+        gain2.connect(this.masterGain);
+        osc2.start(t + dubDelay);
+        osc2.stop(t + dubDelay + 0.13);
+      }
+
+      playSedativeCalmingEffect() {
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime;
+
+        const noiseBufferSize = this.ctx.sampleRate * 0.8;
+        const buffer = this.ctx.createBuffer(1, noiseBufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        let s = 19283;
+        for (let i = 0; i < noiseBufferSize; i++) {
+          s = (s * 16807) % 2147483647;
+          data[i] = (s / 2147483647) * 2 - 1;
+        }
+        const hissSource = this.ctx.createBufferSource();
+        hissSource.buffer = buffer;
+        const hissFilter = this.ctx.createBiquadFilter();
+        hissFilter.type = 'bandpass';
+        hissFilter.frequency.setValueAtTime(1400, t);
+        hissFilter.frequency.linearRampToValueAtTime(600, t + 0.6);
+        const hissGain = this.ctx.createGain();
+        hissGain.gain.setValueAtTime(0.2, t);
+        hissGain.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
+        hissSource.connect(hissFilter);
+        hissFilter.connect(hissGain);
+        hissGain.connect(this.masterGain);
+        hissSource.start(t);
+
+        const oscA = this.ctx.createOscillator();
+        const gainA = this.ctx.createGain();
+        oscA.type = 'sine';
+        oscA.frequency.setValueAtTime(65, t + 0.35);
+        oscA.frequency.exponentialRampToValueAtTime(32, t + 0.55);
+        gainA.gain.setValueAtTime(0.5, t + 0.35);
+        gainA.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+        oscA.connect(gainA);
+        gainA.connect(this.masterGain);
+        oscA.start(t + 0.35);
+        oscA.stop(t + 0.65);
+      }
+
+      /* =========================================================================
+         ROUND 7: 5 DISTINCT BLIND-LISTENABLE TELL SOUNDS
+         1. door-burst: creaking wood tension + wind rattle draft
+         2. mirror-figure: crystal glass singing bowl resonance (520Hz + 526Hz beat)
+         3. gramophone: rhythmic needle scratches on lacquer vinyl grooves
+         4. curtain-figure: fluttering silk drape swish with low whisper sweep
+         5. hanging-hand: creaking attic beam & descending metallic chain links
+         ========================================================================= */
+
+      playTellCue(type, panX = 0) {
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime;
+        const panner = this.ctx.createStereoPanner ? this.ctx.createStereoPanner() : null;
+        if (panner) panner.pan.setValueAtTime(Math.max(-1, Math.min(1, panX)), t);
+
+        const outNode = panner ? panner : this.masterGain;
+        if (panner) panner.connect(this.masterGain);
+
+        if (type === 'door-burst') {
+          // Creaking wood tension & draft (2.5s window)
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(80, t);
+          osc.frequency.linearRampToValueAtTime(145, t + 1.3);
+          osc.frequency.linearRampToValueAtTime(55, t + 2.3);
+          gain.gain.setValueAtTime(0.01, t);
+          gain.gain.linearRampToValueAtTime(0.19, t + 1.0);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 2.45);
+          osc.connect(gain);
+          gain.connect(outNode);
+          osc.start(t);
+          osc.stop(t + 2.5);
+        } else if (type === 'mirror-figure') {
+          // Pure crystal glass singing bowl chime & eerie shimmer (2.5s window)
+          const oscA = this.ctx.createOscillator();
+          const oscB = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          oscA.type = 'sine';
+          oscB.type = 'sine';
+          oscA.frequency.setValueAtTime(520, t);
+          oscA.frequency.linearRampToValueAtTime(540, t + 2.3);
+          oscB.frequency.setValueAtTime(526, t);
+          oscB.frequency.linearRampToValueAtTime(532, t + 2.3);
+          gain.gain.setValueAtTime(0.005, t);
+          gain.gain.linearRampToValueAtTime(0.24, t + 1.4);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 2.45);
+          oscA.connect(gain);
+          oscB.connect(gain);
+          gain.connect(outNode);
+          oscA.start(t);
+          oscB.start(t);
+          oscA.stop(t + 2.5);
+          oscB.stop(t + 2.5);
+        } else if (type === 'gramophone') {
+          // Gramophone needle scratch clicks on revolving lacquer disc (2.5s window)
+          const numClicks = 5;
+          for (let i = 0; i < numClicks; i++) {
+            const clickTime = t + i * 0.45;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(800 + (i % 2) * 200, clickTime);
+            osc.frequency.exponentialRampToValueAtTime(150, clickTime + 0.04);
+            gain.gain.setValueAtTime(0.12 + i * 0.02, clickTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, clickTime + 0.045);
+            osc.connect(gain);
+            gain.connect(outNode);
+            osc.start(clickTime);
+            osc.stop(clickTime + 0.05);
+          }
+        } else if (type === 'curtain-figure') {
+          // Soft fluttering silk swish & whisper (2.5s window)
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(320, t);
+          osc.frequency.linearRampToValueAtTime(260, t + 1.0);
+          osc.frequency.linearRampToValueAtTime(360, t + 2.3);
+          gain.gain.setValueAtTime(0.01, t);
+          gain.gain.linearRampToValueAtTime(0.22, t + 1.3);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 2.45);
+          osc.connect(gain);
+          gain.connect(outNode);
+          osc.start(t);
+          osc.stop(t + 2.5);
+        } else if (type === 'hanging-hand') {
+          // Creaking attic beam & descending metallic chain links (2.5s window)
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(360, t);
+          osc.frequency.exponentialRampToValueAtTime(85, t + 2.3);
+          gain.gain.setValueAtTime(0.01, t);
+          gain.gain.linearRampToValueAtTime(0.2, t + 1.2);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 2.45);
+          osc.connect(gain);
+          gain.connect(outNode);
+          osc.start(t);
+          osc.stop(t + 2.5);
+        }
+      }
+
+      /* =========================================================================
+         ROUND 7: 5 DISTINCT 1.5-SECOND SET PIECE SOUNDS
+         1. door-burst: heavy door slam impact + howling gust of wind buffer
+         2. mirror-figure: glass ring shock chord & dissolving frost sigh
+         3. gramophone: plays an antique phonograph waltz melody by itself!
+         4. curtain-figure: sudden fabric rip/whoosh + harsh wind snap
+         5. hanging-hand: wooden snap + wet grasping downward slide
+         ========================================================================= */
+
+      playScareImpact(type, averted = false) {
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime;
+        const volMul = averted ? 0.6 : 1.0;
+
+        if (type === 'door-burst') {
+          // Door slams open with wind
+          const slamOsc = this.ctx.createOscillator();
+          const slamGain = this.ctx.createGain();
+          slamOsc.type = 'sawtooth';
+          slamOsc.frequency.setValueAtTime(130, t);
+          slamOsc.frequency.exponentialRampToValueAtTime(22, t + 0.65);
+          slamGain.gain.setValueAtTime(0.95 * volMul, t);
+          slamGain.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+          slamOsc.connect(slamGain);
+          slamGain.connect(this.masterGain);
+          slamOsc.start(t);
+          slamOsc.stop(t + 0.85);
+
+          // Rushing wind buffer for 1.5s
+          const windBuffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 1.5, this.ctx.sampleRate);
+          const wdata = windBuffer.getChannelData(0);
+          let ws = 31827;
+          for (let i = 0; i < wdata.length; i++) {
+            ws = (ws * 16807) % 2147483647;
+            wdata[i] = (ws / 2147483647) * 2 - 1;
+          }
+          const windSource = this.ctx.createBufferSource();
+          windSource.buffer = windBuffer;
+          const windFilter = this.ctx.createBiquadFilter();
+          windFilter.type = 'lowpass';
+          windFilter.frequency.setValueAtTime(450, t);
+          windFilter.frequency.linearRampToValueAtTime(180, t + 1.4);
+          const windGain = this.ctx.createGain();
+          windGain.gain.setValueAtTime(0.35 * volMul, t);
+          windGain.gain.exponentialRampToValueAtTime(0.001, t + 1.48);
+          windSource.connect(windFilter);
+          windFilter.connect(windGain);
+          windGain.connect(this.masterGain);
+          windSource.start(t);
+        } else if (type === 'gramophone') {
+          // Gramophone plays by itself inside the set piece! (1.5s antique phonograph tune)
+          const notes = [261.63, 329.63, 392.00, 493.88, 392.00, 329.63]; // C4, E4, G4, B4, G4, E4
+          notes.forEach((freq, idx) => {
+            const noteTime = t + idx * 0.22;
+            const osc = this.ctx.createOscillator();
+            const noteGain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(freq, noteTime);
+            // Nostalgic bandpass for horn megaphone coloration
+            const hornFilter = this.ctx.createBiquadFilter();
+            hornFilter.type = 'bandpass';
+            hornFilter.frequency.setValueAtTime(1200, noteTime);
+            noteGain.gain.setValueAtTime(0.4 * volMul, noteTime);
+            noteGain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.26);
+            osc.connect(hornFilter);
+            hornFilter.connect(noteGain);
+            noteGain.connect(this.masterGain);
+            osc.start(noteTime);
+            osc.stop(noteTime + 0.28);
+          });
+        } else if (type === 'mirror-figure') {
+          // Eerie glass resonance chord for 0.5s silhouette flash
+          const mChord = [440, 523.25, 659.25];
+          mChord.forEach(freq => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, t);
+            gain.gain.setValueAtTime(0.35 * volMul, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start(t);
+            osc.stop(t + 0.75);
+          });
+        } else if (type === 'curtain-figure') {
+          // Curtain whoosh + gust
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(420, t);
+          osc.frequency.exponentialRampToValueAtTime(90, t + 0.6);
+          gain.gain.setValueAtTime(0.6 * volMul, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          osc.start(t);
+          osc.stop(t + 0.75);
+        } else if (type === 'hanging-hand') {
+          // Creaking wood snap + descending wet grasp tone
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(280, t);
+          osc.frequency.exponentialRampToValueAtTime(45, t + 0.9);
+          gain.gain.setValueAtTime(0.75 * volMul, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 1.0);
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          osc.start(t);
+          osc.stop(t + 1.05);
+        }
+      }
+
+      playThunder() {
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(80, t);
+        osc.frequency.exponentialRampToValueAtTime(20, t + 1.8);
+        gain.gain.setValueAtTime(0.7, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 2.0);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(t);
+        osc.stop(t + 2.1);
+      }
+
+      playClockTick(isTock) {
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(isTock ? 400 : 540, t);
+        osc.frequency.exponentialRampToValueAtTime(120, t + 0.04);
+        gain.gain.setValueAtTime(0.08, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.045);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(t);
+        osc.stop(t + 0.05);
+      }
+
+      playPickup() {
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(880, t);
+        osc.frequency.exponentialRampToValueAtTime(440, t + 0.08);
+        gain.gain.setValueAtTime(0.25, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(t);
+        osc.stop(t + 0.1);
+      }
+
+      playFuseFit() {
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(260, t);
+        osc.frequency.exponentialRampToValueAtTime(110, t + 0.2);
+        gain.gain.setValueAtTime(0.45, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(t);
+        osc.stop(t + 0.3);
+      }
+
+      playPowerRestored() {
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime;
+        const notes = [220, 277, 330, 440];
+        notes.forEach((freq, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, t + idx * 0.1);
+          gain.gain.setValueAtTime(0.2, t + idx * 0.1);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 1.8);
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          osc.start(t + idx * 0.1);
+          osc.stop(t + 1.9);
+        });
+      }
+
+      playHatchUnlock() {
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(180, t);
+        osc.frequency.exponentialRampToValueAtTime(60, t + 0.5);
+        gain.gain.setValueAtTime(0.6, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(t);
+        osc.stop(t + 0.65);
+      }
+
+      playFootstep() {
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(110, t);
+        osc.frequency.exponentialRampToValueAtTime(45, t + 0.06);
+        gain.gain.setValueAtTime(0.06, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(t);
+        osc.stop(t + 0.08);
+      }
+    }
+
+    const audio = new ManorAudioEngine();
+
+    /* =========================================================================
+       THREE.JS SETUP & SCENE BUILDER
+       ========================================================================= */
+
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x020306);
+    scene.fog = new THREE.FogExp2(0x030408, 0.045);
+
+    const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 100);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    function createWoodTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256; canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#2c1e14';
+      ctx.fillRect(0, 0, 256, 256);
+      ctx.fillStyle = '#22160d';
+      for (let i = 0; i < 256; i += 8) ctx.fillRect(0, i, 256, 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      for (let x = 0; x < 256; x += 16) ctx.fillRect(x, 0, 2, 256);
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      return tex;
+    }
+
+    function createWallpaperTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256; canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#171e22';
+      ctx.fillRect(0, 0, 256, 256);
+      ctx.strokeStyle = '#27333b';
+      ctx.lineWidth = 3;
+      for (let y = 0; y < 256; y += 32) {
+        for (let x = 0; x < 256; x += 32) {
+          ctx.strokeRect(x + 4, y + 4, 24, 24);
+        }
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      return tex;
+    }
+
+    const matWoodFloor = new THREE.MeshStandardMaterial({ map: createWoodTexture(), roughness: 0.7, color: 0x483424 });
+    const matCeiling = new THREE.MeshStandardMaterial({ roughness: 0.9, color: 0x181c20 });
+    const matWall = new THREE.MeshStandardMaterial({ map: createWallpaperTexture(), roughness: 0.85, color: 0x5a636a });
+    const matBoneSheet = new THREE.MeshStandardMaterial({ roughness: 0.95, color: 0xded8cc, side: THREE.DoubleSide });
+    const matBrass = new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.85, color: 0xb59146 });
+    const matWax = new THREE.MeshStandardMaterial({ roughness: 0.5, color: 0xefedd8 });
+    const matDarkWalnut = new THREE.MeshStandardMaterial({ roughness: 0.65, metalness: 0.1, color: 0x22150c });
+
+    const rooms = [
+      { name: "Grand Entrance Hall", bounds: { minX: -5, maxX: 5, minZ: 3, maxZ: 11 }, isDark: false },
+      { name: "Victorian Parlor", bounds: { minX: -13, maxX: -5, minZ: 3, maxZ: 11 }, isDark: false },
+      { name: "Manor Kitchen", bounds: { minX: 5, maxX: 13, minZ: 3, maxZ: 11 }, isDark: true },
+      { name: "Staircase Landing", bounds: { minX: -5, maxX: 5, minZ: -5, maxZ: 3 }, isDark: false },
+      { name: "Victorian Study", bounds: { minX: -13, maxX: -5, minZ: -5, maxZ: 3 }, isDark: true },
+      { name: "Master Bedroom", bounds: { minX: 5, maxX: 13, minZ: -5, maxZ: 3 }, isDark: false },
+      { name: "Attic Stairway", bounds: { minX: -3, maxX: 3, minZ: -11, maxZ: -5 }, isDark: true }
+    ];
+
+    const colliders = [];
+    function addBoxCollider(minX, maxX, minZ, maxZ) {
+      colliders.push({ minX, maxX, minZ, maxZ });
+    }
+
+    function createWallSegment(x, z, w, d, h = 4.2) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), matWall);
+      mesh.position.set(x, h / 2, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+      addBoxCollider(x - w / 2 - 0.35, x + w / 2 + 0.35, z - d / 2 - 0.35, z + d / 2 + 0.35);
+      return mesh;
+    }
+
+    const floorGeo = new THREE.PlaneGeometry(30, 26);
+    const floorMesh = new THREE.Mesh(floorGeo, matWoodFloor);
+    floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.receiveShadow = true;
+    scene.add(floorMesh);
+
+    const ceilingMesh = new THREE.Mesh(floorGeo, matCeiling);
+    ceilingMesh.rotation.x = Math.PI / 2;
+    ceilingMesh.position.set(0, 4.2, 0);
+    scene.add(ceilingMesh);
+
+    // Perimeter walls
+    createWallSegment(0, 11.2, 28, 0.4);
+    createWallSegment(0, -11.2, 28, 0.4);
+    createWallSegment(-13.2, 0, 0.4, 23);
+    createWallSegment(13.2, 0, 0.4, 23);
+
+    // Interior walls
+    createWallSegment(-5, 4.5, 0.4, 3);
+    createWallSegment(-5, 9.5, 0.4, 3);
+    createWallSegment(5, 4.5, 0.4, 3);
+    createWallSegment(5, 9.5, 0.4, 3);
+
+    createWallSegment(-11.5, 3, 3, 0.4);
+    createWallSegment(-6.5, 3, 3, 0.4);
+    createWallSegment(-2.5, 3, 3, 0.4);
+    createWallSegment(2.5, 3, 3, 0.4);
+    createWallSegment(6.5, 3, 3, 0.4);
+    createWallSegment(11.5, 3, 3, 0.4);
+
+    createWallSegment(-5, 1.5, 0.4, 3);
+    createWallSegment(-5, -3.5, 0.4, 3);
+    createWallSegment(5, 1.5, 0.4, 3);
+    createWallSegment(5, -3.5, 0.4, 3);
+
+    createWallSegment(-8, -5, 10, 0.4);
+    createWallSegment(8, -5, 10, 0.4);
+    createWallSegment(-2.5, -5, 2.5, 0.4);
+    createWallSegment(2.5, -5, 2.5, 0.4);
+    createWallSegment(-3, -8, 0.4, 6);
+    createWallSegment(3, -8, 0.4, 6);
+
+    const moonLight = new THREE.DirectionalLight(0x1a2838, 0.35);
+    moonLight.position.set(10, 20, 15);
+    scene.add(moonLight);
+
+    const ambientLight = new THREE.AmbientLight(0x06080e, 0.5);
+    scene.add(ambientLight);
+
+    const restoredLights = [];
+    function addRestoredRoomLight(x, y, z) {
+      const pl = new THREE.PointLight(0xffdfa0, 0, 12, 1.8);
+      pl.position.set(x, y, z);
+      scene.add(pl);
+      restoredLights.push(pl);
+    }
+    addRestoredRoomLight(9, 3.2, 7);   // Kitchen ceiling light
+    addRestoredRoomLight(-9, 3.2, -1); // Study ceiling light
+    addRestoredRoomLight(0, 3.2, -8);  // Attic stairs light
+
+    /* =========================================================================
+       FIXTURES & OBJECTS
+       ========================================================================= */
+
+    const candelabraFlames = [];
+    function createBranchedCandelabra(x, y, z) {
+      const group = new THREE.Group();
+      group.position.set(x, y, z);
+
+      const baseMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 0.1, 16), matBrass);
+      group.add(baseMesh);
+
+      const stemMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.2, 12), matBrass);
+      stemMesh.position.y = 0.6;
+      group.add(stemMesh);
+
+      const localFlames = [];
+      [0, Math.PI * 2 / 3, Math.PI * 4 / 3].forEach((ang) => {
+        const armGroup = new THREE.Group();
+        armGroup.rotation.y = ang;
+
+        const armBar = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.45), matBrass);
+        armBar.position.set(0.2, 0.9, 0);
+        armBar.rotation.z = Math.PI / 3;
+        armGroup.add(armBar);
+
+        const waxMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.35, 10), matWax);
+        waxMesh.position.set(0.38, 1.15, 0);
+        armGroup.add(waxMesh);
+
+        const flameMesh = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.09, 8), new THREE.MeshBasicMaterial({ color: 0xffa028 }));
+        flameMesh.position.set(0.38, 1.36, 0);
+        armGroup.add(flameMesh);
+
+        const flameObj = { mesh: flameMesh, initialY: 1.36, offset: candelabraFlames.length * 1.7 };
+        candelabraFlames.push(flameObj);
+        localFlames.push(flameObj);
+        group.add(armGroup);
+      });
+
+      const light = new THREE.PointLight(0xff9c34, 1.4, 9, 2);
+      light.position.set(0, 1.3, 0);
+      group.add(light);
+      scene.add(group);
+      return { group, light, flames: localFlames };
+    }
+
+    createBranchedCandelabra(0, 0, 7);
+    createBranchedCandelabra(-9, 0, 7);
+    createBranchedCandelabra(0, 0, -1);
+    const candelabraBedroom = createBranchedCandelabra(9, 0, -1);
+
+    // Grandfather Clock in Entrance Hall
+    const clockGroup = new THREE.Group();
+    clockGroup.position.set(4.5, 0, 10.5);
+    clockGroup.rotation.y = -Math.PI / 2;
+
+    const clockBody = new THREE.Mesh(new THREE.BoxGeometry(0.7, 2.8, 0.5), matDarkWalnut);
+    clockBody.position.y = 1.4;
+    clockGroup.add(clockBody);
+
+    const clockFace = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.03, 24), matWax);
+    clockFace.rotation.x = Math.PI / 2;
+    clockFace.position.set(0, 2.3, 0.26);
+    clockGroup.add(clockFace);
+
+    const hourHand = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.1, 0.01), matBrass);
+    hourHand.position.set(0, 2.3, 0.28);
+    clockGroup.add(hourHand);
+
+    const minuteHand = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.15, 0.01), matBrass);
+    minuteHand.position.set(0, 2.3, 0.28);
+    clockGroup.add(minuteHand);
+
+    const pendulumPivot = new THREE.Group();
+    pendulumPivot.position.set(0, 1.6, 0.15);
+    const pendulumRod = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.9), matBrass);
+    pendulumRod.position.y = -0.45;
+    const pendulumBob = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.04, 16), matBrass);
+    pendulumBob.position.y = -0.9;
+    pendulumBob.rotation.x = Math.PI / 2;
+    pendulumPivot.add(pendulumRod, pendulumBob);
+    clockGroup.add(pendulumPivot);
+    scene.add(clockGroup);
+    addBoxCollider(4.0, 5.0, 10.0, 11.0);
+
+    // Sheet-Draped Furniture
+    const dustSheetMeshes = [];
+    function createDrapedFurniture(x, z, w, d, h) {
+      const group = new THREE.Group();
+      group.position.set(x, 0, z);
+
+      const baseMesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), matDarkWalnut);
+      baseMesh.position.y = h / 2;
+      group.add(baseMesh);
+
+      const sheetGeo = new THREE.BoxGeometry(w * 1.08, h * 1.02, d * 1.08, 4, 3, 4);
+      const sheetMesh = new THREE.Mesh(sheetGeo, matBoneSheet);
+      sheetMesh.position.y = h / 2 + 0.02;
+      group.add(sheetMesh);
+
+      dustSheetMeshes.push({ mesh: sheetMesh, origPos: new THREE.Vector3(x, 0, z), stirTimer: 0 });
+      scene.add(group);
+      addBoxCollider(x - w / 2 - 0.25, x + w / 2 + 0.25, z - d / 2 - 0.25, z + d / 2 + 0.25);
+    }
+    createDrapedFurniture(-9, 5, 2.2, 1.2, 0.9);
+    createDrapedFurniture(-10.5, 9, 1.4, 1.8, 1.2);
+    createDrapedFurniture(9, -3.5, 2.4, 2.2, 1.1);
+    createDrapedFurniture(-9, -3, 2.0, 1.0, 0.85);
+
+    // Kitchen Counter & Shelves
+    const kitchenCounter = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.95, 1.1), matDarkWalnut);
+    kitchenCounter.position.set(9, 0.475, 9);
+    scene.add(kitchenCounter);
+    addBoxCollider(7.4, 10.6, 8.2, 9.8);
+
+    const kitchenShelf = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.9, 1.2), matDarkWalnut);
+    kitchenShelf.position.set(11.5, 0.45, 5.5);
+    scene.add(kitchenShelf);
+    addBoxCollider(10.5, 12.5, 4.7, 6.3);
+
+    const studyDesk = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.85, 1.2), matDarkWalnut);
+    studyDesk.position.set(-9.2, 0.425, -3.5);
+    scene.add(studyDesk);
+    addBoxCollider(-10.5, -7.9, -4.3, -2.7);
+
+    const bedroomDresser = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.85, 1.0), matDarkWalnut);
+    bedroomDresser.position.set(7.0, 0.425, -3.5);
+    scene.add(bedroomDresser);
+    addBoxCollider(5.9, 8.1, -4.2, -2.8);
+
+    // Cold Hearth with Fire Irons in Parlor
+    const hearthGroup = new THREE.Group();
+    hearthGroup.position.set(-13, 0, 7);
+    hearthGroup.rotation.y = Math.PI / 2;
+    const mantel = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.6, 0.6), matDarkWalnut);
+    mantel.position.y = 0.8;
+    hearthGroup.add(mantel);
+    const fireplaceCavity = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.0, 0.5), new THREE.MeshBasicMaterial({ color: 0x050505 }));
+    fireplaceCavity.position.set(0, 0.6, 0.08);
+    hearthGroup.add(fireplaceCavity);
+    scene.add(hearthGroup);
+    addBoxCollider(-13.2, -12.2, 5.8, 8.2);
+
+    /* =========================================================================
+       FOUR FUSES & HALL FUSE BOX
+       ========================================================================= */
+
+    const collectibleFuses = [];
+    function createCollectibleFuse(id, x, y, z, locationName) {
+      const group = new THREE.Group();
+      group.position.set(x, y, z);
+
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.16, 16), matWax);
+      body.rotation.z = Math.PI / 2;
+      group.add(body);
+
+      const capA = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.04, 16), matBrass);
+      capA.rotation.z = Math.PI / 2;
+      capA.position.x = -0.07;
+      group.add(capA);
+
+      const capB = capA.clone();
+      capB.position.x = 0.07;
+      group.add(capB);
+
+      const highlight = new THREE.Mesh(
+        new THREE.RingGeometry(0.12, 0.16, 16),
+        new THREE.MeshBasicMaterial({ color: 0xffe066, side: THREE.DoubleSide, transparent: true, opacity: 0 })
+      );
+      highlight.rotation.x = Math.PI / 2;
+      highlight.position.y = -0.02;
+      group.add(highlight);
+
+      scene.add(group);
+      const fuseObj = { id, group, highlight, worldPos: new THREE.Vector3(x, y, z), collected: false, locationName };
+      collectibleFuses.push(fuseObj);
+      return fuseObj;
+    }
+
+    createCollectibleFuse(1, 9.2, 1.03, 9.1, "Kitchen Counter");
+    createCollectibleFuse(2, 11.5, 1.0, 5.5, "Kitchen Pantry Shelf");
+    createCollectibleFuse(3, -9.2, 0.95, -3.5, "Study Desk");
+    createCollectibleFuse(4, 7.0, 0.95, -3.5, "Bedroom Nightstand");
+
+    const fuseBoxGroup = new THREE.Group();
+    fuseBoxGroup.position.set(-4.75, 1.7, 8.5);
+    fuseBoxGroup.rotation.y = Math.PI / 2;
+
+    const boxCase = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.75, 0.18), new THREE.MeshStandardMaterial({
+      color: 0x24282c, roughness: 0.5, metalness: 0.7
+    }));
+    fuseBoxGroup.add(boxCase);
+
+    const busBar = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.06, 0.03), matBrass);
+    busBar.position.set(0, 0.2, 0.06);
+    fuseBoxGroup.add(busBar);
+
+    const socketOffsets = [-0.18, -0.06, 0.06, 0.18];
+    const fittedFuseMeshes = [];
+    socketOffsets.forEach((posX) => {
+      const socket = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.05, 12), new THREE.MeshStandardMaterial({
+        color: 0x111111, metalness: 0.8
+      }));
+      socket.rotation.x = Math.PI / 2;
+      socket.position.set(posX, 0, 0.08);
+      fuseBoxGroup.add(socket);
+
+      const ff = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.15, 16), matWax);
+      ff.rotation.z = Math.PI / 2;
+      ff.position.set(posX, 0, 0.1);
+      ff.visible = false;
+      fuseBoxGroup.add(ff);
+      fittedFuseMeshes.push(ff);
+    });
+
+    const doorHinge = new THREE.Group();
+    doorHinge.position.set(-0.32, 0, 0.1);
+    const doorLeaf = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.74, 0.02), new THREE.MeshStandardMaterial({
+      color: 0x30363d, roughness: 0.6, metalness: 0.6
+    }));
+    doorLeaf.position.set(0.32, 0, 0);
+    doorHinge.add(doorLeaf);
+    doorHinge.rotation.y = -Math.PI * 0.7;
+    fuseBoxGroup.add(doorHinge);
+
+    const fuseBoxHighlight = new THREE.Mesh(
+      new THREE.RingGeometry(0.38, 0.44, 24),
+      new THREE.MeshBasicMaterial({ color: 0xffe066, side: THREE.DoubleSide, transparent: true, opacity: 0 })
+    );
+    fuseBoxHighlight.position.set(0, 0, 0.12);
+    fuseBoxGroup.add(fuseBoxHighlight);
+    scene.add(fuseBoxGroup);
+
+    /* =========================================================================
+       THREE KEYS & ATTIC HATCH
+       ========================================================================= */
+
+    const collectibleKeys = [];
+    function createKeyModel(id, x, y, z, locationName) {
+      const group = new THREE.Group();
+      group.position.set(x, y, z);
+
+      const bow = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.012, 8, 16), matBrass);
+      group.add(bow);
+
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.14, 8), matBrass);
+      shaft.position.y = -0.08;
+      group.add(shaft);
+
+      const bit = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.035, 0.01), matBrass);
+      bit.position.set(0.02, -0.13, 0);
+      group.add(bit);
+
+      const highlight = new THREE.Mesh(
+        new THREE.RingGeometry(0.12, 0.16, 16),
+        new THREE.MeshBasicMaterial({ color: 0xffdd44, side: THREE.DoubleSide, transparent: true, opacity: 0 })
+      );
+      highlight.rotation.x = Math.PI / 2;
+      group.add(highlight);
+
+      scene.add(group);
+      const keyObj = { id, group, highlight, worldPos: new THREE.Vector3(x, y, z), collected: false, locationName };
+      collectibleKeys.push(keyObj);
+      return keyObj;
+    }
+
+    createKeyModel(1, -12.6, 1.68, 7.0, "Behind Parlor Painting");
+    createKeyModel(2, -9.2, 1.05, -3.0, "Inside Study Clock");
+    createKeyModel(3, 0, 0.35, -7.0, "Under Attic-Stairs Floorboard");
+
+    const looseFloorboard = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.06, 0.4), matDarkWalnut);
+    looseFloorboard.position.set(0, 0.3, -7.0);
+    looseFloorboard.rotation.z = 0.08;
+    scene.add(looseFloorboard);
+
+    const atticHatchGroup = new THREE.Group();
+    atticHatchGroup.position.set(0, 2.6, -10.8);
+    const hatchFrame = new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.4, 0.2), matDarkWalnut);
+    atticHatchGroup.add(hatchFrame);
+    const hatchDoor = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.2, 0.08), new THREE.MeshStandardMaterial({
+      color: 0x3a2c1f, roughness: 0.7, metalness: 0.2
+    }));
+    atticHatchGroup.add(hatchDoor);
+    const padlock = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.45, 0.12), new THREE.MeshStandardMaterial({
+      color: 0x111111, metalness: 0.85, roughness: 0.3
+    }));
+    padlock.position.set(0, 0, 0.08);
+    atticHatchGroup.add(padlock);
+    const hatchHighlight = new THREE.Mesh(
+      new THREE.RingGeometry(0.5, 0.6, 24),
+      new THREE.MeshBasicMaterial({ color: 0x66ff88, side: THREE.DoubleSide, transparent: true, opacity: 0 })
+    );
+    hatchHighlight.position.set(0, 0, 0.12);
+    atticHatchGroup.add(hatchHighlight);
+    scene.add(atticHatchGroup);
+
+    /* =========================================================================
+       MEDICINE CABINETS & SEDATIVE SYRETTES
+       ========================================================================= */
+
+    const medicineCabinets = [];
+    function createMedicineCabinet(id, x, y, z, rotY, roomName) {
+      const cabGroup = new THREE.Group();
+      cabGroup.position.set(x, y, z);
+      cabGroup.rotation.y = rotY;
+
+      const cabBody = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.22), new THREE.MeshStandardMaterial({ color: 0xded8ce, roughness: 0.4 }));
+      cabGroup.add(cabBody);
+
+      const cabDoor = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.68, 0.02), new THREE.MeshStandardMaterial({
+        color: 0x334455, roughness: 0.1, metalness: 0.8, transparent: true, opacity: 0.45
+      }));
+      cabDoor.position.z = 0.11;
+      cabGroup.add(cabDoor);
+
+      const syretteGroup = new THREE.Group();
+      syretteGroup.position.set(0, 0.08, 0.03);
+      const glassBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.14, 12), new THREE.MeshStandardMaterial({
+        color: 0x44ddff, emissive: 0x116688, roughness: 0.1, transparent: true, opacity: 0.85
+      }));
+      syretteGroup.add(glassBarrel);
+      cabGroup.add(syretteGroup);
+
+      const highlight = new THREE.Mesh(
+        new THREE.RingGeometry(0.25, 0.3, 16),
+        new THREE.MeshBasicMaterial({ color: 0x55ddff, side: THREE.DoubleSide, transparent: true, opacity: 0 })
+      );
+      highlight.position.set(0, 0, 0.14);
+      cabGroup.add(highlight);
+
+      scene.add(cabGroup);
+      const cabObj = { id, roomName, syretteMesh: syretteGroup, highlight, worldPos: new THREE.Vector3(x, y, z), taken: false };
+      medicineCabinets.push(cabObj);
+      return cabObj;
+    }
+    createMedicineCabinet('study', -12.95, 1.85, -1.0, Math.PI / 2, "Victorian Study");
+    createMedicineCabinet('bedroom', 12.95, 1.85, 1.0, -Math.PI / 2, "Master Bedroom");
+
+    /* =========================================================================
+       ROUND 7: SCARE BESTIARY (5 Distinct 3D Set Pieces)
+       1. Door-burst (slam inward with rushing wind)
+       2. Mirror-figure (silhouette visible in glass for half a second)
+       3. Gramophone (plays by itself with spinning turntable & vibrating horn)
+       4. Curtain-figure (shadow shape flashes past window curtain)
+       5. Hanging-hand (drops down into frame from ceiling above stairs)
+       ========================================================================= */
+
+    // 1. Entrance Door
+    const entranceDoorPivot = new THREE.Group();
+    entranceDoorPivot.position.set(-1.2, 0, 11.2);
+    const entranceDoor = new THREE.Mesh(new THREE.BoxGeometry(2.4, 3.6, 0.12), matDarkWalnut);
+    entranceDoor.position.set(1.2, 1.8, 0);
+    entranceDoorPivot.add(entranceDoor);
+    scene.add(entranceDoorPivot);
+
+    // 2. Parlor Mirror & Figure
+    const parlorMirrorGroup = new THREE.Group();
+    parlorMirrorGroup.position.set(-12.95, 2.0, 9.5);
+    parlorMirrorGroup.rotation.y = Math.PI / 2;
+    const mirrorFrame = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.2, 0.08), matBrass);
+    parlorMirrorGroup.add(mirrorFrame);
+    const mirrorGlass = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 2.0), new THREE.MeshStandardMaterial({ color: 0x445566, metalness: 0.95 }));
+    mirrorGlass.position.z = 0.045;
+    parlorMirrorGroup.add(mirrorGlass);
+
+    const parlorGhostFigure = new THREE.Group();
+    parlorGhostFigure.position.set(0, -0.2, 0.15);
+    const ghostHead = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16), new THREE.MeshBasicMaterial({ color: 0x050505 }));
+    const ghostTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.38, 1.2, 12), new THREE.MeshBasicMaterial({ color: 0x07080a }));
+    ghostTorso.position.y = -0.7;
+    const eye1 = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff1111 }));
+    eye1.position.set(-0.06, 0.03, 0.18);
+    const eye2 = eye1.clone();
+    eye2.position.x = 0.06;
+    parlorGhostFigure.add(ghostHead, ghostTorso, eye1, eye2);
+    parlorGhostFigure.visible = false;
+    parlorMirrorGroup.add(parlorGhostFigure);
+    scene.add(parlorMirrorGroup);
+
+    // Bedroom Mirror & Figure
+    const bedroomMirrorGroup = new THREE.Group();
+    bedroomMirrorGroup.position.set(12.95, 2.0, -1.0);
+    bedroomMirrorGroup.rotation.y = -Math.PI / 2;
+    const bMirrorFrame = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.2, 0.08), matBrass);
+    bedroomMirrorGroup.add(bMirrorFrame);
+    const bedroomGhostFigure = parlorGhostFigure.clone();
+    bedroomGhostFigure.visible = false;
+    bedroomMirrorGroup.add(bedroomGhostFigure);
+    scene.add(bedroomMirrorGroup);
+
+    // 3. Study Gramophone (with rotating turntable & vibrating horn)
+    const studyGramophone = new THREE.Group();
+    studyGramophone.position.set(-9.2, 0.85, -3.0);
+    const gramoBox = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.22, 0.45), matDarkWalnut);
+    studyGramophone.add(gramoBox);
+    const studyTurntable = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.02, 24), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+    studyTurntable.position.set(0, 0.23, 0);
+    studyGramophone.add(studyTurntable);
+    const studyHorn = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.6, 18, 1, true), matBrass);
+    studyHorn.rotation.x = Math.PI / 3;
+    studyHorn.position.set(0.12, 0.5, 0.12);
+    studyGramophone.add(studyHorn);
+    scene.add(studyGramophone);
+
+    // Attic Gramophone
+    const atticGramophone = new THREE.Group();
+    atticGramophone.position.set(0, 0.4, -7.5);
+    const atticGramoBox = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.22, 0.45), matDarkWalnut);
+    atticGramophone.add(atticGramoBox);
+    const atticTurntable = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.02, 24), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+    atticTurntable.position.set(0, 0.23, 0);
+    atticGramophone.add(atticTurntable);
+    const atticHorn = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.6, 18, 1, true), matBrass);
+    atticHorn.rotation.x = Math.PI / 3;
+    atticHorn.position.set(0.12, 0.5, 0.12);
+    atticGramophone.add(atticHorn);
+    scene.add(atticGramophone);
+
+    // 4. Kitchen Curtain Figure (silhouette flashes past window)
+    const kitchenCurtainFigure = new THREE.Group();
+    kitchenCurtainFigure.position.set(9.0, 1.8, 10.9);
+    const kTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.45, 1.6, 12), new THREE.MeshStandardMaterial({ color: 0x111518, roughness: 0.9 }));
+    const kHead = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 14), new THREE.MeshBasicMaterial({ color: 0x050608 }));
+    kHead.position.y = 0.95;
+    const kEyeA = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff3333 }));
+    kEyeA.position.set(-0.06, 0.98, -0.2);
+    const kEyeB = kEyeA.clone();
+    kEyeB.position.x = 0.06;
+    kitchenCurtainFigure.add(kTorso, kHead, kEyeA, kEyeB);
+    kitchenCurtainFigure.visible = false;
+    scene.add(kitchenCurtainFigure);
+
+    // 5. Stairwell Hanging Hand (drops into frame from ceiling above stairs)
+    const hangingHandGroup = new THREE.Group();
+    hangingHandGroup.position.set(0, 4.2, -1.0);
+    const handArm = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.8, 8), matBoneSheet);
+    handArm.position.y = -0.4;
+    hangingHandGroup.add(handArm);
+    const handPalm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.22, 0.05), matBoneSheet);
+    handPalm.position.y = -0.9;
+    for (let f = -2; f <= 2; f++) {
+      if (f === 0) continue;
+      const finger = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.012, 0.18), matBoneSheet);
+      finger.position.set(f * 0.03, -1.05, 0);
+      hangingHandGroup.add(finger);
+    }
+    hangingHandGroup.add(handPalm);
+    hangingHandGroup.visible = false;
+    scene.add(hangingHandGroup);
+
+    // The Fixed 8-Scare Schedule for Night 1 with exact coordinates (Untouched & Replayable)
+    const SCARE_SCHEDULE_NIGHT_1 = [
+      { id: 1, time: 60,  type: 'door-burst',     origin: new THREE.Vector3(0, 1.8, 11.2) },   // Entrance Hall Front Door (South)
+      { id: 2, time: 105, type: 'mirror-figure',  origin: new THREE.Vector3(-12.95, 2.0, 9.5) },// Victorian Parlor Mirror (West)
+      { id: 3, time: 150, type: 'gramophone',     origin: new THREE.Vector3(-9.2, 0.85, -3.0) },// Victorian Study Desk Gramophone (North-West)
+      { id: 4, time: 195, type: 'hanging-hand',   origin: new THREE.Vector3(0, 3.2, -1.0) },   // Staircase Landing Ceiling (North)
+      { id: 5, time: 240, type: 'curtain-figure', origin: new THREE.Vector3(9.0, 1.8, 10.9) },  // Kitchen Window Curtain (South-East)
+      { id: 6, time: 285, type: 'door-burst',     origin: new THREE.Vector3(0, 1.8, 11.2) },   // Entrance Hall Front Door (South)
+      { id: 7, time: 330, type: 'mirror-figure',  origin: new THREE.Vector3(12.95, 2.0, -1.0) },// Master Bedroom Mirror (East)
+      { id: 8, time: 375, type: 'gramophone',     origin: new THREE.Vector3(0, 0.4, -7.5) }    // Attic Stairs Gramophone (North-Far)
+    ];
+
+    // The Fixed 8-Scare Schedule for Night 2: Reshuffled scare types and source directions
+    const SCARE_SCHEDULE_NIGHT_2 = [
+      { id: 1, time: 60,  type: 'mirror-figure',  origin: new THREE.Vector3(12.95, 2.0, -1.0) },// Master Bedroom Mirror (East)
+      { id: 2, time: 105, type: 'hanging-hand',   origin: new THREE.Vector3(0, 3.2, -1.0) },   // Staircase Landing Ceiling (North)
+      { id: 3, time: 150, type: 'curtain-figure', origin: new THREE.Vector3(9.0, 1.8, 10.9) },  // Kitchen Window Curtain (South-East)
+      { id: 4, time: 195, type: 'door-burst',     origin: new THREE.Vector3(0, 1.8, 11.2) },   // Entrance Hall Front Door (South)
+      { id: 5, time: 240, type: 'gramophone',     origin: new THREE.Vector3(0, 0.4, -7.5) },   // Attic Stairs Gramophone (North-Far)
+      { id: 6, time: 285, type: 'mirror-figure',  origin: new THREE.Vector3(-12.95, 2.0, 9.5) },// Victorian Parlor Mirror (West)
+      { id: 7, time: 330, type: 'door-burst',     origin: new THREE.Vector3(0, 1.8, 11.2) },   // Entrance Hall Front Door (South)
+      { id: 8, time: 375, type: 'gramophone',     origin: new THREE.Vector3(-9.2, 0.85, -3.0) } // Victorian Study Desk Gramophone (North-West)
+    ];
+
+    let SCARE_SCHEDULE = SCARE_SCHEDULE_NIGHT_1;
+
+    /* =========================================================================
+       GAME STATE & SIMULATION VARIABLES
+       ========================================================================= */
+
+    let currentNight = 1;
+    let maxNightUnlocked = 1;
+    let gameState = "TITLE";
+    let nightClock = 0;
+    let nightTimeLimit = 440;
+    let simFrames = 0;
+    const FIXED_STEP = 1 / 60;
+
+    let playerPos = new THREE.Vector3(0, 1.6, 8.0);
+    let playerYaw = 0;
+    let playerPitch = 0;
+    let heartRate = 70.0;
+    let faintCount = 0;
+
+    let fusesHeld = 0;
+    let fusesFitted = 0;
+    let lightsRestored = false;
+    let keysCollected = 0;
+    let atticUnlocked = false;
+    let gameWon = false;
+
+    let sedativesRemaining = 2;
+    let sedativesHeld = 0;
+    let sedativesUsed = 0;
+    let blackoutRemaining = 0;
+
+    let firedScares = new Set();
+    let firedTells = new Set();
+    let currentTell = null;
+    let currentScare = null;
+
+    let lastHeartbeatTime = 0;
+    let lastClockTickSec = -1;
+    let fastForwardActive = false;
+
+    const keys = { KeyW: false, KeyA: false, KeyS: false, KeyD: false, KeyT: false };
+
+    const uiBpmCounter = document.getElementById('bpm-counter');
+    const uiPulseIndicator = document.getElementById('pulse-indicator');
+    const uiObjectiveStep = document.getElementById('objective-step');
+    const uiTaskHud = document.getElementById('task-hud');
+    const uiClockDisplay = document.getElementById('clock-display');
+    const uiLimitHud = document.getElementById('limit-hud');
+    const uiFaintCount = document.getElementById('faint-count');
+    const uiSedativeHud = document.getElementById('sedative-hud');
+    const uiVignette = document.getElementById('vignette');
+    const uiBreathMist = document.getElementById('breath-mist');
+    const uiFlash = document.getElementById('flash-overlay');
+    const uiBlackout = document.getElementById('blackout-overlay');
+    const uiReticle = document.getElementById('reticle');
+    const uiPrompt = document.getElementById('prompt-msg');
+    const uiStatusBanner = document.getElementById('status-banner');
+    const uiFloatingContainer = document.getElementById('floating-damage-container');
+
+    const uiNightHud = document.getElementById('night-hud');
+    const uiNightCounterHud = document.getElementById('night-counter-hud');
+
+    const cardTitle = document.getElementById('title-card');
+    const cardFaint = document.getElementById('faint-card');
+    const cardVictory = document.getElementById('victory-card');
+    const cardFailed = document.getElementById('failed-card');
+    const cardLedger = document.getElementById('ledger-card');
+    const victoryTitle = document.getElementById('victory-title');
+    const victoryCardSub = document.getElementById('victory-card-sub');
+    const victoryTime = document.getElementById('victory-time');
+    const victoryLimitTotal = document.getElementById('victory-limit-total');
+    const victoryBpm = document.getElementById('victory-bpm');
+    const victoryFaints = document.getElementById('victory-faints');
+    const victoryBtnHint = document.getElementById('victory-btn-hint');
+
+    const failedTime = document.getElementById('failed-time');
+    const failedFaints = document.getElementById('failed-faints');
+
+    const nightBtn1 = document.getElementById('night-btn-1');
+    const nightBtn2 = document.getElementById('night-btn-2');
+    const night2Status = document.getElementById('night-2-status');
+    const titleBtnHint = document.getElementById('title-btn-hint');
+
+    let nightEnded = false;
+
+    let isPointerLocked = false;
+    document.addEventListener('click', () => {
+      if (gameState === "PLAYING" && !isPointerLocked) container.requestPointerLock();
+    });
+    document.addEventListener('pointerlockchange', () => {
+      isPointerLocked = (document.pointerLockElement === container);
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (gameState !== "PLAYING" || !isPointerLocked) return;
+      const sens = 0.0022;
+      playerYaw -= e.movementX * sens;
+      playerPitch -= e.movementY * sens;
+      playerPitch = Math.max(-Math.PI / 2.3, Math.min(Math.PI / 2.3, playerPitch));
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (keys.hasOwnProperty(e.code)) keys[e.code] = true;
+      if (e.code === 'KeyR') {
+        if (gameState === "LEDGER") {
+          masterReset();
+          return;
+        }
+        fullReset();
+        return;
+      }
+      if (e.code === 'Tab') {
+        e.preventDefault();
+        if (gameState === "LEDGER") {
+          closeLedger();
+        } else if (nightEnded || gameState === "VICTORY" || gameState === "FAILED") {
+          openLedger();
+        }
+        return;
+      }
+      if (e.code === 'Enter') {
+        if (gameState === "TITLE") { audio.init(); startGameplay(); }
+        else if (gameState === "FAINT") { recoverFromFaint(); }
+        else if (gameState === "FUSE_CARD") { dismissVictoryCard(); }
+        else if (gameState === "VICTORY") {
+          if (currentNight === 1) {
+            setupNight(2);
+            startGameplay();
+          } else {
+            fullReset();
+          }
+        } else if (gameState === "FAILED") {
+          setupNight(currentNight);
+          startGameplay();
+        } else if (gameState === "LEDGER") {
+          if (gameWon && currentNight === 1) {
+            setupNight(2);
+            startGameplay();
+          } else if (gameWon) {
+            fullReset();
+          } else {
+            setupNight(currentNight);
+            startGameplay();
+          }
+        }
+        return;
+      }
+      if (e.code === 'Digit1' || e.code === 'Numpad1') {
+        if (gameState === "TITLE" || gameState === "VICTORY" || gameState === "FAILED") {
+          setupNight(1);
+          if (gameState === "VICTORY" || gameState === "FAILED") startGameplay();
+          return;
+        }
+      }
+      if (e.code === 'Digit2' || e.code === 'Numpad2') {
+        if (gameState === "TITLE" || gameState === "VICTORY" || gameState === "FAILED") {
+          maxNightUnlocked = 2;
+          setupNight(2);
+          if (gameState === "VICTORY" || gameState === "FAILED") startGameplay();
+          return;
+        }
+      }
+      if (e.code === 'KeyQ') {
+        if (gameState === "PLAYING" || gameState === "BLACKOUT") useSedativeSyrette();
+        return;
+      }
+      if (e.code === 'KeyE') {
+        if (gameState === "PLAYING") handleInteraction();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (keys.hasOwnProperty(e.code)) keys[e.code] = false;
+    });
+
+    function showBanner(text, durationMs = 2800) {
+      uiStatusBanner.textContent = text;
+      uiStatusBanner.style.display = 'block';
+      setTimeout(() => { uiStatusBanner.style.display = 'none'; }, durationMs);
+    }
+
+    function showFloatingDamage(text, isAverted, subtext = "", isSedative = false) {
+      const item = document.createElement('div');
+      item.className = 'floating-text-item ' + (isSedative ? 'sedative' : (isAverted ? 'averted' : 'full-spike'));
+      item.innerHTML = text + (subtext ? `<div class="floating-subtext">${subtext}</div>` : '');
+      uiFloatingContainer.appendChild(item);
+      setTimeout(() => { if (item.parentNode) item.parentNode.removeChild(item); }, 1500);
+    }
+
+    function useSedativeSyrette() {
+      if (sedativesRemaining <= 0) {
+        showBanner("SUPPLY EXHAUSTED &bull; NO SEDATIVES REMAINING");
+        return;
+      }
+      sedativesRemaining--;
+      sedativesUsed++;
+      if (sedativesHeld > 0) sedativesHeld--;
+
+      const oldBpm = heartRate;
+      heartRate = Math.max(70.0, heartRate - 30.0);
+      audio.playSedativeCalmingEffect();
+
+      uiFlash.style.background = '#33aaff';
+      uiFlash.style.opacity = '0.35';
+      setTimeout(() => { uiFlash.style.opacity = '0'; uiFlash.style.background = '#fff'; }, 250);
+
+      showFloatingDamage(`&minus;30 BPM`, true, `SEDATIVE DOSE APPLIED (${sedativesRemaining} REMAIN)`, true);
+      showBanner(`SEDATIVE ADMINISTERED &bull; &minus;${Math.round(oldBpm - heartRate)} BPM (NOW ${Math.round(heartRate)} BPM)`);
+
+      updateSedativeHUD();
+      updateExportedState();
+    }
+
+    function updateSedativeHUD() {
+      uiSedativeHud.textContent = `${sedativesRemaining}/2`;
+      uiSedativeHud.style.color = (sedativesRemaining === 0) ? '#777777' : '#55d6ff';
+    }
+
+    function updateTitleUI() {
+      if (nightBtn1 && nightBtn2) {
+        if (currentNight === 1) {
+          nightBtn1.style.border = '2px solid #8c6d48';
+          nightBtn1.style.background = 'rgba(40, 30, 20, 0.95)';
+          nightBtn1.style.color = '#f5eedb';
+          nightBtn2.style.border = '1px dashed #554433';
+          nightBtn2.style.background = 'rgba(15, 18, 22, 0.7)';
+          nightBtn2.style.color = (maxNightUnlocked >= 2) ? '#b0a090' : '#665544';
+        } else {
+          nightBtn2.style.border = '2px solid #8c6d48';
+          nightBtn2.style.background = 'rgba(40, 30, 20, 0.95)';
+          nightBtn2.style.color = '#f5eedb';
+          nightBtn1.style.border = '1px dashed #554433';
+          nightBtn1.style.background = 'rgba(15, 18, 22, 0.7)';
+          nightBtn1.style.color = '#b0a090';
+        }
+      }
+      if (night2Status) {
+        night2Status.textContent = (maxNightUnlocked >= 2) ? 'UNLOCKED' : 'LOCKED';
+        night2Status.style.color = (maxNightUnlocked >= 2) ? '#66e077' : '#aa4444';
+      }
+      if (titleBtnHint) {
+        titleBtnHint.innerHTML = `Press [ENTER] to Enter the Manor (Night ${currentNight})`;
+      }
+    }
+
+    if (nightBtn1) {
+      nightBtn1.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setupNight(1);
+      });
+    }
+    if (nightBtn2) {
+      nightBtn2.addEventListener('click', (e) => {
+        e.stopPropagation();
+        maxNightUnlocked = 2;
+        setupNight(2);
+      });
+    }
+
+    function setupNight(nightNum) {
+      currentNight = nightNum;
+      SCARE_SCHEDULE = (currentNight === 2) ? SCARE_SCHEDULE_NIGHT_2 : SCARE_SCHEDULE_NIGHT_1;
+      nightTimeLimit = (currentNight === 2) ? 410 : 440;
+      nightClock = 0;
+      simFrames = 0;
+      blackoutRemaining = 0;
+      playerPos.set(0, 1.6, 8.0);
+      playerYaw = 0;
+      playerPitch = 0;
+      heartRate = 70.0;
+      faintCount = 0;
+
+      fusesHeld = 0;
+      fusesFitted = 0;
+      lightsRestored = false;
+      keysCollected = 0;
+      atticUnlocked = false;
+      gameWon = false;
+
+      // Dark rooms: In Night 1, Kitchen (2), Study (4), Attic (6) are dark.
+      // In Night 2, the bedroom (5) joins the unlit set!
+      rooms[2].isDark = true;
+      rooms[4].isDark = true;
+      rooms[5].isDark = (currentNight === 2);
+      rooms[6].isDark = true;
+      restoredLights.forEach(pl => { pl.intensity = 0; });
+
+      // Visual truth: candelabra in bedroom is unlit when bedroom is dark in Night 2
+      if (typeof candelabraBedroom !== 'undefined' && candelabraBedroom) {
+        if (currentNight === 2) {
+          candelabraBedroom.light.intensity = 0.06;
+          if (candelabraBedroom.flames) {
+            candelabraBedroom.flames.forEach(f => { f.mesh.visible = false; });
+          }
+        } else {
+          candelabraBedroom.light.intensity = 1.4;
+          if (candelabraBedroom.flames) {
+            candelabraBedroom.flames.forEach(f => { f.mesh.visible = true; });
+          }
+        }
+      }
+
+      collectibleFuses.forEach(f => { f.collected = false; f.group.visible = true; });
+      fittedFuseMeshes.forEach(ff => { ff.visible = false; });
+      collectibleKeys.forEach(k => { k.collected = false; k.group.visible = true; });
+
+      sedativesRemaining = 2;
+      sedativesHeld = 0;
+      sedativesUsed = 0;
+      medicineCabinets.forEach(cab => { cab.taken = false; cab.syretteMesh.visible = true; });
+
+      firedScares.clear();
+      firedTells.clear();
+      currentTell = null;
+      currentScare = null;
+
+      uiFloatingContainer.innerHTML = '';
+      uiBlackout.style.opacity = '0';
+      nightEnded = false;
+
+      updateTaskHUD();
+      updateSedativeHUD();
+      updateHUD();
+      updateExportedState();
+      updateTitleUI();
+    }
+
+    window.setNight = function(n) {
+      if (n === 1 || n === 2) {
+        maxNightUnlocked = Math.max(maxNightUnlocked, n);
+        setupNight(n);
+        updateTitleUI();
+      }
+    };
+    window.__arena_setNight = window.setNight;
+
+    /* =========================================================================
+       ROUND 10: THE NIGHT LEDGER SYSTEM
+       Score = fuses * 100 + keys * 200 + attic * 200 + zeroFaint * 300 - faints * 50 - overtime(1/10s)
+       Rating: S >= 950 / A >= 800 / B >= 650 / C
+       ========================================================================= */
+
+    function computeNightLedger() {
+      const baseLimit = (currentNight === 2) ? 410 : 440;
+      const fusesScore = fusesFitted * 100;
+      const keysScore = keysCollected * 200;
+      const atticScore = atticUnlocked ? 200 : 0;
+      const zeroFaintBonus = (faintCount === 0) ? 300 : 0;
+      const faintPenalty = faintCount * 50;
+
+      const overtimeSecs = Math.max(0, Math.floor(nightClock - baseLimit));
+      const overtimePenalty = Math.floor(overtimeSecs / 10) * 1;
+
+      const totalScore = fusesScore + keysScore + atticScore + zeroFaintBonus - faintPenalty - overtimePenalty;
+
+      let rating = "C";
+      if (totalScore >= 950) rating = "S";
+      else if (totalScore >= 800) rating = "A";
+      else if (totalScore >= 650) rating = "B";
+      else rating = "C";
+
+      return {
+        fusesFitted,
+        fusesScore,
+        keysCollected,
+        keysScore,
+        atticUnlocked,
+        atticScore,
+        zeroFaintBonus,
+        faintCount,
+        faintPenalty,
+        overtimeSecs,
+        overtimePenalty,
+        totalScore,
+        score: totalScore,
+        rating,
+        baseLimit
+      };
+    }
+
+    function openLedger() {
+      gameState = "LEDGER";
+      if (document.exitPointerLock) document.exitPointerLock();
+
+      const ledger = computeNightLedger();
+      const subEl = document.getElementById('ledger-subtitle');
+      if (subEl) subEl.textContent = `Night ${currentNight} Review ${gameWon ? '(Manor Escaped)' : '(Night Ended)'}`;
+
+      document.getElementById('ledger-fuses-qty').textContent = ledger.fusesFitted;
+      document.getElementById('ledger-fuses-val').textContent = `+${ledger.fusesScore}`;
+      document.getElementById('ledger-keys-qty').textContent = ledger.keysCollected;
+      document.getElementById('ledger-keys-val').textContent = `+${ledger.keysScore}`;
+      document.getElementById('ledger-attic-val').textContent = `+${ledger.atticScore}`;
+      document.getElementById('ledger-zerofaint-val').textContent = `+${ledger.zeroFaintBonus}`;
+      document.getElementById('ledger-faints-qty').textContent = ledger.faintCount;
+      document.getElementById('ledger-faints-val').textContent = `-${ledger.faintPenalty}`;
+      document.getElementById('ledger-overtime-qty').textContent = `${ledger.overtimeSecs}s`;
+      document.getElementById('ledger-overtime-val').textContent = `-${ledger.overtimePenalty}`;
+      document.getElementById('ledger-total-score').textContent = ledger.totalScore;
+
+      const ratingEl = document.getElementById('ledger-rating');
+      if (ratingEl) {
+        ratingEl.textContent = ledger.rating;
+        if (ledger.rating === 'S') {
+          ratingEl.style.color = '#ffd700';
+          ratingEl.style.borderColor = '#c9a43b';
+        } else if (ledger.rating === 'A') {
+          ratingEl.style.color = '#66e077';
+          ratingEl.style.borderColor = '#3b9b4a';
+        } else if (ledger.rating === 'B') {
+          ratingEl.style.color = '#55d6ff';
+          ratingEl.style.borderColor = '#2a88aa';
+        } else {
+          ratingEl.style.color = '#ff6666';
+          ratingEl.style.borderColor = '#aa3333';
+        }
+      }
+
+      cardTitle.style.display = 'none';
+      cardFaint.style.display = 'none';
+      cardVictory.style.display = 'none';
+      if (cardFailed) cardFailed.style.display = 'none';
+      if (cardLedger) cardLedger.style.display = 'flex';
+
+      updateExportedState();
+    }
+
+    function closeLedger() {
+      if (cardLedger) cardLedger.style.display = 'none';
+      if (gameWon) {
+        gameState = "VICTORY";
+        cardVictory.style.display = 'flex';
+      } else {
+        gameState = "FAILED";
+        if (cardFailed) cardFailed.style.display = 'flex';
+      }
+      updateExportedState();
+    }
+
+    function masterReset() {
+      currentNight = 1;
+      maxNightUnlocked = 1;
+      faintCount = 0;
+      nightEnded = false;
+      gameState = "TITLE";
+      setupNight(1);
+      cardTitle.style.display = 'flex';
+      cardFaint.style.display = 'none';
+      cardVictory.style.display = 'none';
+      if (cardFailed) cardFailed.style.display = 'none';
+      if (cardLedger) cardLedger.style.display = 'none';
+      updateTitleUI();
+      updateExportedState();
+      if (document.exitPointerLock) document.exitPointerLock();
+    }
+
+    window.openLedger = openLedger;
+    window.closeLedger = closeLedger;
+    window.computeNightLedger = computeNightLedger;
+    window.masterReset = masterReset;
+    window.__arena_openLedger = openLedger;
+    window.__arena_computeLedger = computeNightLedger;
+    window.__arena_masterReset = masterReset;
+
+    function startGameplay() {
+      gameState = "PLAYING";
+      nightEnded = false;
+      cardTitle.style.display = 'none';
+      cardFaint.style.display = 'none';
+      cardVictory.style.display = 'none';
+      if (cardFailed) cardFailed.style.display = 'none';
+      if (cardLedger) cardLedger.style.display = 'none';
+      container.requestPointerLock();
+    }
+
+    function fullReset() {
+      gameState = "TITLE";
+      nightEnded = false;
+      setupNight(currentNight);
+      cardTitle.style.display = 'flex';
+      cardFaint.style.display = 'none';
+      cardVictory.style.display = 'none';
+      if (cardFailed) cardFailed.style.display = 'none';
+      if (cardLedger) cardLedger.style.display = 'none';
+      if (document.exitPointerLock) document.exitPointerLock();
+    }
+
+    function triggerNightFailed() {
+      gameState = "FAILED";
+      nightEnded = true;
+      if (document.exitPointerLock) document.exitPointerLock();
+
+      const curMins = Math.floor(nightClock / 60);
+      const curSecs = Math.floor(nightClock % 60);
+      if (failedTime) failedTime.textContent = `${curMins.toString().padStart(2, '0')}:${curSecs.toString().padStart(2, '0')}`;
+      if (failedFaints) failedFaints.textContent = faintCount;
+
+      if (cardFailed) cardFailed.style.display = 'flex';
+      cardFaint.style.display = 'none';
+      cardVictory.style.display = 'none';
+      if (cardLedger) cardLedger.style.display = 'none';
+
+      audio.playScareImpact('faint', false);
+      showBanner("NIGHT LIMIT EXPIRED — THE MANOR CLAIMS YOU");
+      showFloatingDamage("NIGHT FAILED", false, "PRESS [TAB] FOR NIGHT LEDGER");
+      updateExportedState();
+    }
+
+    function triggerFaint() {
+      faintCount++;
+      gameState = "BLACKOUT";
+      blackoutRemaining = 3.0;
+      nightTimeLimit = Math.max(30, nightTimeLimit - 30);
+      heartRate = 110.0;
+
+      currentScare = null;
+      currentTell = null;
+
+      audio.playScareImpact('faint', false);
+      uiBlackout.style.opacity = '1.0';
+
+      playerPos.set(0, 1.6, 8.0);
+      playerYaw = 0;
+      playerPitch = 0;
+
+      showFloatingDamage("BLACKOUT!", false, "&minus;30s NIGHT LIMIT PENALTY &bull; RATE SET TO 110 BPM");
+      updateExportedState();
+    }
+
+    function recoverFromFaint() {
+      gameState = "PLAYING";
+      cardFaint.style.display = 'none';
+      uiBlackout.style.opacity = '0';
+      container.requestPointerLock();
+    }
+
+    function dismissVictoryCard() {
+      gameState = "PLAYING";
+      cardVictory.style.display = 'none';
+      container.requestPointerLock();
+    }
+
+    function checkCollision(nx, nz) {
+      for (let i = 0; i < colliders.length; i++) {
+        const c = colliders[i];
+        if (nx >= c.minX && nx <= c.maxX && nz >= c.minZ && nz <= c.maxZ) return true;
+      }
+      return false;
+    }
+
+    function getCurrentRoom() {
+      for (let i = 0; i < rooms.length; i++) {
+        const r = rooms[i];
+        if (playerPos.x >= r.bounds.minX && playerPos.x <= r.bounds.maxX &&
+            playerPos.z >= r.bounds.minZ && playerPos.z <= r.bounds.maxZ) return r;
+      }
+      return rooms[0];
+    }
+
+    let targetedInteractable = null;
+    let targetedObject = null;
+
+    function updateInteractionRaycast() {
+      if (gameState !== "PLAYING") {
+        uiPrompt.style.display = 'none';
+        uiReticle.classList.remove('active');
+        fuseBoxHighlight.material.opacity = 0;
+        hatchHighlight.material.opacity = 0;
+        collectibleFuses.forEach(f => { f.highlight.material.opacity = 0; });
+        collectibleKeys.forEach(k => { k.highlight.material.opacity = 0; });
+        medicineCabinets.forEach(c => { c.highlight.material.opacity = 0; });
+        targetedInteractable = null;
+        targetedObject = null;
+        return;
+      }
+
+      fuseBoxHighlight.material.opacity = 0;
+      hatchHighlight.material.opacity = 0;
+      collectibleFuses.forEach(f => { f.highlight.material.opacity = 0; });
+      collectibleKeys.forEach(k => { k.highlight.material.opacity = 0; });
+      medicineCabinets.forEach(c => { c.highlight.material.opacity = 0; });
+      targetedInteractable = null;
+      targetedObject = null;
+
+      for (let i = 0; i < collectibleFuses.length; i++) {
+        const fuse = collectibleFuses[i];
+        if (!fuse.collected && playerPos.distanceTo(fuse.worldPos) < 2.4) {
+          targetedInteractable = 'FUSE';
+          targetedObject = fuse;
+          fuse.highlight.material.opacity = 0.85;
+          uiPrompt.textContent = `Press [E] to Take Fuse (${fuse.locationName})`;
+          uiPrompt.style.display = 'block';
+          uiReticle.classList.add('active');
+          return;
+        }
+      }
+
+      const distFuseBox = playerPos.distanceTo(fuseBoxGroup.position);
+      if (distFuseBox < 2.5) {
+        if (fusesFitted < 4) {
+          if (fusesHeld > 0) {
+            targetedInteractable = 'FUSE_BOX';
+            fuseBoxHighlight.material.opacity = 0.85;
+            uiPrompt.textContent = `Press [E] to Fit Fuse into Fuse Box (${fusesFitted + 1}/4)`;
+            uiPrompt.style.display = 'block';
+            uiReticle.classList.add('active');
+            return;
+          } else {
+            fuseBoxHighlight.material.opacity = 0.4;
+            uiPrompt.textContent = `Hall Fuse Box: ${fusesFitted}/4 Fuses Fitted (Find remaining fuses)`;
+            uiPrompt.style.display = 'block';
+            return;
+          }
+        }
+      }
+
+      for (let i = 0; i < collectibleKeys.length; i++) {
+        const keyObj = collectibleKeys[i];
+        if (!keyObj.collected && playerPos.distanceTo(keyObj.worldPos) < 2.4) {
+          targetedInteractable = 'KEY';
+          targetedObject = keyObj;
+          keyObj.highlight.material.opacity = 0.85;
+          uiPrompt.textContent = `Press [E] to Take Key (${keyObj.locationName})`;
+          uiPrompt.style.display = 'block';
+          uiReticle.classList.add('active');
+          return;
+        }
+      }
+
+      const distHatch = playerPos.distanceTo(atticHatchGroup.position);
+      if (distHatch < 2.6) {
+        if (!atticUnlocked) {
+          targetedInteractable = 'ATTIC_HATCH';
+          hatchHighlight.material.opacity = 0.85;
+          if (keysCollected >= 3) {
+            uiPrompt.textContent = "Press [E] to Unlock Attic Hatch with 3 Keys!";
+          } else {
+            uiPrompt.textContent = `Attic Hatch Padlock (${keysCollected}/3 Keys)`;
+          }
+          uiPrompt.style.display = 'block';
+          uiReticle.classList.add('active');
+          return;
+        }
+      }
+
+      for (let i = 0; i < medicineCabinets.length; i++) {
+        const cab = medicineCabinets[i];
+        if (!cab.taken && playerPos.distanceTo(cab.worldPos) < 2.3) {
+          targetedInteractable = 'CABINET';
+          targetedObject = cab;
+          cab.highlight.material.opacity = 0.85;
+          uiPrompt.textContent = `Press [E] to Take Sedative from ${cab.roomName} ([Q] Use)`;
+          uiPrompt.style.display = 'block';
+          uiReticle.classList.add('active');
+          return;
+        }
+      }
+
+      uiPrompt.style.display = 'none';
+      uiReticle.classList.remove('active');
+    }
+
+    function handleInteraction() {
+      if (targetedInteractable === 'FUSE' && targetedObject) {
+        targetedObject.collected = true;
+        targetedObject.group.visible = false;
+        fusesHeld++;
+        audio.playPickup();
+        showBanner(`Fuse Collected from ${targetedObject.locationName} (${fusesHeld} in pocket)`);
+        updateTaskHUD();
+        updateExportedState();
+      } else if (targetedInteractable === 'FUSE_BOX') {
+        if (fusesHeld > 0 && fusesFitted < 4) {
+          fusesHeld--;
+          fittedFuseMeshes[fusesFitted].visible = true;
+          fusesFitted++;
+          audio.playFuseFit();
+
+          if (fusesFitted === 1 && faintCount === 0) {
+            setTimeout(() => {
+              if (gameState === "PLAYING") {
+                gameState = "FUSE_CARD";
+                if (document.exitPointerLock) document.exitPointerLock();
+                victoryTitle.textContent = "FUSE ONE SET";
+                victoryCardSub.textContent = "The circuit snaps closed with a shower of spark and hum.";
+                victoryBpm.textContent = Math.round(heartRate);
+                cardVictory.style.display = 'flex';
+              }
+            }, 600);
+          }
+
+          if (fusesFitted === 4) {
+            lightsRestored = true;
+            rooms[2].isDark = false;
+            rooms[4].isDark = false;
+            rooms[5].isDark = false;
+            rooms[6].isDark = false;
+            restoredLights.forEach(pl => { pl.intensity = 1.6; });
+            audio.playPowerRestored();
+            showBanner("ALL 4 FUSES SET — POWER RESTORED! DARK-ROOM DRAIN ELIMINATED!");
+            showFloatingDamage("LIGHTS RESTORED!", true, "DARK-ROOM DRAIN ELIMINATED");
+          } else {
+            showBanner(`Fuse Seated (${fusesFitted}/4 Fuses Fitted)`);
+          }
+          updateTaskHUD();
+          updateExportedState();
+        }
+      } else if (targetedInteractable === 'KEY' && targetedObject) {
+        targetedObject.collected = true;
+        targetedObject.group.visible = false;
+        keysCollected++;
+        audio.playPickup();
+        showBanner(`Key Acquired: ${targetedObject.locationName} (${keysCollected}/3 Keys)`);
+        showFloatingDamage(`KEY (${keysCollected}/3)`, true, targetedObject.locationName);
+        updateTaskHUD();
+        updateExportedState();
+      } else if (targetedInteractable === 'ATTIC_HATCH') {
+        if (keysCollected >= 3 && !atticUnlocked) {
+          atticUnlocked = true;
+          gameWon = true;
+          nightEnded = true;
+          gameState = "VICTORY";
+          if (document.exitPointerLock) document.exitPointerLock();
+
+          audio.playHatchUnlock();
+          uiFlash.style.opacity = '1.0';
+          setTimeout(() => { uiFlash.style.opacity = '0'; }, 600);
+
+          const mins = Math.floor(nightClock / 60);
+          const secs = Math.floor(nightClock % 60);
+          victoryTime.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+          if (victoryLimitTotal) victoryLimitTotal.textContent = (currentNight === 2) ? "410" : "440";
+          victoryBpm.textContent = Math.round(heartRate);
+          victoryFaints.textContent = faintCount;
+
+          if (currentNight === 1) {
+            maxNightUnlocked = 2;
+            victoryTitle.textContent = "NIGHT ONE SURVIVED";
+            victoryTitle.style.color = "#66e077";
+            victoryCardSub.innerHTML = "Morning dawn breaks through the attic hatch &mdash; <strong>Night Two is Unlocked!</strong><br><span style=\"color:#e0a066; font-size:13px;\">Beware: Night 2 features a tighter 410s limit, unlit Master Bedroom, and reshuffled terrors!</span>";
+            if (victoryBtnHint) victoryBtnHint.innerHTML = "Press <strong>[ENTER]</strong> to Begin Night Two &bull; <strong>[1]</strong> Replay Night 1 &bull; <strong>[R]</strong> Reset to Title";
+            showBanner("NIGHT ONE SURVIVED &bull; NIGHT TWO UNLOCKED!");
+          } else {
+            victoryTitle.textContent = "MANOR CONQUERED!";
+            victoryTitle.style.color = "#e6ca65";
+            victoryCardSub.innerHTML = "You have conquered both terrifying nights of Heartbeat Manor!<br><span style=\"color:#66e077; font-size:13px;\">The dark estate yields to the morning sun. You survived.</span>";
+            if (victoryBtnHint) victoryBtnHint.innerHTML = "Press <strong>[ENTER]</strong> or <strong>[R]</strong> to Return to Title Card &bull; <strong>[1]</strong> Replay Night 1 &bull; <strong>[2]</strong> Replay Night 2";
+            showBanner("MANOR CONQUERED &bull; BOTH NIGHTS COMPLETED!");
+          }
+
+          cardVictory.style.display = 'flex';
+          updateTaskHUD();
+          updateExportedState();
+          updateTitleUI();
+        } else {
+          showBanner(`LOCKED &bull; Requires 3 Keys (${keysCollected}/3 Found)`);
+        }
+      } else if (targetedInteractable === 'CABINET' && targetedObject) {
+        targetedObject.taken = true;
+        targetedObject.syretteMesh.visible = false;
+        sedativesHeld++;
+        audio.playPickup();
+        showBanner(`Sedative Syrette Collected from ${targetedObject.roomName} &bull; [Q] to Use`);
+        updateExportedState();
+      }
+    }
+
+    function updateTaskHUD() {
+      if (gameWon) {
+        uiObjectiveStep.textContent = "ESCAPED";
+        uiTaskHud.textContent = "ATTIC UNLOCKED!";
+        uiTaskHud.style.color = "#66e077";
+      } else if (!lightsRestored) {
+        uiObjectiveStep.textContent = "RESTORE POWER";
+        uiTaskHud.textContent = `FUSES (${fusesFitted}/4) ${fusesHeld > 0 ? `[+${fusesHeld} HELD]` : ''}`;
+        uiTaskHud.style.color = "#d6bf96";
+      } else {
+        uiObjectiveStep.textContent = "ESCAPE ATTIC";
+        uiTaskHud.textContent = `KEYS (${keysCollected}/3) ${keysCollected >= 3 ? '&bull; UNLOCK HATCH' : ''}`;
+        uiTaskHud.style.color = keysCollected >= 3 ? "#66e077" : "#ffdd55";
+      }
+    }
+
+    /* =========================================================================
+       SCARE SYSTEM & FIVE DISTINCT SET PIECE ANIMATIONS
+       ========================================================================= */
+
+    function getAngleToScareSource(sourcePos) {
+      const dx = sourcePos.x - playerPos.x;
+      const dz = sourcePos.z - playerPos.z;
+      const dist = Math.sqrt(dx * dx + dz * dz) || 1;
+      const toSourceX = dx / dist;
+      const toSourceZ = dz / dist;
+
+      const forwardX = -Math.sin(playerYaw);
+      const forwardZ = -Math.cos(playerYaw);
+
+      const dot = forwardX * toSourceX + forwardZ * toSourceZ;
+      const clampedDot = Math.max(-1.0, Math.min(1.0, dot));
+      const angleRad = Math.acos(clampedDot);
+      const angleDeg = angleRad * (180 / Math.PI);
+
+      return {
+        angleDeg,
+        isBackTurned: angleDeg >= 120.0,
+        isSideways: angleDeg >= 60.0 && angleDeg < 120.0,
+        isFaceOn: angleDeg < 60.0,
+        dx, dz
+      };
+    }
+
+    function checkScareSchedule() {
+      for (let i = 0; i < SCARE_SCHEDULE.length; i++) {
+        const scare = SCARE_SCHEDULE[i];
+        const tellTime = scare.time - 2.5; // Shortened to 2.5s tell window
+        if (nightClock >= tellTime && nightClock < scare.time && !firedTells.has(scare.id)) {
+          firedTells.add(scare.id);
+          triggerTell(scare);
+        }
+        if (nightClock >= scare.time && !firedScares.has(scare.id)) {
+          firedScares.add(scare.id);
+          triggerScare(scare);
+        }
+      }
+    }
+
+    function triggerTell(scare) {
+      currentTell = { scare, startTime: nightClock, facedAwayFrames: 0, totalTellFrames: 0 };
+      const angleData = getAngleToScareSource(scare.origin);
+      const angleToScare = Math.atan2(angleData.dx, angleData.dz);
+      let relativeAngle = angleToScare - playerYaw;
+      while (relativeAngle > Math.PI) relativeAngle -= Math.PI * 2;
+      while (relativeAngle < -Math.PI) relativeAngle += Math.PI * 2;
+
+      // Pure stereo image audio tell — no HUD direction arrow
+      audio.playTellCue(scare.type, Math.sin(relativeAngle));
+    }
+
+    function updateTellState() {
+      if (!currentTell) {
+        window.__arena_state.activeTell = null;
+        return;
+      }
+
+      const elapsed = nightClock - currentTell.startTime;
+      if (elapsed > 2.5 || nightClock >= currentTell.scare.time) {
+        currentTell = null;
+        window.__arena_state.activeTell = null;
+        return;
+      }
+
+      currentTell.totalTellFrames++;
+      const scare = currentTell.scare;
+      const angleData = getAngleToScareSource(scare.origin);
+
+      window.__arena_state.facingAngle = Number(angleData.angleDeg.toFixed(1));
+      window.__arena_state.isBackTurned = angleData.isBackTurned;
+      window.__arena_state.activeTell = scare.type;
+
+      if (angleData.isBackTurned) {
+        currentTell.facedAwayFrames++;
+      }
+    }
+
+    function triggerScare(scare) {
+      const angleData = getAngleToScareSource(scare.origin);
+      const wasMostlyBackTurned = Boolean(currentTell && currentTell.facedAwayFrames >= 14);
+      const isAverted = Boolean(angleData.isBackTurned || (wasMostlyBackTurned && angleData.angleDeg >= 100));
+
+      // Round 9: Spike rises to +28 (+17 averted under the fixed -40% rule)
+      const spike = isAverted ? 17 : 28;
+      heartRate = Math.min(180, heartRate + spike);
+
+      currentScare = { scare, startTime: nightClock, duration: 1.5, spike, averted: isAverted };
+
+      window.__arena_state.lastSpike = spike;
+      window.__arena_state.lastSpikeAverted = isAverted;
+      window.__arena_state.facingAngle = Number(angleData.angleDeg.toFixed(1));
+      window.__arena_state.isBackTurned = angleData.isBackTurned;
+
+      audio.playScareImpact(scare.type, isAverted);
+      uiFlash.style.opacity = isAverted ? '0.45' : '0.85';
+      setTimeout(() => { uiFlash.style.opacity = '0'; }, 110);
+
+      if (isAverted) {
+        showFloatingDamage("+17 BPM", true, "GAZE AVERTED (&minus;40% DISCOUNT)");
+      } else {
+        showFloatingDamage("+28 BPM", false, angleData.isSideways ? "SIDEWAYS (NO DISCOUNT)" : "TERROR STRUCK");
+      }
+
+      // Initial state of 1.5s set piece animation
+      if (scare.type === 'door-burst') {
+        entranceDoorPivot.rotation.y = -Math.PI * 0.7;
+      } else if (scare.type === 'mirror-figure') {
+        const fig = (scare.origin.x < 0) ? parlorGhostFigure : bedroomGhostFigure;
+        fig.visible = true;
+      } else if (scare.type === 'hanging-hand') {
+        hangingHandGroup.visible = true;
+        hangingHandGroup.position.y = 4.2;
+      } else if (scare.type === 'curtain-figure') {
+        kitchenCurtainFigure.visible = true;
+        kitchenCurtainFigure.position.x = 8.0;
+      }
+    }
+
+    /* =========================================================================
+       ROUND 7: ANIMATIONS FOR THE FIVE 1.5-SECOND SET PIECES
+       1. Door-burst: door slams open with wind and shudders
+       2. Mirror-figure: silhouette in the glass for half a second (0.5s), then vanishes
+       3. Gramophone: turntable spins rapidly and horn vibrates while playing
+       4. Curtain-figure: shape flashes past the curtain across the window
+       5. Hanging-hand: hand drops into frame from ceiling above stairs and clenches
+       ========================================================================= */
+
+    function updateScareSetPiece() {
+      if (!currentScare) return;
+      const elapsed = nightClock - currentScare.startTime;
+
+      if (elapsed >= currentScare.duration) {
+        // Reset and clean up all set pieces
+        entranceDoorPivot.rotation.y = 0;
+        parlorGhostFigure.visible = false;
+        bedroomGhostFigure.visible = false;
+        hangingHandGroup.visible = false;
+        hangingHandGroup.position.y = 4.2;
+        kitchenCurtainFigure.visible = false;
+        currentScare = null;
+        return;
+      }
+
+      const sc = currentScare.scare;
+      if (sc.type === 'door-burst') {
+        // Door slams open with wind flutter
+        entranceDoorPivot.rotation.y = -Math.PI * 0.7 + Math.sin(elapsed * 28) * 0.08;
+      } else if (sc.type === 'mirror-figure') {
+        // Silhouette in the glass for half a second (0.5s)
+        const fig = (sc.origin.x < 0) ? parlorGhostFigure : bedroomGhostFigure;
+        if (elapsed <= 0.55) {
+          fig.visible = true;
+          fig.position.z = 0.15 + Math.sin(elapsed * 14) * 0.04;
+        } else {
+          fig.visible = false;
+        }
+      } else if (sc.type === 'gramophone') {
+        // Gramophone turntable spins and horn vibrates
+        const tt = (sc.origin.x < 0) ? studyTurntable : atticTurntable;
+        const hn = (sc.origin.x < 0) ? studyHorn : atticHorn;
+        tt.rotation.y += 0.35;
+        hn.rotation.z = Math.sin(elapsed * 32) * 0.06;
+      } else if (sc.type === 'curtain-figure') {
+        // Shape flashes past the curtain
+        kitchenCurtainFigure.visible = true;
+        kitchenCurtainFigure.position.x = 8.0 + (elapsed / 1.5) * 2.2;
+      } else if (sc.type === 'hanging-hand') {
+        // Hand drops into frame from ceiling above stairs (y from 4.2 down to 2.4)
+        hangingHandGroup.visible = true;
+        const dropRatio = Math.sin(Math.min(1.0, elapsed * 1.6) * Math.PI * 0.5);
+        hangingHandGroup.position.y = 4.2 - dropRatio * 1.8;
+        hangingHandGroup.rotation.z = Math.sin(elapsed * 16) * 0.15;
+      }
+    }
+
+    function fixedSimulationStep() {
+      if (gameState === "BLACKOUT") {
+        blackoutRemaining -= FIXED_STEP;
+        nightClock += FIXED_STEP;
+        if (blackoutRemaining <= 0) {
+          gameState = "PLAYING";
+          uiBlackout.style.opacity = '0';
+        }
+        updateExportedState();
+        return;
+      }
+
+      if (gameState !== "PLAYING") {
+        updateExportedState();
+        return;
+      }
+
+      simFrames++;
+      nightClock += FIXED_STEP;
+      fastForwardActive = keys.KeyT;
+
+      let moved = false;
+      if (!fastForwardActive) {
+        const moveSpeed = 3.0 * FIXED_STEP;
+        let moveX = 0, moveZ = 0;
+        const forwardX = -Math.sin(playerYaw);
+        const forwardZ = -Math.cos(playerYaw);
+        const rightX = Math.cos(playerYaw);
+        const rightZ = -Math.sin(playerYaw);
+
+        if (keys.KeyW) { moveX += forwardX; moveZ += forwardZ; }
+        if (keys.KeyS) { moveX -= forwardX; moveZ -= forwardZ; }
+        if (keys.KeyA) { moveX -= rightX;   moveZ -= rightZ; }
+        if (keys.KeyD) { moveX += rightX;   moveZ += rightZ; }
+
+        if (moveX !== 0 || moveZ !== 0) {
+          const len = Math.sqrt(moveX * moveX + moveZ * moveZ);
+          const stepX = (moveX / len) * moveSpeed;
+          const stepZ = (moveZ / len) * moveSpeed;
+          const newX = playerPos.x + stepX;
+          const newZ = playerPos.z + stepZ;
+
+          if (!checkCollision(newX, playerPos.z)) playerPos.x = newX;
+          if (!checkCollision(playerPos.x, newZ)) playerPos.z = newZ;
+          moved = true;
+
+          if (simFrames % 24 === 0) audio.playFootstep();
+          dustSheetMeshes.forEach(item => {
+            if (playerPos.distanceTo(item.origPos) < 2.2) item.stirTimer = 0.5;
+          });
+        }
+      }
+
+      dustSheetMeshes.forEach(item => {
+        if (item.stirTimer > 0) {
+          item.stirTimer -= FIXED_STEP;
+          item.mesh.rotation.y = Math.sin(simFrames * 0.25) * 0.02;
+        } else {
+          item.mesh.rotation.y = 0;
+        }
+      });
+
+      const currentRoom = getCurrentRoom();
+      if (!lightsRestored && currentRoom.isDark) {
+        heartRate += 2.0 * FIXED_STEP;
+      } else if (!moved) {
+        if (heartRate > 70.0) heartRate = Math.max(70.0, heartRate - 3.0 * FIXED_STEP);
+      }
+
+      if (heartRate >= 180.0) {
+        triggerFaint();
+        return;
+      }
+
+      if (nightClock >= nightTimeLimit && !gameWon) {
+        triggerNightFailed();
+        return;
+      }
+
+      checkScareSchedule();
+      updateTellState();
+      updateScareSetPiece();
+
+      pendulumPivot.rotation.z = Math.sin(nightClock * 2.5) * 0.22;
+      minuteHand.rotation.z = -(nightClock * 0.1);
+      hourHand.rotation.z = -(nightClock * 0.01);
+
+      const secInt = Math.floor(nightClock);
+      if (secInt !== lastClockTickSec) {
+        lastClockTickSec = secInt;
+        audio.playClockTick(secInt % 2 === 0);
+      }
+
+      candelabraFlames.forEach(flame => {
+        const flick = Math.sin(nightClock * 14.0 + flame.offset) * 0.012;
+        flame.mesh.position.y = flame.initialY + flick;
+      });
+
+      const beatInterval = 60.0 / heartRate;
+      if (nightClock - lastHeartbeatTime >= beatInterval) {
+        lastHeartbeatTime = nightClock;
+        audio.playHeartbeat(heartRate);
+
+        uiBpmCounter.style.transform = 'scale(1.28)';
+        uiPulseIndicator.style.transform = 'scale(1.5)';
+        setTimeout(() => {
+          uiBpmCounter.style.transform = 'scale(1.0)';
+          uiPulseIndicator.style.transform = 'scale(1.0)';
+        }, 80);
+      }
+
+      updateExportedState();
+    }
+
+    function updateExportedState() {
+      const remainingSeconds = Math.max(0, nightTimeLimit - nightClock);
+      const ledger = computeNightLedger();
+
+      window.__arena_state.night = currentNight;
+      window.__arena_state.currentNight = currentNight;
+      window.__arena_state.nightUnlocked = maxNightUnlocked;
+      window.__arena_state.clock = Number(nightClock.toFixed(2));
+      window.__arena_state.nightLimit = nightTimeLimit;
+      window.__arena_state.timeLeft = Number(remainingSeconds.toFixed(2));
+
+      // Ledger Line Items
+      window.__arena_state.fusesScore = ledger.fusesScore;
+      window.__arena_state.keysScore = ledger.keysScore;
+      window.__arena_state.atticScore = ledger.atticScore;
+      window.__arena_state.zeroFaintBonus = ledger.zeroFaintBonus;
+      window.__arena_state.faintPenalty = ledger.faintPenalty;
+      window.__arena_state.overtimePenalty = ledger.overtimePenalty;
+      window.__arena_state.score = ledger.totalScore;
+      window.__arena_state.totalScore = ledger.totalScore;
+      window.__arena_state.rating = ledger.rating;
+      window.__arena_state.nightEnded = nightEnded;
+      window.__arena_state.ledgerOpen = (gameState === "LEDGER");
+
+      window.__arena_state.ledger = {
+        fusesFitted: ledger.fusesFitted,
+        fusesScore: ledger.fusesScore,
+        keysCollected: ledger.keysCollected,
+        keysScore: ledger.keysScore,
+        atticUnlocked: ledger.atticUnlocked,
+        atticScore: ledger.atticScore,
+        zeroFaintBonus: ledger.zeroFaintBonus,
+        faintCount: ledger.faintCount,
+        faintPenalty: ledger.faintPenalty,
+        overtimeSecs: ledger.overtimeSecs,
+        overtimePenalty: ledger.overtimePenalty,
+        totalScore: ledger.totalScore,
+        score: ledger.totalScore,
+        rating: ledger.rating
+      };
+      window.__arena_state.position = {
+        x: Number(playerPos.x.toFixed(2)),
+        y: Number(playerPos.y.toFixed(2)),
+        z: Number(playerPos.z.toFixed(2))
+      };
+      window.__arena_state.heartRate = Math.round(heartRate);
+      window.__arena_state.faints = faintCount;
+      window.__arena_state.fusesFitted = fusesFitted;
+      window.__arena_state.fusesHeld = fusesHeld;
+      window.__arena_state.lightsRestored = lightsRestored;
+      window.__arena_state.keysCollected = keysCollected;
+      window.__arena_state.atticUnlocked = atticUnlocked;
+      window.__arena_state.gameWon = gameWon;
+
+      window.__arena_state.hasFuseInHand = (fusesHeld > 0);
+      window.__arena_state.fuseFitted = (fusesFitted >= 1);
+
+      if (gameWon) {
+        window.__arena_state.taskProgress = "Escaped";
+      } else if (!lightsRestored) {
+        window.__arena_state.taskProgress = `${fusesFitted}/4`;
+      } else {
+        window.__arena_state.taskProgress = `Keys: ${keysCollected}/3`;
+      }
+
+      window.__arena_state.sedativesRemaining = sedativesRemaining;
+      window.__arena_state.sedativesUsed = sedativesUsed;
+      window.__arena_state.activeScare = currentScare ? currentScare.scare.type : null;
+      window.__arena_state.mode = gameState;
+
+      if (simFrames % 30 === 0) {
+        window.__arena_state.heartRateHistory.push(Math.round(heartRate));
+        if (window.__arena_state.heartRateHistory.length > 50) window.__arena_state.heartRateHistory.shift();
+      }
+    }
+
+    function updateHUD() {
+      uiBpmCounter.textContent = Math.round(heartRate);
+      uiFaintCount.textContent = faintCount;
+      uiLimitHud.textContent = `${nightTimeLimit}s`;
+      if (uiNightHud) uiNightHud.textContent = `${currentNight}`;
+      if (uiNightCounterHud) uiNightCounterHud.textContent = `${currentNight}`;
+
+      const curMins = Math.floor(nightClock / 60);
+      const curSecs = Math.floor(nightClock % 60);
+      const limitMins = Math.floor(nightTimeLimit / 60);
+      const limitSecs = Math.floor(nightTimeLimit % 60);
+      uiClockDisplay.textContent = `${curMins.toString().padStart(2, '0')}:${curSecs.toString().padStart(2, '0')} / ${limitMins.toString().padStart(2, '0')}:${limitSecs.toString().padStart(2, '0')}`;
+
+      const stressRatio = Math.max(0, (heartRate - 70) / 110);
+      const shadowSpread = 80 + stressRatio * 160;
+      const redVal = Math.floor(stressRatio * 180);
+      uiVignette.style.boxShadow = `inset 0 0 ${shadowSpread}px rgba(${redVal}, 0, 0, ${0.7 + stressRatio * 0.28})`;
+      uiBreathMist.style.opacity = (0.08 + stressRatio * 0.45).toFixed(2);
+    }
+
+    let lastTimestamp = performance.now();
+    let accumulator = 0;
+
+    function animate(timestamp) {
+      requestAnimationFrame(animate);
+
+      const delta = (timestamp - lastTimestamp) / 1000;
+      lastTimestamp = timestamp;
+
+      const timeScale = fastForwardActive ? 12 : 1;
+      accumulator += Math.min(delta, 0.1) * timeScale;
+
+      while (accumulator >= FIXED_STEP) {
+        fixedSimulationStep();
+        accumulator -= FIXED_STEP;
+      }
+
+      camera.position.copy(playerPos);
+      const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+      euler.y = playerYaw;
+      euler.x = playerPitch;
+      camera.quaternion.setFromEuler(euler);
+
+      updateInteractionRaycast();
+      updateHUD();
+
+      renderer.render(scene, camera);
+    }
+
+    setupNight(1);
+
+    requestAnimationFrame((t) => {
+      lastTimestamp = t;
+      animate(t);
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>

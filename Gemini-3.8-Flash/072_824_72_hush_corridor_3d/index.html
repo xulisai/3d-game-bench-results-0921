@@ -1,0 +1,4312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Hush Corridor</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #020707;
+      font-family: 'Courier New', Courier, monospace;
+      color: #b8d4ce;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+    #flash-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(180, 0, 0, 0.75);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 5;
+      transition: opacity 0.06s linear;
+    }
+    /* Locker interior slats overlay */
+    #slat-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 6;
+      display: none;
+      box-shadow: inset 0 0 100px 60px rgba(0, 0, 0, 0.95);
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(5, 12, 10, 0.92) 0px,
+        rgba(5, 12, 10, 0.92) 22px,
+        rgba(0, 0, 0, 0.05) 22px,
+        rgba(0, 0, 0, 0.05) 44px
+      );
+    }
+    #slat-overlay::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border-left: 14vw solid rgba(2, 6, 5, 0.97);
+      border-right: 14vw solid rgba(2, 6, 5, 0.97);
+      box-sizing: border-box;
+    }
+    #hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      pointer-events: none;
+      display: none;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 24px 32px;
+    }
+    .hud-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      font-size: 20px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      text-shadow: 0 0 10px rgba(78, 168, 148, 0.6), 0 2px 4px #000;
+    }
+    .hud-keys {
+      color: #e5c158;
+    }
+    .hud-alarm {
+      font-size: 15px;
+      letter-spacing: 2px;
+      font-weight: bold;
+      color: #ff3333;
+      background: rgba(45, 10, 10, 0.9);
+      border: 1px solid #ff2222;
+      padding: 4px 14px;
+      border-radius: 4px;
+      text-shadow: 0 0 10px rgba(255, 40, 40, 0.9);
+      box-shadow: 0 0 12px rgba(255, 0, 0, 0.5);
+      display: none;
+      animation: pulse-alarm 1.0s infinite alternate;
+    }
+    @keyframes pulse-alarm {
+      0% { opacity: 0.7; box-shadow: 0 0 8px rgba(255, 0, 0, 0.3); }
+      100% { opacity: 1.0; box-shadow: 0 0 16px rgba(255, 0, 0, 0.85); }
+    }
+    .hud-strikes {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .strike-box {
+      display: inline-block;
+      width: 26px;
+      height: 26px;
+      border: 2px solid #522;
+      background: rgba(30, 0, 0, 0.5);
+      color: #ff3333;
+      text-align: center;
+      line-height: 22px;
+      font-size: 16px;
+      border-radius: 4px;
+    }
+    .strike-box.active {
+      background: #800;
+      border-color: #ff3333;
+      box-shadow: 0 0 10px #f00;
+    }
+    .hud-lights {
+      font-size: 15px;
+      letter-spacing: 2px;
+      font-weight: bold;
+      padding: 4px 12px;
+      border-radius: 4px;
+      transition: color 0.2s, border-color 0.2s, background-color 0.2s;
+    }
+    .lights-on {
+      color: #6ee2cc;
+      background: rgba(12, 38, 32, 0.85);
+      border: 1px solid #367d6c;
+      text-shadow: 0 0 8px rgba(110, 226, 204, 0.6);
+    }
+    .lights-off {
+      color: #ff5555;
+      background: rgba(36, 12, 12, 0.85);
+      border: 1px solid #7d3636;
+      text-shadow: 0 0 8px rgba(255, 85, 85, 0.6);
+    }
+    .hud-right {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+    .hud-hidden-badge {
+      display: none;
+      font-size: 16px;
+      padding: 5px 12px;
+      border-radius: 4px;
+      background: rgba(20, 80, 70, 0.85);
+      border: 1px solid #4ec2ab;
+      color: #73f0d6;
+      letter-spacing: 2px;
+      text-shadow: 0 0 8px #4ec2ab;
+      animation: pulse-hidden 1.2s infinite alternate;
+    }
+    @keyframes pulse-hidden {
+      0% { opacity: 0.8; }
+      100% { opacity: 1.0; }
+    }
+    .hud-hunter {
+      font-size: 18px;
+      padding: 6px 14px;
+      border-radius: 4px;
+      background: rgba(6, 18, 16, 0.7);
+      border: 1px solid #1f423b;
+    }
+    .state-PATROL { color: #58c9b9; }
+    .state-SEARCH { color: #e5c158; }
+    .state-CHASE {
+      color: #ff3333;
+      animation: pulse-red 0.5s infinite alternate;
+    }
+    @keyframes pulse-red {
+      0% { text-shadow: 0 0 4px #f00; opacity: 0.8; }
+      100% { text-shadow: 0 0 15px #f00; opacity: 1; }
+    }
+    .crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 10px;
+      height: 10px;
+      pointer-events: none;
+    }
+    .crosshair::before, .crosshair::after {
+      content: '';
+      position: absolute;
+      background: rgba(184, 212, 206, 0.6);
+    }
+    .crosshair::before {
+      top: 4px; left: 0; width: 10px; height: 2px;
+    }
+    .crosshair::after {
+      top: 0; left: 4px; width: 2px; height: 10px;
+    }
+    #prompt-msg {
+      position: absolute;
+      top: 58%;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 18px;
+      color: #f0e68c;
+      background: rgba(10, 20, 18, 0.88);
+      border: 1px solid #c8a742;
+      padding: 6px 18px;
+      border-radius: 4px;
+      letter-spacing: 1px;
+      display: none;
+      text-shadow: 0 1px 3px #000;
+    }
+    #door-locked-hint {
+      position: absolute;
+      top: 65%;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 20px;
+      color: #ff5555;
+      background: rgba(22, 6, 6, 0.94);
+      border: 2px solid #ff3333;
+      padding: 8px 24px;
+      border-radius: 4px;
+      letter-spacing: 2px;
+      font-weight: bold;
+      display: none;
+      text-shadow: 0 0 12px rgba(255, 50, 50, 0.8), 0 2px 4px #000;
+      box-shadow: 0 0 20px rgba(200, 0, 0, 0.5);
+    }
+    /* Breath hold container */
+    #breath-container {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 320px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      pointer-events: none;
+    }
+    .breath-label {
+      font-size: 13px;
+      letter-spacing: 2px;
+      color: #9ee2d4;
+      text-shadow: 0 1px 3px #000;
+    }
+    .breath-bar-frame {
+      width: 100%;
+      height: 14px;
+      background: rgba(6, 18, 16, 0.85);
+      border: 2px solid #2f5e55;
+      border-radius: 7px;
+      padding: 2px;
+      overflow: hidden;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+    }
+    #breath-fill {
+      width: 100%;
+      height: 100%;
+      background: #4ec2ab;
+      border-radius: 4px;
+      box-shadow: 0 0 8px #4ec2ab;
+      transition: width 0.05s linear, background-color 0.2s;
+    }
+    #breath-fill.danger {
+      background: #ff4d4d;
+      box-shadow: 0 0 10px #ff3333;
+    }
+    .overlay-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(2, 8, 7, 0.88);
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 30px;
+    }
+    .panel {
+      background: rgba(6, 18, 16, 0.95);
+      border: 2px solid #234d44;
+      border-radius: 8px;
+      padding: 36px 48px;
+      max-width: 680px;
+      box-shadow: 0 0 30px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(20, 60, 50, 0.3);
+    }
+    h1 {
+      font-size: 42px;
+      letter-spacing: 6px;
+      color: #9fe2d4;
+      text-shadow: 0 0 16px rgba(100, 220, 190, 0.5);
+      margin-bottom: 16px;
+    }
+    .premise {
+      font-size: 16px;
+      line-height: 1.6;
+      color: #7fa8a0;
+      margin-bottom: 24px;
+    }
+    .goal-box {
+      background: rgba(10, 30, 26, 0.8);
+      border-left: 4px solid #c8a742;
+      padding: 12px 18px;
+      margin-bottom: 24px;
+      color: #e5d8a8;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 8px 16px;
+      text-align: left;
+      font-size: 14px;
+      color: #a0c2bb;
+      margin-bottom: 30px;
+      background: rgba(3, 12, 10, 0.6);
+      padding: 16px;
+      border-radius: 4px;
+    }
+    .controls-grid span.key {
+      color: #6ee2cc;
+      font-weight: bold;
+    }
+    .btn-action {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 14px 32px;
+      font-size: 20px;
+      font-weight: bold;
+      letter-spacing: 3px;
+      color: #031411;
+      background: #4ec2ab;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      box-shadow: 0 0 15px rgba(78, 194, 171, 0.5);
+      transition: all 0.2s;
+    }
+    .btn-action:hover {
+      background: #73f0d6;
+      box-shadow: 0 0 25px rgba(115, 240, 214, 0.8);
+      transform: scale(1.02);
+    }
+    .stats-line {
+      font-size: 20px;
+      margin: 16px 0;
+      color: #cce8e2;
+    }
+    .win-title {
+      color: #5cf2bd;
+      text-shadow: 0 0 20px rgba(92, 242, 189, 0.7);
+    }
+    .over-title {
+      color: #ff4d4d;
+      text-shadow: 0 0 20px rgba(255, 77, 77, 0.7);
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="flash-overlay"></div>
+  <div id="slat-overlay"></div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-top">
+      <div id="hud-keys" class="hud-keys">KEYS 0/6</div>
+      <div id="hud-alarm" class="hud-alarm">ALARM</div>
+      <div class="hud-strikes">
+        <span>STRIKES:</span>
+        <div id="strike-1" class="strike-box">X</div>
+        <div id="strike-2" class="strike-box">X</div>
+        <div id="strike-3" class="strike-box">X</div>
+      </div>
+      <div id="hud-time">00:00</div>
+      <div id="hud-lights" class="hud-lights lights-on">LIGHTS ON</div>
+      <div class="hud-right" style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+        <div style="display: flex; gap: 16px; align-items: center;">
+          <div id="hud-hidden" class="hud-hidden-badge">HIDDEN</div>
+          <div id="hud-hunter" class="hud-hunter state-PATROL">PATROL</div>
+        </div>
+        <div id="hud-hunter-secondary" class="hud-hunter state-CHASE" style="display: none; font-size: 13px; padding: 4px 10px; border-color: #ff3333; letter-spacing: 1px;">HUNTER 2 CHASING</div>
+      </div>
+    </div>
+    <div class="crosshair"></div>
+    <div id="prompt-msg">[E] PICK UP KEY</div>
+    <div id="door-locked-hint">NEED 6 MORE KEYS</div>
+    <div id="breath-container">
+      <div class="breath-label">HOLD [SPACE] TO HOLD BREATH</div>
+      <div class="breath-bar-frame">
+        <div id="breath-fill"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- READY SCREEN -->
+  <div id="screen-ready" class="overlay-screen">
+    <div class="panel">
+      <h1>HUSH CORRIDOR</h1>
+      <p class="premise">
+        Trapped inside the derelict wing of Saint Jude Ward, cold shadows stretch across blood-rusted tile.
+        A gaunt stalker prowls the endless loop, listening for the panicked clatter of footsteps.
+      </p>
+      <div class="goal-box">
+        Goal: Find 6 keys. Unlock the exit. Do not be caught three times.
+      </div>
+      <div class="controls-grid">
+        <span class="key">W / A / S / D</span><span>Move (corridor / rooms)</span>
+        <span class="key">Shift</span><span>Sprint at 4.5 m/s (Walk is 2.2 m/s)</span>
+        <span class="key">Mouse</span><span>Look around (First-person pointer lock)</span>
+        <span class="key">E</span><span>Interact (Key / Exit / Locker / Shortcuts)</span>
+        <span class="key">Space</span><span>Hold breath inside locker (Heartbeat threat)</span>
+        <span class="key">Esc</span><span>Pause game</span>
+        <span class="key">R</span><span>Restart to initial Ready state</span>
+      </div>
+      <button id="btn-start" class="btn-action">Press Enter to Begin</button>
+    </div>
+  </div>
+
+  <!-- PAUSED SCREEN -->
+  <div id="screen-paused" class="overlay-screen" style="display: none;">
+    <div class="panel">
+      <h1>PAUSED</h1>
+      <p class="premise">Paused — click or press Enter to resume</p>
+      <button id="btn-resume" class="btn-action">Resume</button>
+    </div>
+  </div>
+
+  <!-- GAME OVER SCREEN -->
+  <div id="screen-gameover" class="overlay-screen" style="display: none;">
+    <div class="panel">
+      <h1 class="over-title">GAME OVER</h1>
+      <p class="premise">The creature seized you in the suffocating dark.</p>
+      <div class="stats-line" id="over-stats">Catches: 3 | Time: 00:00</div>
+      <button id="btn-over-restart" class="btn-action">Press Enter or R to Restart</button>
+    </div>
+  </div>
+
+  <!-- WIN SCREEN (GRADED RESULTS BOARD) -->
+  <div id="screen-win" class="overlay-screen" style="display: none;">
+    <div class="panel" style="max-width: 540px; padding: 32px 40px; text-align: center;">
+      <h1 class="win-title" style="font-size: 38px; margin-bottom: 6px;">ESCAPED</h1>
+      <p class="premise" style="margin-bottom: 20px; font-size: 14px;">The heavy iron seals gave way. Cold night air greets you beyond the stairwell.</p>
+      
+      <div style="background: rgba(8, 22, 19, 0.88); border: 1px solid #3c8273; border-radius: 6px; padding: 18px 24px; margin-bottom: 22px; display: flex; flex-direction: column; gap: 10px; font-size: 16px; text-align: left;">
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(60, 130, 115, 0.35); padding-bottom: 6px;">
+          <span style="color: #88aba2;">ELAPSED TIME:</span>
+          <span id="res-time" style="color: #6ee2cc; font-weight: bold; letter-spacing: 1px;">00:00.0</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(60, 130, 115, 0.35); padding-bottom: 6px;">
+          <span style="color: #88aba2;">CATCHES:</span>
+          <span id="res-catches" style="color: #e5c158; font-weight: bold;">0</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(60, 130, 115, 0.35); padding-bottom: 6px;">
+          <span style="color: #88aba2;">TIMES HIDDEN:</span>
+          <span id="res-hides" style="color: #6ee2cc; font-weight: bold;">0</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 4px;">
+          <span style="color: #88aba2; font-size: 18px;">RATING:</span>
+          <span id="res-rating" style="font-size: 36px; font-weight: bold; color: #73f0d6; text-shadow: 0 0 14px #4ec2ab;">S</span>
+        </div>
+      </div>
+      <div class="stats-line" id="win-stats" style="display: none;"></div>
+      <button id="btn-win-restart" class="btn-action">Press Enter or R to Restart</button>
+    </div>
+  </div>
+
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+  <script>
+    /*
+     * HUSH CORRIDOR - Fully Deterministic 3D Horror Chase Game
+     * Zero randomness used throughout the entire codebase.
+     */
+
+    // --- GAME PHASES ---
+    const PHASE = {
+      READY: 'READY',
+      PLAYING: 'PLAYING',
+      PAUSED: 'PAUSED',
+      GAMEOVER: 'GAMEOVER',
+      WIN: 'WIN'
+    };
+
+    let currentPhase = PHASE.READY;
+    let elapsedTime = 0;
+    let catches = 0;
+    let keysCollected = 0;
+    let collectedKeyHistory = []; // Tracks pickup sequence for loss on catch
+
+    // Round 2 & 9 Locker & Breath State
+    let isHidden = false;
+    let currentLocker = null;
+    let hidesCount = 0;
+    let breathTimer = 10.0; // Round 9: 10 seconds breath bar
+    let isHoldingBreath = false;
+    let hunterInThreatRange = false;
+    let hunterGoneTimer = 0.0;
+
+    // Round 10: Alarm & Escape Night State (Flashlight & Battery completely removed)
+    let isAlarmActive = false;
+    let alarmStartTime = 0;
+    let finalRating = null;
+
+    // Dark Rooms: Records Room, Archives B, Storage
+    const DARK_ROOM_BOUNDS = [
+      { name: 'Records Room', minX: -16, maxX: -9, minZ: -12, maxZ: -10 },
+      { name: 'Archives B',    minX: 1,   maxX: 8,  minZ: -12, maxZ: -10 },
+      { name: 'Storage',       minX: 1,   maxX: 8,  minZ: 10,  maxZ: 12 }
+    ];
+
+    function isPlayerInDarkRoom(pos) {
+      for (let i = 0; i < DARK_ROOM_BOUNDS.length; i++) {
+        const b = DARK_ROOM_BOUNDS[i];
+        if (pos.x >= b.minX && pos.x <= b.maxX && pos.z >= b.minZ && pos.z <= b.maxZ) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // --- ROUND 4: FIXED KEY DISTRIBUTION CONFIGURATION ---
+    const KEY_CONFIGS = [
+      { id: 'K1', location: 'Ward', desc: 'against the north wall near the doorway', x: -10, y: 0.85, z: 11.2, propType: 'stand' },
+      { id: 'K2', location: 'North corridor, NW stretch', desc: 'on a small stand in the corridor, directly on the hunter\'s patrol path', x: -9, y: 0.85, z: -8, propType: 'pedestal' },
+      { id: 'K3', location: 'Records Room (dark)', desc: 'the deepest corner shelf of Records Room', x: -15.5, y: 0.85, z: -11.5, propType: 'shelf' },
+      { id: 'K4', location: 'Operating Theatre', desc: 'instrument tray near the room center', x: -2.5, y: 0.85, z: 11, propType: 'tray' },
+      { id: 'K5', location: 'Archives B (dark)', desc: 'the deepest corner shelf of Archives B', x: 7.5, y: 0.85, z: -11.5, propType: 'shelf' },
+      { id: 'K6', location: 'Storage (dark)', desc: 'on a crate deep in the room', x: 6.5, y: 0.85, z: 11.3, propType: 'crate' }
+    ];
+    const KEY_SPOTS = KEY_CONFIGS;
+
+    // Round 4 Exit Door Sequential Unlocking State
+    let isUnlockingSequence = false;
+    let unlockProgressTimer = 0.0;
+    let unlockStageIndex = 0;
+    let hasBegunWinWalk = false;
+    let doorLockedHintTimer = 0.0;
+
+    // Round 8 Shortcut Doors State (A: NW shaft, B: SW shaft)
+    let shortcutAOpen = false;
+    let shortcutBOpen = false;
+
+    // Initial key spots export structure (accessible as Array and Object)
+    const initialKeySpotsExport = KEY_CONFIGS.map(c => ({
+      id: c.id,
+      location: c.location,
+      spot: { x: c.x, z: c.z },
+      x: c.x,
+      z: c.z
+    }));
+    KEY_CONFIGS.forEach(c => {
+      initialKeySpotsExport[c.id] = {
+        id: c.id,
+        location: c.location,
+        spot: { x: c.x, z: c.z },
+        x: c.x,
+        z: c.z
+      };
+    });
+
+    const initialCollectedKeys = [];
+    KEY_CONFIGS.forEach(c => {
+      initialCollectedKeys[c.id] = false;
+    });
+
+    // Initial shortcut doors export
+    const initialShortcutDoorsExport = {
+      shortcutA: { id: 'A', name: 'Shortcut A (NW shaft)', open: false, closed: true },
+      shortcutB: { id: 'B', name: 'Shortcut B (SW shaft)', open: false, closed: true },
+      A: { id: 'A', name: 'Shortcut A', open: false, closed: true },
+      B: { id: 'B', name: 'Shortcut B', open: false, closed: true }
+    };
+    const initialShortcutsList = [
+      initialShortcutDoorsExport.shortcutA,
+      initialShortcutDoorsExport.shortcutB
+    ];
+    initialShortcutsList.shortcutA = initialShortcutDoorsExport.shortcutA;
+    initialShortcutsList.shortcutB = initialShortcutDoorsExport.shortcutB;
+    initialShortcutsList.A = initialShortcutDoorsExport.shortcutA;
+    initialShortcutsList.B = initialShortcutDoorsExport.shortcutB;
+
+    // Debugging global export
+    const initialHuntersList = [
+      {
+        name: 'hunterA',
+        state: 'PATROL',
+        position: { x: -14, y: 0, z: -8 },
+        facing: 0,
+        facingVector: { x: 1, z: 0 },
+        sightLossTimer: 0,
+        seesPlayer: false,
+        distanceToPlayer: 3.0
+      },
+      {
+        name: 'hunterB',
+        state: 'PATROL',
+        position: { x: 14, y: 0, z: 0 },
+        facing: Math.PI,
+        facingVector: { x: -1, z: 0 },
+        sightLossTimer: 0,
+        seesPlayer: false,
+        distanceToPlayer: 28.0
+      }
+    ];
+    initialHuntersList.hunterA = initialHuntersList[0];
+    initialHuntersList.hunterB = initialHuntersList[1];
+
+    window.__arena_state = {
+      phase: currentPhase,
+      elapsedTime: 0,
+      playerPosition: { x: -14.5, y: 1.6, z: -5 },
+      keysCollected: 0,
+      catches: 0,
+      hunterState: 'PATROL',
+      hunterPosition: { x: -14, y: 0, z: -8 },
+      hunterFacing: 0,
+      hunterFacingVector: { x: 1, z: 0 },
+      sightLossTimer: 0,
+      hunterSeesPlayer: false,
+      hidden: false,
+      breath: 10.0,
+      hides: 0,
+      alarm: false,
+      alarmSeconds: 0,
+      rating: null,
+      keySpots: initialKeySpotsExport,
+      collectedKeys: initialCollectedKeys,
+      collectedKeyIds: [],
+      keysCollectedIds: [],
+      keys: KEY_CONFIGS.map(c => ({
+        id: c.id,
+        location: c.location,
+        spot: { x: c.x, z: c.z },
+        x: c.x,
+        z: c.z,
+        isCollected: false,
+        collected: false
+      })),
+      distanceToHunter: 3.0,
+      hunterDistance: 3.0,
+      hunters: initialHuntersList,
+      emergencyLightPhase: 'ON',
+      emergencyLightsPhase: 'ON',
+      emergencyLights: 'ON',
+      lightsPhase: 'ON',
+      lights: 'ON',
+      cycleTime: 0.0,
+      emergencyLightCycleTime: 0.0,
+      emergencyLightsCycleTime: 0.0,
+      lightsCycleTime: 0.0,
+      shortcutDoors: initialShortcutDoorsExport,
+      shortcuts: initialShortcutsList,
+      shortcutA: 'CLOSED',
+      shortcutB: 'CLOSED',
+      shortcutAOpen: false,
+      shortcutBOpen: false
+    };
+
+    // --- AUDIO SYNTHESIS ENGINE (WebAudio API) ---
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.droneOsc1 = null;
+        this.droneOsc2 = null;
+        this.droneGain = null;
+        this.isDronePlaying = false;
+        this.lastPlayerStepTime = 0;
+        this.lastHunterStepTime = 0;
+        this.lastHunterBStepTime = 0;
+
+        // Round 2 & 5 Heartbeat synth
+        this.lastHeartbeatTime = 0;
+        this.heartbeatGain = null;
+
+        // Round 5 & 6 Hunter whisper synths
+        this.lastWhisperTime = 0;
+        this.lastWhisperBTime = 0;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+        }
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+        this.startDrone();
+      }
+
+      startDrone() {
+        if (!this.ctx || this.isDronePlaying) return;
+        const now = this.ctx.currentTime;
+        
+        this.droneGain = this.ctx.createGain();
+        this.droneGain.gain.setValueAtTime(0.08, now);
+        this.droneGain.connect(this.ctx.destination);
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(140, now);
+        filter.connect(this.droneGain);
+
+        this.droneOsc1 = this.ctx.createOscillator();
+        this.droneOsc1.type = 'sawtooth';
+        this.droneOsc1.frequency.setValueAtTime(55, now);
+
+        this.droneOsc2 = this.ctx.createOscillator();
+        this.droneOsc2.type = 'sine';
+        this.droneOsc2.frequency.setValueAtTime(54.2, now);
+
+        this.droneOsc1.connect(filter);
+        this.droneOsc2.connect(filter);
+
+        this.droneOsc1.start(now);
+        this.droneOsc2.start(now);
+        this.isDronePlaying = true;
+      }
+
+      createPannerNode(panVal) {
+        if (!this.ctx) return null;
+        const clampedPan = Math.max(-1, Math.min(1, panVal));
+        if (this.ctx.createStereoPanner) {
+          const p = this.ctx.createStereoPanner();
+          p.pan.setValueAtTime(clampedPan, this.ctx.currentTime);
+          return p;
+        }
+        return null;
+      }
+
+      playFootstep(isRunning) {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const filter = this.ctx.createBiquadFilter();
+
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(isRunning ? 320 : 240, now);
+        filter.Q.setValueAtTime(2.5, now);
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(isRunning ? 90 : 75, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + 0.08);
+
+        gain.gain.setValueAtTime(isRunning ? 0.12 : 0.07, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.09);
+      }
+
+      // Round 5 & 6: Hunter spatial footfalls with hardcoded linear distance falloff (full at <=3m, 0 at >=18m)
+      // and stereo hard-panning toward hunter's bearing relative to camera.
+      playHunterFootstepSpatial(distance, pan, isChasing, isHunterB = false) {
+        if (!this.ctx) return;
+        let falloff = 0;
+        if (distance <= 3.0) {
+          falloff = 1.0;
+        } else if (distance >= 18.0) {
+          falloff = 0.0;
+        } else {
+          falloff = (18.0 - distance) / 15.0; // linear from 1.0 at 3m to 0.0 at 18m
+        }
+        if (falloff <= 0.002) return;
+
+        const now = this.ctx.currentTime;
+        const baseVol = isChasing ? 0.50 : 0.32;
+        const vol = baseVol * falloff;
+
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const filter = this.ctx.createBiquadFilter();
+        const panner = this.createPannerNode(pan);
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(isHunterB ? (isChasing ? 260 : 190) : (isChasing ? 220 : 160), now);
+
+        osc.type = isHunterB ? 'triangle' : 'square';
+        osc.frequency.setValueAtTime(isHunterB ? (isChasing ? 78 : 55) : (isChasing ? 65 : 45), now);
+        osc.frequency.exponentialRampToValueAtTime(isHunterB ? 22 : 18, now + (isChasing ? 0.20 : 0.18));
+
+        gain.gain.setValueAtTime(vol, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + (isChasing ? 0.20 : 0.18));
+
+        osc.connect(filter);
+        filter.connect(gain);
+
+        if (panner) {
+          gain.connect(panner);
+          panner.connect(this.ctx.destination);
+        } else {
+          gain.connect(this.ctx.destination);
+        }
+
+        osc.start(now);
+        osc.stop(now + 0.24);
+
+        // Heavy secondary floor impact crunch (or dragging shuffle for Hunter B)
+        const osc2 = this.ctx.createOscillator();
+        const gain2 = this.ctx.createGain();
+        osc2.type = 'sawtooth';
+        osc2.frequency.setValueAtTime(isHunterB ? (isChasing ? 140 : 110) : (isChasing ? 120 : 90), now);
+        osc2.frequency.exponentialRampToValueAtTime(isHunterB ? 30 : 25, now + (isHunterB ? 0.12 : 0.09));
+        gain2.gain.setValueAtTime(vol * (isChasing ? 0.45 : 0.25), now);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + (isHunterB ? 0.12 : 0.09));
+
+        osc2.connect(gain2);
+        if (panner) {
+          gain2.connect(panner);
+        } else {
+          gain2.connect(this.ctx.destination);
+        }
+        osc2.start(now);
+        osc2.stop(now + 0.13);
+      }
+
+      // Backwards-compatible hunter footstep wrapper
+      playHunterFootstep(distance) {
+        this.playHunterFootstepSpatial(distance, 0, false, false);
+      }
+
+      // Round 5 & 6: Continuous multi-state whisper loop with hardcoded linear distance falloff (3m-18m)
+      // and stereo panning toward hunter bearing relative to camera.
+      // - PATROL: low sibilant mutter
+      // - CHASE: faster, higher rasp
+      // - SEARCH: slow drawn-out muttering
+      updateHunterWhispers(distance, pan, state, gameTime, isHunterB = false) {
+        if (!this.ctx) return;
+        let falloff = 0;
+        if (distance <= 3.0) {
+          falloff = 1.0;
+        } else if (distance >= 18.0) {
+          falloff = 0.0;
+        } else {
+          falloff = (18.0 - distance) / 15.0;
+        }
+        if (falloff <= 0.002) return;
+
+        let interval = isHunterB ? 0.52 : 0.65;
+        if (state === 'CHASE') interval = isHunterB ? 0.22 : 0.26;
+        else if (state === 'SEARCH') interval = isHunterB ? 0.95 : 1.05;
+
+        const lastTime = isHunterB ? this.lastWhisperBTime : this.lastWhisperTime;
+        if (gameTime - lastTime < interval) return;
+        if (isHunterB) this.lastWhisperBTime = gameTime;
+        else this.lastWhisperTime = gameTime;
+
+        const now = this.ctx.currentTime;
+        const panner = this.createPannerNode(pan);
+
+        if (state === 'CHASE') {
+          // Faster, higher rasp
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          const filter = this.ctx.createBiquadFilter();
+
+          filter.type = 'bandpass';
+          filter.frequency.setValueAtTime(isHunterB ? 1450 : 1250, now);
+          filter.frequency.linearRampToValueAtTime(isHunterB ? 950 : 800, now + 0.22);
+          filter.Q.setValueAtTime(3.5, now);
+
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(isHunterB ? 440 : 380, now);
+          osc.frequency.linearRampToValueAtTime(isHunterB ? 620 : 540, now + 0.22);
+
+          const vol = 0.32 * falloff;
+          gain.gain.setValueAtTime(vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+          osc.connect(filter);
+          filter.connect(gain);
+          if (panner) {
+            gain.connect(panner);
+            panner.connect(this.ctx.destination);
+          } else {
+            gain.connect(this.ctx.destination);
+          }
+          osc.start(now);
+          osc.stop(now + 0.25);
+        } else if (state === 'SEARCH') {
+          // Slow drawn-out muttering
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          const filter = this.ctx.createBiquadFilter();
+
+          filter.type = 'bandpass';
+          filter.frequency.setValueAtTime(isHunterB ? 520 : 420, now);
+          filter.frequency.linearRampToValueAtTime(isHunterB ? 280 : 220, now + 0.85);
+          filter.Q.setValueAtTime(2.0, now);
+
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(isHunterB ? 170 : 140, now);
+          osc.frequency.linearRampToValueAtTime(isHunterB ? 105 : 85, now + 0.85);
+
+          const vol = 0.24 * falloff;
+          gain.gain.setValueAtTime(vol * 0.4, now);
+          gain.gain.linearRampToValueAtTime(vol, now + 0.2);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+
+          osc.connect(filter);
+          filter.connect(gain);
+          if (panner) {
+            gain.connect(panner);
+            panner.connect(this.ctx.destination);
+          } else {
+            gain.connect(this.ctx.destination);
+          }
+          osc.start(now);
+          osc.stop(now + 0.92);
+        } else {
+          // PATROL: low sibilant mutter
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          const filter = this.ctx.createBiquadFilter();
+
+          filter.type = 'bandpass';
+          filter.frequency.setValueAtTime(isHunterB ? 390 : 320, now);
+          filter.frequency.linearRampToValueAtTime(isHunterB ? 260 : 210, now + 0.38);
+          filter.Q.setValueAtTime(1.8, now);
+
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(isHunterB ? 120 : 95, now);
+          osc.frequency.linearRampToValueAtTime(isHunterB ? 80 : 65, now + 0.38);
+
+          const vol = 0.22 * falloff;
+          gain.gain.setValueAtTime(vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+
+          osc.connect(filter);
+          filter.connect(gain);
+          if (panner) {
+            gain.connect(panner);
+            panner.connect(this.ctx.destination);
+          } else {
+            gain.connect(this.ctx.destination);
+          }
+          osc.start(now);
+          osc.stop(now + 0.44);
+        }
+      }
+
+      playKeyChime() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const notes = [587.33, 880, 1174.66]; // D5, A5, D6
+        notes.forEach((freq, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.04);
+          
+          gain.gain.setValueAtTime(0.15, now + idx * 0.04);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.04 + 0.6);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          osc.start(now + idx * 0.04);
+          osc.stop(now + idx * 0.04 + 0.65);
+        });
+      }
+
+      // Round 4: Loud industrial clunk for the sequential 6-lock unlock
+      playLockClunk(index) {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        
+        // Deep resonant body
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const filter = this.ctx.createBiquadFilter();
+
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(320 - index * 18, now);
+        filter.Q.setValueAtTime(2.2, now);
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(210 - index * 14, now);
+        osc.frequency.exponentialRampToValueAtTime(45, now + 0.24);
+
+        gain.gain.setValueAtTime(0.48, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.26);
+
+        // High metallic lock-bolt snap
+        const snapOsc = this.ctx.createOscillator();
+        const snapGain = this.ctx.createGain();
+        snapOsc.type = 'square';
+        snapOsc.frequency.setValueAtTime(620 - index * 25, now);
+        snapOsc.frequency.exponentialRampToValueAtTime(80, now + 0.09);
+        snapGain.gain.setValueAtTime(0.28, now);
+        snapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+
+        snapOsc.connect(snapGain);
+        snapGain.connect(this.ctx.destination);
+        snapOsc.start(now);
+        snapOsc.stop(now + 0.1);
+      }
+
+      // Round 4: Dull locked thud when attempting exit unlock with < 6 keys
+      playLockedThud() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const filter = this.ctx.createBiquadFilter();
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(105, now);
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(80, now);
+        osc.frequency.exponentialRampToValueAtTime(24, now + 0.18);
+
+        gain.gain.setValueAtTime(0.42, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.19);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.21);
+
+        // Heavy latch rattle
+        const rattleOsc = this.ctx.createOscillator();
+        const rattleGain = this.ctx.createGain();
+        rattleOsc.type = 'sawtooth';
+        rattleOsc.frequency.setValueAtTime(130, now);
+        rattleOsc.frequency.exponentialRampToValueAtTime(35, now + 0.11);
+        rattleGain.gain.setValueAtTime(0.18, now);
+        rattleGain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+        rattleOsc.connect(rattleGain);
+        rattleGain.connect(this.ctx.destination);
+        rattleOsc.start(now);
+        rattleOsc.stop(now + 0.12);
+      }
+
+      // Round 8: Loud metallic clang when opening a shortcut door (carrying 8m)
+      playShortcutClang() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        
+        // Sharp loud industrial metal impact
+        const osc1 = this.ctx.createOscillator();
+        const gain1 = this.ctx.createGain();
+        const filter1 = this.ctx.createBiquadFilter();
+
+        filter1.type = 'bandpass';
+        filter1.frequency.setValueAtTime(850, now);
+        filter1.Q.setValueAtTime(3.0, now);
+
+        osc1.type = 'sawtooth';
+        osc1.frequency.setValueAtTime(380, now);
+        osc1.frequency.exponentialRampToValueAtTime(110, now + 0.35);
+
+        gain1.gain.setValueAtTime(0.55, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+
+        osc1.connect(filter1);
+        filter1.connect(gain1);
+        gain1.connect(this.ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.40);
+
+        // Heavy metal door reverberation
+        const osc2 = this.ctx.createOscillator();
+        const gain2 = this.ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(220, now);
+        osc2.frequency.exponentialRampToValueAtTime(65, now + 0.6);
+        gain2.gain.setValueAtTime(0.35, now);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+        osc2.connect(gain2);
+        gain2.connect(this.ctx.destination);
+        osc2.start(now);
+        osc2.stop(now + 0.7);
+      }
+
+      playCatchSting() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        
+        const freqs = [110, 116.5, 220, 233, 440, 466.16];
+        freqs.forEach(f => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(f, now);
+          osc.frequency.linearRampToValueAtTime(f * 0.7, now + 0.8);
+
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          osc.start(now);
+          osc.stop(now + 0.85);
+        });
+      }
+
+      playWinSwelling() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const chords = [130.81, 196.00, 261.63, 329.63, 392.00];
+        chords.forEach(f => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(f, now);
+
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.1, now + 2.0);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 4.5);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          osc.start(now);
+          osc.stop(now + 4.6);
+        });
+      }
+
+      // Round 2 & 5: Heartbeat dual thumps (lub-dub)
+      playHeartbeat(volume = 0.5) {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+
+        // Lub (1st beat)
+        const osc1 = this.ctx.createOscillator();
+        const gain1 = this.ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(56, now);
+        osc1.frequency.exponentialRampToValueAtTime(28, now + 0.12);
+        gain1.gain.setValueAtTime(volume * 0.38, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+        osc1.connect(gain1);
+        gain1.connect(this.ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.15);
+
+        // Dub (2nd beat, slightly higher and quieter)
+        const osc2 = this.ctx.createOscillator();
+        const gain2 = this.ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(64, now + 0.18);
+        osc2.frequency.exponentialRampToValueAtTime(32, now + 0.3);
+        gain2.gain.setValueAtTime(volume * 0.30, now + 0.18);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+        osc2.connect(gain2);
+        gain2.connect(this.ctx.destination);
+        osc2.start(now + 0.18);
+        osc2.stop(now + 0.33);
+      }
+
+      // Round 2: Audible sharp gasp burst on breath depletion
+      playGasp() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const filter = this.ctx.createBiquadFilter();
+        const gain = this.ctx.createGain();
+
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(450, now);
+        filter.frequency.linearRampToValueAtTime(1200, now + 0.35);
+        filter.Q.setValueAtTime(3.0, now);
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.linearRampToValueAtTime(480, now + 0.35);
+
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.48);
+      }
+
+      // Round 10: Alarm siren burst and repeating pulse
+      playAlarmTrip() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.linearRampToValueAtTime(880, now + 0.3);
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.52);
+      }
+
+      updateAlarmSiren(elapsedSinceAlarm, gameTime) {
+        if (!this.ctx) return;
+        if (elapsedSinceAlarm < 5.0) {
+          // 5s initial siren burst (wailing frequency oscillation)
+          if (!this.lastSirenBurstTime || gameTime - this.lastSirenBurstTime > 0.45) {
+            this.lastSirenBurstTime = gameTime;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            const f1 = (Math.floor(elapsedSinceAlarm * 2) % 2 === 0) ? 620 : 880;
+            const f2 = (f1 === 620) ? 880 : 620;
+            osc.frequency.setValueAtTime(f1, now);
+            osc.frequency.linearRampToValueAtTime(f2, now + 0.4);
+            gain.gain.setValueAtTime(0.22, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.44);
+          }
+        } else {
+          // Settles into a low repeating pulse every 1.5s
+          if (!this.lastSirenPulseTime || gameTime - this.lastSirenPulseTime > 1.5) {
+            this.lastSirenPulseTime = gameTime;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(220, now);
+            osc.frequency.exponentialRampToValueAtTime(110, now + 0.4);
+            gain.gain.setValueAtTime(0.20, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.48);
+          }
+        }
+      }
+
+      // Locker door creak / metal latch
+      playLockerLatch() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(140, now);
+        osc.frequency.exponentialRampToValueAtTime(50, now + 0.15);
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.16);
+      }
+    }
+
+    const soundEngine = new SoundEngine();
+
+    // --- PROCEDURAL TEXTURES (Deterministic Canvas) ---
+    function createProceduralTexture(type) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+
+      if (type === 'tile') {
+        ctx.fillStyle = '#b0c2be';
+        ctx.fillRect(0, 0, 256, 256);
+
+        ctx.strokeStyle = '#687b77';
+        ctx.lineWidth = 4;
+        for (let i = 0; i <= 256; i += 64) {
+          ctx.beginPath();
+          ctx.moveTo(i, 0); ctx.lineTo(i, 256);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0, i); ctx.lineTo(256, i);
+          ctx.stroke();
+        }
+
+        for (let x = 0; x < 256; x += 16) {
+          for (let y = 0; y < 256; y += 16) {
+            const h = ((x * 37 + y * 53 + 17) % 100);
+            if (h > 75) {
+              ctx.fillStyle = 'rgba(110, 48, 28, 0.28)';
+              ctx.fillRect(x, y, (h % 12) + 4, (h % 10) + 4);
+            } else if (h < 20) {
+              ctx.fillStyle = 'rgba(20, 35, 32, 0.2)';
+              ctx.fillRect(x, y, 8, 8);
+            }
+          }
+        }
+      } else if (type === 'wall') {
+        ctx.fillStyle = '#cad6d3';
+        ctx.fillRect(0, 0, 256, 128);
+        ctx.fillStyle = '#5c7a74';
+        ctx.fillRect(0, 128, 256, 128);
+
+        ctx.fillStyle = '#263d39';
+        ctx.fillRect(0, 126, 256, 4);
+
+        for (let x = 0; x < 256; x += 24) {
+          const s = (x * 41 + 13) % 100;
+          if (s > 60) {
+            ctx.fillStyle = 'rgba(70, 35, 20, 0.25)';
+            ctx.fillRect(x, 40 + (s % 40), (s % 6) + 2, 80 + (s % 60));
+          }
+        }
+      } else if (type === 'core') {
+        ctx.fillStyle = '#222928';
+        ctx.fillRect(0, 0, 256, 256);
+        ctx.strokeStyle = '#151a19';
+        ctx.lineWidth = 6;
+        ctx.strokeRect(4, 4, 248, 248);
+
+        for (let y = 30; y < 256; y += 40) {
+          ctx.fillStyle = 'rgba(50, 60, 58, 0.5)';
+          ctx.fillRect(10, y, 236, 10);
+        }
+      }
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      return texture;
+    }
+
+    const tileTexture = createProceduralTexture('tile');
+    tileTexture.repeat.set(10, 8);
+    const wallTexture = createProceduralTexture('wall');
+    wallTexture.repeat.set(4, 1);
+    const coreTexture = createProceduralTexture('core');
+    coreTexture.repeat.set(3, 1);
+
+    function createSignTexture(text, bgColor = '#091c18', textColor = '#59d6be', borderColor = '#346b60') {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, 512, 128);
+
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = 8;
+      ctx.strokeRect(6, 6, 500, 116);
+
+      ctx.font = 'bold 44px "Courier New", Courier, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = textColor;
+      ctx.fillText(text, 256, 64);
+
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    // --- SETUP SCENE, CAMERA, RENDERER ---
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x040909);
+    scene.fog = new THREE.FogExp2(0x040909, 0.055);
+
+    const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
+    const SPAWN_POS = new THREE.Vector3(-14.5, 1.6, -5);
+    camera.position.copy(SPAWN_POS);
+
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      document.getElementById('canvas-container').appendChild(renderer.domElement);
+    } catch (e) {
+      console.warn('WebGL unavailable, using headless simulation renderer:', e);
+      const dummyCanvas = document.createElement('canvas');
+      renderer = {
+        setSize: () => {},
+        setPixelRatio: () => {},
+        render: () => {},
+        domElement: dummyCanvas,
+        shadowMap: {}
+      };
+      document.getElementById('canvas-container').appendChild(dummyCanvas);
+    }
+
+    // --- LIGHTING ---
+    const ambientLight = new THREE.AmbientLight(0x1a2e2b, 0.65);
+    scene.add(ambientLight);
+
+    // Dark rooms have dead ceiling fixtures (Records Room, Archives B, Storage)
+    const ceilingLights = [
+      { x: -14, y: 2.8, z: -8, color: 0x6ee2cc, intensity: 0.9, dist: 9, isDead: false },
+      { x: 0,   y: 2.8, z: -8, color: 0x58c9b9, intensity: 0.8, dist: 9, isDead: false },
+      { x: 14,  y: 2.8, z: -8, color: 0x6ee2cc, intensity: 0.9, dist: 9, isDead: false },
+      { x: 14,  y: 2.8, z: 0,  color: 0x58c9b9, intensity: 0.7, dist: 9, isDead: false },
+      { x: 14,  y: 2.8, z: 8,  color: 0x6ee2cc, intensity: 0.9, dist: 9, isDead: false },
+      { x: 0,   y: 2.8, z: 8,  color: 0x58c9b9, intensity: 0.8, dist: 9, isDead: false },
+      { x: -14, y: 2.8, z: 8,  color: 0x6ee2cc, intensity: 0.9, dist: 9, isDead: false },
+      { x: -16, y: 2.8, z: 0,  color: 0x4aa394, intensity: 0.8, dist: 10, isDead: false },
+      // Records Room (-12.5, -11): DEAD
+      { x: -12.5, y: 2.8, z: -11, color: 0x111615, intensity: 0.0, dist: 0, isDead: true },
+      // Pharmacy (-4, -11): LIT
+      { x: -4,    y: 2.8, z: -11, color: 0x76baa0, intensity: 0.7, dist: 7, isDead: false },
+      // Archives B (4.5, -11): DEAD
+      { x: 4.5,   y: 2.8, z: -11, color: 0x111615, intensity: 0.0, dist: 0, isDead: true },
+      // Ward (-12.5, 11): LIT
+      { x: -12.5, y: 2.8, z: 11,  color: 0x76baa0, intensity: 0.7, dist: 7, isDead: false },
+      // Operating Theatre (-4, 11): LIT
+      { x: -4,    y: 2.8, z: 11,  color: 0x5fa896, intensity: 0.8, dist: 7, isDead: false },
+      // Storage (4.5, 11): DEAD
+      { x: 4.5,   y: 2.8, z: 11,  color: 0x111615, intensity: 0.0, dist: 0, isDead: true },
+      { x: -21,   y: 2.5, z: -4,  color: 0x33ff88, intensity: 1.6, dist: 12, isDead: false }
+    ];
+
+    const northCorridorLights = [];
+
+    ceilingLights.forEach(l => {
+      let pl = null;
+      if (!l.isDead) {
+        pl = new THREE.PointLight(l.color, l.intensity, l.dist, 1.8);
+        pl.position.set(l.x, l.y, l.z);
+        scene.add(pl);
+
+        if (l.z === -8) {
+          northCorridorLights.push({ light: pl, baseIntensity: l.intensity });
+        }
+      }
+
+      const fixtureGeo = new THREE.BoxGeometry(0.8, 0.1, 0.25);
+      const fixtureMat = new THREE.MeshBasicMaterial({ color: l.isDead ? 0x161d1b : l.color });
+      const fixture = new THREE.Mesh(fixtureGeo, fixtureMat);
+      fixture.position.set(l.x, 2.95, l.z);
+      scene.add(fixture);
+    });
+
+    // --- ROUND 7: WALL EMERGENCY LAMPS (NORTH CORRIDOR & 3 DARK ROOMS) ---
+    // 10s cycle: 6s ON / 4s OFF
+    const emergencyLampLensOnMat = new THREE.MeshBasicMaterial({ color: 0x98f4d0 });
+    const emergencyLampLensOffMat = new THREE.MeshBasicMaterial({ color: 0x182622 });
+    const emergencyHousingMat = new THREE.MeshStandardMaterial({ color: 0x22302b, roughness: 0.85, metalness: 0.4 });
+
+    const EMERGENCY_LAMP_SPOTS = [
+      { x: -12.0, y: 2.2, z: -9.82, rotY: 0, desc: 'North corridor west' },
+      { x: -6.0,  y: 2.2, z: -9.82, rotY: 0, desc: 'North corridor mid-west' },
+      { x: 0.0,   y: 2.2, z: -9.82, rotY: 0, desc: 'North corridor center' },
+      { x: 6.0,   y: 2.2, z: -9.82, rotY: 0, desc: 'North corridor mid-east' },
+      { x: 12.0,  y: 2.2, z: -9.82, rotY: 0, desc: 'North corridor east' },
+      // Inside Records Room (dark)
+      { x: -12.5, y: 2.2, z: -11.82, rotY: 0, desc: 'Records Room' },
+      // Inside Archives B (dark)
+      { x: 4.5,   y: 2.2, z: -11.82, rotY: 0, desc: 'Archives B' },
+      // Inside Storage (dark)
+      { x: 4.5,   y: 2.2, z: 11.82,  rotY: Math.PI, desc: 'Storage' }
+    ];
+
+    const emergencyLamps = [];
+
+    EMERGENCY_LAMP_SPOTS.forEach(spot => {
+      const lampGroup = new THREE.Group();
+      lampGroup.position.set(spot.x, spot.y, spot.z);
+      lampGroup.rotation.y = spot.rotY;
+
+      // Housing box
+      const housing = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.14, 0.10), emergencyHousingMat);
+      lampGroup.add(housing);
+
+      // Dual emergency lamp heads
+      const lensGroup = new THREE.Group();
+      const lens1 = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.05, 8), emergencyLampLensOnMat);
+      lens1.rotation.x = Math.PI / 2;
+      lens1.position.set(-0.06, 0, 0.05);
+      lensGroup.add(lens1);
+
+      const lens2 = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.05, 8), emergencyLampLensOnMat);
+      lens2.rotation.x = Math.PI / 2;
+      lens2.position.set(0.06, 0, 0.05);
+      lensGroup.add(lens2);
+      lampGroup.add(lensGroup);
+
+      // Dim green-white wash pointlight
+      const pl = new THREE.PointLight(0x88cca8, 0.85, 8.5, 1.8);
+      pl.position.set(0, 0, 0.2);
+      lampGroup.add(pl);
+
+      scene.add(lampGroup);
+
+      emergencyLamps.push({
+        group: lampGroup,
+        light: pl,
+        lenses: [lens1, lens2],
+        baseIntensity: 0.85
+      });
+    });
+
+    // --- ROUND 10: ROTATING RED ALARM LAMPS (EVERY CORRIDOR & ROOM) ---
+    // Fixed 1s on/off pattern (0.5s ON, 0.5s OFF), no random flicker
+    const alarmLampOnMat = new THREE.MeshBasicMaterial({ color: 0xff3333 });
+    const alarmLampOffMat = new THREE.MeshBasicMaterial({ color: 0x330808 });
+    const alarmHousingMat = new THREE.MeshStandardMaterial({ color: 0x1f1f1f, roughness: 0.8, metalness: 0.5 });
+
+    const ALARM_LAMP_SPOTS = [
+      { x: -7.0,  y: 2.75, z: -8.0, desc: 'North corridor west' },
+      { x: 7.0,   y: 2.75, z: -8.0, desc: 'North corridor east' },
+      { x: -7.0,  y: 2.75, z: 8.0,  desc: 'South corridor west' },
+      { x: 7.0,   y: 2.75, z: 8.0,  desc: 'South corridor east' },
+      { x: 14.0,  y: 2.75, z: 0.0,  desc: 'East corridor' },
+      { x: -16.0, y: 2.75, z: 0.0,  desc: 'West corridor' },
+      { x: -12.5, y: 2.75, z: -11.0, desc: 'Records Room' },
+      { x: -4.0,  y: 2.75, z: -11.0, desc: 'Pharmacy' },
+      { x: 4.5,   y: 2.75, z: -11.0, desc: 'Archives B' },
+      { x: -12.5, y: 2.75, z: 11.0,  desc: 'Ward' },
+      { x: -4.0,  y: 2.75, z: 11.0,  desc: 'Operating Theatre' },
+      { x: 4.5,   y: 2.75, z: 11.0,  desc: 'Storage' }
+    ];
+
+    const alarmLamps = [];
+
+    ALARM_LAMP_SPOTS.forEach(spot => {
+      const lampGroup = new THREE.Group();
+      lampGroup.position.set(spot.x, spot.y, spot.z);
+
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.06, 12), alarmHousingMat);
+      lampGroup.add(base);
+
+      const dome = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.12, 12), alarmLampOffMat);
+      dome.position.set(0, -0.08, 0);
+      lampGroup.add(dome);
+
+      const pl = new THREE.PointLight(0xff1111, 0.0, 9.0, 1.8);
+      pl.position.set(0, -0.1, 0);
+      lampGroup.add(pl);
+
+      scene.add(lampGroup);
+
+      alarmLamps.push({
+        group: lampGroup,
+        dome: dome,
+        light: pl,
+        baseIntensity: 1.3
+      });
+    });
+
+    scene.add(camera);
+
+    // --- COLLISION SYSTEM ---
+    const collisionBoxes = [];
+
+    function addCollisionBox(minX, maxX, minZ, maxZ, minY = 0, maxY = 3.0) {
+      collisionBoxes.push({
+        minX: Math.min(minX, maxX),
+        maxX: Math.max(minX, maxX),
+        minZ: Math.min(minZ, maxZ),
+        maxZ: Math.max(minZ, maxZ),
+        minY, maxY
+      });
+    }
+
+    const wallMaterial = new THREE.MeshStandardMaterial({
+      map: wallTexture,
+      roughness: 0.85,
+      metalness: 0.1
+    });
+
+    function createWall(x, z, width, depth, height = 3.0, customMat = wallMaterial) {
+      const geo = new THREE.BoxGeometry(width, height, depth);
+      const mesh = new THREE.Mesh(geo, customMat);
+      mesh.position.set(x, height / 2, z);
+      scene.add(mesh);
+      addCollisionBox(x - width / 2, x + width / 2, z - depth / 2, z + depth / 2, 0, height);
+      return mesh;
+    }
+
+    // --- ENVIRONMENT ARCHITECTURE ---
+    // Floor & Ceiling slabs 40 x 28
+    const floorGeo = new THREE.PlaneGeometry(40, 28);
+    const floorMat = new THREE.MeshStandardMaterial({
+      map: tileTexture,
+      roughness: 0.5,
+      metalness: 0.1
+    });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(0, 0, 0);
+    scene.add(floor);
+
+    const ceilingGeo = new THREE.PlaneGeometry(40, 28);
+    const ceilingMat = new THREE.MeshStandardMaterial({
+      color: 0x1a2624,
+      roughness: 0.95
+    });
+    const ceiling = new THREE.Mesh(ceilingGeo, ceilingMat);
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.position.set(0, 3, 0);
+    scene.add(ceiling);
+
+    // Outer shell walls
+    createWall(0, 14, 40, 0.3);
+    createWall(0, -14, 40, 0.3);
+    createWall(20, 0, 0.3, 28);
+
+    createWall(-20, 6, 0.3, 16);
+    createWall(-20, -10, 0.3, 8);
+
+    const exitLintelGeo = new THREE.BoxGeometry(0.3, 0.6, 4.0);
+    const exitLintel = new THREE.Mesh(exitLintelGeo, wallMaterial);
+    exitLintel.position.set(-20, 2.7, -4);
+    scene.add(exitLintel);
+    addCollisionBox(-20.15, -19.85, -6, -2, 2.4, 3.0);
+
+    // Central Service Core: x in [-12, 12], z in [-6, 6]
+    const coreMat = new THREE.MeshStandardMaterial({
+      map: coreTexture,
+      roughness: 0.9,
+      metalness: 0.2
+    });
+    // Solid eastern core: x in [-8, 12], z in [-6, 6] (width 20, depth 12)
+    createWall(2, 0, 20, 12, 3.0, coreMat);
+
+    // --- ROUND 8: SHORTCUT MAINTENANCE SHAFTS & DOORS ---
+    // Shortcut A (NW shaft): (-8, -6) in north corridor to (-12, 3) in west corridor
+    // Shortcut B (SW shaft): (-8, 6) in south corridor to (-12, -3) in west corridor
+    const shaftMat = new THREE.MeshStandardMaterial({
+      color: 0x1f2b27,
+      roughness: 0.8,
+      metalness: 0.3
+    });
+    const doorMetalMat = new THREE.MeshStandardMaterial({
+      color: 0x2b3833,
+      roughness: 0.65,
+      metalness: 0.7
+    });
+    const pushPlateMat = new THREE.MeshStandardMaterial({
+      color: 0xc8a742,
+      roughness: 0.3,
+      metalness: 0.85
+    });
+    const rivetMat = new THREE.MeshStandardMaterial({
+      color: 0x6e7b75,
+      roughness: 0.5,
+      metalness: 0.9
+    });
+
+    // Shaft A Tunnel floor and ceiling
+    const shaftAGeo = new THREE.BoxGeometry(1.4, 0.08, 9.85);
+    const shaftAFloor = new THREE.Mesh(shaftAGeo, shaftMat);
+    shaftAFloor.position.set(-10, 0.02, -1.5);
+    shaftAFloor.rotation.y = Math.atan2(4, 9);
+    scene.add(shaftAFloor);
+
+    // Shaft B Tunnel floor and ceiling
+    const shaftBFloor = new THREE.Mesh(shaftAGeo, shaftMat);
+    shaftBFloor.position.set(-10, 0.02, 1.5);
+    shaftBFloor.rotation.y = -Math.atan2(4, 9);
+    scene.add(shaftBFloor);
+
+    // Western core filler geometry around shafts
+    createWall(-10.0, -1.5, 0.4, 9.5, 3.0, coreMat);
+    createWall(-10.0, 1.5, 0.4, 9.5, 3.0, coreMat);
+
+    // Shortcut A Doors:
+    // 1. North entrance door at (-8, 0, -6) (Openable side, has push plate on north face)
+    const doorA_NorthGroup = new THREE.Group();
+    doorA_NorthGroup.position.set(-8, 0, -6);
+    scene.add(doorA_NorthGroup);
+
+    const doorA_NorthPanel = new THREE.Mesh(new THREE.BoxGeometry(1.15, 2.35, 0.08), doorMetalMat);
+    doorA_NorthPanel.position.set(0, 1.18, 0);
+    doorA_NorthGroup.add(doorA_NorthPanel);
+
+    // Push plate on north side (z < -6)
+    const pushPlateA = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.55, 0.04), pushPlateMat);
+    pushPlateA.position.set(0.18, 1.25, -0.05);
+    doorA_NorthGroup.add(pushPlateA);
+
+    // 2. West exit door at (-12, 0, 3) (Blank riveted side)
+    const doorA_WestGroup = new THREE.Group();
+    doorA_WestGroup.position.set(-12, 0, 3);
+    scene.add(doorA_WestGroup);
+
+    const doorA_WestPanel = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.35, 1.15), doorMetalMat);
+    doorA_WestPanel.position.set(0, 1.18, 0);
+    doorA_WestGroup.add(doorA_WestPanel);
+
+    // Rivets on west side (x < -12)
+    for (let r = 0; r < 4; r++) {
+      const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 6), rivetMat);
+      rivet.position.set(-0.045, 0.5 + r * 0.45, -0.25);
+      doorA_WestGroup.add(rivet);
+      const rivet2 = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 6), rivetMat);
+      rivet2.position.set(-0.045, 0.5 + r * 0.45, 0.25);
+      doorA_WestGroup.add(rivet2);
+    }
+
+    // Shortcut B Doors:
+    // 1. South entrance door at (-8, 0, 6) (Openable side, has push plate on south face)
+    const doorB_SouthGroup = new THREE.Group();
+    doorB_SouthGroup.position.set(-8, 0, 6);
+    scene.add(doorB_SouthGroup);
+
+    const doorB_SouthPanel = new THREE.Mesh(new THREE.BoxGeometry(1.15, 2.35, 0.08), doorMetalMat);
+    doorB_SouthPanel.position.set(0, 1.18, 0);
+    doorB_SouthGroup.add(doorB_SouthPanel);
+
+    // Push plate on south side (z > 6)
+    const pushPlateB = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.55, 0.04), pushPlateMat);
+    pushPlateB.position.set(0.18, 1.25, 0.05);
+    doorB_SouthGroup.add(pushPlateB);
+
+    // 2. West exit door at (-12, 0, -3) (Blank riveted side)
+    const doorB_WestGroup = new THREE.Group();
+    doorB_WestGroup.position.set(-12, 0, -3);
+    scene.add(doorB_WestGroup);
+
+    const doorB_WestPanel = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.35, 1.15), doorMetalMat);
+    doorB_WestPanel.position.set(0, 1.18, 0);
+    doorB_WestGroup.add(doorB_WestPanel);
+
+    // Rivets on west side (x < -12)
+    for (let r = 0; r < 4; r++) {
+      const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 6), rivetMat);
+      rivet.position.set(-0.045, 0.5 + r * 0.45, -0.25);
+      doorB_WestGroup.add(rivet);
+      const rivet2 = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 6), rivetMat);
+      rivet2.position.set(-0.045, 0.5 + r * 0.45, 0.25);
+      doorB_WestGroup.add(rivet2);
+    }
+
+    // Solid backwalls behind rooms
+    createWall(0, -12.85, 40, 1.7);
+    createWall(0, 12.85, 40, 1.7);
+
+    // East corridor east wall (strip x in [12, 16])
+    createWall(16, 0, 0.3, 20);
+    createWall(18, 0, 3.7, 20);
+
+    // West entrance wing bounding walls (wider strip x in [-19.7, -12], z in [-6, 6])
+    createWall(-18, -6, 4.0, 0.3);
+    createWall(-18, 6, 4.0, 0.3);
+    createWall(-16, -8, 0.3, 4.0);
+    createWall(-16, 8, 0.3, 4.0);
+
+    // North Rooms (z in [-12, -10]):
+    // 1. Records x in [-16, -9], door centered at x = -12.5 (doorway 1.6m: x in [-13.3, -11.7])
+    // 2. Pharmacy x in [-7, -1], door centered at x = -4 (doorway 1.6m: x in [-4.8, -3.2])
+    // 3. Archives B x in [1, 8], door centered at x = 4.5 (doorway 1.6m: x in [3.7, 5.3])
+    createWall(-14.65, -10, 2.7, 0.3);
+    createWall(-8.25, -10, 6.9, 0.3);
+    createWall(0.25, -10, 6.9, 0.3);
+    createWall(10.65, -10, 10.7, 0.3);
+
+    createWall(-16, -11, 0.3, 2.0);
+    createWall(-9, -11, 0.3, 2.0);
+    createWall(-7, -11, 0.3, 2.0);
+    createWall(-1, -11, 0.3, 2.0);
+    createWall(1, -11, 0.3, 2.0);
+    createWall(8, -11, 0.3, 2.0);
+
+    // South Rooms (z in [10, 12]):
+    // 4. Ward x in [-16, -9], door centered at x = -12.5
+    // 5. Operating Theatre x in [-7, -1], door centered at x = -4
+    // 6. Storage x in [1, 8], door centered at x = 4.5
+    createWall(-14.65, 10, 2.7, 0.3);
+    createWall(-8.25, 10, 6.9, 0.3);
+    createWall(0.25, 10, 6.9, 0.3);
+    createWall(10.65, 10, 10.7, 0.3);
+
+    createWall(-16, 11, 0.3, 2.0);
+    createWall(-9, 11, 0.3, 2.0);
+    createWall(-7, 11, 0.3, 2.0);
+    createWall(-1, 11, 0.3, 2.0);
+    createWall(1, 11, 0.3, 2.0);
+    createWall(8, 11, 0.3, 2.0);
+
+    function addLintel(x, z, width = 1.6, depth = 0.3) {
+      const lintelGeo = new THREE.BoxGeometry(width, 0.8, depth);
+      const mesh = new THREE.Mesh(lintelGeo, wallMaterial);
+      mesh.position.set(x, 2.6, z);
+      scene.add(mesh);
+      addCollisionBox(x - width/2, x + width/2, z - depth/2, z + depth/2, 2.2, 3.0);
+    }
+    addLintel(-12.5, -10);
+    addLintel(-4.0, -10);
+    addLintel(4.5, -10);
+    addLintel(-12.5, 10);
+    addLintel(-4.0, 10);
+    addLintel(4.5, 10);
+
+    function addDoorSign(text, x, z, facingSouth) {
+      const signTex = createSignTexture(text);
+      const signGeo = new THREE.PlaneGeometry(1.6, 0.4);
+      const signMat = new THREE.MeshBasicMaterial({ map: signTex, side: THREE.DoubleSide });
+      const signMesh = new THREE.Mesh(signGeo, signMat);
+      signMesh.position.set(x, 2.45, z + (facingSouth ? 0.16 : -0.16));
+      if (!facingSouth) signMesh.rotation.y = Math.PI;
+      scene.add(signMesh);
+    }
+    addDoorSign('RECORDS ROOM', -12.5, -10, true);
+    addDoorSign('PHARMACY', -4.0, -10, true);
+    addDoorSign('ARCHIVES B', 4.5, -10, true);
+    addDoorSign('WARD', -12.5, 10, false);
+    addDoorSign('OPERATING THEATRE', -4.0, 10, false);
+    addDoorSign('STORAGE', 4.5, 10, false);
+
+    // Exit Stairwell stub
+    const stairFloorGeo = new THREE.PlaneGeometry(5, 4);
+    const stairFloor = new THREE.Mesh(stairFloorGeo, floorMat);
+    stairFloor.rotation.x = -Math.PI / 2;
+    stairFloor.position.set(-22.5, 0, -4);
+    scene.add(stairFloor);
+
+    const stairCeil = new THREE.Mesh(stairFloorGeo, ceilingMat);
+    stairCeil.rotation.x = Math.PI / 2;
+    stairCeil.position.set(-22.5, 3, -4);
+    scene.add(stairCeil);
+
+    createWall(-22.5, -6, 5, 0.3);
+    createWall(-22.5, -2, 5, 0.3);
+    createWall(-25, -4, 0.3, 4);
+
+    for (let step = 0; step < 5; step++) {
+      const stepMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.6, 0.2 * (step + 1), 3.4),
+        new THREE.MeshStandardMaterial({ color: 0x334440 })
+      );
+      stepMesh.position.set(-24.7 + step * 0.6, 0.1 * (step + 1), -4);
+      scene.add(stepMesh);
+    }
+
+    const exitSignTex = createSignTexture('EXIT', '#032014', '#47ff96', '#22a860');
+    const exitSignMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.4, 0.45),
+      new THREE.MeshBasicMaterial({ map: exitSignTex })
+    );
+    exitSignMesh.position.set(-24.8, 2.3, -4);
+    exitSignMesh.rotation.y = Math.PI / 2;
+    scene.add(exitSignMesh);
+
+    const mainExitSign = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.0, 0.5),
+      new THREE.MeshBasicMaterial({ map: exitSignTex })
+    );
+    mainExitSign.position.set(-19.82, 2.5, -4);
+    mainExitSign.rotation.y = Math.PI / 2;
+    scene.add(mainExitSign);
+
+    // Exit double door
+    const doorGroup = new THREE.Group();
+    doorGroup.position.set(-20, 0, -4);
+    scene.add(doorGroup);
+
+    const doorMat = new THREE.MeshStandardMaterial({
+      color: 0x223531,
+      roughness: 0.6,
+      metalness: 0.4
+    });
+
+    const leftDoorPanel = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.35, 1.95), doorMat);
+    leftDoorPanel.position.set(0, 1.18, -0.98);
+    doorGroup.add(leftDoorPanel);
+
+    const rightDoorPanel = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.35, 1.95), doorMat);
+    rightDoorPanel.position.set(0, 1.18, 0.98);
+    doorGroup.add(rightDoorPanel);
+
+    const lockSlots = [];
+    const lockMatUnlit = new THREE.MeshStandardMaterial({
+      color: 0x1c2b27,
+      metalness: 0.85,
+      roughness: 0.4
+    });
+    const lockMatLit = new THREE.MeshStandardMaterial({
+      color: 0xe5c158,
+      emissive: 0x997722,
+      metalness: 0.9,
+      roughness: 0.2
+    });
+    const lockMatUnlocked = new THREE.MeshStandardMaterial({
+      color: 0x4ec2ab,
+      emissive: 0x1a6b5a,
+      metalness: 0.85,
+      roughness: 0.25
+    });
+    const lockShackleMat = new THREE.MeshStandardMaterial({
+      color: 0x7a8a86,
+      metalness: 0.95,
+      roughness: 0.2
+    });
+
+    for (let i = 0; i < 6; i++) {
+      const lockY = 0.45 + i * 0.28; // Vertical row: 0.45, 0.73, 1.01, 1.29, 1.57, 1.85
+      const lockGroup = new THREE.Group();
+      lockGroup.position.set(0.06, lockY, 0);
+
+      // Backing mount plate across seam
+      const mountPlate = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.18, 0.26), lockMatUnlit);
+      mountPlate.position.set(-0.02, 0, 0);
+      lockGroup.add(mountPlate);
+
+      // Main lock body / casing
+      const lockBody = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.13, 0.16), lockMatUnlit);
+      lockGroup.add(lockBody);
+
+      // Sliding crossbolt across door seam
+      const bolt = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.035, 0.24), lockMatUnlit);
+      bolt.position.set(0.02, 0, 0);
+      lockGroup.add(bolt);
+
+      // Key cylinder
+      const keyCylinder = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.09, 8), lockMatUnlit);
+      keyCylinder.rotation.z = Math.PI / 2;
+      keyCylinder.position.set(0.04, -0.015, 0);
+      lockGroup.add(keyCylinder);
+
+      // Heavy curved shackle / hasp on top
+      const shackle = new THREE.Mesh(new THREE.TorusGeometry(0.036, 0.012, 6, 12, Math.PI), lockShackleMat);
+      shackle.rotation.z = Math.PI / 2;
+      shackle.rotation.y = Math.PI / 2;
+      shackle.position.set(0, 0.065, 0);
+      lockGroup.add(shackle);
+
+      // Indicator light pip
+      const pip = new THREE.Mesh(new THREE.SphereGeometry(0.014, 8, 8), lockMatUnlit);
+      pip.position.set(0.042, 0.035, 0);
+      lockGroup.add(pip);
+
+      doorGroup.add(lockGroup);
+
+      const slotObj = {
+        mesh: lockGroup,
+        body: lockBody,
+        bolt: bolt,
+        shackle: shackle,
+        pip: pip,
+        cylinder: keyCylinder,
+        isUnlocked: false,
+        _mat: lockMatUnlit,
+        get material() {
+          return this._mat;
+        },
+        set material(m) {
+          this._mat = m;
+          this.body.material = m;
+          this.bolt.material = m;
+          this.pip.material = m;
+          this.cylinder.material = m;
+        },
+        unlock() {
+          this.isUnlocked = true;
+          this.shackle.position.y += 0.035;
+          this.shackle.rotation.x += 0.45;
+          this.bolt.position.z -= 0.10;
+          this.material = lockMatUnlocked;
+        },
+        reset() {
+          this.isUnlocked = false;
+          this.shackle.position.set(0, 0.065, 0);
+          this.shackle.rotation.set(0, Math.PI / 2, Math.PI / 2);
+          this.bolt.position.set(0.02, 0, 0);
+          this.material = lockMatUnlit;
+        }
+      };
+
+      lockSlots.push(slotObj);
+    }
+
+    const doorCollisionIndex = collisionBoxes.length;
+    addCollisionBox(-20.2, -19.8, -6, -2, 0, 2.4);
+
+    let exitDoorUnlocked = false;
+    let exitDoorOpenProgress = 0;
+
+    // --- SECONDARY MOTION OBJECTS ---
+    const wheelchairGroup = new THREE.Group();
+    wheelchairGroup.position.set(-14.2, 0, 8.5);
+    scene.add(wheelchairGroup);
+
+    const chairFrameMat = new THREE.MeshStandardMaterial({ color: 0x2b3836, metalness: 0.8, roughness: 0.3 });
+    const seatMat = new THREE.MeshStandardMaterial({ color: 0x162220, roughness: 0.9 });
+
+    const seatMesh = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.08, 0.6), seatMat);
+    seatMesh.position.set(0, 0.55, 0);
+    wheelchairGroup.add(seatMesh);
+
+    const backMesh = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.6, 0.08), seatMat);
+    backMesh.position.set(0, 0.85, 0.26);
+    wheelchairGroup.add(backMesh);
+
+    const wheelGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.05, 16);
+    const leftWheel = new THREE.Mesh(wheelGeo, chairFrameMat);
+    leftWheel.rotation.z = Math.PI / 2;
+    leftWheel.position.set(-0.35, 0.35, 0);
+    wheelchairGroup.add(leftWheel);
+
+    const rightWheel = new THREE.Mesh(wheelGeo, chairFrameMat);
+    rightWheel.rotation.z = Math.PI / 2;
+    rightWheel.position.set(0.35, 0.35, 0);
+    wheelchairGroup.add(rightWheel);
+
+    let wheelchairVelocity = 0;
+
+    const chartBoards = [];
+    function addChartBoard(x, y, z, rotY) {
+      const boardGroup = new THREE.Group();
+      boardGroup.position.set(x, y, z);
+      boardGroup.rotation.y = rotY;
+
+      const backing = new THREE.Mesh(
+        new THREE.BoxGeometry(0.35, 0.5, 0.02),
+        new THREE.MeshStandardMaterial({ color: 0x5a4632 })
+      );
+      boardGroup.add(backing);
+
+      const paper = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.3, 0.42),
+        new THREE.MeshStandardMaterial({ color: 0xd6dedb, roughness: 0.7, side: THREE.DoubleSide })
+      );
+      paper.position.set(0, -0.02, 0.02);
+      boardGroup.add(paper);
+
+      scene.add(boardGroup);
+      chartBoards.push({ group: boardGroup, paper: paper });
+    }
+    addChartBoard(-13.5, 1.6, -9.83, 0);
+    addChartBoard(-3.0, 1.6, -9.83, 0);
+    addChartBoard(-13.5, 1.6, 9.83, Math.PI);
+
+    const dustCount = 60;
+    const dustGeo = new THREE.BufferGeometry();
+    const dustPositions = new Float32Array(dustCount * 3);
+    for (let i = 0; i < dustCount; i++) {
+      dustPositions[i * 3]     = -21 + ((i * 17) % 7) - 3.5;
+      dustPositions[i * 3 + 1] = 0.5 + ((i * 23) % 24) * 0.1;
+      dustPositions[i * 3 + 2] = -4 + ((i * 31) % 6) - 3;
+    }
+    dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+    const dustMat = new THREE.PointsMaterial({
+      color: 0x73f0d6,
+      size: 0.05,
+      transparent: true,
+      opacity: 0.45
+    });
+    const dustPoints = new THREE.Points(dustGeo, dustMat);
+    scene.add(dustPoints);
+
+    function addCeilingPipe(x, z, length, isAlongZ = false) {
+      const radius = 0.07;
+      const pipeGeo = new THREE.CylinderGeometry(radius, radius, length, 10);
+      const pipeMat = new THREE.MeshStandardMaterial({ color: 0x2f3d3a, metalness: 0.7, roughness: 0.4 });
+      const pipe = new THREE.Mesh(pipeGeo, pipeMat);
+      if (isAlongZ) {
+        pipe.rotation.x = Math.PI / 2;
+        pipe.position.set(x, 2.85, z);
+      } else {
+        pipe.rotation.z = Math.PI / 2;
+        pipe.position.set(x, 2.85, z);
+      }
+      scene.add(pipe);
+    }
+    addCeilingPipe(0, -7.5, 30, false);
+    addCeilingPipe(0, 7.5, 30, false);
+    addCeilingPipe(14.5, 0, 18, true);
+    addCeilingPipe(-14.5, 0, 18, true);
+
+    // --- HOSPITAL PROPS DRESSING ---
+    function addGurney(x, z, rotY) {
+      const gurney = new THREE.Group();
+      gurney.position.set(x, 0, z);
+      gurney.rotation.y = rotY;
+
+      const frameMat = new THREE.MeshStandardMaterial({ color: 0x3d4a47, metalness: 0.8, roughness: 0.3 });
+      const mattressMat = new THREE.MeshStandardMaterial({ color: 0x829c96, roughness: 0.7 });
+
+      const matMesh = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.18, 2.1), mattressMat);
+      matMesh.position.set(0, 0.75, 0);
+      gurney.add(matMesh);
+
+      const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.1, 0.4), new THREE.MeshStandardMaterial({ color: 0xa4beb8 }));
+      pillow.position.set(0, 0.86, -0.75);
+      gurney.add(pillow);
+
+      const legGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.65, 8);
+      const corners = [[-0.38, -0.85], [0.38, -0.85], [-0.38, 0.85], [0.38, 0.85]];
+      corners.forEach(([lx, lz]) => {
+        const leg = new THREE.Mesh(legGeo, frameMat);
+        leg.position.set(lx, 0.33, lz);
+        gurney.add(leg);
+      });
+
+      scene.add(gurney);
+      const halfW = 0.55;
+      const halfD = 1.15;
+      addCollisionBox(x - halfW, x + halfW, z - halfD, z + halfD, 0, 1.2);
+    }
+
+    function addIVPole(x, z, isTipped = false) {
+      const ivGroup = new THREE.Group();
+      ivGroup.position.set(x, 0, z);
+      if (isTipped) {
+        ivGroup.rotation.z = 1.25;
+        ivGroup.rotation.y = 0.4;
+      }
+      const poleMat = new THREE.MeshStandardMaterial({ color: 0x6a7d79, metalness: 0.9, roughness: 0.2 });
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.8, 8), poleMat);
+      pole.position.set(0, 0.9, 0);
+      ivGroup.add(pole);
+
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.05, 5), poleMat);
+      base.position.set(0, 0.03, 0);
+      ivGroup.add(base);
+
+      const bag = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.22, 0.08), new THREE.MeshStandardMaterial({
+        color: 0xcbe3de,
+        roughness: 0.2,
+        transparent: true,
+        opacity: 0.8
+      }));
+      bag.position.set(0.1, 1.6, 0);
+      ivGroup.add(bag);
+
+      scene.add(ivGroup);
+    }
+
+    addGurney(-13.8, -11.0, 0.1);
+    addIVPole(-15.2, -11.6, true);
+    addGurney(-5.2, -11.0, -0.2);
+    addIVPole(-1.5, -11.5, false);
+    addGurney(3.0, -11.0, 0.0);
+    addIVPole(5.5, -11.4, true);
+    addGurney(-13.8, 11.0, 0.2);
+    addGurney(-10.5, 11.1, -0.1);
+    addIVPole(-15.3, 10.5, false);
+    addGurney(-4.0, 11.2, 1.57);
+    addIVPole(-2.2, 11.2, false);
+    addGurney(5.5, 11.0, 0.0);
+    addIVPole(2.5, 11.4, true);
+
+    addGurney(15.2, -3.0, 0.0);
+    addGurney(6.0, 9.2, 1.57);
+
+    // --- ROUND 2: STEEL HIDING LOCKERS (EXACTLY ONE PER ROOM) ---
+    // Tall cabinet (2.0 m high) with visible door slats and a small handle
+    const lockerMat = new THREE.MeshStandardMaterial({
+      color: 0x364743,
+      metalness: 0.85,
+      roughness: 0.35
+    });
+    const lockerTrimMat = new THREE.MeshStandardMaterial({
+      color: 0x1d2926,
+      metalness: 0.9,
+      roughness: 0.3
+    });
+    const slatMat = new THREE.MeshStandardMaterial({
+      color: 0x15211e,
+      metalness: 0.9,
+      roughness: 0.4
+    });
+
+    // 6 hardcoded locker spots, one per room:
+    const LOCKER_CONFIGS = [
+      {
+        id: 0, room: 'Records Room',
+        x: -9.8, y: 1.0, z: -11.6, rotY: 0, // facing South
+        roomBounds: { minX: -16, maxX: -9, minZ: -12, maxZ: -10 }
+      },
+      {
+        id: 1, room: 'Pharmacy',
+        x: -6.4, y: 1.0, z: -11.6, rotY: 0, // facing South
+        roomBounds: { minX: -7, maxX: -1, minZ: -12, maxZ: -10 }
+      },
+      {
+        id: 2, room: 'Archives B',
+        x: 1.8, y: 1.0, z: -11.6, rotY: 0, // facing South
+        roomBounds: { minX: 1, maxX: 8, minZ: -12, maxZ: -10 }
+      },
+      {
+        id: 3, room: 'Ward',
+        x: -15.2, y: 1.0, z: 11.6, rotY: Math.PI, // facing North
+        roomBounds: { minX: -16, maxX: -9, minZ: 10, maxZ: 12 }
+      },
+      {
+        id: 4, room: 'Operating Theatre',
+        x: -6.4, y: 1.0, z: 11.6, rotY: Math.PI, // facing North
+        roomBounds: { minX: -7, maxX: -1, minZ: 10, maxZ: 12 }
+      },
+      {
+        id: 5, room: 'Storage',
+        x: 2.0, y: 1.0, z: 11.6, rotY: Math.PI, // facing North
+        roomBounds: { minX: 1, maxX: 8, minZ: 10, maxZ: 12 }
+      }
+    ];
+
+    const lockers = [];
+
+    LOCKER_CONFIGS.forEach((cfg) => {
+      const lockerGroup = new THREE.Group();
+      lockerGroup.position.set(cfg.x, 0, cfg.z);
+      lockerGroup.rotation.y = cfg.rotY;
+
+      // Outer cabinet body (height 2.0m, width 0.7m, depth 0.6m)
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 2.0, 0.6), lockerMat);
+      body.position.set(0, 1.0, 0);
+      lockerGroup.add(body);
+
+      // Door recess / trim frame
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(0.62, 1.9, 0.04), lockerTrimMat);
+      frame.position.set(0, 1.0, 0.3);
+      lockerGroup.add(frame);
+
+      // Visible horizontal door slats (louvers)
+      for (let s = 0; s < 7; s++) {
+        const slat = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.04, 0.02), slatMat);
+        slat.position.set(0, 1.25 + s * 0.08, 0.32);
+        lockerGroup.add(slat);
+      }
+
+      // Small metal door handle
+      const handle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.015, 0.015, 0.16, 6),
+        new THREE.MeshStandardMaterial({ color: 0x99aaa5, metalness: 0.95, roughness: 0.2 })
+      );
+      handle.position.set(0.24, 1.0, 0.34);
+      lockerGroup.add(handle);
+
+      scene.add(lockerGroup);
+
+      // Collision box for locker
+      addCollisionBox(cfg.x - 0.38, cfg.x + 0.38, cfg.z - 0.35, cfg.z + 0.35, 0, 2.0);
+
+      // Calculate front exit spot
+      const frontOffset = (cfg.rotY === 0) ? 0.8 : -0.8;
+      const frontPos = new THREE.Vector3(cfg.x, 1.6, cfg.z + frontOffset);
+
+      lockers.push({
+        id: cfg.id,
+        room: cfg.room,
+        mesh: lockerGroup,
+        pos: new THREE.Vector3(cfg.x, 1.0, cfg.z),
+        interiorPos: new THREE.Vector3(cfg.x, 1.6, cfg.z),
+        frontPos: frontPos,
+        lookYaw: (cfg.rotY === 0) ? Math.PI : 0, // Look out through slats
+        roomBounds: cfg.roomBounds
+      });
+    });
+
+    // --- ROUND 4: KEYS SETUP WITH EXACT FIXED DISTRIBUTION ---
+    const keys = [];
+    const keyStandMat = new THREE.MeshStandardMaterial({ color: 0x273834, roughness: 0.8 });
+    const keyBrassMat = new THREE.MeshStandardMaterial({
+      color: 0xf2cb4e,
+      emissive: 0x735712,
+      metalness: 0.95,
+      roughness: 0.2
+    });
+
+    KEY_CONFIGS.forEach((spot) => {
+      let standMesh;
+      if (spot.propType === 'pedestal') {
+        standMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.8, 8), keyStandMat);
+        standMesh.position.set(spot.x, 0.4, spot.z);
+        scene.add(standMesh);
+        addCollisionBox(spot.x - 0.22, spot.x + 0.22, spot.z - 0.22, spot.z + 0.22, 0, 0.85);
+      } else if (spot.propType === 'shelf') {
+        standMesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.8, 0.4), keyStandMat);
+        standMesh.position.set(spot.x, 0.4, spot.z);
+        scene.add(standMesh);
+        addCollisionBox(spot.x - 0.25, spot.x + 0.25, spot.z - 0.2, spot.z + 0.2, 0, 0.85);
+      } else if (spot.propType === 'tray') {
+        standMesh = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.8, 0.4), keyStandMat);
+        standMesh.position.set(spot.x, 0.4, spot.z);
+        scene.add(standMesh);
+        addCollisionBox(spot.x - 0.25, spot.x + 0.25, spot.z - 0.2, spot.z + 0.2, 0, 0.85);
+      } else if (spot.propType === 'crate') {
+        standMesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.8, 0.5), keyStandMat);
+        standMesh.position.set(spot.x, 0.4, spot.z);
+        scene.add(standMesh);
+        addCollisionBox(spot.x - 0.25, spot.x + 0.25, spot.z - 0.25, spot.z + 0.25, 0, 0.85);
+      } else {
+        standMesh = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.8, 0.4), keyStandMat);
+        standMesh.position.set(spot.x, 0.4, spot.z);
+        scene.add(standMesh);
+        addCollisionBox(spot.x - 0.22, spot.x + 0.22, spot.z - 0.22, spot.z + 0.22, 0, 0.85);
+      }
+
+      const keyGroup = new THREE.Group();
+      keyGroup.position.set(spot.x, spot.y + 0.12, spot.z);
+
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.018, 8, 16), keyBrassMat);
+      ring.rotation.x = Math.PI / 2;
+      keyGroup.add(ring);
+
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.18, 8), keyBrassMat);
+      stem.position.set(0, 0, 0.1);
+      stem.rotation.x = Math.PI / 2;
+      keyGroup.add(stem);
+
+      const tooth1 = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.05, 0.03), keyBrassMat);
+      tooth1.position.set(0, 0.03, 0.15);
+      keyGroup.add(tooth1);
+
+      const keyLight = new THREE.PointLight(0xffd557, 0.6, 2.5);
+      keyLight.position.set(0, 0.1, 0);
+      keyGroup.add(keyLight);
+
+      scene.add(keyGroup);
+
+      keys.push({
+        id: spot.id,
+        origPos: new THREE.Vector3(spot.x, spot.y, spot.z),
+        location: spot.location,
+        desc: spot.desc,
+        spot: { x: spot.x, z: spot.z },
+        mesh: keyGroup,
+        light: keyLight,
+        isCollected: false
+      });
+    });
+
+    // Round 10: Battery pickups removed completely (they no longer exist)
+
+    // --- THE HUNTER (GAUNT HUMANOID FIGURE) ---
+    const hunterGroup = new THREE.Group();
+    hunterGroup.position.set(-14, 0, -8);
+    scene.add(hunterGroup);
+
+    const monsterSkinMat = new THREE.MeshStandardMaterial({
+      color: 0x9fb5ad,
+      roughness: 0.9,
+      metalness: 0.1
+    });
+    const monsterDarkMat = new THREE.MeshStandardMaterial({
+      color: 0x364a45,
+      roughness: 0.85
+    });
+
+    const torsoMesh = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.95, 0.32), monsterDarkMat);
+    torsoMesh.position.set(0, 1.45, 0);
+    torsoMesh.rotation.x = 0.28;
+    hunterGroup.add(torsoMesh);
+
+    for (let b = 0; b < 4; b++) {
+      const vert = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.08), monsterSkinMat);
+      vert.position.set(0, 1.25 + b * 0.16, -0.16);
+      hunterGroup.add(vert);
+    }
+
+    const headGroup = new THREE.Group();
+    headGroup.position.set(0, 2.05, 0.18);
+    hunterGroup.add(headGroup);
+
+    const skull = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.36, 0.32), monsterSkinMat);
+    headGroup.add(skull);
+
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x050807 });
+    const leftEye = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.04), eyeMat);
+    leftEye.position.set(-0.08, 0.04, 0.16);
+    headGroup.add(leftEye);
+
+    const rightEye = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.04), eyeMat);
+    rightEye.position.set(0.08, 0.04, 0.16);
+    headGroup.add(rightEye);
+
+    const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 0.24), monsterSkinMat);
+    jaw.position.set(0, -0.2, 0.04);
+    headGroup.add(jaw);
+
+    const armGeo = new THREE.BoxGeometry(0.12, 1.15, 0.12);
+    const handGeo = new THREE.BoxGeometry(0.1, 0.25, 0.08);
+
+    const leftArmGroup = new THREE.Group();
+    leftArmGroup.position.set(-0.34, 1.85, 0.05);
+    const leftArm = new THREE.Mesh(armGeo, monsterSkinMat);
+    leftArm.position.set(0, -0.55, 0);
+    leftArmGroup.add(leftArm);
+    const leftHand = new THREE.Mesh(handGeo, monsterDarkMat);
+    leftHand.position.set(0, -1.18, 0);
+    leftArmGroup.add(leftHand);
+    hunterGroup.add(leftArmGroup);
+
+    const rightArmGroup = new THREE.Group();
+    rightArmGroup.position.set(0.34, 1.85, 0.05);
+    const rightArm = new THREE.Mesh(armGeo, monsterSkinMat);
+    rightArm.position.set(0, -0.55, 0);
+    rightArmGroup.add(rightArm);
+    const rightHand = new THREE.Mesh(handGeo, monsterDarkMat);
+    rightHand.position.set(0, -1.18, 0);
+    rightArmGroup.add(rightHand);
+    hunterGroup.add(rightArmGroup);
+
+    const legGeo = new THREE.BoxGeometry(0.16, 1.1, 0.16);
+
+    const leftLegGroup = new THREE.Group();
+    leftLegGroup.position.set(-0.16, 1.05, 0);
+    const leftLeg = new THREE.Mesh(legGeo, monsterDarkMat);
+    leftLeg.position.set(0, -0.5, 0);
+    leftLegGroup.add(leftLeg);
+    hunterGroup.add(leftLegGroup);
+
+    const rightLegGroup = new THREE.Group();
+    rightLegGroup.position.set(0.16, 1.05, 0);
+    const rightLeg = new THREE.Mesh(legGeo, monsterDarkMat);
+    rightLeg.position.set(0, -0.5, 0);
+    rightLegGroup.add(rightLeg);
+    hunterGroup.add(rightLegGroup);
+
+    // --- HUNTER SENSES & PATROL SYSTEM ---
+    const HUNTER_STATE = {
+      PATROL: 'PATROL',
+      CHASE: 'CHASE',
+      SEARCH: 'SEARCH'
+    };
+
+    let hunterState = HUNTER_STATE.PATROL;
+    let sightLossTimer = 0.0;
+    let searchTimer = 0.0;
+    let searchBaseFacing = 0;
+    let hunterFacingAngle = 0;
+    let hunterSeesPlayer = false;
+    let hunterASearchTargetCorner = null;
+    let hunterASearchCornerIndex = 0;
+    let hunterASearchPhase = 'WALK';
+
+    const WAYPOINTS = [
+      new THREE.Vector2(-14, -8),
+      new THREE.Vector2(14, -8),
+      new THREE.Vector2(14, 8),
+      new THREE.Vector2(-14, 8)
+    ];
+    let currentWaypointIndex = 1;
+
+    function lineIntersectsAABB(x1, z1, x2, z2, b) {
+      let tmin = 0.0;
+      let tmax = 1.0;
+      const dx = x2 - x1;
+      const dz = z2 - z1;
+
+      if (Math.abs(dx) < 1e-8) {
+        if (x1 < b.minX || x1 > b.maxX) return false;
+      } else {
+        let t1 = (b.minX - x1) / dx;
+        let t2 = (b.maxX - x1) / dx;
+        if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+        tmin = Math.max(tmin, t1);
+        tmax = Math.min(tmax, t2);
+        if (tmin > tmax) return false;
+      }
+
+      if (Math.abs(dz) < 1e-8) {
+        if (z1 < b.minZ || z1 > b.maxZ) return false;
+      } else {
+        let t1 = (b.minZ - z1) / dz;
+        let t2 = (b.maxZ - z1) / dz;
+        if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+        tmin = Math.max(tmin, t1);
+        tmax = Math.min(tmax, t2);
+        if (tmin > tmax) return false;
+      }
+
+      return true;
+    }
+
+    function checkLineOfSight(x1, z1, x2, z2) {
+      // Round 8: West core shortcut shaft sightline check
+      const coreWestBox = { minX: -12.0, maxX: -8.0, minZ: -6.0, maxZ: 6.0 };
+      if (lineIntersectsAABB(x1, z1, x2, z2, coreWestBox)) {
+        if (!shortcutAOpen && !shortcutBOpen) return false;
+        const midX = (x1 + x2) / 2;
+        const midZ = (z1 + z2) / 2;
+        const throughShaftA = distToSegment(midX, midZ, -8, -6, -12, 3) <= 1.0;
+        const throughShaftB = distToSegment(midX, midZ, -8, 6, -12, -3) <= 1.0;
+        if (!((shortcutAOpen && throughShaftA) || (shortcutBOpen && throughShaftB))) {
+          return false;
+        }
+      }
+
+      for (let i = 0; i < collisionBoxes.length; i++) {
+        const b = collisionBoxes[i];
+        if (b.maxY > 1.4 && b.minY < 1.8) {
+          if (lineIntersectsAABB(x1, z1, x2, z2, b)) {
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+
+    function testHunterVision(hunterPos, playerPos, facingAngle) {
+      // Round 2: A hidden player is FULLY CONCEALED; vision cone can never detect hidden player
+      if (isHidden) return false;
+
+      const dx = playerPos.x - hunterPos.x;
+      const dz = playerPos.z - hunterPos.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+
+      // Round 7: Vision cone range halved from 8m to 4m when emergency lights are in OFF phase (last 4s of 10s cycle)
+      const cycleTime = elapsedTime % 10.0;
+      const emergencyLightsOn = cycleTime < 6.0;
+      const maxRangeA = emergencyLightsOn ? 8.0 : 4.0;
+      if (dist > maxRangeA) return false;
+
+      const angleToPlayer = Math.atan2(dz, dx);
+      let diff = angleToPlayer - facingAngle;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+
+      if (Math.abs(diff) > (Math.PI / 3)) return false;
+
+      return checkLineOfSight(hunterPos.x, hunterPos.z, playerPos.x, playerPos.z);
+    }
+
+    function getHunterNavTarget(hPos, pPos) {
+      if (checkLineOfSight(hPos.x, hPos.z, pPos.x, pPos.z)) {
+        return new THREE.Vector2(pPos.x, pPos.z);
+      }
+
+      if (pPos.z < -10) {
+        if (pPos.x < -8.5) return new THREE.Vector2(-12.5, -8);
+        if (pPos.x < 0) return new THREE.Vector2(-4.0, -8);
+        return new THREE.Vector2(4.5, -8);
+      }
+
+      if (pPos.z > 10) {
+        if (pPos.x < -8.5) return new THREE.Vector2(-12.5, 8);
+        if (pPos.x < 0) return new THREE.Vector2(-4.0, 8);
+        return new THREE.Vector2(4.5, 8);
+      }
+
+      const hIsNorth = hPos.z <= -6;
+      const hIsSouth = hPos.z >= 6;
+      const hIsEast  = hPos.x >= 12;
+      const hIsWest  = hPos.x <= -12;
+
+      const pIsNorth = pPos.z <= -6;
+      const pIsSouth = pPos.z >= 6;
+      const pIsEast  = pPos.x >= 12;
+      const pIsWest  = pPos.x <= -12;
+
+      if (hIsNorth) {
+        if (pIsEast) return new THREE.Vector2(14, -8);
+        if (pIsWest) return new THREE.Vector2(-14, -8);
+        if (pIsSouth) {
+          return (Math.abs(hPos.x - 14) < Math.abs(hPos.x - (-14))) ?
+            new THREE.Vector2(14, -8) : new THREE.Vector2(-14, -8);
+        }
+      } else if (hIsSouth) {
+        if (pIsEast) return new THREE.Vector2(14, 8);
+        if (pIsWest) return new THREE.Vector2(-14, 8);
+        if (pIsNorth) {
+          return (Math.abs(hPos.x - 14) < Math.abs(hPos.x - (-14))) ?
+            new THREE.Vector2(14, 8) : new THREE.Vector2(-14, 8);
+        }
+      } else if (hIsEast) {
+        if (pIsNorth) return new THREE.Vector2(14, -8);
+        if (pIsSouth) return new THREE.Vector2(14, 8);
+        if (pIsWest) {
+          return (Math.abs(hPos.z - (-8)) < Math.abs(hPos.z - 8)) ?
+            new THREE.Vector2(14, -8) : new THREE.Vector2(14, 8);
+        }
+      } else if (hIsWest) {
+        if (pIsNorth) return new THREE.Vector2(-14, -8);
+        if (pIsSouth) return new THREE.Vector2(-14, 8);
+        if (pIsEast) {
+          return (Math.abs(hPos.z - (-8)) < Math.abs(hPos.z - 8)) ?
+            new THREE.Vector2(-14, -8) : new THREE.Vector2(-14, 8);
+        }
+      }
+
+      return new THREE.Vector2(pPos.x, pPos.z);
+    }
+
+    function getNearestPatrolLoopPoint(pos) {
+      const p1 = new THREE.Vector2(Math.max(-14, Math.min(14, pos.x)), -8);
+      const p2 = new THREE.Vector2(14, Math.max(-8, Math.min(8, pos.z)));
+      const p3 = new THREE.Vector2(Math.max(-14, Math.min(14, pos.x)), 8);
+      const p4 = new THREE.Vector2(-14, Math.max(-8, Math.min(8, pos.z)));
+
+      const pts = [
+        { pt: p1, d: p1.distanceTo(new THREE.Vector2(pos.x, pos.z)), nextWP: 1 },
+        { pt: p2, d: p2.distanceTo(new THREE.Vector2(pos.x, pos.z)), nextWP: 2 },
+        { pt: p3, d: p3.distanceTo(new THREE.Vector2(pos.x, pos.z)), nextWP: 3 },
+        { pt: p4, d: p4.distanceTo(new THREE.Vector2(pos.x, pos.z)), nextWP: 0 }
+      ];
+
+      pts.sort((a, b) => a.d - b.d);
+      return pts[0];
+    }
+
+    // --- ROUND 6: SECOND HUNTER (HUNTER B - EAST WING ONLY) ---
+    // Shorter, stooped, with hunched back, dragging left arm, and quick darting head.
+    // Constant 2.4 m/s through waypoints, in order, looping:
+    // (14, 0) in east corridor -> Operating Theatre doorway -> (-4, 11) inside Operating Theatre -> back to (14, 0)
+    // -> Storage doorway -> (4.5, 11) inside Storage -> back to (14, 0)
+    // -> Ward doorway -> (-12.5, 11) inside Ward -> back to (14, 0), starting at (14, 0) facing west.
+    const hunterBGroup = new THREE.Group();
+    hunterBGroup.position.set(14, 0, 0); // starts at (14, 0) facing west
+    scene.add(hunterBGroup);
+
+    const monsterBSkinMat = new THREE.MeshStandardMaterial({
+      color: 0x6e8a7d,
+      roughness: 0.92,
+      metalness: 0.1
+    });
+    const monsterBDarkMat = new THREE.MeshStandardMaterial({
+      color: 0x273630,
+      roughness: 0.88
+    });
+
+    // Shorter, stooped torso bent forward
+    const torsoBMesh = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.75, 0.30), monsterBDarkMat);
+    torsoBMesh.position.set(0, 1.15, 0.05);
+    torsoBMesh.rotation.x = 0.52; // stooped forward
+    hunterBGroup.add(torsoBMesh);
+
+    // Recognizable hunched back / spinal hump
+    const hunchBack = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.45, 0.28), monsterBSkinMat);
+    hunchBack.position.set(0, 1.30, -0.16);
+    hunchBack.rotation.x = 0.45;
+    hunterBGroup.add(hunchBack);
+
+    // Spine nodules
+    for (let b = 0; b < 3; b++) {
+      const vert = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.07), monsterBSkinMat);
+      vert.position.set(0, 1.10 + b * 0.15, -0.26);
+      hunterBGroup.add(vert);
+    }
+
+    // Quick darting head (lower and forward due to hunch)
+    const headBGroup = new THREE.Group();
+    headBGroup.position.set(0, 1.48, 0.32);
+    hunterBGroup.add(headBGroup);
+
+    const skullB = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.28, 0.26), monsterBSkinMat);
+    headBGroup.add(skullB);
+
+    const eyeBMat = new THREE.MeshBasicMaterial({ color: 0xc89822 }); // distinct amber sunken eyes
+    const leftBEye = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.03), eyeBMat);
+    leftBEye.position.set(-0.07, 0.03, 0.13);
+    headBGroup.add(leftBEye);
+
+    const rightBEye = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.03), eyeBMat);
+    rightBEye.position.set(0.07, 0.03, 0.13);
+    headBGroup.add(rightBEye);
+
+    // Dragging left arm (longer, hangs low towards floor)
+    const leftArmBGroup = new THREE.Group();
+    leftArmBGroup.position.set(-0.28, 1.25, 0.15);
+    const leftArmB = new THREE.Mesh(new THREE.BoxGeometry(0.11, 1.25, 0.11), monsterBSkinMat);
+    leftArmB.position.set(0, -0.55, 0);
+    leftArmBGroup.add(leftArmB);
+    const leftHandB = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.30, 0.09), monsterBDarkMat);
+    leftHandB.position.set(0, -1.22, 0); // drags near floor (at y ≈ 0.03m)
+    leftArmBGroup.add(leftHandB);
+    hunterBGroup.add(leftArmBGroup);
+
+    // Right arm (shorter, curled close to body)
+    const rightArmBGroup = new THREE.Group();
+    rightArmBGroup.position.set(0.28, 1.25, 0.10);
+    const rightArmB = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.85, 0.10), monsterBSkinMat);
+    rightArmB.position.set(0, -0.35, 0.05);
+    rightArmB.rotation.x = -0.4;
+    rightArmBGroup.add(rightArmB);
+    hunterBGroup.add(rightArmBGroup);
+
+    // Shorter legs
+    const legBGeo = new THREE.BoxGeometry(0.14, 0.85, 0.14);
+    const leftLegBGroup = new THREE.Group();
+    leftLegBGroup.position.set(-0.14, 0.80, 0);
+    const leftLegB = new THREE.Mesh(legBGeo, monsterBDarkMat);
+    leftLegB.position.set(0, -0.4, 0);
+    leftLegBGroup.add(leftLegB);
+    hunterBGroup.add(leftLegBGroup);
+
+    const rightLegBGroup = new THREE.Group();
+    rightLegBGroup.position.set(0.14, 0.80, 0);
+    const rightLegB = new THREE.Mesh(legBGeo, monsterBDarkMat);
+    rightLegB.position.set(0, -0.4, 0);
+    rightLegBGroup.add(rightLegB);
+    hunterBGroup.add(rightLegBGroup);
+
+    // Hunter B state & navigation
+    let hunterBState = HUNTER_STATE.PATROL;
+    let hunterBSightLossTimer = 0.0;
+    let searchBTimer = 0.0;
+    let searchBBaseFacing = Math.PI;
+    let hunterBFacingAngle = Math.PI; // starts facing west
+    let hunterBSeesPlayer = false;
+    let hunterBSearchTargetWP = null;
+    let hunterBSearchWPIndex = 0;
+    let hunterBSearchPhase = 'WALK';
+
+    const HUNTER_B_WAYPOINTS = [
+      new THREE.Vector2(14, 0),
+      new THREE.Vector2(14, 8),
+      new THREE.Vector2(-4, 8),
+      new THREE.Vector2(-4, 10), // Operating Theatre doorway
+      new THREE.Vector2(-4, 11), // inside Operating Theatre
+      new THREE.Vector2(-4, 10),
+      new THREE.Vector2(-4, 8),
+      new THREE.Vector2(14, 8),
+      new THREE.Vector2(14, 0),
+
+      new THREE.Vector2(14, 8),
+      new THREE.Vector2(4.5, 8),
+      new THREE.Vector2(4.5, 10), // Storage doorway
+      new THREE.Vector2(4.5, 11),  // inside Storage
+      new THREE.Vector2(4.5, 10),
+      new THREE.Vector2(4.5, 8),
+      new THREE.Vector2(14, 8),
+      new THREE.Vector2(14, 0),
+
+      new THREE.Vector2(14, 8),
+      new THREE.Vector2(-12.5, 8),
+      new THREE.Vector2(-12.5, 10), // Ward doorway
+      new THREE.Vector2(-12.5, 11),  // inside Ward
+      new THREE.Vector2(-12.5, 10),
+      new THREE.Vector2(-12.5, 8),
+      new THREE.Vector2(14, 8)
+    ];
+    let hunterBWaypointIndex = 1;
+
+    function isPositionInEastWing(x, z) {
+      if (x >= 12 && x <= 16 && z >= -8 && z <= 8) return true;
+      if (x >= -13.0 && x <= 16 && z >= 6 && z <= 10) return true;
+      if (z >= 10 && z <= 12) {
+        if (x >= -16 && x <= -9) return true;
+        if (x >= -7 && x <= -1) return true;
+        if (x >= 1 && x <= 8) return true;
+      }
+      return false;
+    }
+
+    function testHunterBVision(hBPos, pPos, facingAngle) {
+      if (isHidden) return false;
+      const dx = pPos.x - hBPos.x;
+      const dz = pPos.z - hBPos.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+
+      // Round 7: Vision cone range halved from 7m to 3.5m when emergency lights are in OFF phase (last 4s of 10s cycle)
+      const cycleTime = elapsedTime % 10.0;
+      const emergencyLightsOn = cycleTime < 6.0;
+      const maxRangeB = emergencyLightsOn ? 7.0 : 3.5;
+      if (dist > maxRangeB) return false;
+
+      const angleToPlayer = Math.atan2(dz, dx);
+      let diff = angleToPlayer - facingAngle;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+
+      // 80 degrees cone = 40 deg each side = 40 * Math.PI / 180 = 0.69813 rad
+      if (Math.abs(diff) > (40 * Math.PI / 180)) return false;
+
+      return checkLineOfSight(hBPos.x, hBPos.z, pPos.x, pPos.z);
+    }
+
+    // --- PLAYER INPUT & CONTROLLER ---
+    const keysDown = {};
+    let isPointerLocked = false;
+    let cameraPitch = 0;
+    let cameraYaw = Math.PI / 2;
+    let playerPos = SPAWN_POS.clone();
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code) keysDown[e.code] = true;
+      if (e.key) keysDown[e.key] = true;
+
+      if (e.code === 'KeyR' || e.key === 'r' || e.key === 'R') {
+        resetGameToReady();
+        return;
+      }
+
+      if (currentPhase === PHASE.READY) {
+        if (e.code === 'Enter' || e.key === 'Enter') {
+          startGame();
+        }
+      } else if (currentPhase === PHASE.PAUSED) {
+        if (e.code === 'Enter' || e.key === 'Enter') {
+          resumeGame();
+        }
+      } else if (currentPhase === PHASE.GAMEOVER || currentPhase === PHASE.WIN) {
+        if (e.code === 'Enter' || e.key === 'Enter') {
+          resetGameToReady();
+        }
+      } else if (currentPhase === PHASE.PLAYING) {
+        if (e.code === 'KeyE' || e.key === 'e' || e.key === 'E') {
+          handleInteraction();
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.code) keysDown[e.code] = false;
+      if (e.key) keysDown[e.key] = false;
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isPointerLocked || currentPhase !== PHASE.PLAYING) return;
+      const sens = 0.0022;
+      cameraYaw -= e.movementX * sens;
+      cameraPitch -= e.movementY * sens;
+      cameraPitch = Math.max(-Math.PI / 2.3, Math.min(Math.PI / 2.3, cameraPitch));
+    });
+
+    document.addEventListener('pointerlockchange', () => {
+      isPointerLocked = (document.pointerLockElement === document.body);
+      if (!isPointerLocked && currentPhase === PHASE.PLAYING) {
+        pauseGame();
+      }
+    });
+
+    document.getElementById('btn-start').addEventListener('click', startGame);
+    document.getElementById('btn-resume').addEventListener('click', resumeGame);
+    document.getElementById('btn-over-restart').addEventListener('click', resetGameToReady);
+    document.getElementById('btn-win-restart').addEventListener('click', resetGameToReady);
+
+    function startGame() {
+      soundEngine.init();
+      currentPhase = PHASE.PLAYING;
+      document.getElementById('screen-ready').style.display = 'none';
+      document.getElementById('hud').style.display = 'flex';
+      updateHUD();
+      try {
+        const res = document.body.requestPointerLock();
+        if (res && typeof res.catch === 'function') {
+          res.catch(() => {});
+        }
+      } catch (e) {}
+    }
+
+    function pauseGame() {
+      if (currentPhase !== PHASE.PLAYING) return;
+      currentPhase = PHASE.PAUSED;
+      document.getElementById('screen-paused').style.display = 'flex';
+    }
+
+    function resumeGame() {
+      if (currentPhase !== PHASE.PAUSED) return;
+      currentPhase = PHASE.PLAYING;
+      document.getElementById('screen-paused').style.display = 'none';
+      try {
+        const res = document.body.requestPointerLock();
+        if (res && typeof res.catch === 'function') {
+          res.catch(() => {});
+        }
+      } catch (e) {}
+    }
+
+    function flashDamageOverlay() {
+      const overlay = document.getElementById('flash-overlay');
+      overlay.style.opacity = '1';
+      setTimeout(() => {
+        overlay.style.opacity = '0';
+      }, 250);
+    }
+
+    // --- RESET FUNCTION ---
+    function resetGameToReady() {
+      currentPhase = PHASE.READY;
+      elapsedTime = 0;
+      catches = 0;
+      keysCollected = 0;
+      collectedKeyHistory = [];
+
+      // Reset Locker & Breath
+      isHidden = false;
+      currentLocker = null;
+      hidesCount = 0;
+      breathTimer = 10.0;
+      isHoldingBreath = false;
+      hunterInThreatRange = false;
+      hunterGoneTimer = 0.0;
+      document.getElementById('slat-overlay').style.display = 'none';
+      document.getElementById('breath-container').style.display = 'none';
+
+      // Reset Player
+      playerPos.copy(SPAWN_POS);
+      cameraYaw = Math.PI / 2;
+      cameraPitch = 0;
+
+      // Reset Hunter A
+      hunterGroup.position.set(-14, 0, -8);
+      hunterFacingAngle = 0;
+      hunterGroup.rotation.y = Math.PI / 2 - hunterFacingAngle;
+      hunterState = HUNTER_STATE.PATROL;
+      currentWaypointIndex = 1;
+      sightLossTimer = 0;
+      searchTimer = 0;
+      hunterSeesPlayer = false;
+      hunterASearchPhase = 'WALK';
+
+      // Reset Hunter B
+      hunterBGroup.position.set(14, 0, 0);
+      hunterBFacingAngle = Math.PI;
+      hunterBGroup.rotation.y = Math.PI / 2 - hunterBFacingAngle;
+      hunterBState = HUNTER_STATE.PATROL;
+      hunterBWaypointIndex = 1;
+      hunterBSightLossTimer = 0;
+      searchBTimer = 0;
+      hunterBSeesPlayer = false;
+      hunterBSearchPhase = 'WALK';
+
+      // Reset Keys
+      keys.forEach(k => {
+        k.isCollected = false;
+        k.mesh.visible = true;
+        k.mesh.position.set(k.origPos.x, k.origPos.y + 0.12, k.origPos.z);
+      });
+
+      // Round 10: Reset Alarm, Strobes, and Results Board
+      isAlarmActive = false;
+      alarmStartTime = 0;
+      finalRating = null;
+      const alarmEl = document.getElementById('hud-alarm');
+      if (alarmEl) alarmEl.style.display = 'none';
+      if (typeof alarmLamps !== 'undefined') {
+        alarmLamps.forEach(lamp => {
+          lamp.light.intensity = 0.0;
+          lamp.dome.material = alarmLampOffMat;
+        });
+      }
+
+      // Reset Lock Slots
+      lockSlots.forEach(slot => {
+        if (slot.reset) {
+          slot.reset();
+        } else {
+          slot.material = lockMatUnlit;
+        }
+      });
+
+      // Reset Door & Unlocking Sequence
+      exitDoorUnlocked = false;
+      exitDoorOpenProgress = 0;
+      isUnlockingSequence = false;
+      unlockProgressTimer = 0.0;
+      unlockStageIndex = 0;
+      hasBegunWinWalk = false;
+      doorLockedHintTimer = 0.0;
+      const hintEl = document.getElementById('door-locked-hint');
+      if (hintEl) hintEl.style.display = 'none';
+
+      leftDoorPanel.rotation.y = 0;
+      rightDoorPanel.rotation.y = 0;
+      collisionBoxes[doorCollisionIndex] = {
+        minX: -20.2, maxX: -19.8, minZ: -6, maxZ: -2, minY: 0, maxY: 2.4
+      };
+
+      // Round 8: Reset Shortcut Doors
+      shortcutAOpen = false;
+      shortcutBOpen = false;
+      if (typeof doorA_NorthGroup !== 'undefined') {
+        doorA_NorthGroup.rotation.y = 0;
+        doorA_WestGroup.rotation.y = 0;
+        doorB_SouthGroup.rotation.y = 0;
+        doorB_WestGroup.rotation.y = 0;
+      }
+
+      // Reset UI
+      document.getElementById('screen-ready').style.display = 'flex';
+      document.getElementById('screen-paused').style.display = 'none';
+      document.getElementById('screen-gameover').style.display = 'none';
+      document.getElementById('screen-win').style.display = 'none';
+      document.getElementById('hud').style.display = 'none';
+      updateHUD();
+      updateArenaState();
+
+      try {
+        if (document.pointerLockElement) {
+          document.exitPointerLock();
+        }
+      } catch (e) {}
+    }
+
+    // Expose helpers for debugging and headless evaluation
+    window.resetGameToReady = resetGameToReady;
+    window.startGame = startGame;
+    window.pauseGame = pauseGame;
+    window.resumeGame = resumeGame;
+    window.triggerCatch = triggerCatch;
+    window.handleInteraction = handleInteraction;
+    window.updateArenaState = updateArenaState;
+    window.playerPos = playerPos;
+    window.keys = keys;
+    window.lockers = lockers;
+    window.hunterGroup = hunterGroup;
+    window.hunterBGroup = hunterBGroup;
+    window.shortcutAOpen = () => shortcutAOpen;
+    window.shortcutBOpen = () => shortcutBOpen;
+    window.isAlarmActive = () => isAlarmActive;
+    window.finalRating = () => finalRating;
+
+    // --- CATCH LOGIC ---
+    function triggerCatch() {
+      // If hidden, break concealment first
+      if (isHidden) {
+        exitLocker();
+      }
+
+      // Interrupt any unlocking sequence
+      isUnlockingSequence = false;
+      unlockProgressTimer = 0.0;
+      unlockStageIndex = 0;
+
+      catches++;
+      soundEngine.playCatchSting();
+      flashDamageOverlay();
+
+      if (collectedKeyHistory.length > 0) {
+        const lastKeyId = collectedKeyHistory.pop();
+        const keyObj = keys.find(k => k.id === lastKeyId);
+        if (keyObj) {
+          keyObj.isCollected = false;
+          keyObj.mesh.visible = true;
+        }
+        keysCollected = Math.max(0, keysCollected - 1);
+        if (lockSlots[keysCollected]) {
+          if (lockSlots[keysCollected].reset) {
+            lockSlots[keysCollected].reset();
+          } else {
+            lockSlots[keysCollected].material = lockMatUnlit;
+          }
+        }
+      }
+
+      playerPos.copy(SPAWN_POS);
+      cameraYaw = Math.PI / 2;
+      cameraPitch = 0;
+
+      hunterGroup.position.set(-14, 0, -8);
+      hunterFacingAngle = 0;
+      hunterGroup.rotation.y = Math.PI / 2 - hunterFacingAngle;
+      hunterState = HUNTER_STATE.PATROL;
+      currentWaypointIndex = 1;
+      sightLossTimer = 0;
+      searchTimer = 0;
+      hunterSeesPlayer = false;
+      hunterASearchPhase = 'WALK';
+
+      hunterBGroup.position.set(14, 0, 0);
+      hunterBFacingAngle = Math.PI;
+      hunterBGroup.rotation.y = Math.PI / 2 - hunterBFacingAngle;
+      hunterBState = HUNTER_STATE.PATROL;
+      hunterBWaypointIndex = 1;
+      hunterBSightLossTimer = 0;
+      searchBTimer = 0;
+      hunterBSeesPlayer = false;
+      hunterBSearchPhase = 'WALK';
+
+      if (catches >= 3) {
+        currentPhase = PHASE.GAMEOVER;
+        const mm = String(Math.floor(elapsedTime / 60)).padStart(2, '0');
+        const ss = String(Math.floor(elapsedTime % 60)).padStart(2, '0');
+        document.getElementById('over-stats').innerText = `Catches: ${catches} | Time: ${mm}:${ss}`;
+        document.getElementById('screen-gameover').style.display = 'flex';
+        try {
+          if (document.pointerLockElement) document.exitPointerLock();
+        } catch (e) {}
+      }
+
+      updateHUD();
+      updateArenaState();
+    }
+
+    // --- LOCKER INTERACTION (ROUND 2) ---
+    function enterLocker(locker) {
+      isHidden = true;
+      currentLocker = locker;
+      hidesCount++;
+      soundEngine.playLockerLatch();
+
+      playerPos.copy(locker.interiorPos);
+      cameraYaw = locker.lookYaw;
+      cameraPitch = 0;
+
+      document.getElementById('slat-overlay').style.display = 'block';
+      updateHUD();
+    }
+
+    function exitLocker() {
+      if (!isHidden || !currentLocker) return;
+      soundEngine.playLockerLatch();
+      playerPos.copy(currentLocker.frontPos);
+
+      isHidden = false;
+      currentLocker = null;
+      isHoldingBreath = false;
+      document.getElementById('slat-overlay').style.display = 'none';
+      document.getElementById('breath-container').style.display = 'none';
+      updateHUD();
+    }
+
+    // --- INTERACTION LOGIC (E key) ---
+    function handleInteraction() {
+      // 1. If currently hidden, pressing E exits the locker
+      if (isHidden) {
+        exitLocker();
+        return;
+      }
+
+      const candidates = [];
+
+      // Shortcut Doors (Round 8)
+      const dOpenA = playerPos.distanceTo(new THREE.Vector3(-8, 1.6, -6));
+      const dBlankA = playerPos.distanceTo(new THREE.Vector3(-12, 1.6, 3));
+      if (!shortcutAOpen) {
+        if (dOpenA <= 2.2 && playerPos.z <= -5.8) {
+          candidates.push({ type: 'open_shortcut_A', dist: dOpenA });
+        } else if (dBlankA <= 2.2 && playerPos.x <= -11.8) {
+          candidates.push({ type: 'locked_shortcut_A', dist: dBlankA });
+        }
+      }
+
+      const dOpenB = playerPos.distanceTo(new THREE.Vector3(-8, 1.6, 6));
+      const dBlankB = playerPos.distanceTo(new THREE.Vector3(-12, 1.6, -3));
+      if (!shortcutBOpen) {
+        if (dOpenB <= 2.2 && playerPos.z >= 5.8) {
+          candidates.push({ type: 'open_shortcut_B', dist: dOpenB });
+        } else if (dBlankB <= 2.2 && playerPos.x <= -11.8) {
+          candidates.push({ type: 'locked_shortcut_B', dist: dBlankB });
+        }
+      }
+
+      // Exit Door
+      const exitDist = playerPos.distanceTo(new THREE.Vector3(-20, 1.6, -4));
+      if (exitDist <= 2.5 && !exitDoorUnlocked && !isUnlockingSequence) {
+        candidates.push({ type: 'exit_door', dist: exitDist });
+      }
+
+      // Keys
+      for (let i = 0; i < keys.length; i++) {
+        const k = keys[i];
+        if (!k.isCollected) {
+          const dist = playerPos.distanceTo(k.origPos);
+          if (dist <= 2.0) {
+            candidates.push({ type: 'key', key: k, dist: dist });
+          }
+        }
+      }
+
+      // Lockers
+      for (let i = 0; i < lockers.length; i++) {
+        const l = lockers[i];
+        const dist = playerPos.distanceTo(l.pos);
+        if (dist <= 1.8) {
+          candidates.push({ type: 'locker', locker: l, dist: dist });
+        }
+      }
+
+      if (candidates.length === 0) return;
+
+      // Pick the closest interactable to the player
+      candidates.sort((a, b) => a.dist - b.dist);
+      const chosen = candidates[0];
+
+      if (chosen.type === 'open_shortcut_A') {
+        shortcutAOpen = true;
+        soundEngine.playShortcutClang();
+        doorA_NorthGroup.rotation.y = -Math.PI / 2;
+        doorA_WestGroup.rotation.y = Math.PI / 2;
+        const doorPosA = new THREE.Vector3(-8, 1.6, -6);
+        if (hunterState === HUNTER_STATE.PATROL || hunterState === HUNTER_STATE.SEARCH) {
+          if (hunterGroup.position.distanceTo(doorPosA) <= 8.0) {
+            hunterState = HUNTER_STATE.CHASE;
+            sightLossTimer = 0.0;
+          }
+        }
+        if (hunterBState === HUNTER_STATE.PATROL || hunterBState === HUNTER_STATE.SEARCH) {
+          if (hunterBGroup.position.distanceTo(doorPosA) <= 8.0) {
+            hunterBState = HUNTER_STATE.CHASE;
+            hunterBSightLossTimer = 0.0;
+          }
+        }
+        updateHUD();
+        updateArenaState();
+      } else if (chosen.type === 'locked_shortcut_A' || chosen.type === 'locked_shortcut_B') {
+        soundEngine.playLockedThud();
+        doorLockedHintTimer = 2.0;
+        const promptEl = document.getElementById('prompt-msg');
+        if (promptEl) {
+          promptEl.innerText = 'LOCKED FROM THIS SIDE';
+          promptEl.style.display = 'block';
+        }
+      } else if (chosen.type === 'open_shortcut_B') {
+        shortcutBOpen = true;
+        soundEngine.playShortcutClang();
+        doorB_SouthGroup.rotation.y = Math.PI / 2;
+        doorB_WestGroup.rotation.y = -Math.PI / 2;
+        const doorPosB = new THREE.Vector3(-8, 1.6, 6);
+        if (hunterState === HUNTER_STATE.PATROL || hunterState === HUNTER_STATE.SEARCH) {
+          if (hunterGroup.position.distanceTo(doorPosB) <= 8.0) {
+            hunterState = HUNTER_STATE.CHASE;
+            sightLossTimer = 0.0;
+          }
+        }
+        if (hunterBState === HUNTER_STATE.PATROL || hunterBState === HUNTER_STATE.SEARCH) {
+          if (hunterBGroup.position.distanceTo(doorPosB) <= 8.0) {
+            hunterBState = HUNTER_STATE.CHASE;
+            hunterBSightLossTimer = 0.0;
+          }
+        }
+        updateHUD();
+        updateArenaState();
+      } else if (chosen.type === 'exit_door') {
+        if (keysCollected < 6) {
+          soundEngine.playLockedThud();
+          const needed = 6 - keysCollected;
+          doorLockedHintTimer = 2.5;
+          const hintText = `NEED ${needed} MORE KEYS`;
+          const hintEl = document.getElementById('door-locked-hint');
+          if (hintEl) {
+            hintEl.innerText = hintText;
+            hintEl.style.display = 'block';
+          }
+          const promptEl = document.getElementById('prompt-msg');
+          if (promptEl) {
+            promptEl.innerText = hintText;
+            promptEl.style.display = 'block';
+          }
+          return;
+        }
+        isUnlockingSequence = true;
+        unlockProgressTimer = 0.0;
+        unlockStageIndex = 0;
+        hasBegunWinWalk = false;
+      } else if (chosen.type === 'key') {
+        const k = chosen.key;
+        k.isCollected = true;
+        k.mesh.visible = false;
+        collectedKeyHistory.push(k.id);
+        keysCollected++;
+        soundEngine.playKeyChime();
+        if (lockSlots[keysCollected - 1]) {
+          lockSlots[keysCollected - 1].material = lockMatLit;
+        }
+
+        // Round 10: The moment the sixth key is collected, the hospital-wide alarm trips!
+        if (keysCollected >= 6 && !isAlarmActive) {
+          isAlarmActive = true;
+          alarmStartTime = elapsedTime;
+          soundEngine.playAlarmTrip();
+          hunterState = HUNTER_STATE.CHASE;
+          sightLossTimer = 0.0;
+        }
+
+        updateHUD();
+        updateArenaState();
+      } else if (chosen.type === 'locker') {
+        enterLocker(chosen.locker);
+      }
+    }
+
+    function updateHUD() {
+      document.getElementById('hud-keys').innerText = `KEYS ${keysCollected}/6`;
+
+      for (let s = 1; s <= 3; s++) {
+        const el = document.getElementById(`strike-${s}`);
+        if (s <= catches) {
+          el.classList.add('active');
+        } else {
+          el.classList.remove('active');
+        }
+      }
+
+      // Round 2: HIDDEN badge
+      const hiddenBadge = document.getElementById('hud-hidden');
+      if (isHidden) {
+        hiddenBadge.style.display = 'block';
+      } else {
+        hiddenBadge.style.display = 'none';
+      }
+
+      const hunterHUD = document.getElementById('hud-hunter');
+      hunterHUD.innerText = hunterState;
+      hunterHUD.className = `hud-hunter state-${hunterState}`;
+
+      const mm = String(Math.floor(elapsedTime / 60)).padStart(2, '0');
+      const ss = String(Math.floor(elapsedTime % 60)).padStart(2, '0');
+      document.getElementById('hud-time').innerText = `${mm}:${ss}`;
+
+      // Round 10: ALARM HUD tag
+      const alarmEl = document.getElementById('hud-alarm');
+      if (alarmEl) {
+        alarmEl.style.display = isAlarmActive ? 'block' : 'none';
+      }
+
+      // Round 7: LIGHTS HUD indicator
+      const cycleTimeHUD = elapsedTime % 10.0;
+      const emergencyLightsOnHUD = cycleTimeHUD < 6.0;
+      const lightsEl = document.getElementById('hud-lights');
+      if (lightsEl) {
+        lightsEl.innerText = `LIGHTS ${emergencyLightsOnHUD ? 'ON' : 'OFF'}`;
+        lightsEl.className = `hud-lights ${emergencyLightsOnHUD ? 'lights-on' : 'lights-off'}`;
+      }
+
+      updateArenaState();
+    }
+
+    // Round 10: Results rating table
+    // S — time <= 150 s, catches = 0, times hidden >= 2
+    // A — time <= 180 s and catches <= 1 (and not S)
+    // B — time <= 240 s and catches <= 2 (and not S or A)
+    // C — anything else
+    function computeRating(time, catchCount, hideCount) {
+      if (time <= 150.0 && catchCount === 0 && hideCount >= 2) {
+        return 'S';
+      }
+      if (time <= 180.0 && catchCount <= 1) {
+        return 'A';
+      }
+      if (time <= 240.0 && catchCount <= 2) {
+        return 'B';
+      }
+      return 'C';
+    }
+
+    function formatTimeWithTenths(sec) {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      const d = Math.floor((sec * 10) % 10);
+      const mm = String(m).padStart(2, '0');
+      const ss = String(s).padStart(2, '0');
+      return `${mm}:${ss}.${d}`;
+    }
+
+    function updateArenaState() {
+      const distToHunterA = playerPos.distanceTo(hunterGroup.position);
+      const roundedDistA = Math.round(distToHunterA * 100) / 100;
+      const distToHunterB = playerPos.distanceTo(hunterBGroup.position);
+      const roundedDistB = Math.round(distToHunterB * 100) / 100;
+
+      const cycleTime = elapsedTime % 10.0;
+      const emergencyLightsOn = cycleTime < 6.0;
+      const lightPhaseStr = emergencyLightsOn ? 'ON' : 'OFF';
+      const roundedCycleTime = Math.round(cycleTime * 100) / 100;
+
+      const huntersList = [
+        {
+          name: 'hunterA',
+          state: hunterState,
+          position: {
+            x: Math.round(hunterGroup.position.x * 100) / 100,
+            y: Math.round(hunterGroup.position.y * 100) / 100,
+            z: Math.round(hunterGroup.position.z * 100) / 100
+          },
+          facing: Math.round(hunterFacingAngle * 100) / 100,
+          facingVector: {
+            x: Math.round(Math.cos(hunterFacingAngle) * 100) / 100,
+            z: Math.round(Math.sin(hunterFacingAngle) * 100) / 100
+          },
+          sightLossTimer: Math.round(sightLossTimer * 100) / 100,
+          seesPlayer: hunterSeesPlayer,
+          distanceToPlayer: roundedDistA
+        },
+        {
+          name: 'hunterB',
+          state: hunterBState,
+          position: {
+            x: Math.round(hunterBGroup.position.x * 100) / 100,
+            y: Math.round(hunterBGroup.position.y * 100) / 100,
+            z: Math.round(hunterBGroup.position.z * 100) / 100
+          },
+          facing: Math.round(hunterBFacingAngle * 100) / 100,
+          facingVector: {
+            x: Math.round(Math.cos(hunterBFacingAngle) * 100) / 100,
+            z: Math.round(Math.sin(hunterBFacingAngle) * 100) / 100
+          },
+          sightLossTimer: Math.round(hunterBSightLossTimer * 100) / 100,
+          seesPlayer: hunterBSeesPlayer,
+          distanceToPlayer: roundedDistB
+        }
+      ];
+      huntersList.hunterA = huntersList[0];
+      huntersList.hunterB = huntersList[1];
+
+      const keySpotsExport = KEY_CONFIGS.map(c => ({
+        id: c.id,
+        location: c.location,
+        spot: { x: c.x, z: c.z },
+        x: c.x,
+        z: c.z
+      }));
+      KEY_CONFIGS.forEach(c => {
+        keySpotsExport[c.id] = {
+          id: c.id,
+          location: c.location,
+          spot: { x: c.x, z: c.z },
+          x: c.x,
+          z: c.z
+        };
+      });
+
+      const collectedList = keys.filter(k => k.isCollected).map(k => k.id);
+      KEY_CONFIGS.forEach(c => {
+        collectedList[c.id] = collectedList.includes(c.id);
+      });
+
+      window.__arena_state = {
+        phase: currentPhase,
+        elapsedTime: Math.round(elapsedTime * 100) / 100,
+        playerPosition: {
+          x: Math.round(playerPos.x * 100) / 100,
+          y: Math.round(playerPos.y * 100) / 100,
+          z: Math.round(playerPos.z * 100) / 100
+        },
+        keysCollected: keysCollected,
+        catches: catches,
+        hunterState: hunterState,
+        hunterPosition: {
+          x: Math.round(hunterGroup.position.x * 100) / 100,
+          y: Math.round(hunterGroup.position.y * 100) / 100,
+          z: Math.round(hunterGroup.position.z * 100) / 100
+        },
+        hunterFacing: Math.round(hunterFacingAngle * 100) / 100,
+        hunterFacingVector: {
+          x: Math.round(Math.cos(hunterFacingAngle) * 100) / 100,
+          z: Math.round(Math.sin(hunterFacingAngle) * 100) / 100
+        },
+        sightLossTimer: Math.round(sightLossTimer * 100) / 100,
+        hunterSeesPlayer: hunterSeesPlayer,
+        hidden: isHidden,
+        breath: Math.round(breathTimer * 100) / 100,
+        hides: hidesCount,
+        // Round 10 additions: alarm, alarmSeconds, rating (battery dropped)
+        alarm: isAlarmActive,
+        alarmSeconds: isAlarmActive ? Math.round((elapsedTime - alarmStartTime) * 100) / 100 : 0,
+        rating: finalRating,
+        // Round 4 additions: exact key spots and currently collected keys
+        keySpots: keySpotsExport,
+        collectedKeys: collectedList,
+        collectedKeyIds: [...collectedList],
+        keysCollectedIds: [...collectedList],
+        keys: keys.map(k => ({
+          id: k.id,
+          location: k.location,
+          spot: { x: k.origPos.x, z: k.origPos.z },
+          x: k.origPos.x,
+          z: k.origPos.z,
+          isCollected: k.isCollected,
+          collected: k.isCollected
+        })),
+        // Round 5 addition: current distance in meters from player to hunter
+        distanceToHunter: roundedDistA,
+        hunterDistance: roundedDistA,
+        // Round 6 addition: both hunters reported in list
+        hunters: huntersList,
+        // Round 7 additions: emergency light phase and elapsed time within current cycle
+        emergencyLightPhase: lightPhaseStr,
+        emergencyLightsPhase: lightPhaseStr,
+        emergencyLights: lightPhaseStr,
+        lightsPhase: lightPhaseStr,
+        lights: lightPhaseStr,
+        emergencyLightCycleTime: roundedCycleTime,
+        emergencyLightsCycleTime: roundedCycleTime,
+        lightsCycleTime: roundedCycleTime,
+        cycleTime: roundedCycleTime,
+        // Round 8 additions: shortcut doors state
+        shortcutDoors: {
+          shortcutA: { id: 'A', name: 'Shortcut A (NW shaft)', open: shortcutAOpen, closed: !shortcutAOpen },
+          shortcutB: { id: 'B', name: 'Shortcut B (SW shaft)', open: shortcutBOpen, closed: !shortcutBOpen },
+          A: { id: 'A', name: 'Shortcut A', open: shortcutAOpen, closed: !shortcutAOpen },
+          B: { id: 'B', name: 'Shortcut B', open: shortcutBOpen, closed: !shortcutBOpen }
+        },
+        shortcuts: [
+          { id: 'A', name: 'Shortcut A (NW shaft)', open: shortcutAOpen, closed: !shortcutAOpen },
+          { id: 'B', name: 'Shortcut B (SW shaft)', open: shortcutBOpen, closed: !shortcutBOpen }
+        ],
+        shortcutA: shortcutAOpen ? 'OPEN' : 'CLOSED',
+        shortcutB: shortcutBOpen ? 'OPEN' : 'CLOSED',
+        shortcutAOpen: shortcutAOpen,
+        shortcutBOpen: shortcutBOpen
+      };
+      window.__arena_state.shortcuts.shortcutA = window.__arena_state.shortcuts[0];
+      window.__arena_state.shortcuts.shortcutB = window.__arena_state.shortcuts[1];
+      window.__arena_state.shortcuts.A = window.__arena_state.shortcuts[0];
+      window.__arena_state.shortcuts.B = window.__arena_state.shortcuts[1];
+    }
+
+    function distToSegment(px, pz, x1, z1, x2, z2) {
+      const l2 = (x2 - x1) * (x2 - x1) + (z2 - z1) * (z2 - z1);
+      if (l2 === 0) return Math.hypot(px - x1, pz - z1);
+      let t = ((px - x1) * (x2 - x1) + (pz - z1) * (z2 - z1)) / l2;
+      t = Math.max(0, Math.min(1, t));
+      return Math.hypot(px - (x1 + t * (x2 - x1)), pz - (z1 + t * (z2 - z1)));
+    }
+
+    function checkCollision(x, z, radius = 0.35) {
+      // Round 8: Central Core and Shortcut Shafts check
+      if (x + radius > -12.0 && x - radius < 12.0 && z + radius > -6.0 && z - radius < 6.0) {
+        // Eastern core is always solid
+        if (x + radius >= -8.0) return true;
+
+        // Western core: Shaft A (-8, -6) to (-12, 3) and Shaft B (-8, 6) to (-12, -3)
+        const inShaftA = distToSegment(x, z, -8, -6, -12, 3) <= 0.85;
+        if (inShaftA) {
+          if (!shortcutAOpen) return true; // closed door / shaft blocked
+        } else {
+          const inShaftB = distToSegment(x, z, -8, 6, -12, -3) <= 0.85;
+          if (inShaftB) {
+            if (!shortcutBOpen) return true; // closed door / shaft blocked
+          } else {
+            // Outside both shaft corridors inside core
+            return true;
+          }
+        }
+      }
+
+      for (let i = 0; i < collisionBoxes.length; i++) {
+        const b = collisionBoxes[i];
+        if (b.maxY < 0.5) continue;
+        if (x + radius > b.minX && x - radius < b.maxX &&
+            z + radius > b.minZ && z - radius < b.maxZ) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // --- GAME LOOP & UPDATE ---
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const delta = Math.min(clock.getDelta(), 0.1);
+
+      if (currentPhase === PHASE.PLAYING) {
+        elapsedTime += delta;
+
+        // --- ROUND 7: EMERGENCY LIGHTS SCHEDULE (10s cycle: 6s ON / 4s OFF) ---
+        const cycleTime = elapsedTime % 10.0;
+        const emergencyLightsOn = cycleTime < 6.0;
+
+        emergencyLamps.forEach(lamp => {
+          lamp.light.intensity = emergencyLightsOn ? lamp.baseIntensity : 0.0;
+          lamp.lenses.forEach(lens => {
+            lens.material = emergencyLightsOn ? emergencyLampLensOnMat : emergencyLampLensOffMat;
+          });
+        });
+
+        northCorridorLights.forEach(nl => {
+          nl.light.intensity = emergencyLightsOn ? nl.baseIntensity : 0.0;
+        });
+
+        // Round 8: Update Shortcut Doors 3D panels
+        doorA_NorthGroup.rotation.y = shortcutAOpen ? -Math.PI / 2 : 0;
+        doorA_WestGroup.rotation.y = shortcutAOpen ? Math.PI / 2 : 0;
+        doorB_SouthGroup.rotation.y = shortcutBOpen ? Math.PI / 2 : 0;
+        doorB_WestGroup.rotation.y = shortcutBOpen ? -Math.PI / 2 : 0;
+
+        let playerIsRunningAndMoving = false;
+
+        // --- 1. PLAYER MOVEMENT & COLLISION ---
+        // While unlocking sequence runs, player stands at door and movement input is ignored
+        if (!isHidden && !isUnlockingSequence) {
+          const isRunning = keysDown['ShiftLeft'] || keysDown['ShiftRight'] || keysDown['Shift'];
+          let baseSpeed = isRunning ? 4.5 : 2.2;
+          // Round 10 Dark Rooms slowdown: inside a dark room, movement is x0.6 while emergency lights are OFF, normal while ON
+          if (isPlayerInDarkRoom(playerPos) && !emergencyLightsOn) {
+            baseSpeed *= 0.6; // walk: 1.32, run: 2.7
+          }
+          const speed = baseSpeed;
+
+          let moveX = 0;
+          let moveZ = 0;
+          if (keysDown['KeyW'] || keysDown['w'] || keysDown['W'] || keysDown['ArrowUp']) moveZ -= 1;
+          if (keysDown['KeyS'] || keysDown['s'] || keysDown['S'] || keysDown['ArrowDown']) moveZ += 1;
+          if (keysDown['KeyA'] || keysDown['a'] || keysDown['A'] || keysDown['ArrowLeft']) moveX -= 1;
+          if (keysDown['KeyD'] || keysDown['d'] || keysDown['D'] || keysDown['ArrowRight']) moveX += 1;
+
+          const isMoving = (moveX !== 0 || moveZ !== 0);
+          if (isMoving) {
+            if (isRunning) {
+              playerIsRunningAndMoving = true;
+            }
+
+            const len = Math.sqrt(moveX * moveX + moveZ * moveZ);
+            moveX /= len;
+            moveZ /= len;
+
+            const fwdX = -Math.sin(cameraYaw);
+            const fwdZ = -Math.cos(cameraYaw);
+            const rgtX = Math.cos(cameraYaw);
+            const rgtZ = -Math.sin(cameraYaw);
+
+            const stepX = (fwdX * (-moveZ) + rgtX * moveX) * speed * delta;
+            const stepZ = (fwdZ * (-moveZ) + rgtX * moveX) * speed * delta;
+
+            if (!checkCollision(playerPos.x + stepX, playerPos.z, 0.35)) {
+              playerPos.x += stepX;
+            }
+            if (!checkCollision(playerPos.x, playerPos.z + stepZ, 0.35)) {
+              playerPos.z += stepZ;
+            }
+
+            const stepInterval = isRunning ? 0.32 : 0.52;
+            if (elapsedTime - soundEngine.lastPlayerStepTime > stepInterval) {
+              soundEngine.playFootstep(isRunning);
+              soundEngine.lastPlayerStepTime = elapsedTime;
+            }
+          }
+        } else if (isHidden) {
+          // Locked inside locker
+          playerPos.copy(currentLocker.interiorPos);
+        }
+
+        camera.rotation.set(0, 0, 0);
+        camera.rotation.y = cameraYaw;
+        camera.rotation.x = cameraPitch;
+        camera.position.set(playerPos.x, 1.6, playerPos.z);
+
+        // Round 10: Alarm update (strobe lamps & siren audio)
+        if (isAlarmActive) {
+          const elapsedSinceAlarm = elapsedTime - alarmStartTime;
+          soundEngine.updateAlarmSiren(elapsedSinceAlarm, elapsedTime);
+
+          // Fixed 1s on/off pattern (0.5s ON, 0.5s OFF, no random flicker)
+          const alarmStrobeOn = (elapsedSinceAlarm % 1.0) < 0.5;
+          const rotAngle = elapsedSinceAlarm * Math.PI * 4;
+          alarmLamps.forEach(lamp => {
+            lamp.light.intensity = alarmStrobeOn ? lamp.baseIntensity : 0.0;
+            lamp.dome.material = alarmStrobeOn ? alarmLampOnMat : alarmLampOffMat;
+            lamp.group.rotation.y = rotAngle;
+          });
+        }
+
+        // --- 2. SECONDARY MOTION ---
+        const wcDist = playerPos.distanceTo(wheelchairGroup.position);
+        if (wcDist < 1.1) {
+          wheelchairVelocity = 0.8;
+        }
+        if (wheelchairVelocity > 0.01) {
+          wheelchairGroup.position.z += wheelchairVelocity * delta;
+          leftWheel.rotation.x += wheelchairVelocity * delta * 3;
+          rightWheel.rotation.x += wheelchairVelocity * delta * 3;
+          wheelchairVelocity *= 0.94;
+        }
+
+        chartBoards.forEach((cb, idx) => {
+          const sway = Math.sin(elapsedTime * 1.5 + idx * 2.1) * 0.06;
+          cb.paper.rotation.x = sway;
+        });
+
+        const dPos = dustGeo.attributes.position.array;
+        for (let i = 0; i < dustCount; i++) {
+          dPos[i * 3 + 1] += Math.sin(elapsedTime * 0.8 + i) * 0.002;
+          dPos[i * 3] += Math.cos(elapsedTime * 0.5 + i * 1.4) * 0.001;
+        }
+        dustGeo.attributes.position.needsUpdate = true;
+
+        keys.forEach((k, idx) => {
+          if (!k.isCollected) {
+            k.mesh.rotation.y = elapsedTime * 1.8 + idx;
+            k.mesh.position.y = k.origPos.y + 0.12 + Math.sin(elapsedTime * 2.5 + idx) * 0.04;
+          }
+        });
+
+        // --- ROUND 4: STAGED 6-LOCK UNLOCKING SEQUENCE ---
+        if (isUnlockingSequence) {
+          unlockProgressTimer += delta;
+
+          // Each lock takes exactly 0.5 s (six loud clunks over 3 s total)
+          while (unlockStageIndex < 6 && unlockProgressTimer >= (unlockStageIndex + 1) * 0.5) {
+            const lockIdx = unlockStageIndex;
+            soundEngine.playLockClunk(lockIdx);
+            if (lockSlots[lockIdx]) {
+              if (typeof lockSlots[lockIdx].unlock === 'function') {
+                lockSlots[lockIdx].unlock();
+              } else {
+                lockSlots[lockIdx].material = lockMatUnlocked;
+              }
+            }
+            unlockStageIndex++;
+          }
+
+          if (unlockStageIndex >= 6 && unlockProgressTimer >= 3.0) {
+            isUnlockingSequence = false;
+            exitDoorUnlocked = true;
+            collisionBoxes[doorCollisionIndex] = {
+              minX: 0, maxX: 0, minZ: 0, maxZ: 0, minY: 0, maxY: 0
+            };
+            hasBegunWinWalk = true;
+          }
+        }
+
+        if (exitDoorUnlocked && exitDoorOpenProgress < 1.0) {
+          exitDoorOpenProgress = Math.min(1.0, exitDoorOpenProgress + delta * 0.9);
+          leftDoorPanel.rotation.y = -exitDoorOpenProgress * (Math.PI * 0.55);
+          rightDoorPanel.rotation.y = exitDoorOpenProgress * (Math.PI * 0.55);
+        }
+
+        if (exitDoorUnlocked) {
+          if (hasBegunWinWalk && playerPos.x > -21.0) {
+            playerPos.x = Math.max(-21.0, playerPos.x - delta * 1.6);
+          }
+
+          if (playerPos.x < -20.6 || (hasBegunWinWalk && exitDoorOpenProgress >= 0.85)) {
+            if (currentPhase !== PHASE.WIN) {
+              currentPhase = PHASE.WIN;
+              soundEngine.playWinSwelling();
+              const finalTime = elapsedTime;
+              finalRating = computeRating(finalTime, catches, hidesCount);
+
+              const timeStr = formatTimeWithTenths(finalTime);
+              const resTimeEl = document.getElementById('res-time');
+              if (resTimeEl) resTimeEl.innerText = timeStr;
+              const resCatchesEl = document.getElementById('res-catches');
+              if (resCatchesEl) resCatchesEl.innerText = catches;
+              const resHidesEl = document.getElementById('res-hides');
+              if (resHidesEl) resHidesEl.innerText = hidesCount;
+              const resRatingEl = document.getElementById('res-rating');
+              if (resRatingEl) {
+                resRatingEl.innerText = finalRating;
+                if (finalRating === 'S') resRatingEl.style.color = '#73f0d6';
+                else if (finalRating === 'A') resRatingEl.style.color = '#e5c158';
+                else if (finalRating === 'B') resRatingEl.style.color = '#76b8a2';
+                else resRatingEl.style.color = '#ff6666';
+              }
+              const winStatsEl = document.getElementById('win-stats');
+              if (winStatsEl) winStatsEl.innerText = `Time: ${timeStr} | Catches: ${catches} | Hidden: ${hidesCount} | Rating: ${finalRating}`;
+
+              document.getElementById('screen-win').style.display = 'flex';
+              if (document.pointerLockElement) {
+                try { document.exitPointerLock(); } catch (e) {}
+              }
+            }
+          }
+        }
+
+        // --- 3. HUNTER A SENSES & BEHAVIOR (OUTER PATROL) ---
+        const hunterPos = hunterGroup.position;
+        hunterSeesPlayer = testHunterVision(hunterPos, playerPos, hunterFacingAngle);
+
+        // Round 10: During ALARM state, hunterA enters permanent pursuit:
+        // it chases the player's live position continuously at 5.0 m/s, never returns to patrol, never enters SEARCH
+        if (isAlarmActive) {
+          hunterState = HUNTER_STATE.CHASE;
+          sightLossTimer = 0.0;
+        }
+
+        if (hunterState === HUNTER_STATE.PATROL) {
+          if (hunterSeesPlayer) {
+            hunterState = HUNTER_STATE.CHASE;
+            sightLossTimer = 0.0;
+          } else {
+            const targetWP = WAYPOINTS[currentWaypointIndex];
+            const toWP = new THREE.Vector2(targetWP.x - hunterPos.x, targetWP.y - hunterPos.z);
+            const distWP = toWP.length();
+
+            if (distWP < 0.25) {
+              currentWaypointIndex = (currentWaypointIndex + 1) % WAYPOINTS.length;
+            } else {
+              toWP.normalize();
+              const patrolSpeed = 1.6;
+              hunterPos.x += toWP.x * patrolSpeed * delta;
+              hunterPos.z += toWP.y * patrolSpeed * delta;
+              hunterFacingAngle = Math.atan2(toWP.y, toWP.x);
+            }
+          }
+        } else if (hunterState === HUNTER_STATE.CHASE) {
+          if (isAlarmActive) {
+            // Round 10: Permanent pursuit - sight loss no longer matters; always knows where player is
+            sightLossTimer = 0.0;
+          } else if (hunterSeesPlayer) {
+            sightLossTimer = 0.0;
+          } else {
+            sightLossTimer += delta;
+            // Round 9: hunterA sight-loss window changes from 5s to 3s
+            if (sightLossTimer >= 3.0) {
+              // Round 6: Smarter Search - walk at 2.2 m/s to nearest corner waypoint of patrol loop
+              hunterState = HUNTER_STATE.SEARCH;
+              hunterASearchPhase = 'WALK';
+              let nearestCornerIdx = 0;
+              let minCDist = 9999;
+              for (let i = 0; i < WAYPOINTS.length; i++) {
+                const d = Math.hypot(hunterPos.x - WAYPOINTS[i].x, hunterPos.z - WAYPOINTS[i].y);
+                if (d < minCDist) {
+                  minCDist = d;
+                  nearestCornerIdx = i;
+                }
+              }
+              hunterASearchCornerIndex = nearestCornerIdx;
+              hunterASearchTargetCorner = WAYPOINTS[nearestCornerIdx];
+            }
+          }
+
+          if (hunterState === HUNTER_STATE.CHASE) {
+            const navTarget = getHunterNavTarget(hunterPos, playerPos);
+            const toTarget = new THREE.Vector2(navTarget.x - hunterPos.x, navTarget.y - hunterPos.z);
+            const distT = toTarget.length();
+
+            if (distT > 0.1) {
+              toTarget.normalize();
+              // Round 9: hunterA chase speed changes from 4.8 to 5.0 m/s
+              const chaseSpeed = 5.0;
+              const nextHx = hunterPos.x + toTarget.x * chaseSpeed * delta;
+              const nextHz = hunterPos.z + toTarget.y * chaseSpeed * delta;
+
+              if (!checkCollision(nextHx, hunterPos.z, 0.4)) {
+                hunterPos.x = nextHx;
+              }
+              if (!checkCollision(hunterPos.x, nextHz, 0.4)) {
+                hunterPos.z = nextHz;
+              }
+              hunterFacingAngle = Math.atan2(toTarget.y, toTarget.x);
+            }
+          }
+        } else if (hunterState === HUNTER_STATE.SEARCH) {
+          if (hunterSeesPlayer) {
+            hunterState = HUNTER_STATE.CHASE;
+            sightLossTimer = 0.0;
+          } else if (hunterASearchPhase === 'WALK') {
+            // Walk at 2.2 m/s to the nearest corner waypoint
+            const toCorner = new THREE.Vector2(hunterASearchTargetCorner.x - hunterPos.x, hunterASearchTargetCorner.y - hunterPos.z);
+            const distCorner = toCorner.length();
+            if (distCorner <= 0.25) {
+              hunterPos.x = hunterASearchTargetCorner.x;
+              hunterPos.z = hunterASearchTargetCorner.y;
+              hunterASearchPhase = 'SWEEP';
+              searchTimer = 0.0;
+              searchBaseFacing = hunterFacingAngle;
+            } else {
+              toCorner.normalize();
+              const walkSpeed = 2.2;
+              hunterPos.x += toCorner.x * walkSpeed * delta;
+              hunterPos.z += toCorner.y * walkSpeed * delta;
+              hunterFacingAngle = Math.atan2(toCorner.y, toCorner.x);
+            }
+          } else if (hunterASearchPhase === 'SWEEP') {
+            // Sweep facing left-right for exactly 6.0 seconds
+            searchTimer += delta;
+            hunterFacingAngle = searchBaseFacing + Math.sin(searchTimer * (Math.PI * 2 / 3.0)) * 0.8;
+            if (searchTimer >= 6.0) {
+              hunterState = HUNTER_STATE.PATROL;
+              currentWaypointIndex = (hunterASearchCornerIndex + 1) % WAYPOINTS.length;
+            }
+          }
+        }
+
+        hunterGroup.rotation.y = Math.PI / 2 - hunterFacingAngle;
+
+        const heave = Math.sin(elapsedTime * 2.2) * 0.06;
+        torsoMesh.position.y = 1.45 + heave;
+        headGroup.position.y = 2.05 + heave;
+        headGroup.rotation.z = Math.sin(elapsedTime * 1.8) * 0.12;
+        headGroup.rotation.x = Math.cos(elapsedTime * 1.4) * 0.15;
+
+        // --- ROUND 6: HUNTER B SENSES & BEHAVIOR (EAST WING ONLY) ---
+        const hunterBPos = hunterBGroup.position;
+        hunterBSeesPlayer = testHunterBVision(hunterBPos, playerPos, hunterBFacingAngle);
+
+        if (hunterBState === HUNTER_STATE.PATROL) {
+          if (hunterBSeesPlayer) {
+            hunterBState = HUNTER_STATE.CHASE;
+            hunterBSightLossTimer = 0.0;
+          } else {
+            const targetBWP = HUNTER_B_WAYPOINTS[hunterBWaypointIndex];
+            const toBWP = new THREE.Vector2(targetBWP.x - hunterBPos.x, targetBWP.y - hunterBPos.z);
+            const distBWP = toBWP.length();
+
+            if (distBWP < 0.25) {
+              hunterBWaypointIndex = (hunterBWaypointIndex + 1) % HUNTER_B_WAYPOINTS.length;
+            } else {
+              toBWP.normalize();
+              const patrolSpeedB = 2.4; // constant 2.4 m/s loop
+              hunterBPos.x += toBWP.x * patrolSpeedB * delta;
+              hunterBPos.z += toBWP.y * patrolSpeedB * delta;
+              hunterBFacingAngle = Math.atan2(toBWP.y, toBWP.x);
+            }
+          }
+        } else if (hunterBState === HUNTER_STATE.CHASE) {
+          if (hunterBSeesPlayer) {
+            hunterBSightLossTimer = 0.0;
+          } else {
+            hunterBSightLossTimer += delta;
+            if (hunterBSightLossTimer >= 5.0) {
+              // Enters SEARCH: walks to nearest waypoint of its own loop and sweeps 6 s
+              hunterBState = HUNTER_STATE.SEARCH;
+              hunterBSearchPhase = 'WALK';
+              let bestBIdx = 0;
+              let minBD = 9999;
+              for (let i = 0; i < HUNTER_B_WAYPOINTS.length; i++) {
+                const d = Math.hypot(hunterBPos.x - HUNTER_B_WAYPOINTS[i].x, hunterBPos.z - HUNTER_B_WAYPOINTS[i].y);
+                if (d < minBD) {
+                  minBD = d;
+                  bestBIdx = i;
+                }
+              }
+              hunterBSearchWPIndex = bestBIdx;
+              hunterBSearchTargetWP = HUNTER_B_WAYPOINTS[bestBIdx];
+            }
+          }
+
+          if (hunterBState === HUNTER_STATE.CHASE) {
+            // Chase speed 5.2 m/s, constrained strictly to East Wing
+            let bNavTarget = new THREE.Vector2(playerPos.x, playerPos.z);
+            if (!isPositionInEastWing(playerPos.x, playerPos.z)) {
+              // Clamp chase navigation to East Wing exit boundaries
+              if (playerPos.z < 6) {
+                bNavTarget = new THREE.Vector2(14, 0);
+              } else {
+                bNavTarget = new THREE.Vector2(-12.5, 8);
+              }
+            }
+
+            const toBTarget = new THREE.Vector2(bNavTarget.x - hunterBPos.x, bNavTarget.y - hunterBPos.z);
+            const distBT = toBTarget.length();
+            if (distBT > 0.1) {
+              toBTarget.normalize();
+              const chaseSpeedB = 5.2;
+              const nextBx = hunterBPos.x + toBTarget.x * chaseSpeedB * delta;
+              const nextBz = hunterBPos.z + toBTarget.y * chaseSpeedB * delta;
+
+              if (isPositionInEastWing(nextBx, hunterBPos.z) && !checkCollision(nextBx, hunterBPos.z, 0.35)) {
+                hunterBPos.x = nextBx;
+              }
+              if (isPositionInEastWing(hunterBPos.x, nextBz) && !checkCollision(hunterBPos.x, nextBz, 0.35)) {
+                hunterBPos.z = nextBz;
+              }
+              hunterBFacingAngle = Math.atan2(toBTarget.y, toBTarget.x);
+            }
+          }
+        } else if (hunterBState === HUNTER_STATE.SEARCH) {
+          if (hunterBSeesPlayer) {
+            hunterBState = HUNTER_STATE.CHASE;
+            hunterBSightLossTimer = 0.0;
+          } else if (hunterBSearchPhase === 'WALK') {
+            const toBWP = new THREE.Vector2(hunterBSearchTargetWP.x - hunterBPos.x, hunterBSearchTargetWP.y - hunterBPos.z);
+            const distBWP = toBWP.length();
+            if (distBWP <= 0.25) {
+              hunterBPos.x = hunterBSearchTargetWP.x;
+              hunterBPos.z = hunterBSearchTargetWP.y;
+              hunterBSearchPhase = 'SWEEP';
+              searchBTimer = 0.0;
+              searchBBaseFacing = hunterBFacingAngle;
+            } else {
+              toBWP.normalize();
+              const walkSpeedB = 2.4;
+              hunterBPos.x += toBWP.x * walkSpeedB * delta;
+              hunterBPos.z += toBWP.y * walkSpeedB * delta;
+              hunterBFacingAngle = Math.atan2(toBWP.y, toBWP.x);
+            }
+          } else if (hunterBSearchPhase === 'SWEEP') {
+            searchBTimer += delta;
+            hunterBFacingAngle = searchBBaseFacing + Math.sin(searchBTimer * (Math.PI * 2 / 3.0)) * 0.8;
+            if (searchBTimer >= 6.0) {
+              hunterBState = HUNTER_STATE.PATROL;
+              hunterBWaypointIndex = (hunterBSearchWPIndex + 1) % HUNTER_B_WAYPOINTS.length;
+            }
+          }
+        }
+
+        hunterBGroup.rotation.y = Math.PI / 2 - hunterBFacingAngle;
+
+        // Hunter B visual motion: dragging arm, hunched spine, darting head
+        torsoBMesh.position.y = 1.15 + Math.sin(elapsedTime * 3.0) * 0.04;
+        headBGroup.rotation.y = Math.sin(elapsedTime * 6.5) * 0.22;
+        headBGroup.rotation.x = Math.cos(elapsedTime * 4.2) * 0.14;
+
+        const isHunterBMoving = (hunterBState === HUNTER_STATE.PATROL || hunterBState === HUNTER_STATE.CHASE || (hunterBState === HUNTER_STATE.SEARCH && hunterBSearchPhase === 'WALK'));
+        const animSpeedB = (hunterBState === HUNTER_STATE.CHASE) ? 14 : 7;
+        if (isHunterBMoving) {
+          leftArmBGroup.rotation.x = Math.sin(elapsedTime * animSpeedB) * 0.25;
+          rightArmBGroup.rotation.z = Math.sin(elapsedTime * 5.0) * 0.08;
+          leftLegBGroup.rotation.x = -Math.sin(elapsedTime * animSpeedB) * 0.45;
+          rightLegBGroup.rotation.x = Math.sin(elapsedTime * animSpeedB) * 0.45;
+        } else {
+          leftArmBGroup.rotation.x = 0;
+          rightArmBGroup.rotation.z = 0;
+          leftLegBGroup.rotation.x = 0;
+          rightLegBGroup.rotation.x = 0;
+        }
+
+        // --- DUAL HUNTER DISTANCES & CATCH RULE ---
+        const hunterDistA = Math.hypot(hunterPos.x - playerPos.x, hunterPos.z - playerPos.z);
+        const hunterDistB = Math.hypot(hunterBPos.x - playerPos.x, hunterBPos.z - playerPos.z);
+
+        // Round 7: Running Noise Detection
+        // Running (Shift) is audible to the hunters independent of vision:
+        // while the player runs, every hunter in PATROL or SEARCH state whose distance to the player is 6 m or less
+        // immediately enters CHASE, regardless of facing, cone, or light phase — works through walls, but never affects player in locker.
+        if (!isHidden && playerIsRunningAndMoving) {
+          if (hunterState === HUNTER_STATE.PATROL || hunterState === HUNTER_STATE.SEARCH) {
+            if (hunterDistA <= 6.0) {
+              hunterState = HUNTER_STATE.CHASE;
+              sightLossTimer = 0.0;
+            }
+          }
+          if (hunterBState === HUNTER_STATE.PATROL || hunterBState === HUNTER_STATE.SEARCH) {
+            if (hunterDistB <= 6.0) {
+              hunterBState = HUNTER_STATE.CHASE;
+              hunterBSightLossTimer = 0.0;
+            }
+          }
+        }
+
+        // Contact catch within 0.8 m catches player from EITHER hunter
+        if (!isHidden && (hunterDistA <= 0.8 || hunterDistB <= 0.8)) {
+          triggerCatch();
+        }
+
+        // --- AUDIO CUES & SPATIALIZATION FOR BOTH HUNTERS ---
+        const rightX = Math.cos(cameraYaw);
+        const rightZ = -Math.sin(cameraYaw);
+
+        const dxA = hunterPos.x - playerPos.x;
+        const dzA = hunterPos.z - playerPos.z;
+        const lateralDistA = dxA * rightX + dzA * rightZ;
+        const hunterAPan = (hunterDistA > 0.001) ? Math.max(-1.0, Math.min(1.0, lateralDistA / hunterDistA)) : 0.0;
+
+        const dxB = hunterBPos.x - playerPos.x;
+        const dzB = hunterBPos.z - playerPos.z;
+        const lateralDistB = dxB * rightX + dzB * rightZ;
+        const hunterBPan = (hunterDistB > 0.001) ? Math.max(-1.0, Math.min(1.0, lateralDistB / hunterDistB)) : 0.0;
+
+        // Hunter A footfalls & whispers
+        const isHunterAMoving = (hunterState === HUNTER_STATE.PATROL || hunterState === HUNTER_STATE.CHASE || (hunterState === HUNTER_STATE.SEARCH && hunterASearchPhase === 'WALK'));
+        const animSpeedA = (hunterState === HUNTER_STATE.CHASE) ? 14 : 6;
+        if (isHunterAMoving) {
+          leftArmGroup.rotation.x = Math.sin(elapsedTime * animSpeedA) * 0.45;
+          rightArmGroup.rotation.x = -Math.sin(elapsedTime * animSpeedA) * 0.45;
+          leftLegGroup.rotation.x = -Math.sin(elapsedTime * animSpeedA) * 0.55;
+          rightLegGroup.rotation.x = Math.sin(elapsedTime * animSpeedA) * 0.55;
+
+          const stepCadenceA = (hunterState === HUNTER_STATE.CHASE) ? 0.375 : 0.75;
+          if (elapsedTime - soundEngine.lastHunterStepTime >= stepCadenceA) {
+            soundEngine.playHunterFootstepSpatial(hunterDistA, hunterAPan, hunterState === HUNTER_STATE.CHASE, false);
+            soundEngine.lastHunterStepTime = elapsedTime;
+          }
+        } else {
+          leftArmGroup.rotation.x = Math.sin(elapsedTime * 1.5) * 0.08;
+          rightArmGroup.rotation.x = -Math.sin(elapsedTime * 1.5) * 0.08;
+          leftLegGroup.rotation.x = 0;
+          rightLegGroup.rotation.x = 0;
+        }
+
+        // Hunter B footfalls
+        if (isHunterBMoving) {
+          const stepCadenceB = (hunterBState === HUNTER_STATE.CHASE) ? 0.26 : 0.52;
+          if (elapsedTime - soundEngine.lastHunterBStepTime >= stepCadenceB) {
+            soundEngine.playHunterFootstepSpatial(hunterDistB, hunterBPan, hunterBState === HUNTER_STATE.CHASE, true);
+            soundEngine.lastHunterBStepTime = elapsedTime;
+          }
+        }
+
+        // Hunter A & B whispers
+        soundEngine.updateHunterWhispers(hunterDistA, hunterAPan, hunterState, elapsedTime, false);
+        soundEngine.updateHunterWhispers(hunterDistB, hunterBPan, hunterBState, elapsedTime, true);
+
+        // --- 4. PROXIMITY HEARTBEAT & BREATH HOLD MINIGAME (BOTH HUNTERS) ---
+        // Round 6: 5m proximity heartbeat triggers for EITHER hunter
+        const minHunterDist = Math.min(hunterDistA, hunterDistB);
+        let proxHeartbeatVol = 0.0;
+        if (minHunterDist <= 1.0) {
+          proxHeartbeatVol = 1.0;
+        } else if (minHunterDist < 5.0) {
+          proxHeartbeatVol = (5.0 - minHunterDist) / 4.0;
+        }
+
+        let lockerThreatActive = false;
+        let lockerThreatVol = 0.0;
+        if (isHidden && currentLocker) {
+          const lPos = currentLocker.pos;
+          const hDistALocker = hunterPos.distanceTo(lPos);
+          const hDistBLocker = hunterBPos.distanceTo(lPos);
+          const rb = currentLocker.roomBounds;
+          const hunterAInRoom = (hunterPos.x >= rb.minX && hunterPos.x <= rb.maxX && hunterPos.z >= rb.minZ && hunterPos.z <= rb.maxZ);
+          const hunterBInRoom = (hunterBPos.x >= rb.minX && hunterBPos.x <= rb.maxX && hunterBPos.z >= rb.minZ && hunterBPos.z <= rb.maxZ);
+
+          const threatA = (hunterAInRoom || hDistALocker <= 4.0);
+          const threatB = (hunterBInRoom || hDistBLocker <= 4.0);
+          lockerThreatActive = (threatA || threatB);
+
+          if (lockerThreatActive) {
+            const minThreatDist = Math.min(threatA ? hDistALocker : 999, threatB ? hDistBLocker : 999);
+            lockerThreatVol = Math.max(0.2, Math.min(1.0, 1.2 - (minThreatDist / 6.0)));
+          }
+        }
+
+        // Space key holds breath inside locker
+        if (isHidden && (lockerThreatActive || proxHeartbeatVol > 0)) {
+          isHoldingBreath = !!(keysDown['Space'] || keysDown[' ']);
+        } else if (!isHidden) {
+          isHoldingBreath = false;
+        }
+
+        // Stacking heartbeat volume: inside locker, breath hold suppresses heartbeat audio
+        let effectiveHeartbeatVol = Math.max(proxHeartbeatVol, lockerThreatVol);
+        if (isHidden && isHoldingBreath) {
+          effectiveHeartbeatVol = 0.0; // suppressed while holding breath in locker
+        }
+
+        if (effectiveHeartbeatVol > 0.01) {
+          const hbInterval = 0.85;
+          if (elapsedTime - soundEngine.lastHeartbeatTime > hbInterval) {
+            soundEngine.playHeartbeat(effectiveHeartbeatVol);
+            soundEngine.lastHeartbeatTime = elapsedTime;
+          }
+        }
+
+        const breathContainer = document.getElementById('breath-container');
+        const breathFill = document.getElementById('breath-fill');
+
+        if (isHidden && currentLocker) {
+          if (lockerThreatActive || proxHeartbeatVol > 0) {
+            hunterGoneTimer = 0.0;
+
+            if (isHoldingBreath) {
+              breathTimer = Math.max(0, breathTimer - delta);
+
+              if (breathTimer <= 0) {
+                soundEngine.playGasp();
+                const hDistAL = hunterPos.distanceTo(currentLocker.pos);
+                const hDistBL = hunterBPos.distanceTo(currentLocker.pos);
+                // Gasp at empty draws ANY hunter within 10 m
+                if (hDistAL <= 10.0 || hDistBL <= 10.0) {
+                  if (hDistAL <= 10.0) hunterState = HUNTER_STATE.CHASE;
+                  if (hDistBL <= 10.0) hunterBState = HUNTER_STATE.CHASE;
+                  triggerCatch();
+                } else {
+                  breathTimer = 2.0;
+                }
+              }
+            }
+
+            breathContainer.style.display = 'flex';
+            // Round 9: breath bar drains over exactly 10 seconds of holding
+            const pct = Math.max(0, Math.min(100, (breathTimer / 10.0) * 100));
+            breathFill.style.width = pct + '%';
+            if (breathTimer <= 3.0) {
+              breathFill.classList.add('danger');
+            } else {
+              breathFill.classList.remove('danger');
+            }
+          } else {
+            isHoldingBreath = false;
+            hunterGoneTimer += delta;
+            if (hunterGoneTimer >= 3.0) {
+              breathTimer = 10.0; // Round 9: refills to 10.0s after 3s absence
+            }
+
+            if (breathTimer < 10.0) {
+              breathContainer.style.display = 'flex';
+              const pct = (breathTimer / 10.0) * 100;
+              breathFill.style.width = pct + '%';
+              breathFill.classList.remove('danger');
+            } else {
+              breathContainer.style.display = 'none';
+            }
+          }
+        } else {
+          breathContainer.style.display = 'none';
+        }
+
+        // Door locked hint timer
+        if (doorLockedHintTimer > 0) {
+          doorLockedHintTimer -= delta;
+          if (doorLockedHintTimer <= 0) {
+            const hintEl = document.getElementById('door-locked-hint');
+            if (hintEl) hintEl.style.display = 'none';
+          }
+        }
+
+        // --- 5. INTERACTION PROMPT & HUD (NEAREST HUNTER + SECONDARY CHASE ROW) ---
+        const nearestState = (hunterDistA <= hunterDistB) ? hunterState : hunterBState;
+        const otherState = (hunterDistA <= hunterDistB) ? hunterBState : hunterState;
+
+        const hudHunterEl = document.getElementById('hud-hunter');
+        hudHunterEl.innerText = nearestState;
+        hudHunterEl.className = 'hud-hunter state-' + nearestState;
+
+        const hudHunterSecondaryEl = document.getElementById('hud-hunter-secondary');
+        if (hudHunterSecondaryEl) {
+          if (otherState === 'CHASE') {
+            hudHunterSecondaryEl.style.display = 'block';
+            hudHunterSecondaryEl.innerText = 'HUNTER 2 CHASING';
+          } else {
+            hudHunterSecondaryEl.style.display = 'none';
+          }
+        }
+
+        const promptEl = document.getElementById('prompt-msg');
+        let showPrompt = false;
+
+        if (isHidden) {
+          promptEl.innerText = '[E] EXIT LOCKER';
+          showPrompt = true;
+        } else {
+          const promptCandidates = [];
+
+          // Shortcut Doors (Round 8)
+          const dOpenA = playerPos.distanceTo(new THREE.Vector3(-8, 1.6, -6));
+          const dBlankA = playerPos.distanceTo(new THREE.Vector3(-12, 1.6, 3));
+          if (!shortcutAOpen) {
+            if (dOpenA <= 2.2 && playerPos.z <= -5.8) {
+              promptCandidates.push({ text: '[E] OPEN SHORTCUT', dist: dOpenA });
+            } else if (dBlankA <= 2.2 && playerPos.x <= -11.8) {
+              promptCandidates.push({ text: 'LOCKED FROM THIS SIDE', dist: dBlankA });
+            }
+          }
+
+          const dOpenB = playerPos.distanceTo(new THREE.Vector3(-8, 1.6, 6));
+          const dBlankB = playerPos.distanceTo(new THREE.Vector3(-12, 1.6, -3));
+          if (!shortcutBOpen) {
+            if (dOpenB <= 2.2 && playerPos.z >= 5.8) {
+              promptCandidates.push({ text: '[E] OPEN SHORTCUT', dist: dOpenB });
+            } else if (dBlankB <= 2.2 && playerPos.x <= -11.8) {
+              promptCandidates.push({ text: 'LOCKED FROM THIS SIDE', dist: dBlankB });
+            }
+          }
+
+          // Exit Door
+          if (!exitDoorUnlocked) {
+            const dExit = playerPos.distanceTo(new THREE.Vector3(-20, 1.6, -4));
+            if (dExit <= 2.5) {
+              if (isUnlockingSequence) {
+                promptCandidates.push({ text: `UNLOCKING EXIT... (${unlockStageIndex}/6)`, dist: dExit });
+              } else if (doorLockedHintTimer > 0) {
+                promptCandidates.push({ text: `NEED ${6 - keysCollected} MORE KEYS`, dist: dExit });
+              } else if (keysCollected >= 6) {
+                promptCandidates.push({ text: '[E] UNLOCK EXIT', dist: dExit });
+              } else {
+                promptCandidates.push({ text: `NEED ${6 - keysCollected} MORE KEYS`, dist: dExit });
+              }
+            }
+          }
+
+          // Keys
+          for (let i = 0; i < keys.length; i++) {
+            if (!keys[i].isCollected) {
+              const dKey = playerPos.distanceTo(keys[i].origPos);
+              if (dKey <= 2.0) {
+                promptCandidates.push({ text: '[E] PICK UP KEY', dist: dKey });
+              }
+            }
+          }
+
+          // Lockers
+          for (let i = 0; i < lockers.length; i++) {
+            const dLocker = playerPos.distanceTo(lockers[i].pos);
+            if (dLocker <= 1.8) {
+              promptCandidates.push({ text: '[E] HIDE IN LOCKER', dist: dLocker });
+            }
+          }
+
+          if (promptCandidates.length > 0) {
+            promptCandidates.sort((a, b) => a.dist - b.dist);
+            promptEl.innerText = promptCandidates[0].text;
+            showPrompt = true;
+          }
+        }
+
+        promptEl.style.display = showPrompt ? 'block' : 'none';
+
+        updateHUD();
+      }
+
+      // --- EXPORT STATE OBJECT ---
+      updateArenaState();
+
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+  </script>
+</body>
+</html>

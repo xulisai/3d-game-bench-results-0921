@@ -1,0 +1,2242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Avalanche Escape — The Descent</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #dceaf8; }
+  body { font-family: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif; }
+  canvas { display: block; }
+  #hud {
+    position: fixed; top: 18px; left: 18px; z-index: 10; display: flex; flex-direction: column; gap: 10px;
+    user-select: none; pointer-events: none;
+  }
+  .stat {
+    background: rgba(12, 28, 52, 0.55); border: 1px solid rgba(255,255,255,0.22); border-radius: 10px;
+    padding: 7px 16px 9px; min-width: 168px; backdrop-filter: blur(3px);
+    box-shadow: 0 3px 14px rgba(8, 22, 44, 0.25);
+  }
+  .stat .label { font-size: 11px; letter-spacing: 2.5px; color: #bcd2ee; font-weight: 600; }
+  .stat .value { font-size: 30px; line-height: 1.05; color: #ffffff; font-weight: 700;
+    text-shadow: 0 2px 4px rgba(5, 18, 38, 0.5); font-variant-numeric: tabular-nums; }
+  .stat .value .unit { font-size: 14px; font-weight: 600; color: #cfe0f5; }
+  .stat .value.small { font-size: 17px; line-height: 1.35; padding-top: 5px; color: #eaf3fd; font-weight: 600; }
+  .scorebox { margin: 4px auto 14px; max-width: 420px; text-align: left; }
+  .srow { display: flex; justify-content: space-between; gap: 24px; padding: 5px 2px; font-size: 16px;
+    color: #d8e7f8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.12); }
+  .srow span:last-child { color: #ffd98a; font-variant-numeric: tabular-nums; }
+  .srow.total { border-bottom: none; border-top: 2px solid rgba(255,255,255,0.35); margin-top: 3px;
+    font-size: 19px; color: #fff; font-weight: 800; }
+  .gradewrap { margin: 2px 0 12px; }
+  .grade { display: inline-block; font-size: 58px; font-weight: 800; line-height: 1.1; padding: 2px 26px;
+    border-radius: 14px; border: 2px solid rgba(255,255,255,0.4); }
+  .grade-S { color: #ffd23f; text-shadow: 0 0 24px rgba(255,210,63,0.55); }
+  .grade-A { color: #7ce38b; }
+  .grade-B { color: #7db4e8; }
+  .grade-C { color: #ff8a70; }
+  .weights { font-size: 12px; color: #9fc3e8; letter-spacing: 0.4px; margin-bottom: 16px; }
+  #hint {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 10;
+    color: rgba(255,255,255,0.92); background: rgba(12, 28, 52, 0.42); border-radius: 999px;
+    padding: 6px 18px; font-size: 13px; letter-spacing: 1px; pointer-events: none; user-select: none;
+    border: 1px solid rgba(255,255,255,0.16);
+  }
+  .card {
+    position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; text-align: center; color: #fff; user-select: none;
+    background: radial-gradient(ellipse at 50% 42%, rgba(10, 30, 60, 0.20) 0%, rgba(8, 22, 44, 0.62) 100%);
+  }
+  .card.hidden { display: none; }
+  .panel {
+    background: rgba(10, 26, 50, 0.55); border: 1px solid rgba(255,255,255,0.25); border-radius: 18px;
+    padding: 40px 58px 34px; box-shadow: 0 12px 50px rgba(4, 14, 32, 0.45); backdrop-filter: blur(4px);
+    max-width: 760px;
+  }
+  .card h1 {
+    margin: 0 0 6px; font-size: 62px; letter-spacing: 6px; font-weight: 800; line-height: 1;
+    color: #ffffff; text-shadow: 0 4px 0 #9c1f1f, 0 8px 26px rgba(0,0,0,0.45);
+  }
+  .card h1 .accent { color: #ff5a3c; }
+  .card .sub { margin: 0 0 18px; font-size: 14px; letter-spacing: 5px; color: #9fc3e8; font-weight: 700; }
+  .card .objective { margin: 0 0 22px; font-size: 19px; line-height: 1.45; color: #eaf3fd; font-weight: 500; }
+  .card .controls { display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap;
+    margin-bottom: 26px; font-size: 15px; color: #d8e7f8; font-weight: 600; }
+  kbd {
+    display: inline-block; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.4);
+    border-bottom-width: 3px; border-radius: 7px; padding: 4px 10px; font-family: inherit; font-size: 13px;
+    font-weight: 700; color: #fff; letter-spacing: 1px;
+  }
+  .dot { opacity: 0.45; }
+  .press { font-size: 17px; letter-spacing: 2px; font-weight: 700; color: #ffd98a; animation: pulse 1.5s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+  #finish-card h2 { margin: 0 0 4px; font-size: 54px; letter-spacing: 8px; font-weight: 800;
+    text-shadow: 0 4px 0 #9c1f1f, 0 8px 26px rgba(0,0,0,0.45); }
+  #final-time { font-size: 66px; font-weight: 800; color: #ffd98a; margin: 6px 0 22px;
+    text-shadow: 0 4px 18px rgba(0,0,0,0.4); font-variant-numeric: tabular-nums; }
+  #err { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center;
+    color: #fff; background: #16324f; font-size: 18px; padding: 30px; text-align: center; }
+</style>
+</head>
+<body>
+<div id="hud" style="display:none">
+  <div class="stat"><div class="label">TIME</div><div class="value" id="hud-time">0:00.0</div></div>
+  <div class="stat"><div class="label">SPEED</div><div class="value" id="hud-speed">0<span class="unit"> km/h</span></div></div>
+  <div class="stat"><div class="label">TO FINISH</div><div class="value" id="hud-dist">2416 m</div></div>
+  <div class="stat"><div class="label">SNOWPACK</div><div class="value small" id="hud-snow">0 in flight · 0 displaced</div></div>
+  <div class="stat"><div class="label">AVALANCHE</div><div class="value small" id="hud-av">stable</div></div>
+  <div class="stat"><div class="label">AIR TIME</div><div class="value small" id="hud-air">0.0 s</div></div>
+  <div class="stat"><div class="label">GHOST</div><div class="value small" id="hud-ghost">none — finish to set one</div></div>
+</div>
+<div id="hint" style="display:none">SPACE jump&nbsp;&nbsp;·&nbsp;&nbsp;C camera&nbsp;&nbsp;·&nbsp;&nbsp;G clear ghost&nbsp;&nbsp;·&nbsp;&nbsp;R restart</div>
+<div id="title-card" class="card">
+  <div class="panel">
+    <h1>AVALANCHE <span class="accent">ESCAPE</span></h1>
+    <div class="sub">THE DESCENT</div>
+    <p class="objective">Race from the summit to the finish banner — time, air time and clean lines score. Steep, deep snow can slide: carve it hard and the mountain may answer.</p>
+    <div class="controls">
+      <kbd>&#8592;</kbd><kbd>&#8594;</kbd> steer <span class="dot">|</span>
+      <kbd>SPACE</kbd> jump <span class="dot">|</span>
+      <kbd>C</kbd> camera <span class="dot">|</span>
+      <kbd>G</kbd> clear ghost <span class="dot">|</span>
+      <kbd>R</kbd> restart
+    </div>
+    <div class="press">PRESS <kbd>ENTER</kbd> TO START</div>
+  </div>
+</div>
+<div id="finish-card" class="card hidden">
+  <div class="panel">
+    <h2>FINISH!</h2>
+    <div id="final-time">0:00.0</div>
+    <div class="scorebox" id="score-rows"></div>
+    <div class="gradewrap"><div id="final-grade" class="grade grade-B">B</div></div>
+    <div class="weights">score = time 1000×(1.6 − t/75 s) + air 300×(air/6 s) + line 300 clean · 100 outrun · 0 slow-safe</div>
+    <div class="press">PRESS <kbd>R</kbd> TO SKI AGAIN</div>
+  </div>
+</div>
+<div id="fail-card" class="card hidden">
+  <div class="panel">
+    <h2 style="color:#ff6a4d">CAUGHT!</h2>
+    <p class="objective">The avalanche swept you away. Pick a safer line — or ski faster than the flow.</p>
+    <div class="press">PRESS <kbd>R</kbd> TO SKI AGAIN</div>
+  </div>
+</div>
+<div id="err"></div>
+
+<script src="./assets/_shared/three/build/three.min.js"></script>
+<script>
+(function () {
+'use strict';
+
+/* ============================== helpers ============================== */
+function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function smoothstep(a, b, x) {
+  const t = clamp((x - a) / (b - a), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+/* deterministic integer hash -> [0,1) : no Math.random anywhere */
+function hash01(i) {
+  let t = (i + 0x9e3779b9) | 0;
+  t = Math.imul(t ^ (t >>> 16), 0x21f0aaad);
+  t = Math.imul(t ^ (t >>> 15), 0x735a2d97);
+  t = (t ^ (t >>> 15)) >>> 0;
+  return t / 4294967296;
+}
+function hash11(i, salt) { return hash01((i | 0) * 374761393 + (salt | 0) * 2246822519); }
+
+/* ============================== terrain ============================== */
+/* Downhill direction is -Z. t = -z is distance from the summit.
+   The profile is integrated once at load from an analytic grade function:
+   fully deterministic, no randomness, same mountain every reload.       */
+const NXC = 91, NZC = 764;
+const X_STEP = 3.5, T_STEP = 3.5;
+const X_HALF = (NXC - 1) * X_STEP / 2;            /* 157.5 */
+const T_MIN = -60, T_MAX = T_MIN + (NZC - 1) * T_STEP; /* 2610.5 */
+const FINISH_T = 2430;
+const H0 = 920;
+
+function gradeAt(t, x) {
+  let g = 0.35
+    + 0.13 * Math.sin(t * (2 * Math.PI / 430))
+    + 0.075 * Math.sin(t * (2 * Math.PI / 175) + 1.1)
+    + (x / 140) * 0.05 * Math.sin(t * (2 * Math.PI / 265) + 0.5);
+  g *= 0.42 + 0.58 * smoothstep(0, 70, t);        /* gentle summit ease-in */
+  if (g < 0.12) g = 0.12;                          /* never a stall-flat on the descent */
+  const r = smoothstep(2200, 2400, t);            /* valley runout */
+  return g * (1 - r) + 0.04 * r;
+}
+
+const P = new Float64Array(NXC * NZC);
+(function buildProfile() {
+  for (let i = 0; i < NXC; i++) {
+    const x = -X_HALF + i * X_STEP;
+    let h = H0;
+    P[i * NZC] = h;
+    for (let j = 1; j < NZC; j++) {
+      const t0 = T_MIN + (j - 1) * T_STEP;
+      h -= gradeAt(t0 + T_STEP * 0.5, x) * T_STEP;
+      P[i * NZC + j] = h;
+    }
+  }
+})();
+
+function baseHeight(x, t) {
+  let fx = (x + X_HALF) / X_STEP;
+  fx = clamp(fx, 0, NXC - 1.0001);
+  const i0 = Math.floor(fx), ax = fx - i0, i1 = Math.min(i0 + 1, NXC - 1);
+  let ft = (t - T_MIN) / T_STEP;
+  ft = clamp(ft, 0, NZC - 1.0001);
+  const j0 = Math.floor(ft), at = ft - j0, j1 = Math.min(j0 + 1, NZC - 1);
+  const a = P[i0 * NZC + j0], b = P[i1 * NZC + j0], c = P[i0 * NZC + j1], d = P[i1 * NZC + j1];
+  return (a * (1 - ax) + b * ax) * (1 - at) + (c * (1 - ax) + d * ax) * at;
+}
+
+function terrainH(x, z) {
+  const t = -z;
+  let h = baseHeight(x, t);
+  h += 0.0018 * x * x + 0.043 * x;                /* bowl cross-section, slightly tilted */
+  const fade = smoothstep(40, 150, t);            /* two winding gullies */
+  if (fade > 0) {
+    const dx1 = x - (16 * Math.sin(t * 0.011220) - 6);
+    const dx2 = x - (20 * Math.sin(t * 0.007757) + 38);
+    h -= fade * (5.2 * Math.exp(-dx1 * dx1 / 968) + 3.6 * Math.exp(-dx2 * dx2 / 512));
+  }
+  h += 0.7 * Math.sin(x * 0.098175) * Math.sin(t * 0.027325 + 0.4); /* lateral rolls */
+  const ax = Math.abs(x);
+  if (ax > 118) h += 0.07 * Math.pow(ax - 118, 1.7); /* valley walls */
+  return h;
+}
+
+const _n = { x: 0, y: 1, z: 0 };
+function terrainNormal(x, z, out) {
+  const e = 0.9;
+  const dhx = (terrainH(x + e, z) - terrainH(x - e, z)) / (2 * e);
+  const dhz = (terrainH(x, z + e) - terrainH(x, z - e)) / (2 * e);
+  const il = 1 / Math.sqrt(dhx * dhx + 1 + dhz * dhz);
+  out.x = -dhx * il; out.y = il; out.z = -dhz * il;
+  return out;
+}
+
+/* ============================== three setup ============================== */
+const errBox = document.getElementById('err');
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+} catch (e) {
+  errBox.style.display = 'flex';
+  errBox.textContent = 'WebGL is not available in this browser, so Avalanche Escape cannot run.';
+  return;
+}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+if ('useLegacyLights' in renderer) renderer.useLegacyLights = true;
+if ('outputColorSpace' in renderer && THREE.SRGBColorSpace) renderer.outputColorSpace = THREE.SRGBColorSpace;
+else if (THREE.sRGBEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
+function srgbTex(tex) {
+  if ('colorSpace' in tex && THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+  else if (THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
+  return tex;
+}
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0xd6e6f5, 0.00078);
+
+const camera = new THREE.PerspectiveCamera(66, window.innerWidth / window.innerHeight, 0.1, 9000);
+
+const SUN_DIR = new THREE.Vector3(-0.45, 0.62, -0.40).normalize();
+
+const hemi = new THREE.HemisphereLight(0xcfe2ff, 0xeef4ff, 0.55);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff2dd, 1.0);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -90; sun.shadow.camera.right = 90;
+sun.shadow.camera.top = 90; sun.shadow.camera.bottom = -90;
+sun.shadow.camera.near = 5; sun.shadow.camera.far = 420;
+sun.shadow.bias = -0.00015;
+sun.shadow.normalBias = 2.2;
+scene.add(sun);
+scene.add(sun.target);
+
+/* gradient sky with sun glow */
+const sky = new THREE.Mesh(
+  new THREE.SphereGeometry(4200, 24, 16),
+  new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, fog: false,
+    uniforms: { sunDir: { value: SUN_DIR } },
+    vertexShader: 'varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: [
+      'varying vec3 vDir; uniform vec3 sunDir;',
+      'void main(){',
+      '  vec3 d = normalize(vDir);',
+      '  float h = max(d.y, 0.0);',
+      '  vec3 col = mix(vec3(0.914, 0.949, 0.988), vec3(0.352, 0.572, 0.852), pow(h, 0.62));',
+      '  float s = max(dot(d, sunDir), 0.0);',
+      '  col += vec3(1.0, 0.93, 0.78) * (pow(s, 600.0) * 1.1 + pow(s, 24.0) * 0.10 + pow(s, 3.0) * 0.05);',
+      '  gl_FragColor = vec4(col, 1.0);',
+      '}'
+    ].join('\n')
+  })
+);
+sky.frustumCulled = false;
+scene.add(sky);
+
+/* ============================== terrain mesh ============================== */
+(function buildTerrainMesh() {
+  const vcount = NXC * NZC;
+  const heights = new Float32Array(vcount);
+  const positions = new Float32Array(vcount * 3);
+  const colors = new Float32Array(vcount * 3);
+  for (let j = 0; j < NZC; j++) {
+    const t = T_MIN + j * T_STEP, z = -t;
+    for (let i = 0; i < NXC; i++) {
+      const x = -X_HALF + i * X_STEP;
+      const h = terrainH(x, z);
+      const k = j * NXC + i;
+      heights[k] = h;
+      positions[k * 3] = x; positions[k * 3 + 1] = h; positions[k * 3 + 2] = z;
+    }
+  }
+  const cS = [0.925, 0.955, 1.0], cR = [0.235, 0.245, 0.285];
+  for (let j = 0; j < NZC; j++) {
+    const t = T_MIN + j * T_STEP;
+    for (let i = 0; i < NXC; i++) {
+      const x = -X_HALF + i * X_STEP;
+      const iL = Math.max(0, i - 1), iR = Math.min(NXC - 1, i + 1);
+      const jD = Math.max(0, j - 1), jU = Math.min(NZC - 1, j + 1);
+      const sx = (heights[j * NXC + iR] - heights[j * NXC + iL]) / ((iR - iL) * X_STEP);
+      const sz = (heights[jU * NXC + i] - heights[jD * NXC + i]) / ((jU - jD) * T_STEP);
+      const slope = Math.sqrt(sx * sx + sz * sz);
+      const w = smoothstep(0.72, 1.05, slope);
+      const vary = 0.965 + 0.035 * Math.sin(x * 0.043 + t * 0.031) + 0.025 * Math.sin(x * 0.11 - t * 0.052);
+      const k = (j * NXC + i) * 3;
+      colors[k] = lerp(cS[0] * vary, cR[0], w);
+      colors[k + 1] = lerp(cS[1] * vary, cR[1], w);
+      colors[k + 2] = lerp(cS[2] * vary, cR[2], w);
+    }
+  }
+  const quads = (NXC - 1) * (NZC - 1);
+  const index = new Uint32Array(quads * 6);
+  let p = 0;
+  for (let j = 0; j < NZC - 1; j++) {
+    for (let i = 0; i < NXC - 1; i++) {
+      const a = j * NXC + i, b = a + 1, c = a + NXC, d = c + 1;
+      index[p++] = a; index[p++] = b; index[p++] = d;
+      index[p++] = a; index[p++] = d; index[p++] = c;
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setIndex(new THREE.BufferAttribute(index, 1));
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+})();
+
+/* ============================== props & colliders ============================== */
+const colliders = [];
+const cellMap = new Map();
+const CELL = 8;
+function addCollider(x, z, r) {
+  const c = { x: x, z: z, r: r };
+  colliders.push(c);
+  const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL);
+  const key = (cx + 64) * 1000 + (cz + 400);
+  let arr = cellMap.get(key);
+  if (!arr) { arr = []; cellMap.set(key, arr); }
+  arr.push(c);
+  return c;
+}
+function nearColliders(x, z, out) {
+  out.length = 0;
+  const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL);
+  for (let i = -1; i <= 1; i++) {
+    for (let j = -1; j <= 1; j++) {
+      const arr = cellMap.get((cx + i + 64) * 1000 + (cz + j + 400));
+      if (arr) for (let k = 0; k < arr.length; k++) out.push(arr[k]);
+    }
+  }
+  return out;
+}
+
+const clearZones = [
+  { x: 22, z: 2, r: 8 },        /* lift station */
+  { x: 0, z: -8, r: 7 },        /* start gate */
+  { x: 0, z: -FINISH_T, r: 17 },/* finish area */
+  { x: -30, z: -2478, r: 13 },  /* lodge */
+  { x: 17.5, z: -2475, r: 13 }, /* fence wing */
+  { x: -17.5, z: -2475, r: 13 }
+];
+const treeSpots = [];
+const rockSpots = [];
+const wandSpots = [];
+function inClearZone(x, z, pad) {
+  for (let i = 0; i < clearZones.length; i++) {
+    const c = clearZones[i];
+    const dx = x - c.x, dz = z - c.z;
+    if (dx * dx + dz * dz < (c.r + pad) * (c.r + pad)) return true;
+  }
+  return false;
+}
+
+/* --- lift towers along the right flank + cable --- */
+const towerTopPts = [];
+(function buildLift() {
+  const towerGeo = new THREE.CylinderGeometry(0.22, 0.34, 11, 7);
+  const armGeo = new THREE.BoxGeometry(2.9, 0.28, 0.28);
+  const mat = new THREE.MeshLambertMaterial({ color: 0x5a6470 });
+  for (let k = 0; k < 14; k++) {
+    const t = 40 + k * 170, z = -t;
+    const baseY = terrainH(64, z);
+    const pole = new THREE.Mesh(towerGeo, mat);
+    pole.position.set(64, baseY + 5.5, z);
+    pole.castShadow = true;
+    scene.add(pole);
+    const arm = new THREE.Mesh(armGeo, mat);
+    arm.position.set(64, baseY + 10.5, z);
+    arm.castShadow = true;
+    scene.add(arm);
+    addCollider(64, z, 1.15);
+    clearZones.push({ x: 64, z: z, r: 4.5 });
+    towerTopPts.push({ x: 64, y: baseY + 10.6, z: z });
+  }
+  /* cable: station bullwheel down through the tower tops, with sag */
+  const stationY = terrainH(22, 2);
+  const path = [{ x: 22, y: stationY + 4.4, z: 0 }].concat(towerTopPts);
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x3a3f46 });
+  for (let side = -1; side <= 1; side += 2) {
+    const pts = [];
+    for (let s = 0; s < path.length - 1; s++) {
+      const a = path[s], b = path[s + 1];
+      const span = Math.sqrt((b.x - a.x) * (b.x - a.x) + (b.z - a.z) * (b.z - a.z));
+      const sag = Math.min(4.5, span * 0.028);
+      for (let u = 0; u < 10; u++) {
+        const f = u / 10;
+        pts.push(new THREE.Vector3(
+          lerp(a.x, b.x, f) + side * 0.55,
+          lerp(a.y, b.y, f) - 4 * sag * f * (1 - f),
+          lerp(a.z, b.z, f)
+        ));
+      }
+    }
+    const e = path[path.length - 1];
+    pts.push(new THREE.Vector3(e.x + side * 0.55, e.y, e.z));
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat));
+  }
+  /* chairs hanging on the uphill (second) span */
+  const chairGeo = new THREE.BoxGeometry(0.95, 0.14, 0.55);
+  const hangerGeo = new THREE.BoxGeometry(0.07, 1.5, 0.07);
+  const chairMat = new THREE.MeshLambertMaterial({ color: 0xc0392b });
+  const chairs = new THREE.InstancedMesh(chairGeo, chairMat, 13);
+  const hangers = new THREE.InstancedMesh(hangerGeo, new THREE.MeshLambertMaterial({ color: 0x444a52 }), 13);
+  chairs.frustumCulled = false; hangers.frustumCulled = false;
+  const d = new THREE.Object3D();
+  for (let k = 0; k < 13; k++) {
+    const a = path[k + 1], b = path[k + 2] || path[k + 1];
+    const f = 0.3 + 0.4 * hash11(k, 71);
+    const sag = Math.min(4.5, Math.sqrt((b.x - a.x) * (b.x - a.x) + (b.z - a.z) * (b.z - a.z)) * 0.028);
+    const px = lerp(a.x, b.x, f), py = lerp(a.y, b.y, f) - 4 * sag * f * (1 - f), pz = lerp(a.z, b.z, f);
+    d.position.set(px, py - 0.8, pz); d.rotation.set(0, 0, 0); d.scale.set(1, 1, 1); d.updateMatrix();
+    hangers.setMatrixAt(k, d.matrix);
+    d.position.set(px, py - 1.55, pz); d.updateMatrix();
+    chairs.setMatrixAt(k, d.matrix);
+  }
+  scene.add(chairs); scene.add(hangers);
+})();
+
+/* --- summit lift station --- */
+(function buildStation() {
+  const g = new THREE.Group();
+  const y = terrainH(22, 2);
+  const wallMat = new THREE.MeshLambertMaterial({ color: 0xe6dfd0 });
+  const roofMat = new THREE.MeshLambertMaterial({ color: 0xa33327 });
+  const darkMat = new THREE.MeshLambertMaterial({ color: 0x3a3f46 });
+  const platform = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.6, 5.5), darkMat);
+  platform.position.y = 0.3; platform.castShadow = true; g.add(platform);
+  const hut = new THREE.Mesh(new THREE.BoxGeometry(4.6, 2.7, 3.6), wallMat);
+  hut.position.set(0.6, 1.95, 0); hut.castShadow = true; g.add(hut);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(3.5, 1.7, 4), roofMat);
+  roof.position.set(0.6, 4.1, 0); roof.rotation.y = Math.PI / 4; roof.castShadow = true; g.add(roof);
+  const wheel = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.16, 8, 18), darkMat);
+  wheel.position.set(-2.6, 1.5, 0); wheel.rotation.x = Math.PI / 2 - 0.35; g.add(wheel);
+  g.position.set(22, y, 2);
+  g.rotation.y = Math.PI;
+  scene.add(g);
+  addCollider(22, 2, 4.1);
+})();
+
+/* --- start gate --- */
+(function buildGate() {
+  const g = new THREE.Group();
+  const y = terrainH(0, -8);
+  const poleMat = new THREE.MeshLambertMaterial({ color: 0x14549c });
+  for (let s = -1; s <= 1; s += 2) {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 3.5, 8), poleMat);
+    pole.position.set(5.5 * s, 1.75, 0); pole.castShadow = true; g.add(pole);
+    addCollider(5.5 * s, -8, 0.38);
+  }
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(11.4, 0.16, 0.16), poleMat);
+  bar.position.y = 3.4; g.add(bar);
+  const cv = document.createElement('canvas');
+  cv.width = 512; cv.height = 96;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#14549c'; ctx.fillRect(0, 0, 512, 96);
+  ctx.fillStyle = '#ffffff'; ctx.font = '700 62px "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('START', 256, 52);
+  const tex = srgbTex(new THREE.CanvasTexture(cv));
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(7.4, 1.4),
+    new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+  sign.position.y = 4.25; g.add(sign);
+  g.position.set(0, y, -8);
+  scene.add(g);
+})();
+
+/* --- finish banner, pennants --- */
+(function buildFinish() {
+  const z = -FINISH_T;
+  const yL = terrainH(-12.5, z), yR = terrainH(12.5, z);
+  const g = new THREE.Group();
+  const poleMat = new THREE.MeshLambertMaterial({ color: 0xc8102e });
+  for (let s = -1; s <= 1; s += 2) {
+    const py = terrainH(12.5 * s, z);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.17, 5.8, 8), poleMat);
+    pole.position.set(12.5 * s, py + 2.9, 0); pole.castShadow = true; g.add(pole);
+    addCollider(12.5 * s, z, 0.42);
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.7),
+      new THREE.MeshBasicMaterial({ color: 0xffd23f, side: THREE.DoubleSide }));
+    flag.position.set(12.5 * s + 0.62, py + 5.3, 0); g.add(flag);
+  }
+  const yMid = (yL + yR) / 2;
+  const cv = document.createElement('canvas');
+  cv.width = 1024; cv.height = 144;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#c8102e'; ctx.fillRect(0, 0, 1024, 144);
+  ctx.fillStyle = '#ffffff'; ctx.font = '800 104px "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('FINISH', 512, 78);
+  const tex = srgbTex(new THREE.CanvasTexture(cv));
+  tex.anisotropy = 4;
+  const banner = new THREE.Mesh(new THREE.PlaneGeometry(24, 3.2),
+    new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+  banner.position.set(0, yMid + 5.2, 0); g.add(banner);
+  /* pennant string between pole tops */
+  const penGeo = new THREE.ConeGeometry(0.32, 0.6, 4);
+  const penCols = [0xc8102e, 0xf4a300, 0x14549c, 0xffffff];
+  const pens = new THREE.InstancedMesh(penGeo, new THREE.MeshLambertMaterial({ color: 0xffffff }), 12);
+  pens.frustumCulled = false;
+  const d = new THREE.Object3D();
+  const cTmp = new THREE.Color();
+  for (let i = 0; i < 12; i++) {
+    const f = (i + 1) / 13;
+    const px = lerp(-12.5, 12.5, f);
+    const py = lerp(yL + 5.6, yR + 5.6, f) - 4 * 0.5 * f * (1 - f);
+    d.position.set(px, py - 0.32, 0);
+    d.rotation.set(Math.PI, 0, 0);
+    d.scale.set(1, 1, 1); d.updateMatrix();
+    pens.setMatrixAt(i, d.matrix);
+    pens.setColorAt(i, cTmp.setHex(penCols[i % 4]));
+  }
+  if (pens.instanceColor) pens.instanceColor.needsUpdate = true;
+  g.add(pens);
+  g.position.set(0, 0, z);
+  scene.add(g);
+})();
+
+/* --- valley lodge --- */
+(function buildLodge() {
+  const g = new THREE.Group();
+  const y = terrainH(-30, -2478);
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x7a5136 });
+  const darkMat = new THREE.MeshLambertMaterial({ color: 0x4a3423 });
+  const snowMat = new THREE.MeshLambertMaterial({ color: 0xf6f9ff });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(9.5, 3.4, 6.8), woodMat);
+  base.position.y = 1.7; base.castShadow = true; g.add(base);
+  const roofL = new THREE.Mesh(new THREE.BoxGeometry(6.1, 0.28, 7.6), darkMat);
+  roofL.position.set(-2.42, 4.2, 0); roofL.rotation.z = 0.62; roofL.castShadow = true; g.add(roofL);
+  const roofR = roofL.clone(); roofR.position.x = 2.42; roofR.rotation.z = -0.62; g.add(roofR);
+  const capL = new THREE.Mesh(new THREE.BoxGeometry(6.1, 0.16, 7.6), snowMat);
+  capL.position.set(-2.52, 4.42, 0); capL.rotation.z = 0.62; g.add(capL);
+  const capR = capL.clone(); capR.position.x = 2.32; capR.rotation.z = -0.62; g.add(capR);
+  const door = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 2.2), darkMat);
+  door.position.set(0, 1.15, 3.42); g.add(door);
+  const winMat = new THREE.MeshBasicMaterial({ color: 0xffca66 });
+  for (let i = -1; i <= 1; i += 2) {
+    const win = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.1), winMat);
+    win.position.set(3.0 * i, 2.0, 3.42); g.add(win);
+  }
+  const chim = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.6, 0.8), darkMat);
+  chim.position.set(2.6, 4.9, -1.2); chim.castShadow = true; g.add(chim);
+  g.position.set(-30, y, -2478);
+  g.rotation.y = 0.28;
+  scene.add(g);
+  addCollider(-32.5, -2478, 4.8);
+  addCollider(-27.5, -2478, 4.8);
+})();
+
+/* --- fence wings funneling the runout --- */
+(function buildFences() {
+  const postGeo = new THREE.CylinderGeometry(0.05, 0.06, 1.05, 6);
+  const postMat = new THREE.MeshLambertMaterial({ color: 0x8a6a42 });
+  const railGeo = new THREE.BoxGeometry(0.08, 0.1, 1);
+  const railMat = new THREE.MeshLambertMaterial({ color: 0x9c7a4e });
+  for (let side = -1; side <= 1; side += 2) {
+    const posts = [];
+    for (let i = 0; i <= 7; i++) {
+      const f = i / 7;
+      const x = side * (13 + f * 9);
+      const z = -(2445 + f * 60);
+      posts.push({ x: x, z: z, y: terrainH(x, z) });
+      addCollider(x, z, 0.32);
+    }
+    const postIM = new THREE.InstancedMesh(postGeo, postMat, posts.length);
+    postIM.frustumCulled = false;
+    const d = new THREE.Object3D();
+    for (let i = 0; i < posts.length; i++) {
+      d.position.set(posts[i].x, posts[i].y + 0.45, posts[i].z);
+      d.rotation.set(0, 0, 0); d.scale.set(1, 1, 1); d.updateMatrix();
+      postIM.setMatrixAt(i, d.matrix);
+    }
+    scene.add(postIM);
+    for (let i = 0; i < posts.length - 1; i++) {
+      const a = posts[i], b = posts[i + 1];
+      const dx = b.x - a.x, dz = b.z - a.z;
+      const len = Math.sqrt(dx * dx + dz * dz);
+      const yaw = Math.atan2(dx, dz);
+      for (let r = 0; r < 2; r++) {
+        const d2 = new THREE.Object3D();
+        d2.position.set((a.x + b.x) / 2, (a.y + b.y) / 2 + (r === 0 ? 0.45 : 0.85), (a.z + b.z) / 2);
+        d2.rotation.set(0, yaw, 0);
+        d2.scale.set(1, 1, len);
+        d2.updateMatrix();
+        const rail = new THREE.Mesh(railGeo, railMat);
+        rail.applyMatrix4(d2.matrix);
+        scene.add(rail);
+      }
+    }
+  }
+})();
+
+/* --- trail wands (bamboo markers, no collision: thin & flexible) --- */
+(function buildWands() {
+  const poleGeo = new THREE.CylinderGeometry(0.024, 0.032, 2.3, 6);
+  const flagGeo = new THREE.PlaneGeometry(0.34, 0.26);
+  const poleIM = new THREE.InstancedMesh(poleGeo, new THREE.MeshLambertMaterial({ color: 0xff8c1a }), 56);
+  const flagIM = new THREE.InstancedMesh(flagGeo, new THREE.MeshLambertMaterial({ color: 0xffd23f, side: THREE.DoubleSide }), 56);
+  poleIM.frustumCulled = false; flagIM.frustumCulled = false;
+  flagIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const d = new THREE.Object3D();
+  let idx = 0;
+  for (let t = 60; t <= 2400 && idx < 56; t += 85) {
+    const off = 9 + 3.2 * Math.sin(t * 0.0037);
+    for (let s = -1; s <= 1; s += 2) {
+      const x = off * s, z = -t;
+      const y = terrainH(x, z);
+      d.position.set(x, y + 1.15, z);
+      d.rotation.set(0, 0, 0); d.scale.set(1, 1, 1); d.updateMatrix();
+      poleIM.setMatrixAt(idx, d.matrix);
+      wandSpots.push({ x: x, z: z, y: y, yaw: hash11(idx, 7) * Math.PI * 2 });
+      idx++;
+      if (idx >= 56) break;
+    }
+  }
+  scene.add(poleIM); scene.add(flagIM);
+  window.__wandFlags = flagIM;
+})();
+
+/* --- rocks (dark outcrops, collidable) --- */
+(function buildRocks() {
+  const geo = new THREE.IcosahedronGeometry(1, 0);
+  const mat = new THREE.MeshLambertMaterial({ color: 0x3a3f47, flatShading: true });
+  const MAXR = 170;
+  const rocks = new THREE.InstancedMesh(geo, mat, MAXR);
+  rocks.frustumCulled = false;
+  rocks.castShadow = true; rocks.receiveShadow = true;
+  const d = new THREE.Object3D();
+  const cTmp = new THREE.Color();
+  let n = 0, tries = 0;
+  while (n < 46 && tries < 5000) {
+    tries++;
+    const x = (hash11(tries, 11) - 0.5) * 2 * (X_HALF - 8);
+    const t = 30 + hash11(tries, 12) * 2480;
+    if (Math.abs(x) < 30 && hash11(tries, 13) < 0.8) continue;
+    if (inClearZone(x, -t, 3)) continue;
+    const size = 1.1 + 2.6 * hash11(tries, 14) * hash11(tries, 14);
+    const count = 1 + Math.floor(hash11(tries, 15) * 3);
+    for (let s = 0; s < count && n < MAXR; s++) {
+      const rx = x + (hash11(tries * 10 + s, 16) - 0.5) * 11;
+      const rt = t + (hash11(tries * 10 + s, 17) - 0.5) * 4;
+      const rs = size * (0.55 + 0.45 * hash11(tries * 10 + s, 18));
+      if (inClearZone(rx, -rt, 2.5)) continue;
+      let ok = true;
+      for (let q = 0; q < rockSpots.length; q++) {
+        const dx = rx - rockSpots[q].x, dz = rt - rockSpots[q].t;
+        if (dx * dx + dz * dz < 6.8) { ok = false; break; }
+      }
+      if (!ok) continue;
+      const y = terrainH(rx, -rt);
+      d.position.set(rx, y + rs * 0.42, -rt);
+      d.rotation.set(0, hash11(tries * 10 + s, 19) * Math.PI * 2, 0);
+      d.scale.set(rs * (0.85 + 0.4 * hash11(tries * 10 + s, 20)), rs * (0.62 + 0.4 * hash11(tries * 10 + s, 21)), rs * (0.85 + 0.4 * hash11(tries * 10 + s, 22)));
+      d.updateMatrix();
+      rocks.setMatrixAt(n, d.matrix);
+      rocks.setColorAt(n, cTmp.setHSL(0.58, 0.05, 0.16 + 0.07 * hash11(tries * 10 + s, 23)));
+      rockSpots.push({ x: rx, t: rt, y: y, s: rs });
+      addCollider(rx, -rt, Math.max(0.9, rs * 0.85));
+      n++;
+    }
+  }
+  rocks.count = n;
+  if (rocks.instanceColor) rocks.instanceColor.needsUpdate = true;
+  scene.add(rocks);
+})();
+
+/* --- conifers (instanced, swaying canopy) --- */
+(function buildTrees() {
+  const MAXT = 620;
+  const trunkGeo = new THREE.CylinderGeometry(0.13, 0.2, 2.4, 6);
+  const fol1Geo = new THREE.ConeGeometry(1.4, 2.8, 7);
+  const fol2Geo = new THREE.ConeGeometry(1.0, 2.2, 7);
+  const cap1Geo = new THREE.ConeGeometry(0.95, 1.0, 7);
+  const cap2Geo = new THREE.ConeGeometry(0.68, 0.8, 7);
+  const trunkIM = new THREE.InstancedMesh(trunkGeo, new THREE.MeshLambertMaterial({ color: 0x5d4230 }), MAXT);
+  const fol1IM = new THREE.InstancedMesh(fol1Geo, new THREE.MeshLambertMaterial({ color: 0x1c5c33 }), MAXT);
+  const fol2IM = new THREE.InstancedMesh(fol2Geo, new THREE.MeshLambertMaterial({ color: 0x27713f }), MAXT);
+  const cap1IM = new THREE.InstancedMesh(cap1Geo, new THREE.MeshLambertMaterial({ color: 0xf4f8ff }), MAXT);
+  const cap2IM = new THREE.InstancedMesh(cap2Geo, new THREE.MeshLambertMaterial({ color: 0xf4f8ff }), MAXT);
+  const all = [trunkIM, fol1IM, fol2IM, cap1IM, cap2IM];
+  for (let i = 0; i < all.length; i++) {
+    all[i].frustumCulled = false;
+    all[i].castShadow = true;
+    if (i > 0) all[i].instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  }
+  const partLocal = [];
+  const dl = new THREE.Object3D();
+  function part(y) { dl.position.set(0, y, 0); dl.rotation.set(0, 0, 0); dl.scale.set(1, 1, 1); dl.updateMatrix(); return dl.matrix.clone(); }
+  partLocal.push(part(1.2), part(2.9), part(4.4), part(3.6), part(5.1));
+  let n = 0, tries = 0;
+  while (n < MAXT && tries < 6000) {
+    tries++;
+    const x = (hash11(tries, 31) - 0.5) * 2 * (X_HALF - 6);
+    const t = 20 + hash11(tries, 32) * 2540;
+    if (Math.abs(x) < 24 && hash11(tries, 33) < 0.55) continue;      /* sparser center corridor */
+    if (t < 40 && Math.abs(x) < 12) continue;                        /* clean start */
+    if (t > 2500 && Math.abs(x) < 30) continue;                      /* open valley floor */
+    if (inClearZone(x, -t, 2)) continue;
+    let ok = true;
+    for (let q = 0; q < treeSpots.length; q++) {
+      const dx = x - treeSpots[q].x, dz = t - treeSpots[q].t;
+      if (dx * dx + dz * dz < 36) { ok = false; break; }
+    }
+    if (ok) for (let q = 0; q < rockSpots.length; q++) {
+      const dx = x - rockSpots[q].x, dz = t - rockSpots[q].t;
+      if (dx * dx + dz * dz < 12) { ok = false; break; }
+    }
+    if (ok) for (let q = 0; q < wandSpots.length; q++) {
+      const dx = x - wandSpots[q].x, dz = t + wandSpots[q].z;
+      if (dx * dx + dz * dz < 5) { ok = false; break; }
+    }
+    if (!ok) continue;
+    const nx = (terrainH(x + 0.8, -t) - terrainH(x - 0.8, -t)) / 1.6;
+    const nz = (terrainH(x, -t + 0.8) - terrainH(x, -t - 0.8)) / 1.6;
+    if (nx * nx + nz * nz > 0.55) continue;                          /* not on cliffs */
+    const s = 0.75 + 0.65 * hash11(tries, 34);
+    treeSpots.push({
+      x: x, t: t, y: terrainH(x, -t), s: s,
+      yaw: hash11(tries, 35) * Math.PI * 2,
+      phase: hash11(tries, 36) * Math.PI * 2
+    });
+    addCollider(x, -t, 0.42 * s);
+    n++;
+  }
+  /* static trunks */
+  const d = new THREE.Object3D();
+  for (let i = 0; i < n; i++) {
+    const tr = treeSpots[i];
+    d.position.set(tr.x, tr.y, -tr.t);
+    d.rotation.set(0, tr.yaw, 0);
+    d.scale.setScalar(tr.s);
+    d.updateMatrix();
+    trunkIM.setMatrixAt(i, d.matrix);
+  }
+  trunkIM.count = n;
+  fol1IM.count = fol2IM.count = cap1IM.count = cap2IM.count = n;
+  window.__treeParts = [fol1IM, fol2IM, cap1IM, cap2IM];
+  window.__treePartLocal = partLocal;
+  scene.add(trunkIM); scene.add(fol1IM); scene.add(fol2IM); scene.add(cap1IM); scene.add(cap2IM);
+})();
+
+/* --- distant peaks & clouds --- */
+(function buildBackdrop() {
+  const peakGeo = new THREE.ConeGeometry(1, 1, 6);
+  const peaks = new THREE.InstancedMesh(peakGeo, new THREE.MeshLambertMaterial({ color: 0xd3e0f2 }), 9);
+  peaks.frustumCulled = false;
+  const spots = [
+    [-900, -2300, 300, 420], [-380, -2750, 340, 500], [320, -2800, 300, 460],
+    [920, -2400, 320, 430], [1450, -1600, 260, 380], [-1350, -1500, 280, 400],
+    [1250, -500, 240, 340], [-700, 800, 300, 420], [650, 1050, 280, 400]
+  ];
+  const d = new THREE.Object3D();
+  for (let i = 0; i < spots.length; i++) {
+    d.position.set(spots[i][0], 60, spots[i][1]);
+    d.rotation.set(0, hash11(i, 41) * Math.PI, 0);
+    d.scale.set(spots[i][2], spots[i][3], spots[i][2]);
+    d.updateMatrix();
+    peaks.setMatrixAt(i, d.matrix);
+  }
+  scene.add(peaks);
+  const cloudGeo = new THREE.SphereGeometry(1, 10, 7);
+  const clouds = new THREE.InstancedMesh(cloudGeo, new THREE.MeshLambertMaterial({ color: 0xffffff }), 16);
+  clouds.frustumCulled = false;
+  for (let i = 0; i < 16; i++) {
+    const a = hash11(i, 42) * Math.PI * 2;
+    const r = 250 + 950 * hash11(i, 43);
+    const x = Math.cos(a) * r, z = Math.sin(a) * r - 1000;
+    d.position.set(x, 380 + 260 * hash11(i, 44), z);
+    d.rotation.set(0, hash11(i, 45) * Math.PI, 0);
+    d.scale.set(30 + 40 * hash11(i, 46), 7 + 5 * hash11(i, 47), 18 + 22 * hash11(i, 48));
+    d.updateMatrix();
+    clouds.setMatrixAt(i, d.matrix);
+  }
+  scene.add(clouds);
+})();
+
+/* ============================== skier ============================== */
+function buildSkier() {
+  const g = new THREE.Group();
+  const lean = new THREE.Group();
+  g.add(lean);
+  const MAT = function (c) { return new THREE.MeshLambertMaterial({ color: c }); };
+  const JACKET = MAT(0xe03a2f), PANTS = MAT(0x24324d), SKI = MAT(0xffa02b), SKITIP = MAT(0xd7263d);
+  const BOOT = MAT(0x22262b), HELMET = MAT(0xf4f6f8), DARK = MAT(0x1a2430), POLE = MAT(0xb9c0c8), GLOVE = MAT(0x2a2e33);
+  function box(w, h, d, mat) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.castShadow = true;
+    return m;
+  }
+  /* skis: local +X is the skier's LEFT; model faces local +Z */
+  for (let s = 0; s < 2; s++) {
+    const side = s === 0 ? 1 : -1;
+    const ski = new THREE.Group();
+    ski.position.set(0.13 * side, 0.045, 0.05);
+    lean.add(ski);
+    const board = box(0.095, 0.035, 1.5, SKI); board.position.z = 0.08; ski.add(board);
+    const tip = box(0.09, 0.03, 0.3, SKITIP); tip.position.set(0, 0.075, 0.9); tip.rotation.x = -0.55; ski.add(tip);
+    const bind = box(0.11, 0.055, 0.34, BOOT); bind.position.y = 0.045; ski.add(bind);
+  }
+  const hips = [], knees = [];
+  for (let s = 0; s < 2; s++) {
+    const side = s === 0 ? 1 : -1;
+    const hip = new THREE.Group();
+    hip.position.set(0.13 * side, 1.0, -0.02);
+    lean.add(hip);
+    const thigh = box(0.15, 0.44, 0.17, PANTS); thigh.position.y = -0.22; hip.add(thigh);
+    const knee = new THREE.Group(); knee.position.y = -0.44; hip.add(knee);
+    const shin = box(0.12, 0.42, 0.14, PANTS); shin.position.y = -0.21; knee.add(shin);
+    const boot = box(0.15, 0.17, 0.32, BOOT); boot.position.set(0, -0.47, 0.05); knee.add(boot);
+    hips.push(hip); knees.push(knee);
+  }
+  const body = new THREE.Group();
+  body.position.y = 1.0;
+  lean.add(body);
+  const torso = box(0.4, 0.56, 0.27, JACKET); torso.position.y = 0.30; body.add(torso);
+  const stripe = box(0.41, 0.12, 0.281, MAT(0xf4f0e6)); stripe.position.y = 0.40; body.add(stripe);
+  const head = new THREE.Group(); head.position.set(0, 0.64, 0.02); body.add(head);
+  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.145, 14, 11), HELMET);
+  helmet.position.y = 0.07; helmet.castShadow = true; head.add(helmet);
+  const gog = box(0.21, 0.075, 0.06, DARK); gog.position.set(0, 0.06, 0.125); head.add(gog);
+  const shoulders = [], elbows = [];
+  for (let s = 0; s < 2; s++) {
+    const side = s === 0 ? 1 : -1;
+    const sh = new THREE.Group(); sh.position.set(0.235 * side, 0.50, 0); body.add(sh);
+    const upper = box(0.095, 0.34, 0.10, JACKET); upper.position.y = -0.15; sh.add(upper);
+    const el = new THREE.Group(); el.position.y = -0.30; sh.add(el);
+    const fore = box(0.08, 0.28, 0.09, JACKET); fore.position.y = -0.13; el.add(fore);
+    const hand = box(0.075, 0.09, 0.075, GLOVE); hand.position.y = -0.30; el.add(hand);
+    const pg = new THREE.Group(); pg.position.set(0, -0.32, 0.02); el.add(pg);
+    pg.rotation.x = 0.55;
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 1.15, 5), POLE);
+    shaft.position.y = -0.48; pg.add(shaft);
+    const basket = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.09, 6), DARK);
+    basket.position.y = -1.0; basket.rotation.x = Math.PI; pg.add(basket);
+    sh.rotation.x = -0.5;
+    el.rotation.x = -0.55;
+    sh.rotation.z = -0.13 * side;
+    shoulders.push(sh); elbows.push(el);
+  }
+  return { group: g, lean: lean, hips: hips, knees: knees, body: body, head: head, shoulders: shoulders, elbows: elbows };
+}
+const skier = buildSkier();
+scene.add(skier.group);
+
+/* ============================== ghost replay ============================== */
+/* The best finished run is recorded at 30 Hz and stored in localStorage. The
+   ghost replays it as a translucent cyan twin: purely visual - it never
+   touches the snow layer, stress map, or avalanche flow. */
+const GHOST_KEY = 'avalancheEscape.ghost.v1';
+const GHOST_HZ = 30;
+let ghostData = null;
+let ghostTime = 0;
+const rec = { data: [], step: 0 };
+try {
+  const raw = localStorage.getItem(GHOST_KEY);
+  if (raw) {
+    const d = JSON.parse(raw);
+    if (d && d.v === 1 && Array.isArray(d.pos) && d.pos.length >= 9 && d.pos.length % 3 === 0 && d.score >= 0) ghostData = d;
+  }
+} catch (e) { ghostData = null; }
+function saveGhost(d) {
+  try { localStorage.setItem(GHOST_KEY, JSON.stringify(d)); } catch (e) {}
+}
+function clearGhost() {
+  ghostData = null;
+  ghostTime = 0;
+  try { localStorage.removeItem(GHOST_KEY); } catch (e) {}
+}
+function round2(v) { return Math.round(v * 100) / 100; }
+
+const ghost = buildSkier();
+ghost.group.visible = false;
+scene.add(ghost.group);
+ghost.group.traverse(function (o) {
+  if (o.isMesh) {
+    o.castShadow = false;
+    o.material = o.material.clone();
+    o.material.transparent = true;
+    o.material.opacity = 0.38;
+    o.material.color.setHex(0x5ad1ff);
+    o.material.depthWrite = false;
+  }
+});
+(function poseGhost() {
+  const c = 0.3, hipY = 1.017 - 0.183 * c;
+  ghost.hips.forEach(function (h) { h.position.y = hipY; h.rotation.x = -(0.15 + 0.75 * c); });
+  ghost.knees.forEach(function (k) { k.rotation.x = 0.25 + 0.95 * c; });
+  ghost.body.position.y = hipY + 0.02;
+  ghost.body.rotation.x = 0.3;
+})();
+let ghostYaw = 0;
+const _gs1 = { x: 0, y: 0, z: 0 }, _gs2 = { x: 0, y: 0, z: 0 };
+function ghostSample(time, out) {
+  const pos = ghostData.pos, n = pos.length / 3;
+  const fi = Math.min(n - 1, Math.max(0, time * GHOST_HZ));
+  const i0 = Math.floor(fi), f = fi - i0, i1 = Math.min(n - 1, i0 + 1);
+  out.x = lerp(pos[i0 * 3], pos[i1 * 3], f);
+  out.y = lerp(pos[i0 * 3 + 1], pos[i1 * 3 + 1], f);
+  out.z = lerp(pos[i0 * 3 + 2], pos[i1 * 3 + 2], f);
+}
+function updateGhostVisual(rdt) {
+  const g = ghost.group;
+  if (!ghostData || S.phase === 'title') { g.visible = false; return; }
+  g.visible = true;
+  ghostSample(ghostTime, _gs1);
+  ghostSample(ghostTime + 0.05, _gs2);
+  const dx = _gs2.x - _gs1.x, dz = _gs2.z - _gs1.z;
+  if (dx * dx + dz * dz > 1e-6) {
+    const target = Math.atan2(dx, dz);
+    let d = target - ghostYaw;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    ghostYaw += d * Math.min(1, 10 * rdt);
+  }
+  g.position.set(_gs1.x, _gs1.y + 0.006, _gs1.z);
+  g.rotation.set(0, ghostYaw, 0);
+}
+
+
+/* ============================== discrete snow layer ============================== */
+/* A lattice of snow clumps covers the mountain (rendered through two sliding
+   instanced windows). Clumps the skier plows are recorded in a persistent carve
+   map - the rut stays all run - and become pool-simulated particles with
+   position, velocity and mass: ballistic flight, terrain + pairwise collision,
+   settling into a stable sleeping state. Fully fixed-step and deterministic.  */
+const SNOW_S = 1.0;               /* near lattice spacing (m) */
+const SNOW_FS = 2.4;              /* far lattice spacing (m) */
+const SNOW_LAYER_H = 0.5;         /* packed snowpack thickness (m) */
+const SNOW_RUT = 0.82;            /* fraction of the layer carved away */
+const SNOW_NI = 108, SNOW_NJ = 180;      /* near window: 108 x 180 m */
+const SNOW_FNI = 125, SNOW_FNJ = 175;    /* far window: 300 x 420 m */
+const SNOW_POOL = 2400;           /* simulated particle slots */
+const SNOW_R = 0.15;              /* particle collision radius */
+
+const snowCarve = new Map();      /* nodeKey -> carve depth (0..1), persists all run */
+function _snowKey(i, j) { return i * 4096 + j; }
+
+const spX = new Float32Array(SNOW_POOL), spY = new Float32Array(SNOW_POOL), spZ = new Float32Array(SNOW_POOL);
+const svX = new Float32Array(SNOW_POOL), svY = new Float32Array(SNOW_POOL), svZ = new Float32Array(SNOW_POOL);
+const spM = new Float32Array(SNOW_POOL), spBounce = new Uint8Array(SNOW_POOL), spState = new Uint8Array(SNOW_POOL);
+const spTouch = new Uint8Array(SNOW_POOL), spHash = new Float32Array(SNOW_POOL);
+let snowCursor = 0, snowInFlight = 0, snowDisplaced = 0, snowBurstN = 1;
+let snowDirtyL = false, snowDirtyF = false, snowDirtyD = false;
+
+/* spatial hash for particle pairs - stamp-cleared, zero allocation */
+const SG_CELLS = 4096;
+const sgHead = new Int32Array(SG_CELLS), sgNext = new Int32Array(SNOW_POOL), sgStamp = new Int32Array(SG_CELLS);
+let sgStep = 0;
+function sgIndex(x, y, z) {
+  const a = Math.imul(Math.floor(x * 1.6667), 73856093);
+  const b = Math.imul(Math.floor(y * 1.6667), 19349663);
+  const c = Math.imul(Math.floor(z * 1.6667), 83492791);
+  return ((a ^ b ^ c) >>> 0) & (SG_CELLS - 1);
+}
+function sgIndexCell(cx, cy, cz) {
+  const a = Math.imul(cx, 73856093), b = Math.imul(cy, 19349663), c = Math.imul(cz, 83492791);
+  return ((a ^ b ^ c) >>> 0) & (SG_CELLS - 1);
+}
+
+function carveDepthAt(x, z) {
+  const t = -z;
+  const gx = x / SNOW_S - 0.5, gt = t / SNOW_S - 0.5;
+  const i0 = Math.floor(gx), j0 = Math.floor(gt);
+  const ax = gx - i0, at = gt - j0;
+  const m = snowCarve;
+  return ((m.get(_snowKey(i0, j0)) || 0) * (1 - ax) + (m.get(_snowKey(i0 + 1, j0)) || 0) * ax) * (1 - at)
+       + ((m.get(_snowKey(i0, j0 + 1)) || 0) * (1 - ax) + (m.get(_snowKey(i0 + 1, j0 + 1)) || 0) * ax) * at;
+}
+/* sharp snowpack top: particles land and rest on this (deposits raise it) */
+function snowSurfaceY(x, z) {
+  return terrainH(x, z) + SNOW_LAYER_H * (1 - SNOW_RUT * carveDepthAt(x, z)) + 0.42 * depositDepthAt(x, z);
+}
+/* skier contact: the pack with carve depth averaged over a 3x3 node window, so
+   the skier rides smoothly over fresh and carved snow instead of stepping
+   across the sharp rim of the trench they are currently cutting */
+function skierSurfaceY(x, z) {
+  const S1 = SNOW_S;
+  const d = (carveDepthAt(x, z)
+    + carveDepthAt(x + S1, z) + carveDepthAt(x - S1, z)
+    + carveDepthAt(x, z - S1) + carveDepthAt(x, z + S1)
+    + carveDepthAt(x + S1, z - S1) + carveDepthAt(x - S1, z - S1)
+    + carveDepthAt(x + S1, z + S1) + carveDepthAt(x - S1, z + S1)) / 9;
+  const dep = (depositDepthAt(x, z)
+    + depositDepthAt(x + S1, z) + depositDepthAt(x - S1, z)
+    + depositDepthAt(x, z - S1) + depositDepthAt(x, z + S1)
+    + depositDepthAt(x + S1, z - S1) + depositDepthAt(x - S1, z - S1)
+    + depositDepthAt(x + S1, z + S1) + depositDepthAt(x - S1, z + S1)) / 9;
+  return terrainH(x, z) + SNOW_LAYER_H * (1 - SNOW_RUT * d) + 0.42 * dep;
+}
+
+/* render meshes: near clumps, far drifts, and one debris slot per particle */
+const snowGeoNear = new THREE.OctahedronGeometry(1, 0);
+const snowGeoFar = new THREE.TetrahedronGeometry(1, 0);
+const snowMat = new THREE.MeshLambertMaterial({ color: 0xf7faff, flatShading: true });
+const nearIM = new THREE.InstancedMesh(snowGeoNear, snowMat, SNOW_NI * SNOW_NJ);
+const farIM = new THREE.InstancedMesh(snowGeoFar, snowMat, SNOW_FNI * SNOW_FNJ);
+const debrisIM = new THREE.InstancedMesh(snowGeoNear, snowMat, SNOW_POOL);
+nearIM.frustumCulled = false; farIM.frustumCulled = false; debrisIM.frustumCulled = false;
+nearIM.castShadow = false; farIM.castShadow = false; debrisIM.castShadow = false;
+nearIM.receiveShadow = true; farIM.receiveShadow = true; debrisIM.receiveShadow = true;
+nearIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+farIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+debrisIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+scene.add(nearIM); scene.add(farIM); scene.add(debrisIM);
+const _sd = new THREE.Object3D();
+const _sc = new THREE.Color();
+_sd.scale.setScalar(0);
+_sd.updateMatrix();
+for (let i = 0; i < SNOW_NI * SNOW_NJ; i++) { nearIM.setMatrixAt(i, _sd.matrix); nearIM.setColorAt(i, _sc.setRGB(1, 1, 1)); }
+for (let i = 0; i < SNOW_FNI * SNOW_FNJ; i++) { farIM.setMatrixAt(i, _sd.matrix); farIM.setColorAt(i, _sc.setRGB(1, 1, 1)); }
+for (let i = 0; i < SNOW_POOL; i++) debrisIM.setMatrixAt(i, _sd.matrix);
+nearIM.instanceMatrix.needsUpdate = true; farIM.instanceMatrix.needsUpdate = true; debrisIM.instanceMatrix.needsUpdate = true;
+
+/* ---- sliding windows over the lattice ---- */
+let nI0 = null, nJ0 = null, fI0 = null, fJ0 = null;
+const nodeInst = new Map();       /* near nodeKey -> instance index */
+
+function nearRefresh(a, b) {
+  const i = nI0 + a, j = nJ0 + b, key = _snowKey(i, j);
+  const idx = a * SNOW_NJ + b;
+  nodeInst.set(key, idx);
+  const nx = (i + 0.5) * SNOW_S, t = (j + 0.5) * SNOW_S;
+  if (Math.abs(nx) > X_HALF - 0.5 || t < T_MIN + 2 || t > T_MAX - 2) {
+    _sd.position.set(0, -999, 0); _sd.rotation.set(0, 0, 0); _sd.scale.setScalar(0); _sd.updateMatrix();
+    nearIM.setMatrixAt(idx, _sd.matrix);
+    nearIM.setColorAt(idx, _sc.setRGB(1, 1, 1));
+    return;
+  }
+  const dep = Math.min(2, depositMap.get(key) || 0);
+  if (snowCarve.has(key) && dep === 0) {          /* carved away: hidden, faint scrape tint kept for map */
+    _sd.position.set(0, -999, 0); _sd.rotation.set(0, 0, 0); _sd.scale.setScalar(0); _sd.updateMatrix();
+    nearIM.setMatrixAt(idx, _sd.matrix);
+    nearIM.setColorAt(idx, _sc.setRGB(0.80, 0.85, 0.92));
+    return;
+  }
+  const h1 = hash11(key, 1), h2 = hash11(key, 2), h3 = hash11(key, 3), h4 = hash11(key, 4), h5 = hash11(key, 5);
+  const x = nx + (h1 - 0.5) * 0.6 * SNOW_S;
+  const z = -t + (h2 - 0.5) * 0.6 * SNOW_S;
+  const sx = (0.17 + 0.22 * h3) * (1 + 0.4 * dep), sy = sx * (0.6 + 0.5 * h4), sz = sx * (0.75 + 0.5 * h5);
+  _sd.position.set(x, snowSurfaceY(x, z) + sy * 0.25, z);
+  _sd.rotation.set(h3 * 3.14, h4 * 6.28, h5 * 3.14);
+  _sd.scale.set(sx, sy, sz);
+  _sd.updateMatrix();
+  nearIM.setMatrixAt(idx, _sd.matrix);
+  const g = 0.94 + 0.06 * h1;
+  nearIM.setColorAt(idx, _sc.setRGB(g, g + 0.01, Math.min(1, g + 0.04)));
+}
+
+function farRefresh(a, b) {
+  const i = fI0 + a, j = fJ0 + b;
+  const idx = a * SNOW_FNJ + b;
+  const fx = (i + 0.5) * SNOW_FS, ft = (j + 0.5) * SNOW_FS;
+  if (Math.abs(fx) > X_HALF + 40 || ft < T_MIN + 2 || ft > T_MAX + 30) {
+    _sd.position.set(0, -999, 0); _sd.rotation.set(0, 0, 0); _sd.scale.setScalar(0); _sd.updateMatrix();
+    farIM.setMatrixAt(idx, _sd.matrix);
+    return;
+  }
+  const h1 = hash11(i * 8191 + j, 11), h2 = hash11(i * 8191 + j, 12), h3 = hash11(i * 8191 + j, 13);
+  const x = fx + (h1 - 0.5) * 1.2 * SNOW_FS;
+  const z = -ft + (h2 - 0.5) * 1.2 * SNOW_FS;
+  const ddx = x - S.pos.x, ddz = z - S.pos.z;
+  const nearHide = ddx * ddx + ddz * ddz < 900;   /* near ring owns this ground */
+  const d = nearHide ? 1 : Math.min(1, carveDepthAt(x, z) * 1.2);
+  const sc = (0.42 + 0.5 * h3) * (1 - 0.9 * d);
+  if (sc < 0.08) {
+    _sd.position.set(0, -999, 0); _sd.rotation.set(0, 0, 0); _sd.scale.setScalar(0); _sd.updateMatrix();
+    farIM.setMatrixAt(idx, _sd.matrix);
+    farIM.setColorAt(idx, _sc.setRGB(1, 1, 1));
+    return;
+  }
+  const sy = sc * (0.55 + 0.4 * h2);
+  _sd.position.set(x, snowSurfaceY(x, z) + sy * 0.15, z);
+  _sd.rotation.set(h1 * 3.14, h2 * 6.28, h3 * 3.14);
+  _sd.scale.set(sc, sy, sc * (0.8 + 0.4 * h1));
+  _sd.updateMatrix();
+  farIM.setMatrixAt(idx, _sd.matrix);
+  const g = 0.95 + 0.05 * h2;
+  farIM.setColorAt(idx, _sc.setRGB(g, g + 0.01, Math.min(1, g + 0.03)));
+}
+
+function snowUpdateWindows() {
+  const ti0 = Math.floor(S.pos.x / SNOW_S) - (SNOW_NI >> 1);
+  const tj0 = Math.floor(-S.pos.z / SNOW_S) - Math.round(SNOW_NJ * 0.3);
+  const tfi0 = Math.floor(S.pos.x / SNOW_FS) - (SNOW_FNI >> 1);
+  const tfj0 = Math.floor(-S.pos.z / SNOW_FS) - Math.round(SNOW_FNJ * 0.35);
+  if (nI0 === null) {
+    nI0 = ti0; nJ0 = tj0; fI0 = tfi0; fJ0 = tfj0;
+    nodeInst.clear();
+    for (let a = 0; a < SNOW_NI; a++) for (let b = 0; b < SNOW_NJ; b++) nearRefresh(a, b);
+    for (let a = 0; a < SNOW_FNI; a++) for (let b = 0; b < SNOW_FNJ; b++) farRefresh(a, b);
+    snowDirtyL = snowDirtyF = true;
+    return;
+  }
+  let guard = 0;
+  while (nI0 < ti0 && guard++ < 6) {
+    for (let b = 0; b < SNOW_NJ; b++) nodeInst.delete(_snowKey(nI0, nJ0 + b));
+    nI0++;
+    for (let b = 0; b < SNOW_NJ; b++) nearRefresh(SNOW_NI - 1, b);
+    snowDirtyL = true;
+  }
+  while (nI0 > ti0 && guard++ < 12) {
+    nI0--;
+    for (let b = 0; b < SNOW_NJ; b++) nodeInst.delete(_snowKey(nI0 + SNOW_NI, nJ0 + b));
+    for (let b = 0; b < SNOW_NJ; b++) nearRefresh(0, b);
+    snowDirtyL = true;
+  }
+  guard = 0;
+  while (nJ0 < tj0 && guard++ < 6) {
+    for (let a = 0; a < SNOW_NI; a++) nodeInst.delete(_snowKey(nI0 + a, nJ0));
+    nJ0++;
+    for (let a = 0; a < SNOW_NI; a++) nearRefresh(a, SNOW_NJ - 1);
+    snowDirtyL = true;
+  }
+  while (nJ0 > tj0 && guard++ < 12) {
+    nJ0--;
+    for (let a = 0; a < SNOW_NI; a++) nodeInst.delete(_snowKey(nI0 + a, nJ0 + SNOW_NJ));
+    for (let a = 0; a < SNOW_NI; a++) nearRefresh(a, 0);
+    snowDirtyL = true;
+  }
+  guard = 0;
+  while (fI0 < tfi0 && guard++ < 4) {
+    fI0++;
+    for (let b = 0; b < SNOW_FNJ; b++) farRefresh(SNOW_FNI - 1, b);
+    snowDirtyF = true;
+  }
+  while (fI0 > tfi0 && guard++ < 8) {
+    fI0--;
+    for (let b = 0; b < SNOW_FNJ; b++) farRefresh(0, b);
+    snowDirtyF = true;
+  }
+  guard = 0;
+  while (fJ0 < tfj0 && guard++ < 4) {
+    fJ0++;
+    for (let a = 0; a < SNOW_FNI; a++) farRefresh(a, SNOW_FNJ - 1);
+    snowDirtyF = true;
+  }
+  while (fJ0 > tfj0 && guard++ < 8) {
+    fJ0--;
+    for (let a = 0; a < SNOW_FNI; a++) farRefresh(a, 0);
+    snowDirtyF = true;
+  }
+}
+
+function hideNode(key) {
+  const idx = nodeInst.get(key);
+  if (idx === undefined) return;
+  _sd.position.set(0, -999, 0); _sd.rotation.set(0, 0, 0); _sd.scale.setScalar(0); _sd.updateMatrix();
+  nearIM.setMatrixAt(idx, _sd.matrix);
+  nearIM.setColorAt(idx, _sc.setRGB(0.80, 0.85, 0.92));
+  snowDirtyL = true;
+}
+
+/* ---- particle pool ---- */
+function snowSpawn(px, py, pz, vx, vy, vz) {
+  const i = snowCursor;
+  snowCursor = (snowCursor + 1) % SNOW_POOL;
+  spX[i] = px; spY[i] = py; spZ[i] = pz;
+  svX[i] = vx; svY[i] = vy; svZ[i] = vz;
+  spM[i] = 0.8 + 0.5 * hash11(snowCursor * 131 + snowBurstN, 5);
+  spHash[i] = hash11(i, 77);
+  spBounce[i] = 0; spTouch[i] = 0;
+  if (spState[i] !== 1) snowInFlight++;
+  spState[i] = 1;
+  snowDisplaced++;
+  snowDirtyD = true;
+}
+
+function sleepParticle(i, y) {
+  spState[i] = 2;
+  svX[i] = 0; svY[i] = 0; svZ[i] = 0;
+  spY[i] = y;
+  snowInFlight--;
+  _sd.position.set(spX[i], spY[i] - 0.04, spZ[i]);
+  _sd.rotation.set(spHash[i] * 3.1, spHash[i] * 6.2, 0);
+  _sd.scale.set(0.18 + 0.12 * spHash[i], 0.14 + 0.1 * spHash[i], 0.18 + 0.12 * spHash[i]);
+  _sd.updateMatrix();
+  debrisIM.setMatrixAt(i, _sd.matrix);
+  snowDirtyD = true;
+}
+
+/* ============================== discrete snow layer ============================== */
+function snowSimStep(dt) {
+  simStepCount++;
+  /* integrate flight, terrain/snowpack contact */
+  for (let i = 0; i < SNOW_POOL; i++) {
+    if (spState[i] !== 1) continue;
+    svY[i] -= 13.5 * dt;
+    spX[i] += svX[i] * dt; spY[i] += svY[i] * dt; spZ[i] += svZ[i] * dt;
+    const surf = snowSurfaceY(spX[i], spZ[i]);
+    if (spY[i] < surf) {
+      spY[i] = surf;
+      const sp2 = svX[i] * svX[i] + svY[i] * svY[i] + svZ[i] * svZ[i];
+      spBounce[i]++;
+      if (spBounce[i] >= 3 || sp2 < 1.2) { sleepParticle(i, surf); continue; }
+      terrainNormal(spX[i], spZ[i], N);
+      const vn = svX[i] * N.x + svY[i] * N.y + svZ[i] * N.z;
+      if (vn < 0) {
+        svX[i] -= 1.18 * vn * N.x; svY[i] -= 1.18 * vn * N.y; svZ[i] -= 1.18 * vn * N.z;
+      }
+      svX[i] *= 0.72; svY[i] *= 0.72; svZ[i] *= 0.72;
+      const sp3 = svX[i] * svX[i] + svY[i] * svY[i] + svZ[i] * svZ[i];
+      if (sp3 < 0.9) sleepParticle(i, surf);
+    }
+  }
+  /* rebuild grid, resolve particle-particle collisions */
+  sgStep++;
+  for (let i = 0; i < SNOW_POOL; i++) if (spState[i]) sgIndexAndInsert(i);
+  for (let i = 0; i < SNOW_POOL; i++) {
+    if (spState[i] !== 1) continue;
+    const cx = Math.floor(spX[i] * 1.6667), cy = Math.floor(spY[i] * 1.6667), cz = Math.floor(spZ[i] * 1.6667);
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) for (let dk = -1; dk <= 1; dk++) {
+      const h = sgIndexCell(cx + di, cy + dj, cz + dk);
+      if (sgStamp[h] !== sgStep) continue;
+      for (let k = sgHead[h]; k !== -1; k = sgNext[k]) {
+        if (k === i) continue;
+        if (spState[k] === 1 && k < i) continue;
+        const dx = spX[i] - spX[k], dy = spY[i] - spY[k], dz = spZ[i] - spZ[k];
+        const rr = SNOW_R * 2, d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 >= rr * rr || d2 < 1e-9) continue;
+        const d = Math.sqrt(d2), nx = dx / d, ny = dy / d, nz = dz / d;
+        const overlap = rr - d;
+        if (spState[k] === 2) {
+          spX[i] += nx * overlap; spY[i] += ny * overlap; spZ[i] += nz * overlap;
+          const vn = svX[i] * nx + svY[i] * ny + svZ[i] * nz;
+          if (vn < 0) { svX[i] -= 1.1 * vn * nx; svY[i] -= 1.1 * vn * ny; svZ[i] -= 1.1 * vn * nz; }
+          spTouch[i] = 1;
+        } else {
+          const mi = spM[i], mj = spM[k], imt = 1 / (mi + mj);
+          spX[i] += nx * overlap * mj * imt; spY[i] += ny * overlap * mj * imt; spZ[i] += nz * overlap * mj * imt;
+          spX[k] -= nx * overlap * mi * imt; spY[k] -= ny * overlap * mi * imt; spZ[k] -= nz * overlap * mi * imt;
+          const rvn = (svX[i] - svX[k]) * nx + (svY[i] - svY[k]) * ny + (svZ[i] - svZ[k]) * nz;
+          if (rvn < 0) {
+            svX[i] += -1.1 * rvn * mj * imt * nx; svY[i] += -1.1 * rvn * mj * imt * ny; svZ[i] += -1.1 * rvn * mj * imt * nz;
+            svX[k] -= -1.1 * rvn * mi * imt * nx; svY[k] -= -1.1 * rvn * mi * imt * ny; svZ[k] -= -1.1 * rvn * mi * imt * nz;
+          }
+          spTouch[i] = 1; spTouch[k] = 1;
+        }
+      }
+    }
+  }
+  /* rest on piles: slow + touched something this step + near the ground => settle */
+  for (let i = 0; i < SNOW_POOL; i++) {
+    if (spState[i] === 1 && spTouch[i]) {
+      const sp2 = svX[i] * svX[i] + svY[i] * svY[i] + svZ[i] * svZ[i];
+      if (sp2 < 0.16 && spY[i] - snowSurfaceY(spX[i], spZ[i]) < 0.45) sleepParticle(i, spY[i]);
+    }
+    spTouch[i] = 0;
+  }
+  if (snowDirtyD) { debrisIM.instanceMatrix.needsUpdate = true; snowDirtyD = false; }
+}
+function sgIndexAndInsert(i) {
+  const h = sgIndex(spX[i], spY[i], spZ[i]);
+  if (sgStamp[h] !== sgStep) { sgStamp[h] = sgStep; sgHead[h] = -1; }
+  sgNext[i] = sgHead[h]; sgHead[h] = i;
+}
+
+/* ---- skier plow: carve the line, throw the clumps ---- */
+function snowSkierKick() {
+  const cx = S.pos.x, cz = S.pos.z;
+  const px = S.prevKX, pz = S.prevKZ;
+  S.prevKX = cx; S.prevKZ = cz;
+  const vx = S.vel.x, vz = S.vel.z;
+  const s = Math.sqrt(vx * vx + vz * vz);
+  if (!S.grounded || s < 1.5) return;
+  const vdx = vx / s, vdz = vz / s;
+  const cf = Math.min(1.25, clamp(s / 30, 0, 1) * (0.45 + 0.95 * clamp(Math.abs(S.omega) / TURN_RATE, 0, 1)));
+  const iMin = Math.floor((Math.min(px, cx) - 0.7) / SNOW_S), iMax = Math.floor((Math.max(px, cx) + 0.7) / SNOW_S);
+  const tMin = Math.min(-pz, -cz) - 0.7, tMax = Math.max(-pz, -cz) + 0.7;
+  const jMin = Math.floor(tMin / SNOW_S), jMax = Math.floor(tMax / SNOW_S);
+  const ex = cx - px, ez = -cz - (-pz);          /* segment in (x, t) space */
+  const l2 = ex * ex + ez * ez;
+  const perpX = -vdz, perpZ = vdx;
+  for (let i = iMin; i <= iMax; i++) {
+    for (let j = jMin; j <= jMax; j++) {
+      const key = _snowKey(i, j);
+      const nx = (i + 0.5) * SNOW_S, t = (j + 0.5) * SNOW_S, nz = -t;
+      if (Math.abs(nx) > X_HALF - 1 || t < 3 || t > T_MAX - 6) continue;
+      /* slab stress from this carve pass - a thinner, already-cut slab releases less */
+      const carved = snowCarve.has(key);
+      const carveForce = clamp(Math.abs(S.omega) / TURN_RATE, 0, 1) * clamp(s / 28, 0, 1);
+      addStress(key, (0.22 + 1.9 * carveForce) * (carved ? 0.5 : 1), nx, nz);
+      if (carved) continue;
+      let u = l2 > 1e-9 ? ((nx - px) * ex + (t + pz) * ez) / l2 : 0;
+      u = clamp(u, 0, 1);
+      const qx = px + ex * u - nx, qt = -pz + ez * u - t;
+      if (qx * qx + qt * qt > 0.3844) continue;    /* 0.62 m track half-width */
+      snowCarve.set(key, 1);
+      hideNode(key);
+      const side = (perpX * (nx - cx) + perpZ * (nz - cz)) >= 0 ? 1 : -1;
+      const h1 = hash11(key, 91), h2 = hash11(key, 92), h3 = hash11(key, 93), h4 = hash11(key, 94);
+      const amp = h4 < 0.3 * (1 - cf * 0.7) ? 0.3 : 1;
+      const kvx = (vdx * s * (0.2 + 0.28 * h2) + perpX * side * (1.0 + 2.0 * h1) * (0.45 + cf)) * amp;
+      const kvz = (vdz * s * (0.2 + 0.28 * h2) + perpZ * side * (1.0 + 2.0 * h1) * (0.45 + cf)) * amp;
+      const kvy = (0.9 + 2.4 * h3) * (0.4 + 1.15 * cf * clamp(s / 26, 0, 1)) * amp;
+      snowSpawn(nx, snowSurfaceY(nx, -t) + 0.05, -t, kvx, kvy, kvz);
+    }
+  }
+}
+
+/* ---- radial bursts: landings, takeoffs, crashes (impact loads the slab) ---- */
+function snowBurst(x, y, z, radius, n, power, impact) {
+  impact = impact || 0;
+  const i0 = Math.floor((x - radius) / SNOW_S), i1 = Math.floor((x + radius) / SNOW_S);
+  const j0 = Math.floor((-z - radius) / SNOW_S), j1 = Math.floor((-z + radius) / SNOW_S);
+  const r2 = radius * radius;
+  let thrown = 0;
+  for (let i = i0; i <= i1; i++) {
+    for (let j = j0; j <= j1; j++) {
+      const key = _snowKey(i, j);
+      if (snowCarve.has(key)) continue;
+      const nx = (i + 0.5) * SNOW_S, t = (j + 0.5) * SNOW_S;
+      if (Math.abs(nx) > X_HALF - 1 || t < 3 || t > T_MAX - 6) continue;
+      const dx = nx - x, dz = -t - z;
+      if (dx * dx + dz * dz > r2) continue;
+      if (impact > 0) addStress(key, impact * 3.5, nx, -t);
+      snowCarve.set(key, 1);
+      hideNode(key);
+      const d = Math.sqrt(dx * dx + dz * dz) || 1;
+      const h1 = hash11(key, 95), h2 = hash11(key, 96);
+      snowSpawn(nx, snowSurfaceY(nx, -t) + 0.05, -t,
+        (dx / d) * (1.5 + 1.9 * h1) * power, (1.8 + 2.2 * h2) * power, (dz / d) * (1.5 + 1.9 * h1) * power);
+      thrown++;
+    }
+  }
+  for (let k = thrown; k < n; k++) {
+    const h1 = hash01(snowBurstN * 31 + k * 7), h2 = hash01(snowBurstN * 57 + k * 11), h3 = hash01(snowBurstN * 77 + k * 13);
+    const ang = h1 * 6.2832, r = 0.25 + 0.75 * h2;
+    const bx = x + Math.cos(ang) * r, bz = z + Math.sin(ang) * r;
+    snowSpawn(bx, snowSurfaceY(bx, bz) + 0.05, bz,
+      Math.cos(ang) * (1.3 + 2.1 * h3) * power, (1.6 + 2.3 * h2) * power, Math.sin(ang) * (1.3 + 2.1 * h3) * power);
+  }
+  snowBurstN++;
+}
+
+function snowReset() {
+  snowCarve.clear();
+  spState.fill(0); spTouch.fill(0);
+  snowCursor = 0; snowInFlight = 0; snowDisplaced = 0; snowBurstN = 1;
+  sgStep++;
+  nodeInst.clear();
+  nI0 = nJ0 = fI0 = fJ0 = null;
+  for (let i = 0; i < SNOW_POOL; i++) { _sd.position.set(0, -999, 0); _sd.rotation.set(0, 0, 0); _sd.scale.setScalar(0); _sd.updateMatrix(); debrisIM.setMatrixAt(i, _sd.matrix); }
+  debrisIM.instanceMatrix.needsUpdate = true;
+  snowDirtyL = snowDirtyF = true;
+}
+
+/* ---- per-frame visual refresh ---- */
+function updateSnowVisuals() {
+  snowUpdateWindows();
+  for (let i = 0; i < SNOW_POOL; i++) {
+    if (spState[i] !== 1) continue;
+    _sd.position.set(spX[i], spY[i], spZ[i]);
+    _sd.rotation.set(0, spHash[i] * 6.28, spHash[i] * 1.5);
+    _sd.scale.set(0.19 + 0.11 * spHash[i], 0.15 + 0.09 * spHash[i], 0.19 + 0.11 * spHash[i]);
+    _sd.updateMatrix();
+    debrisIM.setMatrixAt(i, _sd.matrix);
+    snowDirtyD = true;
+  }
+  if (snowDirtyD) { debrisIM.instanceMatrix.needsUpdate = true; snowDirtyD = false; }
+  /* avalanche flow cells: a coherent moving mass of clumps */
+  for (let i = 0; i < FLOW_MAX; i++) {
+    if (flState[i] !== 1) continue;
+    const scl = 0.3 + 0.16 * hash11(i, 83);
+    _flD.position.set(flX[i], snowSurfaceY(flX[i], flZ[i]) + scl * 0.4, flZ[i]);
+    _flD.rotation.set(flVz[i] * 0.04, hash11(i, 84) * 6.28, -flVx[i] * 0.04);
+    _flD.scale.set(scl, scl * 0.8, scl);
+    _flD.updateMatrix();
+    flowIM.setMatrixAt(i, _flD.matrix);
+    flDirty = true;
+  }
+  if (flDirty) { flowIM.instanceMatrix.needsUpdate = true; flDirty = false; }
+  if (snowDirtyL) { nearIM.instanceMatrix.needsUpdate = true; if (nearIM.instanceColor) nearIM.instanceColor.needsUpdate = true; snowDirtyL = false; }
+  if (snowDirtyF) { farIM.instanceMatrix.needsUpdate = true; if (farIM.instanceColor) farIM.instanceColor.needsUpdate = true; snowDirtyF = false; }
+}
+
+
+/* ============================== avalanche (cascading slope failure) ============================== */
+/* Stability is deterministic per location: local slope x slab depth (deeper in
+   patches and gullies, thinner where already carved). Disturbances - hard
+   carves, landings, passing flow - accumulate stress; enough stress on
+   marginal/unstable ground fractures a slab upslope of the trigger into a
+   cellular flow that advects down the fall line, entrains snow it crosses and
+   deposits on benches and the valley floor. */
+const FLOW_MAX = 2400;
+const flX = new Float32Array(FLOW_MAX), flZ = new Float32Array(FLOW_MAX);
+const flVx = new Float32Array(FLOW_MAX), flVz = new Float32Array(FLOW_MAX);
+const flLatX = new Float32Array(FLOW_MAX), flLatZ = new Float32Array(FLOW_MAX);
+const flDx = new Float32Array(FLOW_MAX), flDz = new Float32Array(FLOW_MAX), flG = new Float32Array(FLOW_MAX);
+const flAge = new Float32Array(FLOW_MAX), flLastKey = new Int32Array(FLOW_MAX), flState = new Uint8Array(FLOW_MAX);
+let flowCount = 0, flowCursor = 0, avalancheTriggered = 0, avalancheNearDist = 1e9, flDirty = false;
+const flowNodeSet = new Set();
+const depositMap = new Map();
+const stressMap = new Map();
+let simStepCount = 0;
+const _avN = { x: 0, y: 1, z: 0 };
+
+const flowIM = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0),
+  new THREE.MeshLambertMaterial({ color: 0xf2f7ff, flatShading: true }), FLOW_MAX);
+flowIM.frustumCulled = false;
+flowIM.castShadow = false;
+flowIM.receiveShadow = true;
+flowIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+scene.add(flowIM);
+const _flD = new THREE.Object3D();
+_flD.scale.setScalar(0);
+_flD.updateMatrix();
+for (let i = 0; i < FLOW_MAX; i++) { flowIM.setMatrixAt(i, _flD.matrix); flowIM.setColorAt(i, _sc.setRGB(1, 1, 1)); }
+flowIM.instanceMatrix.needsUpdate = true;
+
+/* slab depth: base pack thickened by large-scale patches and gully floors,
+   thinned where the skier has already cut it away */
+function slabDepth(x, z) {
+  const t = -z;
+  const dm = 0.62 + 0.5 * (0.5 + 0.5 * Math.sin(x * 0.019 + 1.7 * Math.sin(t * 0.0043) + t * 0.0011))
+           + 0.28 * gullyDepthFactor(x, t);
+  return dm * (1 - 0.7 * Math.min(1, carveDepthAt(x, z)));
+}
+function gullyDepthFactor(x, t) {
+  if (t < 40) return 0;
+  const fade = smoothstep(40, 150, t);
+  const dx1 = x - (16 * Math.sin(t * 0.011220) - 6);
+  const dx2 = x - (20 * Math.sin(t * 0.007757) + 38);
+  return fade * Math.min(1, (5.2 * Math.exp(-dx1 * dx1 / 968) + 3.6 * Math.exp(-dx2 * dx2 / 512)) / 5.2);
+}
+/* 0 = stable, 1 = marginal, 2 = unstable: the steep crest bands carry the
+   unstable patches (where the slab is deep), shallow bands and cut lines stay safe */
+function snowZone(x, z) {
+  terrainNormal(x, z, _avN);
+  const slope = Math.sqrt(1 - _avN.y * _avN.y) / Math.max(0.05, _avN.y);
+  const dm = slabDepth(x, z);
+  if (slope >= 0.51) return dm >= 1.0 ? 2 : 1;   /* steep face: unstable where the slab is deep */
+  if (slope >= 0.38) return dm >= 1.25 ? 2 : 1;  /* moderate: only the deepest slab is unstable */
+  return 0;
+}
+
+function depositDepthAt(x, z) {
+  const t = -z;
+  const gx = x / SNOW_S - 0.5, gt = t / SNOW_S - 0.5;
+  const i0 = Math.floor(gx), j0 = Math.floor(gt);
+  const ax = gx - i0, at = gt - j0;
+  const m = depositMap;
+  return ((m.get(_snowKey(i0, j0)) || 0) * (1 - ax) + (m.get(_snowKey(i0 + 1, j0)) || 0) * ax) * (1 - at)
+       + ((m.get(_snowKey(i0, j0 + 1)) || 0) * (1 - ax) + (m.get(_snowKey(i0 + 1, j0 + 1)) || 0) * ax) * at;
+}
+
+/* stress accumulates lazily (decays ~12s half-life) and releases a slab */
+function addStress(key, amount, x, z) {
+  if (snowCarve.has(key)) return;              /* no slab left to release */
+  if (depositMap.has(key)) return;             /* already deposited */
+  let e = stressMap.get(key);
+  if (!e) { e = { s: 0, t: simStepCount }; stressMap.set(key, e); }
+  const age = simStepCount - e.t;
+  e.t = simStepCount;
+  e.s = e.s * Math.pow(0.999, age) + amount;
+  const zone = snowZone(x, z);
+  const th = zone === 2 ? 30 : (zone === 1 ? 45 : 1e9);
+  if (e.s >= th) {
+    stressMap.delete(key);
+    startAvalanche(x, z);
+  }
+}
+
+function flowSpawn(x, z, vx, vz, key) {
+  const i = flowCursor;
+  flowCursor = (flowCursor + 1) % FLOW_MAX;
+  if (flState[i] === 1) flowNodeSet.delete(flLastKey[i]);
+  flX[i] = x; flZ[i] = z;
+  flVx[i] = vx; flVz[i] = vz;
+  terrainNormal(x, z, _avN);
+  flDx[i] = _avN.x; flDz[i] = _avN.z;
+  flG[i] = Math.sqrt(1 - _avN.y * _avN.y) / Math.max(0.05, _avN.y);
+  flLatX[i] = (hash11(i, 81) - 0.5) * 1.1;
+  flLatZ[i] = (hash11(i, 82) - 0.5) * 1.1;
+  flAge[i] = 0;
+  flLastKey[i] = key;
+  if (flState[i] !== 1) flowCount++;
+  flState[i] = 1;
+  flowNodeSet.add(key);
+  flDirty = true;
+}
+
+function flowEntrain(key, vx, vz, cx, cz) {
+  const i0 = Math.floor(key / 4096), j0 = key - i0 * 4096;
+  const nx = (i0 + 0.5) * SNOW_S, nz = -((j0 + 0.5) * SNOW_S);
+  snowCarve.set(key, 1);
+  hideNode(key);
+  flowNodeSet.add(key);
+  flowSpawn(nx, nz, vx * 0.85 + (hash11(key, 64) - 0.5) * 1.4, vz * 0.85 + (hash11(key, 65) - 0.5) * 1.4, key);
+}
+
+function flowDeposit(i) {
+  flState[i] = 0;
+  flowCount--;
+  flowNodeSet.delete(flLastKey[i]);
+  const j0 = Math.floor(-flZ[i] / SNOW_S), i0 = Math.floor(flX[i] / SNOW_S);
+  const key = _snowKey(i0, j0);
+  depositMap.set(key, Math.min(2, (depositMap.get(key) || 0) + 0.55));
+  /* refresh the lattice clump if this node is in view */
+  const a = i0 - nI0, b = j0 - nJ0;
+  if (nI0 !== null && a >= 0 && a < SNOW_NI && b >= 0 && b < SNOW_NJ) { nearRefresh(a, b); snowDirtyL = true; }
+  flDirty = true;
+}
+
+function flowStep(dt) {
+  if (flowCount === 0) { avalancheNearDist = 1e9; return; }
+  const skX = S.pos.x, skZ = S.pos.z;
+  const skSpeed = Math.sqrt(S.vel.x * S.vel.x + S.vel.z * S.vel.z);
+  let nearest2 = 1e18;
+  const catching = S.phase === 'running';
+  let swept = false;
+  for (let i = 0; i < FLOW_MAX; i++) {
+    if (flState[i] !== 1) continue;
+    /* cached fall line refreshed whenever the cell crosses a node */
+    let s = Math.sqrt(flVx[i] * flVx[i] + flVz[i] * flVz[i]);
+    if (!isFinite(s) || !isFinite(flX[i]) || !isFinite(flZ[i])) { flowDeposit(i); continue; }
+    const acc = 16 * (flG[i] / Math.sqrt(1 + flG[i] * flG[i]) - 0.24 / Math.sqrt(1 + flG[i] * flG[i])) - 0.006 * s * s;
+    s = Math.max(0, s + acc * dt);
+    const latK = Math.max(0, 1 - flAge[i] * 0.12);
+    flVx[i] = flDx[i] * s + flLatX[i] * latK;
+    flVz[i] = flDz[i] * s + flLatZ[i] * latK;
+    flX[i] += flVx[i] * dt;
+    flZ[i] += flVz[i] * dt;
+    flAge[i] += dt;
+    const t = -flZ[i];
+    if (Math.abs(flX[i]) > X_HALF - 1 || t < 3 || t > T_MAX - 6 || s < 0.9 || flG[i] < 0.20) {
+      flowDeposit(i);
+      continue;
+    }
+    const key = _snowKey(Math.floor(flX[i] / SNOW_S), Math.floor(t / SNOW_S));
+    if (key !== flLastKey[i]) {
+      flLastKey[i] = key;
+      terrainNormal(flX[i], flZ[i], _avN);
+      flDx[i] = _avN.x; flDz[i] = _avN.z;
+      flG[i] = Math.sqrt(1 - _avN.y * _avN.y) / Math.max(0.05, _avN.y);
+      s = Math.sqrt(flVx[i] * flVx[i] + flVz[i] * flVz[i]);
+      const spdN = s / 25;
+      addStress(key, 1.1 + 2.4 * spdN, flX[i], flZ[i]);
+      const ci = Math.floor(key / 4096), cj = key - ci * 4096;
+      addStress(_snowKey(ci + 1, cj), 0.6 * spdN, (ci + 1.5) * SNOW_S, -cj * SNOW_S);
+      addStress(_snowKey(ci - 1, cj), 0.6 * spdN, (ci - 0.5) * SNOW_S, -cj * SNOW_S);
+      addStress(_snowKey(ci, cj + 1), 0.6 * spdN, (ci + 0.5) * SNOW_S, -(cj + 1) * SNOW_S);
+      addStress(_snowKey(ci, cj - 1), 0.6 * spdN, (ci + 0.5) * SNOW_S, -(cj - 1) * SNOW_S);
+      if (!flowNodeSet.has(key) && !snowCarve.has(key) && !depositMap.has(key)) {
+        if ((flG[i] >= 0.60 && s > 2) || snowZone(flX[i], flZ[i]) >= 1 && s > 5 || s > 18) {
+          if (flowCount < FLOW_MAX - 2) flowEntrain(key, flVx[i], flVz[i], flX[i], flZ[i]);
+          else snowCarve.set(key, 1);
+        }
+      }
+    }
+    /* the flow catches a slower skier - but only a sustained sweep, not a graze */
+    if (catching) {
+      const ddx = flX[i] - skX, ddz = flZ[i] - skZ;
+      const d2 = ddx * ddx + ddz * ddz;
+      if (d2 < nearest2) nearest2 = d2;
+      if (d2 < 9 && s > skSpeed * 0.85 + 0.5) swept = true;
+    }
+    /* powder boiling off a fast front */
+    if (s > 11 && ((simStepCount + i) % 9) === 0 && snowInFlight < 700) {
+      const h1 = hash01(simStepCount * 17 + i * 5);
+      snowSpawn(flX[i], snowSurfaceY(flX[i], flZ[i]) + 0.25, flZ[i],
+        flVx[i] * 0.45 + (h1 - 0.5) * 2.4, 2.2 + 2.4 * h1, flVz[i] * 0.45 + (hash01(simStepCount * 13 + i) - 0.5) * 2.4);
+    }
+  }
+  avalancheNearDist = Math.sqrt(nearest2);
+  if (swept) {
+    S.catchTimer += dt;
+    if (S.catchTimer >= 0.1) failRun();
+  } else {
+    S.catchTimer = 0;
+  }
+  if (flDirty) { flowIM.instanceMatrix.needsUpdate = true; flDirty = false; }
+}
+
+function startAvalanche(nx, nz, power) {
+  power = power || 1;
+  avalancheTriggered++;
+  terrainNormal(nx, nz, _avN);
+  let dx = _avN.x, dz = _avN.z;
+  const dl = Math.sqrt(dx * dx + dz * dz) || 1;
+  dx /= dl; dz /= dl;
+  const cx = nx, cz = nz;   /* the slab fractures right at the disturbance */
+  const i0 = Math.floor((cx - 3.2) / SNOW_S), i1 = Math.floor((cx + 3.2) / SNOW_S);
+  const j0 = Math.floor((-cz - 3.2) / SNOW_S), j1 = Math.floor((-cz + 3.2) / SNOW_S);
+  for (let i = i0; i <= i1; i++) {
+    for (let j = j0; j <= j1; j++) {
+      const key = _snowKey(i, j);
+      if (snowCarve.has(key) || flowNodeSet.has(key)) continue;
+      const nx2 = (i + 0.5) * SNOW_S, t = (j + 0.5) * SNOW_S;
+      if (Math.abs(nx2) > X_HALF - 1.5 || t < 3 || t > T_MAX - 8) continue;
+      const ddx = nx2 - cx, ddz = -t - cz;
+      if (ddx * ddx + ddz * ddz > 10.24) continue;
+      snowCarve.set(key, 1);
+      hideNode(key);
+      if (flowCount < FLOW_MAX - 2 || hash11(key, 61) < 0.4) {
+        const h1 = hash11(key, 62), h2 = hash11(key, 63);
+        flowSpawn(nx2, -t,
+          dx * (1.6 + 1.6 * h1) * power + (-dz) * (h2 - 0.5) * 1.8 * power,
+          dz * (1.6 + 1.6 * h1) * power + dx * (h2 - 0.5) * 1.8 * power, key);
+      }
+    }
+  }
+  snowBurst(cx, snowSurfaceY(cx, cz), cz, 1.2, 8, 1.0);
+}
+
+function flowReset() {
+  flState.fill(0);
+  flowCount = 0; flowCursor = 0; avalancheTriggered = 0; avalancheNearDist = 1e9;
+  flowNodeSet.clear();
+  depositMap.clear();
+  stressMap.clear();
+  for (let i = 0; i < FLOW_MAX; i++) { _flD.position.set(0, -999, 0); _flD.rotation.set(0, 0, 0); _flD.scale.setScalar(0); _flD.updateMatrix(); flowIM.setMatrixAt(i, _flD.matrix); }
+  flowIM.instanceMatrix.needsUpdate = true;
+}
+
+function failRun() {
+  if (S.phase !== 'running') return;
+  S.phase = 'failed';
+  S.vel.set(0, 0, 0);
+  S.buried = true;
+  snowBurst(S.pos.x, S.pos.y, S.pos.z, 1.6, 16, 1.4);
+  document.getElementById('fail-card').classList.remove('hidden');
+  document.getElementById('hint').style.display = 'none';
+}
+
+/* ============================== state & physics ============================== */
+const G_ACC = 18.0, MU = 0.052, DRAG = 0.0052, DRAG_AIR = 0.0016, GRIP = 4.0;
+const TURN_RATE = 1.6, TURN_DRAG = 0.045, PSI_MAX = 1.45, JUMP_V = 5.2;
+const PHYS_DT = 1 / 120;
+
+const S = {
+  phase: 'title',
+  pos: new THREE.Vector3(0, 0, -14),
+  vel: new THREE.Vector3(),
+  psi: 0, omega: 0,
+  grounded: true,
+  elapsed: 0, finalTime: 0,
+  crouchVis: 0.2, leanVis: 0, compression: 0,
+  crashCooldown: 0,
+  animTime: 0,
+  prevKX: 0, prevKZ: 0,
+  rideOffset: 0.5,
+  catchTimer: 0,
+  buried: false, buriedVis: 0,
+  airTotal: 0, airCur: 0
+};
+const N = new THREE.Vector3(0, 1, 0);
+const input = { steer: 0, jumpQueued: false };
+const keys = { left: false, right: false };
+
+function resetRun() {
+  S.pos.set(0, skierSurfaceY(0, -14), -14);
+  S.vel.set(0, 0, 0);
+  S.psi = 0; S.omega = 0;
+  S.grounded = true;
+  S.elapsed = 0;
+  S.crouchVis = 0.2; S.leanVis = 0; S.compression = 0;
+  S.crashCooldown = 0;
+  N.set(0, 1, 0);
+  input.jumpQueued = false;
+  S.prevKX = S.pos.x; S.prevKZ = S.pos.z;
+  S.rideOffset = SNOW_LAYER_H;
+  S.catchTimer = 0;
+  S.buried = false; S.buriedVis = 0;
+  S.airTotal = 0; S.airCur = 0;
+  S.lastScore = null;
+  rec.data = []; rec.step = 0;
+  ghostTime = 0;
+  snowReset();
+  flowReset();
+  camYaw = 0;
+  camPos.set(S.pos.x, S.pos.y + 3.4, S.pos.z + 9);
+  lookPos.set(S.pos.x, S.pos.y + 1.2, S.pos.z - 8);
+  acc = 0;
+}
+function startRun() {
+  resetRun();
+  S.phase = 'running';
+  document.getElementById('title-card').classList.add('hidden');
+  document.getElementById('finish-card').classList.add('hidden');
+  document.getElementById('fail-card').classList.add('hidden');
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('hint').style.display = 'block';
+}
+
+/* ---- scoring: time (target 75 s), air time, line cleanliness ---- */
+const TARGET_TIME = 75.0;
+function computeScoreAt(finalTime, airTotal, triggers) {
+  const timeScore = Math.max(0, Math.round(1000 * (1.6 - finalTime / TARGET_TIME)));
+  const airScore = Math.round(300 * Math.min(1, airTotal / 6));
+  const clean = triggers === 0;
+  /* style bonus: clean lines earn it when the run had some pace; a run that
+     triggered but outran the flow earns partial credit even when slow */
+  const styleClean = clean ? (finalTime <= 1.15 * TARGET_TIME ? 300 : 0) : 100;
+  const total = timeScore + airScore + styleClean;
+  const grade = total >= 1050 ? 'S' : total >= 800 ? 'A' : total >= 550 ? 'B' : 'C';
+  return { timeScore: timeScore, airScore: airScore, styleClean: styleClean, total: total, grade: grade, clean: clean };
+}
+function computeScore() { return computeScoreAt(S.finalTime, S.airTotal, avalancheTriggered); }
+function maybeSaveGhost(sc) {
+  rec.data.push(round2(S.pos.x), round2(S.pos.y), round2(S.pos.z));
+  if (!ghostData || sc.total > ghostData.score) {
+    ghostData = { v: 1, score: sc.total, grade: sc.grade, time: +S.finalTime.toFixed(2), pos: rec.data.slice() };
+    saveGhost(ghostData);
+    return true;
+  }
+  return false;
+}
+function fillEndScreen() {
+  const sc = computeScore();
+  document.getElementById('final-time').textContent = fmtTime(S.finalTime);
+  const lineText = sc.clean ? 'clean — no avalanches triggered'
+    : 'outran ' + avalancheTriggered + ' avalanche' + (avalancheTriggered > 1 ? 's' : '');
+  document.getElementById('score-rows').innerHTML =
+    '<div class="srow"><span>TIME ' + fmtTime(S.finalTime) + ' · target ' + fmtTime(TARGET_TIME) + '</span><span>+' + sc.timeScore + '</span></div>' +
+    '<div class="srow"><span>AIR TIME ' + S.airTotal.toFixed(1) + ' s</span><span>+' + sc.airScore + '</span></div>' +
+    '<div class="srow"><span>LINE: ' + lineText + '</span><span>+' + sc.styleClean + '</span></div>' +
+    '<div class="srow total"><span>TOTAL</span><span>' + sc.total + '</span></div>';
+  const gd = document.getElementById('final-grade');
+  gd.textContent = sc.grade;
+  gd.className = 'grade grade-' + sc.grade;
+  return sc;
+}
+
+const _qcols = [];
+function physStep(dt) {
+  S.animTime += dt;
+  S.crashCooldown = Math.max(0, S.crashCooldown - dt);
+  if (S.phase === 'running') {
+    if (rec.step % 4 === 0) rec.data.push(round2(S.pos.x), round2(S.pos.y), round2(S.pos.z));
+    rec.step++;
+  }
+  input.steer = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
+
+  const speedH = Math.sqrt(S.vel.x * S.vel.x + S.vel.z * S.vel.z);
+  const speed = S.grounded ? speedH : S.vel.length();
+
+  /* steering */
+  const rateTarget = input.steer * TURN_RATE * (0.45 + 0.55 * Math.min(1, speedH / 9)) * (S.grounded ? 1 : 0.35);
+  S.omega += (rateTarget - S.omega) * Math.min(1, 12 * dt);
+  S.psi = clamp(S.psi + S.omega * dt, -PSI_MAX, PSI_MAX);
+  /* skis seek the fall line when the player releases steering */
+  if (S.grounded && input.steer === 0) {
+    S.psi -= S.psi * Math.min(1, 0.5 * dt);
+    if (speedH < 3) S.psi *= Math.max(0, 1 - 1.6 * dt);
+  }
+  /* skis too slow to carve always wash back down the fall line */
+  if (S.grounded && speedH < 1.2) S.psi -= S.psi * Math.min(1, 2.0 * dt);
+  const fx = -Math.sin(S.psi), fz = -Math.cos(S.psi);
+
+  /* jump */
+  if (input.jumpQueued) {
+    input.jumpQueued = false;
+    if (S.grounded) {
+      S.vel.y = Math.max(S.vel.y, 0) + JUMP_V;   /* pop: cancel surface-following sink, then boost */
+      S.grounded = false;
+      snowBurst(S.pos.x, S.pos.y, S.pos.z, 0.9, 4, 0.7);
+    }
+  }
+
+  if (S.grounded) {
+    terrainNormal(S.pos.x, S.pos.z, N);
+    /* forward tangent on the slope */
+    const fdot = fx * N.x + fz * N.z;
+    let ftx = fx - N.x * fdot, fty = -N.y * fdot, ftz = fz - N.z * fdot;
+    const fl = Math.sqrt(ftx * ftx + fty * fty + ftz * ftz) || 1;
+    ftx /= fl; fty /= fl; ftz /= fl;
+    /* right = ft x n */
+    let rtx = fty * N.z - ftz * N.y, rty = ftz * N.x - ftx * N.z, rtz = ftx * N.y - fty * N.x;
+    const rl = Math.sqrt(rtx * rtx + rty * rty + rtz * rtz) || 1;
+    rtx /= rl; rty /= rl; rtz /= rl;
+
+    let vF = S.vel.x * ftx + S.vel.y * fty + S.vel.z * ftz;
+    let vR = S.vel.x * rtx + S.vel.y * rty + S.vel.z * rtz;
+    const vT = Math.sqrt(vF * vF + vR * vR);
+
+    const gAlong = -G_ACC * fty;
+    const muN = MU * Math.max(0.2, N.y);
+    /* edged skis still slip partway down the lateral slope: this keeps the
+       fall line attractive so the skier can never stall parallel to a contour */
+    const gLat = -G_ACC * rty;
+    let aF = gAlong - TURN_DRAG * Math.abs(S.omega) * vF - DRAG * vT * vF;
+    if (vF > 0.05) aF -= muN; else if (vF < -0.05) aF += muN;
+    vF += aF * dt;
+    if (vF < -0.5) vF = -0.5;                       /* skis refuse to run tail-first */
+    vR += 0.7 * gLat * dt;
+    vR *= Math.exp(-GRIP * dt);
+
+    S.vel.x = ftx * vF + rtx * vR;
+    S.vel.y = fty * vF + rty * vR;
+    S.vel.z = ftz * vF + rtz * vR;
+
+    const prevY = S.pos.y;
+    S.pos.x += S.vel.x * dt;
+    S.pos.z += S.vel.z * dt;
+    /* terrain is followed exactly; the layer offset eases at most 3 cm per step
+       so the rim of the trench being cut is never climbed as a wall */
+    const terrNow = terrainH(S.pos.x, S.pos.z);
+    const offsetTrue = skierSurfaceY(S.pos.x, S.pos.z) - terrNow;
+    const offsetNew = clamp(offsetTrue, S.rideOffset - 0.03, S.rideOffset + 0.03);
+    S.rideOffset = offsetNew;
+    const hNew = terrNow + offsetNew;
+    /* follow the ridden surface: the clamped offset keeps scrape noise from
+       launching the skier or bleeding forward speed */
+    S.vel.y = (hNew - prevY) / dt;
+    const launchThresh = 0.06 + speedH * 0.004;
+    const yFree = S.pos.y + S.vel.y * dt - 0.5 * G_ACC * dt * dt;
+    if (speedH > 3.5 && yFree > hNew + launchThresh) {
+      S.grounded = false;
+      S.pos.y = yFree;
+      S.vel.y -= G_ACC * dt;
+      snowBurst(S.pos.x, skierSurfaceY(S.pos.x, S.pos.z), S.pos.z, 0.9, 4, 0.7);
+    } else {
+      S.pos.y = terrNow + offsetNew;
+    }
+  } else {
+    S.vel.y -= G_ACC * dt;
+    S.airTotal += dt;
+    S.airCur += dt;
+    const v3 = S.vel.length();
+    if (v3 > 0.1) S.vel.multiplyScalar(Math.max(0, 1 - DRAG_AIR * v3 * dt));
+    S.pos.x += S.vel.x * dt;
+    S.pos.y += S.vel.y * dt;
+    S.pos.z += S.vel.z * dt;
+    const hNew = skierSurfaceY(S.pos.x, S.pos.z);
+    if (S.pos.y <= hNew) {
+      const impact = -S.vel.y;
+      S.pos.y = hNew;
+      S.rideOffset = hNew - terrainH(S.pos.x, S.pos.z);
+      S.airCur = 0;
+      terrainNormal(S.pos.x, S.pos.z, N);
+      const keep = clamp(0.78 + 0.30 * (1 - N.y), 0.6, 0.88);
+      S.vel.x *= keep; S.vel.z *= keep;
+      S.vel.y = 0;
+      S.grounded = true;
+      S.compression = Math.min(1, 0.45 + impact * 0.06);
+      snowBurst(S.pos.x, S.pos.y, S.pos.z, 1.4, Math.min(18, Math.round(8 + impact * 1.2)), 1, impact);
+    }
+  }
+
+  /* prop collisions + bounds */
+  const lim = X_HALF - 3;
+  if (S.pos.x > lim) { S.pos.x = lim; if (S.vel.x > 0) S.vel.x *= -0.2; }
+  if (S.pos.x < -lim) { S.pos.x = -lim; if (S.vel.x < 0) S.vel.x *= -0.2; }
+  if (S.pos.z > 50) { S.pos.z = 50; if (S.vel.z > 0) S.vel.z = 0; }
+  if (S.pos.z < -(T_MAX - 20)) { S.pos.z = -(T_MAX - 20); if (S.vel.z < 0) S.vel.z = 0; }
+  nearColliders(S.pos.x, S.pos.z, _qcols);
+  for (let i = 0; i < _qcols.length; i++) {
+    const c = _qcols[i];
+    const dx = S.pos.x - c.x, dz = S.pos.z - c.z;
+    const rr = c.r + 0.42;
+    const d2 = dx * dx + dz * dz;
+    if (d2 < rr * rr && d2 > 1e-6) {
+      const d = Math.sqrt(d2);
+      S.pos.x = c.x + dx / d * rr;
+      S.pos.z = c.z + dz / d * rr;
+      if (speedH > 6 && S.crashCooldown <= 0) { snowBurst(S.pos.x, S.pos.y, S.pos.z, 1.5, 12, 1.3); S.crashCooldown = 0.4; }
+      S.vel.x *= 0.1; S.vel.z *= 0.1;
+      if (S.vel.y > 0) S.vel.y = 0;
+      /* only claim ground contact when actually near the surface */
+      if (S.pos.y - terrainH(S.pos.x, S.pos.z) < 0.5) S.grounded = true;
+    }
+  }
+
+  /* plow the snowpack along this step's path, then simulate layer + flow */
+  snowSkierKick();
+  snowSimStep(dt);
+  flowStep(dt);
+
+  /* animation targets */
+  const crouchT = S.grounded
+    ? clamp(0.22 + 0.5 * clamp(speedH / 34, 0, 1) + 0.25 * Math.abs(S.omega) / TURN_RATE, 0, 1)
+    : 0.28;
+  S.crouchVis += (crouchT - S.crouchVis) * Math.min(1, 6 * dt);
+  const leanT = S.grounded ? clamp(S.omega * (0.10 + speedH * 0.012), -0.55, 0.55) : 0;
+  S.leanVis += (leanT - S.leanVis) * Math.min(1, 7 * dt);
+  S.compression = Math.max(0, S.compression - 2.2 * dt);
+
+  /* timer + finish */
+  if (S.phase === 'running') {
+    S.elapsed += dt;
+    if (-S.pos.z >= FINISH_T) {
+      S.phase = 'finished';
+      S.finalTime = S.elapsed;
+      const sc = fillEndScreen();
+      maybeSaveGhost(sc);
+      document.getElementById('finish-card').classList.remove('hidden');
+      document.getElementById('hint').style.display = 'none';
+      S.lastScore = sc;
+    }
+  }
+}
+
+/* ============================== skier visual update ============================== */
+const UP = new THREE.Vector3(0, 1, 0);
+const _basis = new THREE.Matrix4();
+const _qt = new THREE.Quaternion();
+function updateSkierVisual(rdt) {
+  const g = skier.group;
+  const fx = -Math.sin(S.psi), fz = -Math.cos(S.psi);
+  if (S.grounded) {
+    terrainNormal(S.pos.x, S.pos.z, N);
+  } else {
+    N.lerp(UP, Math.min(1, 2.5 * rdt));
+    N.normalize();
+  }
+  const fdot = fx * N.x + fz * N.z;
+  let ftx = fx - N.x * fdot, fty = -N.y * fdot, ftz = fz - N.z * fdot;
+  let fl = Math.sqrt(ftx * ftx + fty * fty + ftz * ftz);
+  if (fl < 1e-4) { ftx = fx; fty = 0; ftz = fz; fl = Math.sqrt(fx * fx + fz * fz) || 1; }
+  ftx /= fl; fty /= fl; ftz /= fl;
+  let rtx = fty * N.z - ftz * N.y, rty = ftz * N.x - ftx * N.z, rtz = ftx * N.y - fty * N.x;
+  const rl = Math.sqrt(rtx * rtx + rty * rty + rtz * rtz) || 1;
+  _basis.makeBasis(
+    _v1.set(rtx / rl, rty / rl, rtz / rl),
+    N,
+    _v2.set(ftx, fty, ftz)
+  );
+  _qt.setFromRotationMatrix(_basis);
+  S.buriedVis += ((S.buried ? 1 : 0) - S.buriedVis) * Math.min(1, 3 * rdt);
+  g.position.set(S.pos.x, S.pos.y + 0.006 - S.buriedVis * 0.55, S.pos.z);
+  g.quaternion.slerp(_qt, Math.min(1, 18 * rdt));
+
+  const crouch = S.crouchVis;
+  const hipY = 1.017 - 0.183 * crouch;
+  const thighRot = -(0.15 + 0.75 * crouch);
+  const shinRot = 0.25 + 0.95 * crouch;
+  for (let i = 0; i < 2; i++) {
+    skier.hips[i].position.y = hipY;
+    skier.hips[i].rotation.x = thighRot;
+    skier.knees[i].rotation.x = shinRot;
+  }
+  const speedH = Math.sqrt(S.vel.x * S.vel.x + S.vel.z * S.vel.z);
+  skier.body.position.y = hipY + 0.02;
+  skier.body.rotation.x = 0.26 + 0.32 * clamp(speedH / 36, 0, 1) + S.compression * 0.3 + S.buriedVis * 0.6;
+  skier.lean.rotation.z = -S.leanVis;
+  skier.head.rotation.x = -0.18;
+  const swing = Math.sin(S.animTime * 2.1) * 0.05;
+  for (let i = 0; i < 2; i++) {
+    skier.shoulders[i].rotation.x = -0.5 + swing + (S.grounded ? 0 : -0.25);
+    skier.elbows[i].rotation.x = -0.55 + swing * 0.6;
+  }
+}
+
+/* ============================== camera ============================== */
+let camYaw = 0;
+const camPos = new THREE.Vector3(0, 10, 0), lookPos = new THREE.Vector3(0, 0, -20);
+const _camT = new THREE.Vector3(), _lookT = new THREE.Vector3();
+const _near = [];
+const CAM_MODES = [
+  { d: 8.4, h: 2.9, a: 7.5 },
+  { d: 5.2, h: 1.9, a: 4.6 },
+  { d: 2.7, h: 1.05, a: 2.0 }
+];
+let camMode = 0;
+function shortestAngle(a) {
+  while (a > Math.PI) a -= Math.PI * 2;
+  while (a < -Math.PI) a += Math.PI * 2;
+  return a;
+}
+function updateCamera(rdt) {
+  const speedH = Math.sqrt(S.vel.x * S.vel.x + S.vel.z * S.vel.z);
+  let targetYaw = S.psi;
+  let dist = CAM_MODES[camMode].d, height = CAM_MODES[camMode].h, ahead = CAM_MODES[camMode].a;
+  if (S.phase === 'title') {
+    targetYaw = S.psi + Math.sin(S.animTime * 0.18) * 1.1;
+    dist = 10.5; height = 3.6; ahead = 2.5;
+  }
+  camYaw += shortestAngle(targetYaw - camYaw) * (1 - Math.exp(-4.5 * rdt));
+  const fwx = -Math.sin(camYaw), fwz = -Math.cos(camYaw);
+  _camT.set(
+    S.pos.x + Math.sin(camYaw) * dist,
+    S.pos.y + height,
+    S.pos.z + Math.cos(camYaw) * dist
+  );
+  const gh = snowSurfaceY(_camT.x, _camT.z) + 1.5;
+  if (_camT.y < gh) _camT.y = gh;
+  camPos.lerp(_camT, 1 - Math.exp(-6.0 * rdt));
+  const gh2 = snowSurfaceY(camPos.x, camPos.z) + 1.25;
+  if (camPos.y < gh2) camPos.y = gh2;
+  /* keep the camera out of trees/rocks */
+  nearColliders(camPos.x, camPos.z, _near);
+  for (let i = 0; i < _near.length; i++) {
+    const c = _near[i];
+    const dx = camPos.x - c.x, dz = camPos.z - c.z;
+    const rr = c.r + 1.0;
+    const d2 = dx * dx + dz * dz;
+    if (d2 < rr * rr && d2 > 1e-6) {
+      const d = Math.sqrt(d2);
+      camPos.x = c.x + dx / d * rr;
+      camPos.z = c.z + dz / d * rr;
+    }
+  }
+  _lookT.set(S.pos.x + fwx * ahead, S.pos.y + 1.3, S.pos.z + fwz * ahead);
+  lookPos.lerp(_lookT, 1 - Math.exp(-7.5 * rdt));
+  const gl = snowSurfaceY(lookPos.x, lookPos.z) + 0.6;
+  if (lookPos.y < gl) lookPos.y = gl;
+  camera.position.copy(camPos);
+  camera.lookAt(lookPos);
+  const fovT = 64 + 12 * clamp(speedH / 40, 0, 1);
+  if (Math.abs(camera.fov - fovT) > 0.05) {
+    camera.fov += (fovT - camera.fov) * Math.min(1, 3 * rdt);
+    camera.updateProjectionMatrix();
+  }
+  sun.position.set(S.pos.x + SUN_DIR.x * 170, S.pos.y + SUN_DIR.y * 170, S.pos.z + SUN_DIR.z * 170);
+  sun.target.position.copy(S.pos);
+}
+
+/* ============================== secondary motion ============================== */
+const _td = new THREE.Object3D();
+const _tm = new THREE.Matrix4();
+function updateTrees(time) {
+  const parts = window.__treeParts, local = window.__treePartLocal;
+  if (!parts || !local) return;
+  for (let i = 0; i < treeSpots.length; i++) {
+    const tr = treeSpots[i];
+    const sway = Math.sin(time * 0.9 + tr.phase) * 0.016 + Math.sin(time * 0.23 + tr.phase * 3) * 0.012;
+    _td.position.set(tr.x, tr.y, -tr.t);
+    _td.rotation.set(sway, tr.yaw, sway * 0.6);
+    _td.scale.setScalar(tr.s);
+    _td.updateMatrix();
+    for (let p = 0; p < 4; p++) {
+      _tm.multiplyMatrices(_td.matrix, local[p + 1]);
+      parts[p].setMatrixAt(i, _tm);
+    }
+  }
+  for (let p = 0; p < 4; p++) parts[p].instanceMatrix.needsUpdate = true;
+  /* wand flags flutter */
+  const flags = window.__wandFlags;
+  if (flags) {
+    for (let i = 0; i < wandSpots.length; i++) {
+      const w = wandSpots[i];
+      _td.position.set(w.x, w.y, w.z);
+      _td.rotation.set(0, w.yaw + Math.sin(time * 2.3 + i) * 0.4, 0);
+      _td.scale.set(1, 1, 1);
+      _td.updateMatrix();
+      flags.setMatrixAt(i, _td.matrix);
+    }
+    flags.instanceMatrix.needsUpdate = true;
+  }
+}
+
+/* ============================== HUD & state export ============================== */
+function fmtTime(s) {
+  const m = Math.floor(s / 60);
+  const r = s - m * 60;
+  return m + ':' + (r < 10 ? '0' : '') + r.toFixed(1);
+}
+const hudTime = document.getElementById('hud-time');
+const hudSpeed = document.getElementById('hud-speed');
+const hudDist = document.getElementById('hud-dist');
+const hudSnow = document.getElementById('hud-snow');
+const hudAv = document.getElementById('hud-av');
+const hudAir = document.getElementById('hud-air');
+const hudGhost = document.getElementById('hud-ghost');
+function ghostGapSeconds() {
+  if (!ghostData) return null;
+  const pos = ghostData.pos, n = pos.length / 3;
+  const dur = ghostData.time || (n - 1) / GHOST_HZ;
+  const tLive = -S.pos.z;
+  for (let i = 0; i < n; i++) {
+    const ti = -pos[i * 3 + 2];
+    if (ti >= tLive) {
+      const tp = i > 0 ? -pos[(i - 1) * 3 + 2] : ti;
+      const f = ti > tp ? (tLive - tp) / (ti - tp) : 0;
+      return S.elapsed - ((i - 1 + f) / Math.max(1, n - 1)) * dur;
+    }
+  }
+  return S.elapsed - dur;
+}
+function updateHUD() {
+  const speedH = Math.sqrt(S.vel.x * S.vel.x + S.vel.z * S.vel.z);
+  hudTime.textContent = fmtTime(S.phase === 'finished' ? S.finalTime : S.elapsed);
+  hudSpeed.innerHTML = Math.round(speedH * 3.6) + '<span class="unit"> km/h</span>';
+  hudDist.textContent = Math.max(0, Math.round(FINISH_T - (-S.pos.z))) + ' m';
+  hudSnow.textContent = snowInFlight + ' in flight · ' + snowDisplaced + ' displaced';
+  /* live air time while airborne; holds the accumulated total on the ground */
+  hudAir.textContent = S.grounded ? S.airTotal.toFixed(1) + ' s' : '▲ ' + S.airCur.toFixed(1) + ' s';
+  hudAir.style.color = S.grounded ? '#eaf3fd' : '#ffd98a';
+  if (!ghostData) {
+    hudGhost.textContent = 'none — finish to set one';
+    hudGhost.style.color = '#9fc3e8';
+  } else {
+    const gap = ghostGapSeconds();
+    const gapText = gap === null ? '' : (gap >= 0 ? '+' + gap.toFixed(1) + ' s behind' : (-gap).toFixed(1) + ' s ahead');
+    const liveScore = S.phase === 'running' ? computeScoreAt(S.elapsed, S.airTotal, avalancheTriggered).total : (S.lastScore ? S.lastScore.total : 0);
+    const ghostDone = ghostTime >= ghostData.time;
+    hudGhost.innerHTML = (ghostDone ? 'GHOST FINISHED · ' : '') + (gapText ? gapText + ' · ' : '') +
+      'ghost ' + ghostData.score + ' · you ' + liveScore;
+    hudGhost.style.color = '#7ce0ff';
+  }
+  if (S.phase === 'failed') {
+    hudAv.textContent = 'CAUGHT — RUN FAILED';
+    hudAv.style.color = '#ff8a70';
+  } else if (flowCount > 0) {
+    hudAv.textContent = 'FLOWING · ' + Math.min(9999, Math.round(avalancheNearDist)) + ' m';
+    hudAv.style.color = '#ffd98a';
+  } else {
+    hudAv.textContent = 'stable';
+    hudAv.style.color = '#eaf3fd';
+  }
+}
+function exportState() {
+  const speedH = Math.sqrt(S.vel.x * S.vel.x + S.vel.z * S.vel.z);
+  window.__arena_state = {
+    phase: S.phase,
+    elapsed: S.phase === 'finished' ? S.finalTime : S.elapsed,
+    pos: { x: S.pos.x, y: S.pos.y, z: S.pos.z },
+    speed: speedH,
+    airborne: !S.grounded,
+    distanceToFinish: Math.max(0, FINISH_T - (-S.pos.z)),
+    heading: S.psi,
+    grounded: S.grounded,
+    finalTime: S.finalTime,
+    snowInFlight: snowInFlight,
+    snowDisplaced: snowDisplaced,
+    snowLayer: 'active',
+    avalancheActive: flowCount > 0,
+    avalancheNear: flowCount > 0 ? Math.round(avalancheNearDist) : -1,
+    avalancheTriggered: avalancheTriggered,
+    airTime: S.airCur,
+    airTotal: S.airTotal,
+    score: S.phase === 'finished' && S.lastScore ? S.lastScore.total : null,
+    grade: S.phase === 'finished' && S.lastScore ? S.lastScore.grade : null,
+    ghostActive: !!ghostData,
+    ghostScore: ghostData ? ghostData.score : null,
+    ghostGap: ghostGapSeconds()
+  };
+}
+
+/* ============================== input ============================== */
+window.addEventListener('keydown', function (e) {
+  switch (e.code) {
+    case 'ArrowLeft': case 'KeyA': keys.left = true; e.preventDefault(); break;
+    case 'ArrowRight': case 'KeyD': keys.right = true; e.preventDefault(); break;
+    case 'Space': input.jumpQueued = true; e.preventDefault(); break;
+    case 'Enter': if (S.phase !== 'running') startRun(); e.preventDefault(); break;
+    case 'KeyR': startRun(); e.preventDefault(); break;
+    case 'KeyC': camMode = (camMode + 1) % CAM_MODES.length; e.preventDefault(); break;
+    case 'KeyG': clearGhost(); e.preventDefault(); break;
+  }
+});
+window.addEventListener('keyup', function (e) {
+  switch (e.code) {
+    case 'ArrowLeft': case 'KeyA': keys.left = false; break;
+    case 'ArrowRight': case 'KeyD': keys.right = false; break;
+  }
+});
+window.addEventListener('resize', function () {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* ============================== main loop ============================== */
+const _v1 = new THREE.Vector3();
+const _v2 = new THREE.Vector3();
+let acc = 0;
+let lastFrame = performance.now();
+resetRun();
+S.phase = 'title';
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  let rdt = (now - lastFrame) / 1000;
+  lastFrame = now;
+  if (rdt > 0.1) rdt = 0.1;
+  if (rdt < 0) rdt = 0;
+
+  if (S.phase === 'running' || S.phase === 'finished') {
+    acc += rdt;
+    let steps = 0;
+    while (acc >= PHYS_DT && steps < 10) {
+      physStep(PHYS_DT);
+      ghostTime += PHYS_DT;
+      acc -= PHYS_DT;
+      steps++;
+    }
+    if (steps === 10) acc = 0;
+  } else if (S.phase === 'failed') {
+    /* the skier is buried but the mountain keeps moving */
+    acc += rdt;
+    let steps = 0;
+    while (acc >= PHYS_DT && steps < 10) {
+      snowSimStep(PHYS_DT);
+      flowStep(PHYS_DT);
+      ghostTime += PHYS_DT;
+      acc -= PHYS_DT;
+      steps++;
+    }
+    if (steps === 10) acc = 0;
+  } else {
+    S.animTime += rdt;
+  }
+
+  updateSkierVisual(rdt);
+  updateGhostVisual(rdt);
+  updateSnowVisuals();
+  updateTrees(S.animTime);
+  updateCamera(rdt);
+  updateHUD();
+  exportState();
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(frame);
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,2070 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mill Stream</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#9fd4ef;}
+  #wrap{position:fixed;inset:0;}
+  canvas{display:block;}
+  .panel{position:absolute;background:rgba(34,24,14,.78);border:1px solid rgba(214,178,120,.35);
+    border-radius:10px;color:#f3e7c9;padding:10px 12px;font:13px/1.35 'Trebuchet MS',Verdana,sans-serif;
+    box-shadow:0 4px 14px rgba(20,10,0,.35);pointer-events:none;}
+  #hud{top:12px;left:12px;width:250px;}
+  #hud .row{margin:7px 0;}
+  #hud .lbl{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.12em;color:#d8c39a;}
+  #hud .lbl b{color:#f3e7c9;font-size:12px;letter-spacing:0;}
+  .bar{position:relative;height:9px;background:rgba(255,255,255,.10);border-radius:5px;margin-top:3px;overflow:hidden;}
+  .bar .fill{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:#7fd45a;width:0%;}
+  .bar .notch{position:absolute;top:-2px;bottom:-2px;width:2px;background:#ff8d5c;}
+  #wheelFill.gen{background:#7fd45a;} #wheelFill.idle{background:#e0a23c;}
+  #chargeFill{background:#66c7f0;}
+  #resFill{background:#6fc4e8;}
+  #timeText{font-size:20px;font-weight:bold;}
+  #timeText.low{color:#ff6b57;}
+  .chip{display:inline-block;padding:2px 8px;border-radius:6px;background:#5b4630;color:#ffe9c2;
+    font-size:11px;letter-spacing:.08em;margin-top:2px;}
+  .chip.open{background:#2f6b1f;color:#c9f7a8;}
+  #grainFill{background:#9cc25a;}
+  #fieldFlowFill{background:#5aa77a;}
+  #fieldDepthFill{background:#5aa7b8;}
+  #villageFill{background:#c25a4a;}
+  .card .grade{font-size:56px;margin:2px 0;color:#ffe08a;font-weight:bold;letter-spacing:.08em;
+    text-shadow:0 3px 0 #5a3d1c;}
+  .card .score{font-size:14px;color:#bfe0d2;margin:4px 0 10px;white-space:pre-line;line-height:1.55;}
+  .genstate{background:#4b3a2a;color:#cbb894;font-size:10px;padding:1px 6px;border-radius:5px;
+    letter-spacing:.1em;vertical-align:middle;}
+  .genstate.on{background:#2f6b1f;color:#c9f7a8;}
+  .simbadge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;letter-spacing:.08em;
+    background:#4b3a2a;color:#cbb894;}
+  .simbadge.on{background:#2f6b1f;color:#c9f7a8;}
+  #hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:12px;color:#f7ecd2;
+    background:rgba(34,24,14,.55);padding:5px 14px;border-radius:8px;pointer-events:none;white-space:nowrap;}
+  .card{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;}
+  .card .inner{background:rgba(30,20,10,.86);border:1px solid rgba(214,178,120,.5);border-radius:14px;
+    padding:34px 48px;text-align:center;color:#f3e7c9;font-family:Georgia,'Times New Roman',serif;
+    box-shadow:0 10px 40px rgba(10,5,0,.5);max-width:560px;}
+  .card h1{font-size:46px;margin:0 0 6px 0;letter-spacing:.06em;color:#ffe9b8;text-shadow:0 3px 0 #5a3d1c;}
+  .card .obj{font-size:15px;color:#cfe6d8;margin:8px 0 14px;}
+  .card .ctl{font-size:13px;color:#d8c39a;line-height:1.7;}
+  .card .go{margin-top:16px;font-size:16px;color:#8fe08f;letter-spacing:.15em;animation:pulse 1.6s infinite;}
+  .card .res{font-size:22px;margin:4px 0;color:#ffe9b8;}
+  @keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}
+  .hidden{display:none !important;}
+  #fatal{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);color:#fff;background:#7a3020;
+    padding:16px 22px;border-radius:10px;font:14px sans-serif;display:none;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud" class="panel">
+    <div class="row"><div class="lbl"><span>WHEEL 1 · 2.40</span><span id="genBadge" class="genstate">IDLE</span></div></div>
+    <div class="row"><div class="lbl"><span>WHEEL 2 · 1.50</span><span id="genBadge2" class="genstate">IDLE</span></div></div>
+    <div class="row"><div class="lbl"><span>WHEEL 3 · 2.20</span><span id="genBadge3" class="genstate">IDLE</span></div></div>
+    <div class="row"><span id="simBadge" class="simbadge">NOT SIMULTANEOUS</span></div>
+    <div class="row"><div class="lbl"><span>CHARGE</span><b id="chargeText">–</b></div>
+      <div class="bar"><div class="fill" id="chargeFill"></div></div></div>
+    <div class="row"><div class="lbl"><span>GRAIN</span><b id="grainText">–</b></div>
+      <div class="bar"><div class="fill" id="grainFill"></div></div></div>
+    <div class="row"><div class="lbl"><span>VILLAGE</span><b id="villageText">–</b></div>
+      <div class="bar"><div class="fill" id="villageFill"></div></div></div>
+    <div class="row"><div class="lbl"><span>TIME</span><b id="timeText">–</b></div></div>
+    <div class="row"><span class="chip" id="gateChip">SLUICE · CLOSED</span> <span class="chip" id="gateChipB">FIELD · CLOSED</span> <span class="chip" id="gateChipC">VILLAGE · CLOSED</span></div>
+    <div class="row"><span class="chip" id="gateChipD">UPPER · CLOSED</span> <span class="chip" id="gateChipE">LOWER · CLOSED</span></div>
+  </div>
+  <div id="hint">Click a gate to open or close it &nbsp;·&nbsp; Space sluice / F field / G village / D upper / E lower &nbsp;·&nbsp; Drag orbit &nbsp;·&nbsp; Scroll zoom &nbsp;·&nbsp; R restart</div>
+  <div id="title" class="card"><div class="inner">
+    <h1>MILL STREAM</h1>
+    <div class="obj">Three mill wheels now guard the door — charge flows ONLY while all three turn at once. Open the upper sluice early, the lower one late, and stagger the flow fronts until every wheel is above its mark. Mind the grain, the village, and the finite meltwater.</div>
+    <div class="ctl">Click a gate — open / close it<br>
+      Space — sluice &nbsp;·&nbsp; F — field &nbsp;·&nbsp; G — village &nbsp;·&nbsp; D — upper mill &nbsp;·&nbsp; E — lower mill<br>
+      Drag — orbit the camera &nbsp;·&nbsp; Scroll — zoom &nbsp;·&nbsp; R — restart</div>
+    <div class="go">PRESS ENTER TO START</div>
+  </div></div>
+  <div id="endcard" class="card hidden"><div class="inner">
+    <div class="res" id="endTitle">–</div>
+    <div class="grade" id="endGrade">–</div>
+    <div class="score" id="endScore">–</div>
+    <div class="obj" id="endBody">–</div>
+    <div class="go">PRESS R TO REPLAY</div>
+  </div></div>
+  <div id="fatal"></div>
+</div>
+<script src="./assets/_shared/three/build/three.min.js"></script>
+<script>
+'use strict';
+/* =========================================================================
+   MILL STREAM — deterministic game core (no DOM, no THREE, no randomness)
+   ========================================================================= */
+const GameCore = (function(){
+  // ---- tuning constants -------------------------------------------------
+  const CS = 0.5, NX = 128, NZ = 80, X0 = -32, Z0 = -20;      // water grid
+  const CS2 = CS*CS;
+  const TICK = 1/120;                                          // fixed logic tick (s, real time)
+  const DT_SIM = 1/50, SIM_SPEED = 1.35;                       // water sim step (s, sim time)
+  const ROUND_TIME = 85, CHARGE_TARGET = 44;
+  const RES_X0 = -6.5, RES_X1 = 4.5, RES_Z0 = -3.5, RES_Z1 = 3.5;
+  const RES_FLOOR = 8.5, RES_DEPTH0 = 3.3, RES_RIM = 11.5;
+  const CH_X0 = 4.5, CH_X1 = 17.2, CH_HW = 1.8, FL0 = 4.0, SLOPE = 0.206;
+  const PIT_X0 = CH_X1, PIT_X1 = 19.2, PIT_ZC = 0.1, PIT_HW = 1.6, PIT_FLOOR = 0.6;
+  const TAIL_X1 = 24, TAIL_HW = 1.6, DRAIN_X = 23.2, DRAIN_MAX = 2.2; // tailrace capacity (m^3/s)
+  const WHEEL_R = 2.2;
+  const KP_F = 1.05;                      // pipe-model friction factor
+  const CGP = 0.7;                       // gate conductance per cell pair (m^3/s per sqrt(m))
+  const GATE_TRAVEL_T = 1.4;              // s for full open/close
+  const WGEN = 2.4;                       // generating threshold (rad/s)
+  const DRIVE_A = 0.085, WMAX = 2.9;        // drive = A*q^3*(0.5+depth)
+  const B_DRY = 0.05, B_WET = 0.25;       // bearing drag vs paddle drag in water
+  const C_DRY = 0.01, C_WET = 0.02;
+  const RATE = 4.2, EXP_P = 1.3;          // charge rate & superlinearity
+  const WARM_T = 3;                       // s of generation before the mill runs at full rate
+  const K_GRAIN = 9.0;                    // grain health per m³ of absorbed water
+    const FLOW_MAX_SHOW = 3.2, WHEEL_MAX_SHOW = 3.2;
+
+  // branching channel: irrigation fork + terraced grain field
+  const IRG_XC = 10.0, IRG_HW = 1.3;         // branch centre / half-width (x)
+  const IRG_Z0 = 1.0, IRG_Z1 = 9.0;          // branch trench z extent
+  const IR_JZ = 2.48, IR_F0 = 2.79, IR_SLOPE = 0.12; // branch floor at junction / descent
+  const FX0 = 6.5, FX1 = 14.5, FZ0 = 9.0, FZ1 = 16.5; // field bench rect
+  const FBLEND = 6.5;                        // bench blend distance (scarp width)
+  const ABS_B = 0.020, ABS_K = 0.10, ABS_D = 0.14;   // soil absorption model (m/s)
+  const CGP_B = 0.7;                         // fork gate conductance
+  const GRAIN_TARGET = 100;                  // grain health target (see K_GRAIN)
+  const QF_MAX_SHOW = 1.6;                   // HUD scale for flow-to-field
+
+  // flooding: the field drowns when pooled water exceeds its tolerance
+  const FLOOD_TOL = 0.16;                    // pooled depth (m) the field tolerates
+  const DROWN_K = 60;                        // grain health lost /s per m of excess depth
+  const ABS_SAT_D = 0.5, ABS_SAT_K = 0.5;    // deep pools drain slower
+  const SOIL_CAP = 16.0;                     // m³ the field soil can drink before pooling
+  const SOIL_EFF_MIN = 0.03;                 // residual absorption of saturated soil
+  // village branch: vertical run off the channel bank, then a diagonal to the bench
+  const VX_C = 14.3, VH_HW = 1.2;            // vertical run centre (x) / half width
+  const VZ_DIAG0 = 4.7, VDX_SLOPE = 0.357;   // bend z, diagonal rise per m of x
+  const VF_V0 = 2.07, VF_VS = 0.09;          // vertical floor at bank / descent per m (by z)
+  const VF_D0 = 1.90, VF_DS = 0.055;         // diagonal floor at bend / descent per m (by x)
+  const VX_DIAG1 = 19.4;                     // diagonal dissolves into the village apron
+  const VB_X0 = 17.4, VB_X1 = 28.5, VB_Z0 = 3.2, VB_Z1 = 10.2;  // village bench rect
+  const VB_F0 = 0.85, VB_FX = 0.010, VB_FZ = 0.006, VB_CZ = 6.7; // bench floor plane
+  const VB_BLEND = 4.5, VB_GUARDZ = 2.85;    // apron blend width / tailrace protection
+  const VGX0 = 17.6, VGX1 = 18.9;            // pit overflow gully x-range (south levee)
+  const VG_CREST = 2.4;                      // gully crest: the pit brims before spilling
+  const V_DRY = 0.012, V_CAPD = 0.10, V_DMG_K = 12; // village damage model
+  const VDRAIN_MAX = 1.0;                    // village storm drain capacity (sim m³/s)
+  const CGP_C = 1.6;                         // village gate conductance
+  const QV_MAX_SHOW = 1.2;                   // HUD scale for flow-to-village
+  const SCORE_VILLAGE_W = 1.5;               // score weight per village damage point
+
+  // three wheels: the high sluice (north slope) and the low wheel (tailrace run)
+  const W2_XC = 6.5, W2_HW = 0.95;           // high branch centre (x) / half width
+  const W2_ZBANK = -1.5, W2_Z1 = -5.6;       // high trench z extent (bank -> pit)
+  const W2_F0 = 3.36, W2_FS = 0.16;          // high floor at bank / descent per m (by z)
+  const W2_PIT_F = 2.5;                      // high pit floor
+  const W2_PITX0 = 6.2, W2_PITX1 = 8.4;      // high pit x range
+  const W2_PZ0 = -7.4, W2_PZ1 = -5.6;        // high pit z range
+  const W2_OUTZ0 = -8.8, W2_OUTZ1 = -7.4;    // high outflow trench
+  const W2_AXLE = 4.05, W2_R = 1.7;
+  const WGEN2 = 1.5, DA2 = 1.9, WMAX2 = 2.2;
+  const CGP_D = 0.5, HIGHOUT_MAX = 0.55;     // high gate conductance / outflow cap
+  const W3_XC = 16.2, W3_HW = 1.2;           // lower branch centre (x) / half width
+  const W3_ZBANK = -0.6, W3_Z1 = -4.2;       // lower trench z extent (bank -> pit)
+  const W3_F0 = 1.65, W3_FS = 0.12;          // lower floor at bank / descent per m (by z)
+  const W3_PITX0 = 15.4, W3_PITX1 = 17.0;    // lower pit x range
+  const W3_PZ0 = -6.8, W3_PZ1 = -4.2;        // lower pit z range
+  const W3_PIT_F = 1.25;                     // lower pit floor
+  const W3_OUTX0 = 16.0, W3_OUTX1 = 17.0;    // lower outflow trench
+  const W3_OUTZ0 = -8.2, W3_OUTZ1 = -6.8;
+  const W3_AXLE = 3.3, W3_R = 2.2;
+  const WGEN3 = 2.2, DA3 = 23.0, WMAX3 = 3.5;
+  const CGP_E = 2.5, LOWOUT_MAX = 1.2;       // low gate conductance / outflow cap
+  const GULLY_DRAIN = 1.2;                   // gully outfall: sheds moderate spill
+
+  // ---- helpers ----------------------------------------------------------
+  function h2(n){ const s = Math.sin(n*127.1+311.7)*43758.5453; return s - Math.floor(s); }
+  function smoothstep(a,b,x){ const t = Math.min(1,Math.max(0,(x-a)/(b-a))); return t*t*(3-2*t); }
+  function chZ(x){ return 1.5*Math.sin((x-CH_X0)*0.085); }
+  function chFloor(x){ return FL0 - SLOPE*(x-CH_X0); }
+  function irFloor(z){ return IR_F0 - IR_SLOPE*(z-IR_JZ); }
+  function fieldFloor(x,z){
+    return irFloor(Math.max(z,IR_JZ)) - 0.07 - 0.010*Math.max(0,z-FZ0) - 0.012*Math.abs(x-IRG_XC);
+  }
+  function vzPath(x){ return VZ_DIAG0 + VDX_SLOPE*(x-VX_C); }
+  function vFloorV(z){ return VF_V0 - VF_VS*(z-2.91); }
+  function vFloorD(x){ return VF_D0 - VF_DS*(x-VX_C); }
+  function inVTrench(x,z){
+    if (Math.abs(x-VX_C) < VH_HW && z > 2.80 && z <= VZ_DIAG0+0.05) return true;
+    if (x > VX_C-0.05 && x <= VX_DIAG1+0.1 && Math.abs(z - vzPath(x)) < VH_HW) return true;
+    return false;
+  }
+  function inGully(x,z){ return x >= VGX0-0.1 && x <= VGX1+0.1 && z >= 1.6 && z <= 3.05; }
+  function gullyFloor(z){ return VG_CREST - 0.25*(z-1.75); }
+  function vbenchFloor(x,z){ return VB_F0 - VB_FX*(x-VB_X0) - VB_FZ*Math.abs(z-VB_CZ); }
+  function w2Floor(z){ return W2_F0 + W2_FS*(z-W2_ZBANK); }
+  function w2OutFloor(z){ return W2_PIT_F + 0.21*(z+7.4); }
+  function inW2Trench(x,z){ return Math.abs(x-W2_XC)<W2_HW && z<=W2_ZBANK+0.1 && z>=W2_Z1-0.05; }
+  function inW2Pit(x,z){ return x>W2_PITX0 && x<W2_PITX1 && z>W2_PZ0 && z<W2_PZ1; }
+  function inW2Out(x,z){ return Math.abs(x-7.2)<0.6 && z>=W2_OUTZ0 && z<W2_OUTZ1; }
+  function w3Floor(z){ return W3_F0 + W3_FS*(z-W3_ZBANK); }
+  function inW3Trench(x,z){ return Math.abs(x-W3_XC)<W3_HW && z<=W3_ZBANK+0.1 && z>=W3_Z1-0.05; }
+  function inW3Pit(x,z){ return x>W3_PITX0 && x<W3_PITX1 && z>W3_PZ0 && z<W3_PZ1; }
+  function inW3Out(x,z){ return x>=W3_OUTX0 && x<=W3_OUTX1 && z>=W3_OUTZ0 && z<W3_OUTZ1; }
+  function w3OutFloor(z){ return W3_PIT_F - 0.24*(z+6.8)/1.4*0.35; }
+
+  // ---- terrain: single source of truth for visuals AND sim grounds ------
+  function terrainH(x,z){
+    const rel = x - CH_X0;
+    const relc = Math.max(-10, Math.min(46, rel));
+    let h = 10.6 - SLOPE*relc;
+    if (rel < -10) h += (-10-rel)*0.05;
+    if (h < 0.35) h = 0.35;
+    const az = Math.abs(z);
+    h += smoothstep(6.5,19,az)*(5.2 + Math.max(0,az-19)*1.2);
+    h += 0.3*Math.sin(x*0.24+z*0.33)*smoothstep(4.5,9,az);
+    // region distances
+    const dxr = Math.max(RES_X0-x, x-RES_X1, 0), dzr = Math.max(RES_Z0-z, z-RES_Z1, 0);
+    const dRes = Math.max(dxr,dzr);
+    const inChX = (x >= CH_X0-0.5 && x <= PIT_X0+0.4);
+    const dCh = Math.abs(z-chZ(x));
+    // reservoir basin
+    if (dRes < 1.6){
+      const bowl = 0.14*(Math.pow((x-(RES_X0+RES_X1)/2)/5,2)+Math.pow((z-(RES_Z0+RES_Z1)/2)/3.5,2));
+      const target = dRes===0 ? RES_FLOOR+bowl : RES_FLOOR + 3.6*Math.min(1,dRes/1.4);
+      if (target < h) h = target;
+    }
+    // channel trench + berms
+    if (inChX && x <= PIT_X0){
+      const f = chFloor(Math.min(x,PIT_X0));
+      if (dCh < CH_HW) h = Math.min(h, f);
+      else if (dCh < 2.9){
+        const t = (dCh-CH_HW)/1.1;
+        const b = f + 1.5 + 1.1*t*t;
+        if (b < h) h = b;
+      }
+    }
+    // irrigation branch trench (the fork) — cut south from the channel to the field
+    const dirIr = Math.abs(x-IRG_XC);
+    const inIrZone = (dirIr < IRG_HW+1.25 && z >= IRG_Z0 && z <= IRG_Z1 && dCh >= CH_HW-0.05);
+    if (inIrZone){
+      const f = irFloor(z);
+      if (dirIr < IRG_HW){ if (f < h) h = f; }
+      else {
+        const t = (dirIr-IRG_HW)/1.1;
+        const b = f + 0.9 + 1.1*t*t;
+        if (b < h) h = b;
+      }
+    }
+    // terraced field bench (carve-only, so it can never raise the sluice)
+    const dxf = Math.max(FX0-x, x-FX1, 0), dzf = Math.max(FZ0-z, z-FZ1, 0);
+    const dF = Math.max(dxf, dzf);
+    if (z > 3.9 && dF < FBLEND && !inIrZone){
+      const target = fieldFloor(x,z);
+      const bt = h + (target-h)*(1 - smoothstep(0, FBLEND, dF));
+      if (bt < h) h = bt;
+    }
+    // village branch trench (third gate) — bank run, then diagonal to the village
+    const inVRuns = inVTrench(x,z);
+    if (inVRuns && dCh >= CH_HW-0.05){
+      const inVert = (Math.abs(x-VX_C) < VH_HW && z <= VZ_DIAG0);
+      const f = inVert ? Math.min(vFloorV(z), vFloorD(x)) : vFloorD(x);
+      const inTrenchWater = inVert ? (Math.abs(x-VX_C) < VH_HW) : (Math.abs(z - vzPath(x)) < VH_HW);
+      if (inTrenchWater){ if (f < h) h = f; }
+      else {
+        const t = ((inVert ? Math.abs(x-VX_C) : Math.abs(z - vzPath(x))) - VH_HW)/1.0;
+        const b = f + 0.85 + 1.1*t*t;
+        if (b < h) h = b;
+      }
+    }
+    // pit overflow gully — an engineered stone spillway cut through the south
+    // levee; the ungated path excess water takes to the village
+    if (inGully(x,z)){
+      h = gullyFloor(z);
+    }
+    // village bench: the lowest ground water can reach
+    const dxb = Math.max(VB_X0-x, x-VB_X1, 0), dzb = Math.max(VB_Z0-z, z-VB_Z1, 0);
+    const dB = Math.max(dxb, dzb);
+    if (z > VB_GUARDZ && dB < VB_BLEND && !(inVRuns && x <= 17.2) && !inGully(x,z)){
+      const target = vbenchFloor(x,z);
+      const bt = h + (target-h)*(1 - smoothstep(0, VB_BLEND, dB));
+      if (bt < h) h = bt;
+    }
+    // high sluice (wheel 2): trench up the north slope, pit, and outflow
+    if (inW2Trench(x,z) && dCh >= CH_HW-0.05){
+      const f = w2Floor(z);
+      if (f < h) h = f;
+    }
+    if (inW2Pit(x,z) && W2_PIT_F < h) h = W2_PIT_F;
+    if (inW2Out(x,z)){
+      const f = w2OutFloor(z);
+      if (f < h) h = f;
+    }
+    // wheel pit + tailrace
+    if (x >= PIT_X0-0.4 && x <= TAIL_X1+0.6){
+      const dzp = Math.abs(z-PIT_ZC);
+      if (dzp < TAIL_HW){
+        const f = x < PIT_X1 ? PIT_FLOOR : Math.max(0.45-0.004*(x-PIT_X1), 0.3);
+        h = Math.min(h, f);
+      } else if (dzp < 2.5){
+        const t = (dzp-TAIL_HW)/0.9;
+        const f = x < PIT_X1 ? PIT_FLOOR : Math.max(0.45-0.004*(x-PIT_X1), 0.3);
+        // the village-side levee stands taller: over the gully notch it is the spill crest
+        const b = f + 0.3 + (z > PIT_ZC ? 1.0 : 0) + 1.1*t*t;
+        if (b < h) h = b;
+      }
+    }
+    // mill terrace
+    if (x >= 20.6 && x <= 26.6 && z >= -6.6 && z <= -0.4){
+      if (h < 2.15) h = 2.15; else if (h > 2.45) h = 2.45;
+    }
+    // lower wheel sluice (wheel 3): trench up the north slope, pit, outflow
+    if (inW3Trench(x,z) && dCh >= CH_HW-0.05){
+      const f = w3Floor(z);
+      if (f < h) h = f;
+    }
+    if (inW3Pit(x,z) && W3_PIT_F < h) h = W3_PIT_F;
+    if (inW3Out(x,z)){
+      const f = W3_PIT_F - 0.24*(z+6.8)/1.4*0.35;
+      if (f < h) h = f;
+    }
+    // gentle mottling, suppressed in water-bearing regions
+    let mfac = smoothstep(1.8, 3.4, dCh);
+    if (dRes < 2.2) mfac = Math.min(mfac, dRes/2.2);
+    if (x >= PIT_X0-0.4 && x <= TAIL_X1+0.6){
+      const dzp = Math.abs(z-PIT_ZC);
+      mfac = Math.min(mfac, smoothstep(1.6, 3.0, dzp));
+    }
+    if (dirIr < IRG_HW+0.9 && z >= IRG_Z0 && z <= IRG_Z1) mfac = Math.min(mfac, Math.max(0, dirIr-IRG_HW+0.2)/0.9);
+    if (dF < 0.05) mfac *= 0.3;
+    h += 0.12*Math.sin(x*1.9)*Math.sin(z*1.7)*mfac;
+    return h;
+  }
+
+  // ---- grid -------------------------------------------------------------
+  const N = NX*NZ;
+  const G = new Float32Array(N), D = new Float32Array(N), T = new Uint8Array(N);
+  const activeCells = [], resCells = [], gatePairs = [], irgGatePairs = [], villageGatePairs = [], chPairs = [], sensorPairs = [], drainCells = [], approachCells = [], wheelCells = [], fieldCells = [], irgMouthCells = [], vMouthCells = [], villageCells = [], vDrainCells = [], w2MouthCells = [], w2PitCells = [], highOutCells = [], w3PitCells = [], lowOutCells = [], gateDPairs = [], gateEPairs = [], gullyCells = [];
+  const DRY = 0.012;
+
+  function cellOf(x,z){ // world to cell indices (clamped)
+    const i = Math.max(0,Math.min(NX-1, Math.floor((x-X0)/CS)));
+    const j = Math.max(0,Math.min(NZ-1, Math.floor((z-Z0)/CS)));
+    return j*NX+i;
+  }
+  (function build(){
+    for (let j=0;j<NZ;j++) for (let i=0;i<NX;i++){
+      const x = X0+(i+0.5)*CS, z = Z0+(j+0.5)*CS, k = j*NX+i;
+      const dxr = Math.max(RES_X0-x, x-RES_X1, 0), dzr = Math.max(RES_Z0-z, z-RES_Z1, 0);
+      const dRes = Math.max(dxr,dzr);
+      const dCh = Math.abs(z-chZ(x));
+      const dzp = Math.abs(z-PIT_ZC);
+      let t = 0;
+      if (dRes===0) t = 1;
+      else if (x>=CH_X0 && x<=PIT_X0 && dCh<CH_HW) t = 2;
+      else if (x>=PIT_X0 && x<PIT_X1 && dzp<PIT_HW) t = 3;
+      else if (x>=PIT_X1 && x<=TAIL_X1 && dzp<TAIL_HW) t = 4;
+      else if (Math.abs(x-IRG_XC)<IRG_HW && z>IRG_Z0 && z<=IRG_Z1 && dCh>=CH_HW) t = 5;
+      else if (x>FX0 && x<FX1 && z>FZ0 && z<FZ1) t = 6;
+      else if (inGully(x,z)){ t = 7; gullyCells.push(k); }
+      else if (inVTrench(x,z) && dCh>=CH_HW) t = 8;
+      else if (x>VB_X0 && x<VB_X1 && z>VB_Z0 && z<VB_Z1) t = 9;
+      else if ((inW2Pit(x,z)) || (inW2Out(x,z)) || (inW2Trench(x,z) && dCh>=CH_HW)) t = 11;
+      else if (inW3Out(x,z) || inW3Pit(x,z) || (inW3Trench(x,z) && dCh>=CH_HW)) t = 12;
+      T[k] = t;
+      G[k] = terrainH(x,z);
+      if (t>0) activeCells.push(k);
+      if (t===1) resCells.push(k);
+      if (t===2 && x>=14.75 && x<=16.75) approachCells.push(k);
+      if (t===3 && x>=17.45 && x<=19.05 && dzp<1.2) wheelCells.push(k);
+      // the main pit keeps its own outfall; the tailrace conveys spent water
+      // east through the lower run (gate E) to its outfall, so a closed lower
+      // gate backs water up into the overflow gully toward the village
+      if (t===3) drainCells.push(k);
+      if (t===5 && z<3.6) irgMouthCells.push(k);
+      if (t===6) fieldCells.push(k);
+      if (t===8 && z<4.0) vMouthCells.push(k);
+      if (t===9) villageCells.push(k);
+      if (t===9 && x>=27.6) vDrainCells.push(k);
+      if (t===12){
+        if (x>=W3_OUTX0 && z<=-7.6) lowOutCells.push(k);
+        if (inW3Pit(x,z)) w3PitCells.push(k);
+      }
+      if (t===11){
+        if (z<=-8.0 && inW2Out(x,z)) highOutCells.push(k);
+        if (inW2Pit(x,z)) w2PitCells.push(k);
+        if (z>-3.2 && z<-1.6) w2MouthCells.push(k);
+      }
+    }
+    // gate pairs: between reservoir column i=24 and channel column i=25
+    const iRes = Math.floor((RES_X1-X0)/CS-0.001);       // last fully-inside reservoir column
+    const iCh = iRes+1;
+    for (let j=0;j<NZ;j++){
+      const a=j*NX+iRes, b=j*NX+iCh;
+      if (T[a]===1 && T[b]===2) gatePairs.push([a,b]);
+    }
+    // neighbor pairs (right + down) among active cells; reservoir<->channel
+    // crossings are the gated reservoir boundary; channel<->branch crossings
+    // are the gated fork boundaries (field + village) handled separately
+    const forkPair = (u,v) => (u===2&&v===5)||(u===5&&v===2)||(u===2&&v===8)||(u===8&&v===2)||(u===2&&v===11)||(u===11&&v===2)||(u===2&&v===12)||(u===12&&v===2);
+    for (let j=0;j<NZ;j++) for (let i=0;i<NX-1;i++){
+      const a=j*NX+i, b=j*NX+i+1;
+      if (!T[a] || !T[b] || (T[a]===1 && T[b]===2)) continue;
+      if (forkPair(T[a],T[b])){
+        if (T[a]===8 || T[b]===8) villageGatePairs.push([a,b]);
+        else if (T[a]===11 || T[b]===11) gateDPairs.push([b,a]);   // sluices north of channel: channel-side first
+        else if (T[a]===12 || T[b]===12) gateEPairs.push([b,a]);
+        else irgGatePairs.push([a,b]);
+        continue;
+      }
+      // marker -60: village branch flow sensor crossing x≈19.0 (west->east = toward village)
+      if (i===101 && T[a]===8 && T[b]===8){ chPairs.push([a,b,-60]); continue; }
+      chPairs.push([a,b,i]);
+    }
+    for (let j=0;j<NZ-1;j++) for (let i=0;i<NX;i++){
+      const a=j*NX+i, b=(j+1)*NX+i;
+      if (!T[a] || !T[b]) continue;
+      if (forkPair(T[a],T[b])){
+        if (T[a]===8 || T[b]===8) villageGatePairs.push([a,b]);
+        // the high and lower sluices lie NORTH of the channel: channel-side first
+        else if (T[a]===11 || T[b]===11) gateDPairs.push([b,a]);
+        else if (T[a]===12 || T[b]===12) gateEPairs.push([b,a]);
+        else irgGatePairs.push([a,b]);
+        continue;
+      }
+      // marker -50: branch flow sensor crossing z≈5.0 (north->south = toward field)
+      if (j===49 && T[a]===5 && T[b]===5){ chPairs.push([a,b,-50]); continue; }
+      // marker -70: high sluice sensor crossing z≈-3.5 (northward = toward wheel 2; sign inverted)
+      if (j===32 && T[a]===11 && T[b]===11){ chPairs.push([a,b,-70]); continue; }
+      // marker -80: lower sluice sensor crossing z≈-3.0 (northward = toward wheel 3; sign inverted)
+      if (j===34 && T[a]===12 && T[b]===12){ chPairs.push([a,b,-80]); continue; }
+      chPairs.push([a,b,-1]);
+    }
+    for (let p=0;p<chPairs.length;p++){ const pr=chPairs[p]; if (pr[2]===94) sensorPairs.push(pr); }
+  })();
+
+  // ---- state ------------------------------------------------------------
+  const state = {
+    phase:'title', timeRemaining:ROUND_TIME, timeLimit:ROUND_TIME, elapsed:0,
+    reservoirVolume:0, reservoirStartVolume:0, reservoirFraction:0,
+    gateOpen:false, gateTravel:0, gateMoving:false, gateAperture:0,
+    gateBOpen:false, gateBTravel:0, gateBMoving:false, gateBAperture:0, gateBAngle:0,
+    gateCOpen:false, gateCTravel:0, gateCMoving:false, gateCAperture:0, gateCAngle:0,
+    gateDOpen:false, gateDTravel:0, gateDMoving:false, gateDAperture:0, gateDAngle:0,
+    gateEOpen:false, gateETravel:0, gateEMoving:false, gateEAperture:0, gateEAngle:0,
+    flowAtWheel:0, flowToField:0, flowToVillage:0, flowAtWheel2:0, flowAtWheel3:0, branchFlows:null,
+    grainHealth:0, grainTarget:GRAIN_TARGET, fieldAbsorbedVolume:0,
+    grainPeak:0, drownTotal:0, fieldDepth:0, fieldFloodTolerance:FLOOD_TOL, fieldFlooding:false,
+    villageDamage:0, villageRunoff:0, spillRunoff:0,
+    wheelSpeed:0, wheelGenThreshold:WGEN, wheelGenerating:false,
+    wheel2Speed:0, wheel2Threshold:WGEN2, wheel2Generating:false,
+    wheel3Speed:0, wheel3Threshold:WGEN3, wheel3Generating:false,
+    allGenerating:false,
+    charge:0, chargeTarget:CHARGE_TARGET, wheelAngle:0, dischargedVolume:0, millWarm:1,
+    won:false, lost:false, flowMaxShow:FLOW_MAX_SHOW, wheelMaxShow:WHEEL_MAX_SHOW,
+    flowMaxShowF:QF_MAX_SHOW, flowMaxShowV:QV_MAX_SHOW,
+    score:null, grade:null, scoreParts:null
+  };
+  let tRem = ROUND_TIME, time = 0, gateTarget = 0, gateTravel = 0, gateAngle = 0;
+  let gateTargetB = 0, gateTravelB = 0, gateAngleB = 0;
+  let gateTargetC = 0, gateTravelC = 0, gateAngleC = 0;
+  let gateTargetD = 0, gateTravelD = 0, gateAngleD = 0;
+  let gateTargetE = 0, gateTravelE = 0, gateAngleE = 0;
+  let w = 0, wheelAngle = 0, qw = 0, dWs = 0, charge = 0, generating = false, genTimeAcc = 0;
+  let w2 = 0, wheelAngle2 = 0, qw2 = 0, dWs2 = 0, generating2 = false;
+  let w3 = 0, wheelAngle3 = 0, qw3 = 0, dWs3 = 0, generating3 = false;
+  let simAcc = 0, acc = 0, sweepParity = 0, gateVolAcc = 0, sensorVol = 0, discharged = 0;
+  let sensorFieldVol = 0, qf = 0, grainVol = 0;
+  let sensorVillageVol = 0, qv = 0, villageRunoff = 0, villageDamage = 0;
+  let sensorHighVol = 0, sensorLowVol = 0;
+  let grainPts = 0, grainGainAcc = 0, drownTotal = 0, grainPeak = 0, fieldDepthS = 0, soilMoist = 0;
+  let pendingToggle = false, pendingToggleB = false, pendingToggleC = false, pendingToggleD = false, pendingToggleE = false;
+
+  function reset(toPlay){
+    for (let p=0;p<activeCells.length;p++) D[activeCells[p]] = 0;
+    for (let p=0;p<resCells.length;p++) D[resCells[p]] = RES_DEPTH0;
+    tRem = ROUND_TIME; time = 0; gateTarget = 0; gateTravel = 0; gateAngle = 0;
+    gateTargetB = 0; gateTravelB = 0; gateAngleB = 0;
+    gateTargetC = 0; gateTravelC = 0; gateAngleC = 0;
+    gateTargetD = 0; gateTravelD = 0; gateAngleD = 0;
+    gateTargetE = 0; gateTravelE = 0; gateAngleE = 0;
+    w = 0; wheelAngle = 0; qw = 0; dWs = 0; charge = 0; generating = false, genTimeAcc = 0;
+    w2 = 0; wheelAngle2 = 0; qw2 = 0; dWs2 = 0; generating2 = false;
+    w3 = 0; wheelAngle3 = 0; qw3 = 0; dWs3 = 0; generating3 = false;
+    simAcc = 0; acc = 0; sensorVol = 0; discharged = 0; pendingToggle = false; sweepParity = 0;
+    sensorFieldVol = 0; qf = 0; grainVol = 0; pendingToggleB = false;
+    soilMoist = 0;
+    sensorVillageVol = 0; qv = 0; villageRunoff = 0; villageDamage = 0;
+    sensorHighVol = 0; sensorLowVol = 0;
+    grainPts = 0; grainGainAcc = 0; drownTotal = 0; grainPeak = 0; fieldDepthS = 0;
+    pendingToggleC = false; pendingToggleD = false; pendingToggleE = false;
+    state.score = null; state.grade = null; state.scoreParts = null;
+    state.phase = toPlay ? 'playing' : 'title';
+    state.wheelAngle = 0; state.dischargedVolume = 0;
+    refresh();
+  }
+
+  function gateAperture(){
+    const e = gateTravel*gateTravel*(3-2*gateTravel);
+    if (e <= 0.001) return 0;
+    // throttle if channel head is brimming
+    let avg = 0, n = 0;
+    for (let p=0;p<gatePairs.length;p++){ avg += D[gatePairs[p][1]]; n++; }
+    avg /= Math.max(1,n);
+    // self-metering: keep the channel head below brim so a wide-open gate
+    // releases at the channel's carrying capacity instead of dumping the pond
+    const th = Math.min(1, Math.max(0, (0.80-avg)/0.35));
+    return e*th;
+  }
+
+  function gateBAperture(){
+    const e = gateTravelB*gateTravelB*(3-2*gateTravelB);
+    if (e <= 0.001) return 0;
+    // throttle if the branch mouth is brimming
+    let avg = 0, n = 0;
+    for (let p=0;p<irgMouthCells.length;p++){ avg += D[irgMouthCells[p]]; n++; }
+    avg /= Math.max(1,n);
+    const th = Math.min(1, Math.max(0, (1.5-avg)/0.35));
+    return e*th;
+  }
+
+  function gateCAperture(){
+    const e = gateTravelC*gateTravelC*(3-2*gateTravelC);
+    if (e <= 0.001) return 0;
+    let avg = 0, n = 0;
+    for (let p=0;p<vMouthCells.length;p++){ avg += D[vMouthCells[p]]; n++; }
+    avg /= Math.max(1,n);
+    const th = Math.min(1, Math.max(0, (1.5-avg)/0.35));
+    return e*th;
+  }
+
+  function gateDAperture(){
+    const e = gateTravelD*gateTravelD*(3-2*gateTravelD);
+    if (e <= 0.001) return 0;
+    let avg = 0, n = 0;
+    for (let p=0;p<w2MouthCells.length;p++){ avg += D[w2MouthCells[p]]; n++; }
+    avg /= Math.max(1,n);
+    const th = Math.min(1, Math.max(0, (1.5-avg)/0.35));
+    return e*th;
+  }
+
+  function gateEAperture(){
+    const e = gateTravelE*gateTravelE*(3-2*gateTravelE);
+    if (e <= 0.001) return 0;
+    let avg = 0, n = 0;
+    for (let p=0;p<lowOutCells.length;p++){ avg += D[lowOutCells[p]]; n++; }
+    avg /= Math.max(1,n);
+    const th = Math.min(1, Math.max(0, (1.5-avg)/0.35));
+    return e*th;
+  }
+
+  function waterStep(dt){
+    const ap = gateAperture();
+    if (ap > 0.001){
+      for (let p=0;p<gatePairs.length;p++){
+        const a = gatePairs[p][0], b = gatePairs[p][1];
+        const dS = (G[a]+D[a])-(G[b]+D[b]);
+        if (dS <= 0) continue;
+        let v = CGP*ap*Math.pow(dS,0.25)*dt;
+        const avail = D[a]*CS2*0.5;
+        if (v > avail) v = avail;
+        if (v <= 0) continue;
+        D[a] -= v/CS2; D[b] += v/CS2; gateVolAcc += v;
+      }
+    }
+    // fork gate: channel -> irrigation branch (one-way sluice, like the dam gate)
+    const apB = gateBAperture();
+    if (apB > 0.001){
+      for (let p=0;p<irgGatePairs.length;p++){
+        const a = irgGatePairs[p][0], b = irgGatePairs[p][1];
+        const dS = (G[a]+D[a])-(G[b]+D[b]);
+        if (dS <= 0) continue;
+        let v = CGP_B*apB*Math.pow(dS,0.25)*dt;
+        const avail = D[a]*CS2*0.5;
+        if (v > avail) v = avail;
+        if (v <= 0) continue;
+        D[a] -= v/CS2; D[b] += v/CS2;
+      }
+    }
+    // village gate: channel -> village branch (one-way sluice)
+    const apC = gateCAperture();
+    if (apC > 0.001){
+      for (let p=0;p<villageGatePairs.length;p++){
+        const a = villageGatePairs[p][0], b = villageGatePairs[p][1];
+        const dS = (G[a]+D[a])-(G[b]+D[b]);
+        if (dS <= 0) continue;
+        let v = CGP_C*apC*Math.pow(dS,0.25)*dt;
+        const avail = D[a]*CS2*0.5;
+        if (v > avail) v = avail;
+        if (v <= 0) continue;
+        D[a] -= v/CS2; D[b] += v/CS2;
+      }
+    }
+    // upper mill gate: channel -> high sluice (one-way)
+    const apD = gateDAperture();
+    if (apD > 0.001){
+      for (let p=0;p<gateDPairs.length;p++){
+        const a = gateDPairs[p][0], b = gateDPairs[p][1];
+        const dS = (G[a]+D[a])-(G[b]+D[b]);
+        if (dS <= 0) continue;
+        let v = CGP_D*apD*Math.pow(dS,0.25)*dt;
+        const avail = D[a]*CS2*0.5;
+        if (v > avail) v = avail;
+        if (v <= 0) continue;
+        D[a] -= v/CS2; D[b] += v/CS2;
+      }
+    }
+    // lower mill gate: tailrace -> lower wheel run (one-way)
+    const apE = gateEAperture();
+    if (apE > 0.001){
+      for (let p=0;p<gateEPairs.length;p++){
+        const a = gateEPairs[p][0], b = gateEPairs[p][1];
+        const dS = (G[a]+D[a])-(G[b]+D[b]);
+        if (dS <= 0) continue;
+        let v = CGP_E*apE*Math.pow(dS,0.25)*dt;
+        const avail = D[a]*CS2*0.5;
+        if (v > avail) v = avail;
+        if (v <= 0) continue;
+        D[a] -= v/CS2; D[b] += v/CS2;
+      }
+    }
+    // pipe flow between active cells (compute sequentially, alternate sweep)
+    sweepParity ^= 1;
+    const s0 = sweepParity ? 0 : chPairs.length-1, s1 = sweepParity ? chPairs.length : -1, sd = sweepParity ? 1 : -1;
+    for (let p=s0; p!==s1; p+=sd){
+      const pr = chPairs[p], a = pr[0], b = pr[1];
+      const dS = (G[a]+D[a])-(G[b]+D[b]);
+      if (dS === 0) continue;
+      const up = dS > 0 ? a : b, dn = dS > 0 ? b : a;
+      const ad = dS < 0 ? -dS : dS;
+      let v = KP_F*CS*Math.min(D[up],1.3)*Math.sqrt(19.6*ad)*dt;
+      const avail = D[up]*CS2*0.42;
+      if (v > avail) v = avail;
+      if (v <= 1e-10) continue;
+      D[up] -= v/CS2; D[dn] += v/CS2;
+      if (pr[2]===94) sensorVol += (dS>0 ? v : -v);   // flow crossing x≈15.5 toward wheel
+      else if (pr[2]===-50) sensorFieldVol += (dS>0 ? v : -v); // flow down the irrigation branch
+      else if (pr[2]===-60) sensorVillageVol += (dS>0 ? v : -v); // flow down the village branch
+      else if (pr[2]===-80) sensorLowVol += (dS>0 ? -v : v);  // flow north to wheel 3 (inverted)
+      else if (pr[2]===-70) sensorHighVol += (dS>0 ? -v : v); // flow north to wheel 2 (sign inverted)
+    }
+    // tailrace outflow: capped capacity — sustained inflow floods the pit and
+    // chokes the wheel; a closed gate lets the race clear between bursts
+    let vTail = 0;
+    for (let p=0;p<drainCells.length;p++) vTail += D[drainCells[p]];
+    vTail *= CS2;
+    if (vTail > 1e-9){
+      const outVol = Math.min(DRAIN_MAX*dt, 6*vTail*dt, vTail);
+      const f = outVol/vTail;
+      for (let p=0;p<drainCells.length;p++){
+        const k = drainCells[p];
+        const take = D[k]*f;
+        D[k] -= take; discharged += take*CS2;
+        if (D[k] < 1e-6) D[k] = 0;
+      }
+    }
+    // the field drinks: grain health accrues on water the soil actually takes;
+    // once the soil saturates, absorption collapses and water pools —
+    // pooled water deeper than the tolerance drowns the grain
+    for (let p=0;p<fieldCells.length;p++){
+      const k = fieldCells[p];
+      if (D[k] > 0.0025){
+        const soilEff = Math.max(SOIL_EFF_MIN,
+          1 - 0.9*smoothstep(0.85, 1.0, soilMoist/SOIL_CAP));
+        const sat = 1 - ABS_SAT_K*Math.min(1, D[k]/ABS_SAT_D);
+        let take = (ABS_B + ABS_K*Math.min(1, D[k]/ABS_D))*sat*soilEff*dt;
+        if (take > D[k]) take = D[k];
+        D[k] -= take; grainVol += take*CS2; soilMoist += take*CS2;
+        grainGainAcc += take*CS2*K_GRAIN;
+      }
+    }
+    // village storm drain: the bench sheds water fully once the flood passes
+    let vDrain = 0;
+    for (let p=0;p<vDrainCells.length;p++) vDrain += D[vDrainCells[p]];
+    vDrain *= CS2;
+    if (vDrain > 1e-9){
+      const out2 = Math.min(VDRAIN_MAX*dt, 6*vDrain*dt, vDrain);
+      const f2 = out2/vDrain;
+      for (let p=0;p<vDrainCells.length;p++){
+        const k = vDrainCells[p];
+        const take = D[k]*f2;
+        D[k] -= take; villageRunoff += take*CS2;
+        if (D[k] < 1e-6) D[k] = 0;
+      }
+    }
+    // the overflow gully sheds moderate spill; only real overload reaches the village
+    let gBulk = 0;
+    for (let p=0;p<gullyCells.length;p++) gBulk += Math.max(0, D[gullyCells[p]]-0.06);
+    gBulk *= CS2;
+    if (gBulk > 1e-9){
+      const out5 = Math.min(GULLY_DRAIN*dt, 6*gBulk*dt, gBulk);
+      const f5 = out5/gBulk;
+      for (let p=0;p<gullyCells.length;p++){
+        const k = gullyCells[p];
+        const take = Math.max(0, D[k]-0.06)*f5;
+        D[k] -= take; discharged += take*CS2;
+        if (D[k] < 1e-6) D[k] = 0;
+      }
+    }
+    // the high sluice and low run discharge back to the valley (tracked)
+    let hOut = 0;
+    for (let p=0;p<highOutCells.length;p++) hOut += D[highOutCells[p]];
+    hOut *= CS2;
+    if (hOut > 1e-9){
+      const out3 = Math.min(HIGHOUT_MAX*dt, 6*hOut*dt, hOut);
+      const f3 = out3/hOut;
+      for (let p=0;p<highOutCells.length;p++){
+        const k = highOutCells[p];
+        const take = D[k]*f3;
+        D[k] -= take; discharged += take*CS2;
+        if (D[k] < 1e-6) D[k] = 0;
+      }
+    }
+    let lOut = 0;
+    for (let p=0;p<lowOutCells.length;p++) lOut += D[lowOutCells[p]];
+    lOut *= CS2;
+    if (lOut > 1e-9){
+      const out4 = Math.min(LOWOUT_MAX*dt, 6*lOut*dt, lOut);
+      const f4 = out4/lOut;
+      for (let p=0;p<lowOutCells.length;p++){
+        const k = lowOutCells[p];
+        const take = D[k]*f4;
+        D[k] -= take; discharged += take*CS2;
+        if (D[k] < 1e-6) D[k] = 0;
+      }
+    }
+    // standing water above a film damages the village; it never repairs
+    let vWet = 0;
+    for (let p=0;p<villageCells.length;p++){
+      const k = villageCells[p];
+      if (D[k] > V_DRY) vWet += Math.min(D[k], V_CAPD) - V_DRY;
+    }
+    if (vWet > 0) villageDamage = Math.min(100, villageDamage + vWet*CS2*V_DMG_K*dt);
+    // field pool gauge: deepest standing depth (the inlet pool), smoothed
+    let fmax = 0;
+    for (let p=0;p<fieldCells.length;p++){ if (D[fieldCells[p]] > fmax) fmax = D[fieldCells[p]]; }
+    fieldDepthS += (fmax-fieldDepthS)*Math.min(1, dt/0.5);
+    const inst = sensorVol/dt; sensorVol = 0;
+    qw += (Math.max(0,inst)-qw)*Math.min(1, dt/0.35);
+    const instF = sensorFieldVol/dt; sensorFieldVol = 0;
+    qf += (Math.max(0,instF)-qf)*Math.min(1, dt/0.35);
+    const instV = sensorVillageVol/dt; sensorVillageVol = 0;
+    qv += (Math.max(0,instV)-qv)*Math.min(1, dt/0.35);
+    const instH = sensorHighVol/dt; sensorHighVol = 0;
+    qw2 += (Math.max(0,instH)-qw2)*Math.min(1, dt/0.35);
+    const instL = sensorLowVol/dt; sensorLowVol = 0;
+    qw3 += (Math.max(0,instL)-qw3)*Math.min(1, dt/0.35);
+    let dw = 0;
+    for (let p=0;p<approachCells.length;p++) dw += D[approachCells[p]];
+    dw /= Math.max(1, approachCells.length);
+    dWs += (dw-dWs)*Math.min(1, dt/0.3);
+    let dw2 = 0;
+    for (let p=0;p<w2PitCells.length;p++) dw2 += D[w2PitCells[p]];
+    dw2 /= Math.max(1, w2PitCells.length);
+    dWs2 += (dw2-dWs2)*Math.min(1, dt/0.3);
+    let dw3 = 0;
+    for (let p=0;p<w3PitCells.length;p++) dw3 += D[w3PitCells[p]];
+    dw3 /= Math.max(1, w3PitCells.length);
+    dWs3 += (dw3-dWs3)*Math.min(1, dt/0.3);
+  }
+
+  function fixedTick(h){
+    time += h;
+    const playing = state.phase === 'playing';
+    if (playing){
+      tRem -= h;
+      if (tRem <= 0){ tRem = 0; state.phase = 'lost'; finalizeScore(); }
+      if (pendingToggle){ pendingToggle = false; gateTarget = gateTarget ? 0 : 1; }
+      if (pendingToggleB){ pendingToggleB = false; gateTargetB = gateTargetB ? 0 : 1; }
+      if (pendingToggleC){ pendingToggleC = false; gateTargetC = gateTargetC ? 0 : 1; }
+      if (pendingToggleD){ pendingToggleD = false; gateTargetD = gateTargetD ? 0 : 1; }
+      if (pendingToggleE){ pendingToggleE = false; gateTargetE = gateTargetE ? 0 : 1; }
+    }
+    const before = gateTravel;
+    const step = h/GATE_TRAVEL_T;
+    if (gateTravel < gateTarget) gateTravel = Math.min(gateTarget, gateTravel+step);
+    else if (gateTravel > gateTarget) gateTravel = Math.max(gateTarget, gateTravel-step);
+    gateAngle += (gateTravel-before)*Math.PI*2*2.2;
+    const beforeB = gateTravelB;
+    if (gateTravelB < gateTargetB) gateTravelB = Math.min(gateTargetB, gateTravelB+step);
+    else if (gateTravelB > gateTargetB) gateTravelB = Math.max(gateTargetB, gateTravelB-step);
+    gateAngleB += (gateTravelB-beforeB)*Math.PI*2*2.2;
+    const beforeC = gateTravelC;
+    if (gateTravelC < gateTargetC) gateTravelC = Math.min(gateTargetC, gateTravelC+step);
+    else if (gateTravelC > gateTargetC) gateTravelC = Math.max(gateTargetC, gateTravelC-step);
+    gateAngleC += (gateTravelC-beforeC)*Math.PI*2*2.2;
+    const beforeD = gateTravelD;
+    if (gateTravelD < gateTargetD) gateTravelD = Math.min(gateTargetD, gateTravelD+step);
+    else if (gateTravelD > gateTargetD) gateTravelD = Math.max(gateTargetD, gateTravelD-step);
+    gateAngleD += (gateTravelD-beforeD)*Math.PI*2*2.2;
+    const beforeE = gateTravelE;
+    if (gateTravelE < gateTargetE) gateTravelE = Math.min(gateTargetE, gateTravelE+step);
+    else if (gateTravelE > gateTargetE) gateTravelE = Math.max(gateTargetE, gateTravelE-step);
+    gateAngleE += (gateTravelE-beforeE)*Math.PI*2*2.2;
+    // the water keeps moving after the round ends: over-watered fields visibly drown
+    simAcc += h*SIM_SPEED;
+    let n = 0;
+    while (simAcc >= DT_SIM && n < 10){ waterStep(DT_SIM); simAcc -= DT_SIM; n++; }
+    if (n >= 10) simAcc = 0;
+    const drive = DRIVE_A*Math.pow(Math.max(qw,0),3)*(0.5+dWs);
+    // paddles drag in water; a coasting wheel freewheels on its bearings
+    const wet = Math.min(1, Math.max(0, (qw-1.0)/0.9));
+    const drag = (B_DRY + (B_WET-B_DRY)*wet)*w + (C_DRY + (C_WET-C_DRY)*wet)*w*w;
+    w += (drive - drag)*h;
+    if (w < 0.02 && drive < 0.004) w = 0;
+    if (w < 0) w = 0;
+    if (w > WMAX) w = WMAX;
+    wheelAngle -= w*h;
+    // wheel 2 (high sluice) and wheel 3 (low run): same physics, own constants
+    const drive2 = DA2*Math.pow(Math.max(qw2,0),3)*(0.5+dWs2);
+    const wet2 = Math.min(1, Math.max(0, (qw2-0.5)/0.7));
+    const drag2 = (B_DRY + (B_WET-B_DRY)*wet2)*w2 + (C_DRY + (C_WET-C_DRY)*wet2)*w2*w2;
+    w2 += (drive2 - drag2)*h;
+    if (w2 < 0.02 && drive2 < 0.004) w2 = 0;
+    if (w2 < 0) w2 = 0;
+    if (w2 > WMAX2) w2 = WMAX2;
+    wheelAngle2 += w2*h;
+    const drive3 = DA3*Math.pow(Math.max(qw3,0),3)*(0.5+dWs3);
+    const wet3 = Math.min(1, Math.max(0, (qw3-1.0)/0.9));
+    const drag3 = (B_DRY + (B_WET-B_DRY)*wet3)*w3 + (C_DRY + (C_WET-C_DRY)*wet3)*w3*w3;
+    w3 += (drive3 - drag3)*h;
+    if (w3 < 0.02 && drive3 < 0.004) w3 = 0;
+    if (w3 < 0) w3 = 0;
+    if (w3 > WMAX3) w3 = WMAX3;
+    wheelAngle3 -= w3*h;
+    generating = w >= WGEN;
+    generating2 = w2 >= WGEN2;
+    generating3 = w3 >= WGEN3;
+    // grain health: gains persist; only flooding removes health
+    if (grainGainAcc > 0){
+      grainPts = Math.min(GRAIN_TARGET, grainPts + grainGainAcc);
+      grainGainAcc = 0;
+    }
+    if (fieldDepthS > FLOOD_TOL){
+      const loss = DROWN_K*(fieldDepthS-FLOOD_TOL)*h;
+      if (grainPts > 0){
+        const act = Math.min(grainPts, loss);
+        grainPts -= act; drownTotal += act;
+      }
+    }
+    const grain = grainPts;
+    if (grain > grainPeak) grainPeak = grain;
+    // the door demands all three wheels turning at once: charge banks only
+    // during simultaneous generation, and the weakest wheel sets the pace
+    const allGen = generating && generating2 && generating3;
+    if (playing && allGen){
+      genTimeAcc += h;
+      const warm = Math.min(1, genTimeAcc/WARM_T);
+      const ratio = Math.min(w/WGEN, w2/WGEN2, w3/WGEN3);
+      charge += RATE*Math.pow(Math.max(0, ratio), EXP_P)*warm*h;
+    }
+    if (playing){
+      if (charge >= CHARGE_TARGET) charge = CHARGE_TARGET;
+      if (charge >= CHARGE_TARGET && grain >= GRAIN_TARGET){
+        state.phase = 'won';
+        finalizeScore();
+      }
+    }
+  }
+
+  // score + letter grade, fixed once the round ends
+  function finalizeScore(){
+    if (state.scoreParts) return;
+    const cN = Math.round(charge/CHARGE_TARGET*100);
+    const gN = Math.round(grainPts);
+    const flP = Math.round(drownTotal);
+    const viP = Math.round(villageDamage*SCORE_VILLAGE_W);
+    state.scoreParts = {charge:cN, grain:gN, flooding:-flP, village:-viP};
+    state.score = Math.max(0, cN + gN - flP - viP);
+    let grade;
+    if (state.phase !== 'won' || villageDamage >= 40) grade = 'C';
+    else if (drownTotal < 16 && villageDamage < 2) grade = 'S';
+    else if (drownTotal < 25 && villageDamage < 15) grade = 'A';
+    else grade = 'B';
+    state.grade = grade;
+  }
+
+  function tick(dtReal){
+    acc += Math.min(dtReal, 0.075);
+    let n = 0;
+    while (acc >= TICK && n < 24){ fixedTick(TICK); acc -= TICK; n++; }
+    if (n >= 24) acc = 0;
+  }
+
+  function refresh(){
+    let vol = 0;
+    for (let p=0;p<resCells.length;p++) vol += D[resCells[p]];
+    vol *= CS2;
+    state.timeRemaining = tRem; state.elapsed = time;
+    state.reservoirVolume = vol;
+    if (!state.reservoirStartVolume) state.reservoirStartVolume = vol;
+    state.reservoirFraction = state.reservoirStartVolume > 0 ? vol/state.reservoirStartVolume : 0;
+    state.gateOpen = gateTarget === 1; state.gateTravel = gateTravel; state.gateAperture = gateAperture();
+    state.gateMoving = Math.abs(gateTravel-gateTarget) > 0.001;
+    state.gateBOpen = gateTargetB === 1; state.gateBTravel = gateTravelB; state.gateBAperture = gateBAperture();
+    state.gateBMoving = Math.abs(gateTravelB-gateTargetB) > 0.001;
+    state.gateCOpen = gateTargetC === 1; state.gateCTravel = gateTravelC; state.gateCAperture = gateCAperture();
+    state.gateCMoving = Math.abs(gateTravelC-gateTargetC) > 0.001;
+    state.gateDOpen = gateTargetD === 1; state.gateDTravel = gateTravelD; state.gateDAperture = gateDAperture();
+    state.gateDMoving = Math.abs(gateTravelD-gateTargetD) > 0.001;
+    state.gateEOpen = gateTargetE === 1; state.gateETravel = gateTravelE; state.gateEAperture = gateEAperture();
+    state.gateEMoving = Math.abs(gateTravelE-gateTargetE) > 0.001;
+    state.gates = [
+      {label:'sluice', open:state.gateOpen, travel:state.gateTravel, aperture:state.gateAperture, moving:state.gateMoving},
+      {label:'field', open:state.gateBOpen, travel:state.gateBTravel, aperture:state.gateBAperture, moving:state.gateBMoving},
+      {label:'village', open:state.gateCOpen, travel:state.gateCTravel, aperture:state.gateCAperture, moving:state.gateCMoving},
+      {label:'upper mill', open:state.gateDOpen, travel:state.gateDTravel, aperture:state.gateDAperture, moving:state.gateDMoving},
+      {label:'lower mill', open:state.gateEOpen, travel:state.gateETravel, aperture:state.gateEAperture, moving:state.gateEMoving}
+    ];
+    state.flowAtWheel = qw; state.flowToField = qf; state.flowToVillage = qv;
+    state.flowAtWheel2 = qw2; state.flowAtWheel3 = qw3;
+    state.branchFlows = {mill: qw, upper: qw2, lower: qw3, field: qf, village: qv};
+    state.grainHealth = grainPts;
+    state.grainPeak = grainPeak; state.drownTotal = drownTotal;
+    state.fieldAbsorbedVolume = grainVol;
+    state.fieldDepth = fieldDepthS; state.fieldFloodTolerance = FLOOD_TOL;
+    state.fieldFlooding = fieldDepthS > FLOOD_TOL;
+    state.villageDamage = villageDamage; state.villageRunoff = villageRunoff;
+    state.spillRunoff = villageRunoff;
+    state.wheelSpeed = w; state.wheelGenerating = generating;
+    state.wheel2Speed = w2; state.wheel2Generating = generating2;
+    state.wheel3Speed = w3; state.wheel3Generating = generating3;
+    state.allGenerating = generating && generating2 && generating3;
+    state.wheel2Threshold = WGEN2; state.wheel3Threshold = WGEN3;
+    state.charge = charge; state.wheelAngle = wheelAngle; state.wheelAngle2 = wheelAngle2; state.wheelAngle3 = wheelAngle3;
+    state.gateAngle = gateAngle; state.gateBAngle = gateAngleB; state.gateCAngle = gateAngleC;
+    state.gateDAngle = gateAngleD; state.gateEAngle = gateAngleE;
+    if ((state.phase === 'won' || state.phase === 'lost') && !state.scoreParts) finalizeScore();
+    state.millWarm = Math.min(1, genTimeAcc/WARM_T);
+    state.dischargedVolume = discharged;
+    state.won = state.phase === 'won'; state.lost = state.phase === 'lost';
+    return state;
+  }
+
+  function toggleGate(which){
+    if (which === 1) pendingToggleB = true;
+    else if (which === 2) pendingToggleC = true;
+    else if (which === 3) pendingToggleD = true;
+    else if (which === 4) pendingToggleE = true;
+    else pendingToggle = true;
+  }
+  function startRound(){ reset(true); }
+
+  reset(false);
+  refresh();
+  state.reservoirStartVolume = state.reservoirVolume;
+
+  return {
+    reset, tick, toggleGate, startRound, refresh, state,
+    // geometry for rendering / camera clamping
+    terrainH, chZ, chFloor, irFloor, fieldFloor, smoothstep, h2,
+    vzPath, vFloorV, vFloorD, vbenchFloor, inVTrench, inGully, w2Floor, w3Floor, inW3Trench, inW3Out,
+    inW2Trench, inW2Pit, inW2Out, inW3Trench, inW3Pit, inW3Out,
+    CS, X0, Z0, NX, NZ, G, D, T, activeCells, resCells, gatePairs, irgGatePairs, villageGatePairs, gateDPairs, gateEPairs,
+    approachCells, wheelCells, fieldCells, irgMouthCells, villageCells, vDrainCells, DRY,
+    CH_X0, PIT_X0, PIT_X1, PIT_ZC, PIT_HW, TAIL_X1, TAIL_HW, WHEEL_R,
+    IRG_XC, IRG_HW, IRG_Z0, IRG_Z1, FX0, FX1, FZ0, FZ1, FBLEND,
+    VX_C, VH_HW, VZ_DIAG0, VX_DIAG1, VB_X0, VB_X1, VB_Z0, VB_Z1, VGX0, VGX1,
+    W2_XC, W2_HW, W2_PITX0, W2_PITX1, W2_PZ0, W2_PZ1, W2_AXLE, W2_R, W2_PIT_F,
+    W3_PITX0, W3_PITX1, W3_AXLE, W3_R, W3_PIT_F, W3_XC, W3_ZBANK,
+    ROUND_TIME, CHARGE_TARGET, GRAIN_TARGET, WGEN, WGEN2, WGEN3,
+    FLOW_MAX_SHOW, WHEEL_MAX_SHOW, QF_MAX_SHOW, QV_MAX_SHOW, SCORE_VILLAGE_W
+  };
+})();
+
+/* =========================================================================
+   Rendering, input, HUD (skipped in headless smoke tests)
+   ========================================================================= */
+if (typeof document !== 'undefined') (function(){
+  const gc = GameCore;
+
+  function boot(THREE){
+    // ---------- renderer / scene ----------
+    const renderer = new THREE.WebGLRenderer({antialias:true});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    document.getElementById('wrap').appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x9fd4ef);
+    scene.fog = new THREE.Fog(0xcfe6f2, 70, 175);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 400);
+
+    const hemi = new THREE.HemisphereLight(0xcfe8ff, 0x8a7355, 0.85);
+    scene.add(hemi);
+    const sun = new THREE.DirectionalLight(0xffdfae, 1.6);
+    sun.position.set(-24, 36, -16);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.left = -42; sun.shadow.camera.right = 42;
+    sun.shadow.camera.top = 42; sun.shadow.camera.bottom = -42;
+    sun.shadow.camera.near = 5; sun.shadow.camera.far = 110;
+    sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.03;
+    scene.add(sun); scene.add(sun.target);
+
+    // ---------- materials ----------
+    const M = {
+      timber:  new THREE.MeshLambertMaterial({color:0x6b4a2f}),
+      timber2: new THREE.MeshLambertMaterial({color:0x7c5a3a}),
+      dark:    new THREE.MeshLambertMaterial({color:0x4b3520}),
+      stone:   new THREE.MeshLambertMaterial({color:0x989184}),
+      stoneD:  new THREE.MeshLambertMaterial({color:0x7d766c}),
+      moss:    new THREE.MeshLambertMaterial({color:0x7d8570}),
+      wheel:   new THREE.MeshLambertMaterial({color:0x8a6a42}),
+      glow:    new THREE.MeshBasicMaterial({color:0xffdf9e}),
+      white:   new THREE.MeshLambertMaterial({color:0xf4f6f8})
+    };
+    function box(w,h,d,mat){ const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat); m.castShadow = true; m.receiveShadow = true; return m; }
+
+    // ---------- terrain ----------
+    (function(){
+      const g = new THREE.PlaneGeometry(70, 50, 140, 100);
+      g.rotateX(-Math.PI/2);
+      const pos = g.attributes.position, n = pos.count;
+      const cols = new Float32Array(n*3);
+      const cGrass = [0.47,0.64,0.32], cGrass2 = [0.68,0.72,0.38], cRock = [0.56,0.52,0.47],
+            cWet = [0.60,0.58,0.53], cMoss = [0.49,0.55,0.42], cSnow = [0.93,0.95,0.97];
+      for (let v=0; v<n; v++){
+        const x = pos.getX(v), z = pos.getZ(v);
+        const h = gc.terrainH(x,z);
+        pos.setY(v, h);
+        // color by region / slope / height
+        const dxr = Math.max(-29.5-x, x+19.5, 0), dzr = Math.max(-3.5-z, z-3.5, 0);
+        const dRes = Math.max(dxr,dzr);
+        const dCh = Math.abs(z-gc.chZ(x));
+        const dzp = Math.abs(z-0.1);
+        let c;
+        const hx = (gc.h2(x*3.1+z*7.7)-0.5)*0.09;
+        const dIr = Math.abs(x-gc.IRG_XC);
+        const dxf = Math.max(gc.FX0-x, x-gc.FX1, 0), dzf = Math.max(gc.FZ0-z, z-gc.FZ1, 0);
+        const dF = Math.max(dxf, dzf);
+        const inVT = gc.inVTrench(x,z), inGU = gc.inGully(x,z);
+        const dxb = Math.max(gc.VB_X0-x, x-gc.VB_X1, 0), dzb = Math.max(gc.VB_Z0-z, z-gc.VB_Z1, 0);
+        const dB = Math.max(dxb, dzb);
+        const inVB = (x>gc.VB_X0-0.05 && x<gc.VB_X1+0.05 && z>gc.VB_Z0-0.05 && z<gc.VB_Z1+0.05);
+        const inBranch = dIr<1.45 && z>gc.IRG_Z0 && z<gc.IRG_Z1+0.2 && dCh>=1.75;
+        const dvz = Math.abs(z - gc.vzPath(x));
+        if (dRes < 0.05 || (x>=gc.CH_X0-0.2 && x<=17.0 && dCh<1.8) || (x>=17.0 && x<=23.9 && dzp<1.6) ||
+            inBranch || inGU || (inVT && dCh>=1.75)){
+          c = cWet;                                  // wet stone floors
+        } else if ((x>=-30.9 && x<=-18.1 && dRes<1.5) || (x>=gc.CH_X0 && x<=17.4 && dCh<2.95) ||
+                   (dIr<2.5 && z>gc.IRG_Z0 && z<gc.IRG_Z1+0.3 && dCh>=1.75) ||
+                   (Math.abs(x-gc.VX_C)<2.4 && z>2.6 && z<4.9 && dCh>=1.75) ||
+                   (x>gc.VX_C && x<gc.VX_DIAG1+0.3 && dvz<2.3)){
+          c = cMoss;                                 // mossy cut faces / berms
+        } else if (dF < 0.05){
+          // tilled farmland: furrow stripes running with the rows
+          const fur = 0.5+0.5*Math.sin(x*3.9+0.5*Math.sin(z*0.7));
+          c = [0.345+0.115*fur, 0.240+0.080*fur, 0.140+0.055*fur];
+        } else if (inVB){
+          // village square: packed earth with worn patches
+          const vj = gc.h2(x*5.7+z*9.1);
+          c = [0.395+0.045*vj, 0.360+0.040*vj, 0.310+0.035*vj];
+        } else {
+          const az = Math.abs(z);
+          const steep = Math.min(1, Math.max(0, (az-8)/7));
+          c = [cGrass[0]+(cGrass2[0]-cGrass[0])*(0.5+0.5*Math.sin(x*0.2+z*0.15)),
+               cGrass[1]+(cGrass2[1]-cGrass[1])*(0.5+0.5*Math.sin(x*0.13-z*0.21)), cGrass[2]];
+          c = [c[0]+(cRock[0]-c[0])*steep, c[1]+(cRock[1]-c[1])*steep, c[2]+(cRock[2]-c[2])*steep];
+          // terrace scarp: raw soil low on the blend, grass above
+          if (z > 3.9 && dF < gc.FBLEND && x > gc.FX0-8 && x < gc.FX1+8){
+            const t = 1 - gc.smoothstep(0, gc.FBLEND, dF);
+            c = [c[0]+(0.42-c[0])*t*0.9, c[1]+(0.30-c[1])*t*0.9, c[2]+(0.185-c[2])*t*0.9];
+          }
+          // village apron: earth slopes down to the bench
+          if (z > 2.85 && dB < 4.5 && x > 16.5 && x < gc.VB_X1+6){
+            const t = 1 - gc.smoothstep(0, 4.5, dB);
+            c = [c[0]+(0.40-c[0])*t*0.85, c[1]+(0.35-c[1])*t*0.85, c[2]+(0.29-c[2])*t*0.85];
+          }
+          if (h > 13.5) { const t = Math.min(1,(h-13.5)/2.5); c = [c[0]+(cSnow[0]-c[0])*t, c[1]+(cSnow[1]-c[1])*t, c[2]+(cSnow[2]-c[2])*t]; }
+        }
+        cols[v*3] = Math.min(1,Math.max(0,c[0]+hx));
+        cols[v*3+1] = Math.min(1,Math.max(0,c[1]+hx));
+        cols[v*3+2] = Math.min(1,Math.max(0,c[2]+hx));
+      }
+      g.setAttribute('color', new THREE.BufferAttribute(cols,3));
+      g.computeVertexNormals();
+      const terr = new THREE.Mesh(g, new THREE.MeshLambertMaterial({vertexColors:true}));
+      terr.receiveShadow = true;
+      scene.add(terr);
+    })();
+
+    // ---------- channel stone walls ----------
+    (function(){
+      const grp = new THREE.Group();
+      for (let side=-1; side<=1; side+=2){
+        for (let x=gc.CH_X0+0.55; x<=16.9; x+=1.35){
+          if (side===1 && x>8.6 && x<11.4) continue;   // fork opening: branch leaves here
+          const cz = gc.chZ(x), f = gc.chFloor(x);
+          const tang = Math.atan((gc.chZ(x+0.1)-gc.chZ(x-0.1))/0.2);
+          const hh = 1.0 + gc.h2(x*3.7+side)*0.25;
+          const m = box(1.42, hh, 0.62, gc.h2(x*9.1+side*5)>0.75 ? M.stoneD : M.stone);
+          m.position.set(x, f+1.5+hh/2-0.3, cz + side*2.28);
+          m.rotation.y = -tang;
+          grp.add(m);
+        }
+      }
+      // reservoir rim blocks (gap at gate side center)
+      for (let s=0; s<40; s++){
+        const per = s/(40);
+        let px, pz, rot = 0;
+        const perX = 11.7, perZ = 7.7, L = 2*(perX+perZ);
+        let d = per*L;
+        if (d < perX){ px = -6.5+d; pz = -3.85; }
+        else if (d < perX+perZ){ px = 4.85; pz = -3.85+(d-perX); rot = Math.PI/2; }
+        else if (d < 2*perX+perZ){ px = 4.85-(d-perX-perZ); pz = 3.85; }
+        else { px = -6.5; pz = 3.85-(d-2*perX-perZ); rot = Math.PI/2; }
+        if (px > -20.4 && Math.abs(pz) < 2.4) continue;   // gate opening
+        const hh = 1.05 + gc.h2(s*13.7)*0.2;
+        const m = box(1.45, hh, 0.75, gc.h2(s*7.3)>0.7 ? M.stone : M.stoneD);
+        m.position.set(px, RES_RIM_BASE()+hh/2-0.35, pz);
+        m.rotation.y = rot + (gc.h2(s*3.3)-0.5)*0.12;
+        grp.add(m);
+      }
+      function RES_RIM_BASE(){ return 11.6; }
+      // pit retaining walls (south wall split around the overflow gully notch)
+      const pw1 = box(0.5, 2.0, 4.6, M.stoneD); pw1.position.set(17.15, 1.6, 0.1); grp.add(pw1);
+      const pw2 = box(3.6, 1.9, 0.5, M.stoneD); pw2.position.set(19.0, 1.55, -1.95); grp.add(pw2);
+      const pw3a = box(0.6, 1.9, 0.5, M.stoneD); pw3a.position.set(17.3, 1.55, 2.15); grp.add(pw3a);
+      const pw3b = box(2.2, 1.9, 0.5, M.stoneD); pw3b.position.set(20.0, 1.55, 2.15); grp.add(pw3b);
+      scene.add(grp);
+    })();
+
+    // ---------- gate ----------
+    const gateGrp = new THREE.Group(); scene.add(gateGrp);
+    let gateBoard, handWheels = [];
+    (function(){
+      const gx = gc.CH_X0, cz = gc.chZ(gx), f = gc.chFloor(gx);
+      const p1 = box(0.75, 3.6, 0.75, M.stone); p1.position.set(gx, f+2.7, cz-2.25); gateGrp.add(p1);
+      const p2 = box(0.75, 3.6, 0.75, M.stone); p2.position.set(gx, f+2.7, cz+2.25); gateGrp.add(p2);
+      const cap1 = box(0.95, 0.25, 0.95, M.stoneD); cap1.position.set(gx, f+4.6, cz-2.25); gateGrp.add(cap1);
+      const cap2 = box(0.95, 0.25, 0.95, M.stoneD); cap2.position.set(gx, f+4.6, cz+2.25); gateGrp.add(cap2);
+      const lintel = box(0.55, 0.5, 5.4, M.timber); lintel.position.set(gx, f+4.35, cz); gateGrp.add(lintel);
+      gateBoard = box(0.2, 1.6, 3.9, M.timber2);
+      gateBoard.position.set(gx, f+0.8, cz);
+      gateGrp.add(gateBoard);
+      for (const s of [-1.45, 1.45]){
+        const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.055,3.4,8), M.dark);
+        rod.position.set(gx, f+1.6+1.7, cz+s); gateGrp.add(rod);
+        const hw = new THREE.Group();
+        const hubm = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.14,10), M.dark); hw.add(hubm);
+        for (let k=0;k<4;k++){
+          const sp = box(0.5,0.05,0.05, M.dark); sp.rotation.x = k*Math.PI/4; sp.rotation.y = Math.PI/2;
+          sp.position.x = 0; hw.add(sp);
+        }
+        hw.rotation.z = Math.PI/2; hw.rotation.y = 0;
+        hw.position.set(gx+0.35, f+1.6+3.35, cz+s);
+        gateGrp.add(hw); handWheels.push(hw);
+        const rodTop = box(0.12,0.12,0.5, M.timber); rodTop.position.set(gx+0.35, f+3.32, cz+s); gateGrp.add(rodTop);
+        rod.userData.baseY = rod.position.y; // rods move with board
+        rod.userData.s = s; handWheels.push({rod:rod, isRod:true});
+      }
+      // click proxy
+      const proxy = new THREE.Mesh(new THREE.BoxGeometry(1.6,4.6,4.8),
+        new THREE.MeshBasicMaterial({visible:false}));
+      proxy.position.set(gx, f+2.2, cz);
+      gateGrp.add(proxy);
+      gateGrp.userData.proxy = proxy;
+    })();
+
+    // ---------- fork gate (irrigation branch) ----------
+    const gateGrpB = new THREE.Group(); scene.add(gateGrpB);
+    let gateBoardB, handWheelsB = [], proxyB;
+    (function(){
+      const gx = gc.IRG_XC, cz = gc.chZ(gx)+2.2, f = gc.irFloor(2.75);
+      // posts flank the branch trench (branch runs in +z, gate spans x)
+      const p1 = box(0.75, 2.9, 0.75, M.stone); p1.position.set(gx-1.55, f+2.3, cz); gateGrpB.add(p1);
+      const p2 = box(0.75, 2.9, 0.75, M.stone); p2.position.set(gx+1.55, f+2.3, cz); gateGrpB.add(p2);
+      const cap1 = box(0.95, 0.25, 0.95, M.stoneD); cap1.position.set(gx-1.55, f+3.85, cz); gateGrpB.add(cap1);
+      const cap2 = box(0.95, 0.25, 0.95, M.stoneD); cap2.position.set(gx+1.55, f+3.85, cz); gateGrpB.add(cap2);
+      const lintel = box(4.35, 0.5, 0.55, M.timber); lintel.position.set(gx, f+3.6, cz); gateGrpB.add(lintel);
+      gateBoardB = box(3.4, 1.6, 0.22, M.timber2);
+      gateBoardB.position.set(gx, f+0.8, cz);
+      gateGrpB.add(gateBoardB);
+      for (const s of [-1.45, 1.45]){
+        const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.055,2.8,8), M.dark);
+        rod.position.set(gx+s, f+2.7, cz); gateGrpB.add(rod);
+        const hw = new THREE.Group();
+        const hubm = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.14,10), M.dark); hw.add(hubm);
+        for (let k=0;k<4;k++){
+          const sp = box(0.5,0.05,0.05, M.dark); sp.rotation.x = k*Math.PI/4; sp.rotation.y = Math.PI/2;
+          hw.add(sp);
+        }
+        hw.rotation.z = Math.PI/2;
+        hw.position.set(gx+s, f+4.05, cz+0.35);
+        gateGrpB.add(hw); handWheelsB.push(hw);
+        const rodTop = box(0.12,0.12,0.5, M.timber); rodTop.position.set(gx+s, f+3.75, cz+0.25); gateGrpB.add(rodTop);
+        rod.userData.baseY = f+2.7;
+        handWheelsB.push({rod:rod, isRod:true});
+      }
+      // click proxy
+      proxyB = new THREE.Mesh(new THREE.BoxGeometry(4.6,4.8,2.0),
+        new THREE.MeshBasicMaterial({visible:false}));
+      proxyB.position.set(gx, f+2.0, cz);
+      gateGrpB.add(proxyB);
+    })();
+
+    // ---------- village gate (third branch) ----------
+    const gateGrpC = new THREE.Group(); scene.add(gateGrpC);
+    let gateBoardC, handWheelsC = [], proxyC;
+    (function(){
+      const gx = gc.VX_C, cz = gc.chZ(gx)+2.2, f = gc.vFloorV(2.91);
+      const p1 = box(0.75, 2.9, 0.75, M.stone); p1.position.set(gx-1.55, f+2.3, cz); gateGrpC.add(p1);
+      const p2 = box(0.75, 2.9, 0.75, M.stone); p2.position.set(gx+1.55, f+2.3, cz); gateGrpC.add(p2);
+      const cap1 = box(0.95, 0.25, 0.95, M.stoneD); cap1.position.set(gx-1.55, f+3.85, cz); gateGrpC.add(cap1);
+      const cap2 = box(0.95, 0.25, 0.95, M.stoneD); cap2.position.set(gx+1.55, f+3.85, cz); gateGrpC.add(cap2);
+      const lintel = box(4.35, 0.5, 0.55, M.timber); lintel.position.set(gx, f+3.6, cz); gateGrpC.add(lintel);
+      gateBoardC = box(3.4, 1.6, 0.22, M.timber2);
+      gateBoardC.position.set(gx, f+0.8, cz);
+      gateGrpC.add(gateBoardC);
+      for (const s of [-1.45, 1.45]){
+        const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.055,2.8,8), M.dark);
+        rod.position.set(gx+s, f+2.7, cz); gateGrpC.add(rod);
+        const hw = new THREE.Group();
+        const hubm = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.14,10), M.dark); hw.add(hubm);
+        for (let k=0;k<4;k++){
+          const sp = box(0.5,0.05,0.05, M.dark); sp.rotation.x = k*Math.PI/4; sp.rotation.y = Math.PI/2;
+          hw.add(sp);
+        }
+        hw.rotation.z = Math.PI/2;
+        hw.position.set(gx+s, f+4.05, cz+0.35);
+        gateGrpC.add(hw); handWheelsC.push(hw);
+        const rodTop = box(0.12,0.12,0.5, M.timber); rodTop.position.set(gx+s, f+3.75, cz+0.25); gateGrpC.add(rodTop);
+        rod.userData.baseY = f+2.7;
+        handWheelsC.push({rod:rod, isRod:true});
+      }
+      proxyC = new THREE.Mesh(new THREE.BoxGeometry(4.6,4.8,2.0),
+        new THREE.MeshBasicMaterial({visible:false}));
+      proxyC.position.set(gx, f+2.0, cz);
+      gateGrpC.add(proxyC);
+    })();
+
+    // ---------- upper mill gate (high sluice) ----------
+    const gateGrpD = new THREE.Group(); scene.add(gateGrpD);
+    let gateBoardD, handWheelsD = [], proxyD;
+    (function(){
+      const gx = gc.W2_XC, cz = gc.W2_ZBANK-0.15, f = gc.w2Floor(gc.W2_ZBANK);
+      const p1 = box(0.7, 2.6, 0.7, M.stone); p1.position.set(gx-1.15, f+2.05, cz); gateGrpD.add(p1);
+      const p2 = box(0.7, 2.6, 0.7, M.stone); p2.position.set(gx+1.15, f+2.05, cz); gateGrpD.add(p2);
+      const cap1 = box(0.9, 0.22, 0.9, M.stoneD); cap1.position.set(gx-1.15, f+3.45, cz); gateGrpD.add(cap1);
+      const cap2 = box(0.9, 0.22, 0.9, M.stoneD); cap2.position.set(gx+1.15, f+3.45, cz); gateGrpD.add(cap2);
+      const lintel = box(3.2, 0.42, 0.5, M.timber); lintel.position.set(gx, f+3.25, cz); gateGrpD.add(lintel);
+      gateBoardD = box(2.9, 1.4, 0.2, M.timber2);
+      gateBoardD.position.set(gx, f+0.7, cz);
+      gateGrpD.add(gateBoardD);
+      for (const s of [-1.2, 1.2]){
+        const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,2.4,8), M.dark);
+        rod.position.set(gx+s, f+2.4, cz); gateGrpD.add(rod);
+        const hw = new THREE.Group();
+        const hubm = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.12,10), M.dark); hw.add(hubm);
+        for (let k=0;k<4;k++){
+          const sp = box(0.42,0.045,0.045, M.dark); sp.rotation.x = k*Math.PI/4; sp.rotation.y = Math.PI/2;
+          hw.add(sp);
+        }
+        hw.rotation.z = Math.PI/2;
+        hw.position.set(gx+s, f+3.6, cz+0.32);
+        gateGrpD.add(hw); handWheelsD.push(hw);
+        rod.userData.baseY = f+2.4;
+        handWheelsD.push({rod:rod, isRod:true});
+      }
+      proxyD = new THREE.Mesh(new THREE.BoxGeometry(3.6,4.2,1.7),
+        new THREE.MeshBasicMaterial({visible:false}));
+      proxyD.position.set(gx, f+1.8, cz);
+      gateGrpD.add(proxyD);
+    })();
+
+    // ---------- lower mill gate (tailrace run) ----------
+    const gateGrpE = new THREE.Group(); scene.add(gateGrpE);
+    let gateBoardE, handWheelsE = [], proxyE;
+    (function(){
+      const gx = gc.W3_XC, cz = gc.W3_ZBANK-0.15, f = gc.w3Floor(gc.W3_ZBANK);
+      const p1 = box(0.7, 2.7, 0.7, M.stone); p1.position.set(gx-1.1, f+2.1, cz); gateGrpE.add(p1);
+      const p2 = box(0.7, 2.7, 0.7, M.stone); p2.position.set(gx+1.1, f+2.1, cz); gateGrpE.add(p2);
+      const cap1 = box(0.9, 0.22, 0.9, M.stoneD); cap1.position.set(gx-1.1, f+3.55, cz); gateGrpE.add(cap1);
+      const cap2 = box(0.9, 0.22, 0.9, M.stoneD); cap2.position.set(gx+1.1, f+3.55, cz); gateGrpE.add(cap2);
+      const lintel = box(3.1, 0.42, 0.5, M.timber); lintel.position.set(gx, f+3.35, cz); gateGrpE.add(lintel);
+      gateBoardE = box(2.8, 1.45, 0.2, M.timber2);
+      gateBoardE.position.set(gx, f+0.72, cz);
+      gateGrpE.add(gateBoardE);
+      for (const s of [-1.15, 1.15]){
+        const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,2.5,8), M.dark);
+        rod.position.set(gx+s, f+2.45, cz); gateGrpE.add(rod);
+        const hw = new THREE.Group();
+        const hubm = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.12,10), M.dark); hw.add(hubm);
+        for (let k=0;k<4;k++){
+          const sp = box(0.42,0.045,0.045, M.dark); sp.rotation.x = k*Math.PI/4; sp.rotation.y = Math.PI/2;
+          hw.add(sp);
+        }
+        hw.rotation.z = Math.PI/2;
+        hw.position.set(gx+s, f+3.7, cz+0.32);
+        gateGrpE.add(hw); handWheelsE.push(hw);
+        rod.userData.baseY = f+2.45;
+        handWheelsE.push({rod:rod, isRod:true});
+      }
+      proxyE = new THREE.Mesh(new THREE.BoxGeometry(3.5,4.2,1.7),
+        new THREE.MeshBasicMaterial({visible:false}));
+      proxyE.position.set(gx, f+1.85, cz);
+      gateGrpE.add(proxyE);
+    })();
+
+    // ---------- village: houses, well ----------
+    const houseMats = [];
+    (function(){
+      function house(x, z, w, d, h, rot){
+        const g = new THREE.Group();
+        const y = gc.terrainH(x,z);
+        const wallMat = new THREE.MeshLambertMaterial({color:0xcfc3ab});
+        houseMats.push({mat:wallMat, base:new THREE.Color(0xcfc3ab), bad:new THREE.Color(0x574b3d)});
+        const plinth = box(w+0.3, 0.3, d+0.3, M.stoneD); plinth.position.set(0, 0.15, 0); g.add(plinth);
+        const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
+        body.position.set(0, 0.3+h/2, 0); body.castShadow = true; body.receiveShadow = true; g.add(body);
+        const roof = new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*0.78, 0.95, 4), M.timber2);
+        roof.position.set(0, 0.3+h+0.45, 0); roof.rotation.y = Math.PI/4;
+        roof.castShadow = true; g.add(roof);
+        const door = box(0.42, 0.78, 0.08, M.dark); door.position.set(0, 0.3+0.39, d/2+0.03); g.add(door);
+        const win = box(0.4, 0.36, 0.06, M.glow); win.position.set(w*0.22, 0.3+h*0.62, d/2+0.03); g.add(win);
+        g.position.set(x, y, z); g.rotation.y = rot;
+        scene.add(g);
+      }
+      house(24.5, 4.9, 2.1, 1.8, 1.5, 0.12);
+      house(26.9, 4.5, 1.8, 1.6, 1.3, -0.28);
+      house(28.0, 7.0, 2.0, 1.7, 1.4, 0.35);
+      house(24.6, 8.7, 1.7, 1.6, 1.25, 0.5);
+      house(21.9, 9.2, 1.9, 1.7, 1.35, -0.15);
+      // well
+      const wy = gc.terrainH(26.4, 6.6);
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.6, 0.55, 10), M.stoneD);
+      ring.position.set(26.4, wy+0.27, 6.6); ring.castShadow = true; scene.add(ring);
+      const wpost1 = box(0.09, 1.1, 0.09, M.timber); wpost1.position.set(26.15, wy+0.8, 6.6); scene.add(wpost1);
+      const wpost2 = box(0.09, 1.1, 0.09, M.timber); wpost2.position.set(26.65, wy+0.8, 6.6); scene.add(wpost2);
+      const wroof = box(0.95, 0.09, 0.6, M.timber2); wroof.position.set(26.4, wy+1.35, 6.6); wroof.rotation.z = 0.16; scene.add(wroof);
+    })();
+
+    // ---------- mill ----------
+    (function(){
+      const g = new THREE.Group();
+      const plinth = box(6.3, 0.55, 5.5, M.stoneD); plinth.position.set(23.5, 2.28, -3.4); g.add(plinth);
+      const body = box(5.6, 4.6, 4.8, M.stone); body.position.set(23.5, 4.85, -3.4); g.add(body);
+      for (const sx of [-2.66, 2.66]) for (const sz of [-2.26, 2.26]){
+        const p = box(0.34, 4.75, 0.34, M.timber); p.position.set(23.5+sx, 4.85, -3.4+sz); g.add(p);
+      }
+      for (const yy of [2.62, 7.02]){
+        const b1 = box(5.75, 0.26, 0.34, M.timber); b1.position.set(23.5, yy, -3.4-2.26); g.add(b1);
+        const b2 = box(5.75, 0.26, 0.34, M.timber); b2.position.set(23.5, yy, -3.4+2.26); g.add(b2);
+      }
+      // timber roof prism
+      const shape = new THREE.Shape();
+      shape.moveTo(-3.35, 0); shape.lineTo(3.35, 0); shape.lineTo(0, 2.25); shape.lineTo(-3.35, 0);
+      const roofG = new THREE.ExtrudeGeometry(shape, {depth:6.1, bevelEnabled:false});
+      const roof = new THREE.Mesh(roofG, M.timber2);
+      roof.rotation.y = Math.PI/2;
+      roof.position.set(23.5+3.05, 7.15, -3.4);
+      roof.castShadow = true; roof.receiveShadow = true;
+      g.add(roof);
+      const ridge = box(6.3, 0.22, 0.3, M.timber); ridge.position.set(23.5, 9.45, -3.4); g.add(ridge);
+      // door (south face, toward camera)
+      const door = box(1.1, 2.15, 0.12, M.dark); door.position.set(22.7, 3.85, -0.92); g.add(door);
+      const arch = new THREE.Mesh(new THREE.CylinderGeometry(0.55,0.55,0.12,16,1,false,0,Math.PI), M.dark);
+      arch.rotation.x = Math.PI/2; arch.rotation.y = Math.PI; arch.position.set(22.7, 4.92, -0.92); g.add(arch);
+      const doorBeam = box(1.5,0.18,0.2, M.timber); doorBeam.position.set(22.7, 5.0, -0.9); g.add(doorBeam);
+      // windows
+      for (const [wx,wy,wz,ry] of [[24.6,4.6,-0.92,0],[25.98,4.9,-2.6,Math.PI/2],[24.4,6.2,-0.92,0]]){
+        const win = box(0.72,0.92,0.1, M.glow); win.position.set(wx,wy,wz); win.rotation.y = ry; g.add(win);
+        const fr = box(0.9,1.1,0.12, M.timber); fr.position.set(wx,wy,wz); fr.rotation.y = ry;
+        fr.material = M.timber; g.add(fr);
+        const fr2 = box(0.9,1.1,0.14, M.timber);
+        fr2.position.set(wx - Math.sin(ry)*0.01, wy, wz - Math.cos(ry)*0.01); fr2.rotation.y = ry;
+        fr2.scale.set(1,1,0.6); g.add(fr2);
+      }
+      // chimney
+      const chim = box(0.7,1.8,0.7, M.stoneD); chim.position.set(25.3, 8.4, -4.4); g.add(chim);
+      const chimCap = box(0.95,0.2,0.95, M.dark); chimCap.position.set(25.3, 9.4, -4.4); g.add(chimCap);
+      scene.add(g);
+    })();
+
+    // ---------- water wheel ----------
+    const wheelGrp = new THREE.Group();
+    (function(){
+      const axleY = 2.62, wz = 0.1;
+      // supports
+      const sup1 = box(0.6, 2.3, 0.5, M.stoneD); sup1.position.set(18.9, 1.75, -0.85); scene.add(sup1);
+      const sup2 = box(0.6, 2.3, 0.5, M.stoneD); sup2.position.set(18.9, 1.75, 1.05); scene.add(sup2);
+      const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,2.5,10), M.timber);
+      axle.rotation.x = Math.PI/2; axle.position.set(18.9, axleY, wz); axle.castShadow = true; scene.add(axle);
+      wheelGrp.position.set(18.9, axleY, wz);
+      for (const s of [-0.5, 0.5]){
+        const rim = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.09, 8, 28), M.wheel);
+        rim.position.z = s; rim.castShadow = true; wheelGrp.add(rim);
+      }
+      for (let k=0;k<8;k++){
+        const a = k*Math.PI/8;
+        for (const s of [-0.5, 0.5]){
+          const sp = box(2.1, 0.09, 0.07, M.timber);
+          sp.position.set(Math.cos(a)*1.05, Math.sin(a)*1.05, s);
+          sp.rotation.z = a + Math.PI/2;
+          wheelGrp.add(sp);
+        }
+      }
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32,1.15,10), M.timber);
+      hub.rotation.x = Math.PI/2; hub.castShadow = true; wheelGrp.add(hub);
+      for (let k=0;k<10;k++){
+        const a = k*Math.PI/5;
+        const pad = box(0.62, 0.07, 0.9, M.wheel);
+        pad.position.set(Math.cos(a)*1.88, Math.sin(a)*1.88, 0);
+        pad.rotation.z = a + 0.5;
+        wheelGrp.add(pad);
+      }
+      scene.add(wheelGrp);
+    })();
+
+    // ---------- wheel 2 (high sluice, north slope) and wheel 3 (low run) ----------
+    const wheelGrp2 = new THREE.Group();
+    (function(){
+      const axleY = gc.W2_AXLE, px = 7.3, pz = -6.5;
+      for (const [dx,dz] of [[-1.0,-0.75],[1.0,-0.75],[-1.0,0.75],[1.0,0.75]]){
+        const sup = box(0.5, 1.9, 0.45, M.stoneD); sup.position.set(px+dx, gc.W2_PIT_F+0.95, pz+dz); scene.add(sup);
+      }
+      const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.13,2.1,10), M.timber);
+      axle.rotation.z = Math.PI/2; axle.position.set(px, axleY, pz); axle.castShadow = true; scene.add(axle);
+      wheelGrp2.position.set(px, axleY, pz);
+      wheelGrp2.rotation.y = Math.PI/2;   // spin axis along world x (flow runs north-south)
+      for (const s of [-0.4, 0.4]){
+        const rim = new THREE.Mesh(new THREE.TorusGeometry(gc.W2_R, 0.07, 8, 24), M.wheel);
+        rim.position.z = s; rim.castShadow = true; wheelGrp2.add(rim);
+      }
+      for (let k=0;k<8;k++){
+        const a = k*Math.PI/8;
+        for (const s of [-0.4, 0.4]){
+          const sp = box(gc.W2_R-0.2, 0.08, 0.06, M.timber);
+          sp.position.set(Math.cos(a)*(gc.W2_R-0.2)/2, Math.sin(a)*(gc.W2_R-0.2)/2, s);
+          sp.rotation.z = a + Math.PI/2;
+          wheelGrp2.add(sp);
+        }
+      }
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.24,0.95,10), M.timber);
+      hub.rotation.x = Math.PI/2; hub.castShadow = true; wheelGrp2.add(hub);
+      for (let k=0;k<8;k++){
+        const a = k*Math.PI/8;
+        const pad = box(0.5, 0.06, 0.72, M.wheel);
+        pad.position.set(Math.cos(a)*(gc.W2_R-0.28), Math.sin(a)*(gc.W2_R-0.28), 0);
+        pad.rotation.z = a + 0.5;
+        wheelGrp2.add(pad);
+      }
+      scene.add(wheelGrp2);
+    })();
+    const wheelGrp3 = new THREE.Group();
+    (function(){
+      const axleY = gc.W3_AXLE, px = 16.25, pz = -5.5;
+      for (const [dx,dz] of [[-0.95,-0.7],[0.95,-0.7],[-0.95,0.7],[0.95,0.7]]){
+        const sup = box(0.5, 1.8, 0.45, M.stoneD); sup.position.set(px+dx, gc.W3_PIT_F+0.9, pz+dz); scene.add(sup);
+      }
+      const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,2.2,10), M.timber);
+      axle.rotation.z = Math.PI/2; axle.position.set(px, axleY, pz); axle.castShadow = true; scene.add(axle);
+      wheelGrp3.position.set(px, axleY, pz);
+      wheelGrp3.rotation.y = Math.PI/2;   // spin axis along world x (flow runs north-south)
+      for (const s of [-0.55, 0.55]){
+        const rim = new THREE.Mesh(new THREE.TorusGeometry(gc.W3_R, 0.09, 8, 26), M.wheel);
+        rim.position.z = s; rim.castShadow = true; wheelGrp3.add(rim);
+      }
+      for (let k=0;k<10;k++){
+        const a = k*Math.PI/10;
+        for (const s of [-0.55, 0.55]){
+          const sp = box(gc.W3_R-0.25, 0.09, 0.07, M.timber);
+          sp.position.set(Math.cos(a)*(gc.W3_R-0.25)/2, Math.sin(a)*(gc.W3_R-0.25)/2, s);
+          sp.rotation.z = a + Math.PI/2;
+          wheelGrp3.add(sp);
+        }
+      }
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,1.3,10), M.timber);
+      hub.rotation.x = Math.PI/2; hub.castShadow = true; wheelGrp3.add(hub);
+      for (let k=0;k<10;k++){
+        const a = k*Math.PI/10;
+        const pad = box(0.62, 0.07, 0.95, M.wheel);
+        pad.position.set(Math.cos(a)*(gc.W3_R-0.3), Math.sin(a)*(gc.W3_R-0.3), 0);
+        pad.rotation.z = a + 0.5;
+        wheelGrp3.add(pad);
+      }
+      scene.add(wheelGrp3);
+    })();
+
+    // ---------- footbridge ----------
+    (function(){
+      const g = new THREE.Group();
+      const bx = 8, cz = gc.chZ(bx), f = gc.chFloor(bx);
+      for (let k=0;k<7;k++){
+        const t = k/6, z = cz-2.9+t*5.8;
+        const y = f+1.45+0.5*Math.sin(t*Math.PI);
+        const plank = box(1.15, 0.09, 0.95, M.timber2);
+        plank.position.set(bx, y, z);
+        plank.rotation.x = (t-0.5)*0.32;
+        g.add(plank);
+      }
+      for (const s of [-2.7, 2.7]){
+        for (const e of [-0.45, 0.45]){
+          const t = (s+2.7)/5.4;
+          const post = box(0.1, 0.85, 0.1, M.timber);
+          post.position.set(bx+e, f+1.85+0.5*Math.sin(t*Math.PI), cz+s);
+          g.add(post);
+        }
+        const rail = box(0.09, 0.09, 5.4, M.timber);
+        rail.position.set(bx+s>0?bx:bx, f+2.25, cz+s);
+        rail.position.set(bx, f+2.25+0.25, cz+s);
+        g.add(rail);
+      }
+      for (const s of [-3.35, 3.35]){
+        const ab = box(1.5, 1.3, 1.1, M.stoneD);
+        ab.position.set(bx, f+0.9, cz+s);
+        g.add(ab);
+      }
+      scene.add(g);
+    })();
+
+    // ---------- signpost ----------
+    (function(){
+      const g = new THREE.Group();
+      const sx = 6, sz = 4.9, sy = gc.terrainH(sx,sz);
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.12,1.9,8), M.timber);
+      post.position.set(sx, sy+0.95, sz); post.castShadow = true; g.add(post);
+      const cv = document.createElement('canvas'); cv.width = 256; cv.height = 96;
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#5d442b'; ctx.fillRect(0,0,256,96);
+      ctx.strokeStyle = '#3c2b1a'; ctx.lineWidth = 10; ctx.strokeRect(5,5,246,86);
+      ctx.fillStyle = '#f3e6c8'; ctx.font = 'bold 58px Georgia'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('MILL', 128, 52);
+      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+      const board = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 0.78),
+        new THREE.MeshLambertMaterial({map:tex, side:THREE.DoubleSide}));
+      board.position.set(sx, sy+1.55, sz); board.rotation.y = -0.5; board.castShadow = true; g.add(board);
+      const cap = box(0.5,0.14,0.5, M.timber2); cap.position.set(sx, sy+1.98, sz); g.add(cap);
+      scene.add(g);
+    })();
+
+    // ---------- terraced field: grain tufts, kerb stones, sign ----------
+    let updateTufts = function(){};
+    (function(){
+      const pts = [];
+      for (let gx=gc.FX0+0.72; gx<=gc.FX1-0.5; gx+=0.62){
+        for (let gz=gc.FZ0+0.68; gz<=gc.FZ1-0.42; gz+=0.58){
+          pts.push([gx+(gc.h2(gx*3.7+gz*1.3)-0.5)*0.24, gz+(gc.h2(gz*5.1+gx*0.7)-0.5)*0.22]);
+        }
+      }
+      const geo = new THREE.ConeGeometry(0.14, 0.62, 5);
+      geo.translate(0, 0.31, 0);
+      const im = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({color:0xffffff}), pts.length);
+      im.castShadow = true;
+      scene.add(im);
+      const meta = pts.map((p,i) => ({x:p[0], z:p[1], y:gc.terrainH(p[0],p[1]),
+        rot:gc.h2(i*7.3)*6.28, s:0.8+gc.h2(i*3.1)*0.5, v:0.8+gc.h2(i*11.7)*0.35}));
+      const dummy = new THREE.Object3D();
+      const cDry = new THREE.Color(0xbfae7e), cRipe = new THREE.Color(0x5f9c2e),
+            cSick = new THREE.Color(0x7d6f30), cTmp = new THREE.Color();
+      updateTufts = function(){
+        const health = Math.max(0, Math.min(1, gc.state.grainHealth/gc.state.grainTarget));
+        const flood = Math.max(0, Math.min(1, (gc.state.fieldDepth - gc.state.fieldFloodTolerance)/0.15));
+        for (let i=0;i<meta.length;i++){
+          const m = meta[i], s = m.s*(0.7+0.55*health)*(1-0.22*flood);
+          dummy.position.set(m.x, m.y-0.04, m.z);
+          dummy.rotation.set(0, m.rot, 0);
+          dummy.scale.set(s, s*(0.8+0.45*health), s);
+          dummy.updateMatrix();
+          im.setMatrixAt(i, dummy.matrix);
+          cTmp.copy(cDry).lerp(cRipe, Math.min(1, health*m.v));
+          if (flood > 0) cTmp.lerp(cSick, flood*0.8);
+          im.setColorAt(i, cTmp);
+        }
+        im.instanceMatrix.needsUpdate = true;
+        if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      };
+      updateTufts();
+      // kerb stones around the bench (leave the sluice mouth open)
+      const perX = (gc.FX1-gc.FX0)+0.7, perZ = (gc.FZ1-gc.FZ0)+0.7, L = 2*(perX+perZ);
+      for (let s=0; s<44; s++){
+        const d = s/44*L; let px, pz;
+        if (d < perX){ px = gc.FX0-0.35+d; pz = gc.FZ0-0.35; }
+        else if (d < perX+perZ){ px = gc.FX1+0.35; pz = gc.FZ0-0.35+(d-perX); }
+        else if (d < 2*perX+perZ){ px = gc.FX1+0.35-(d-perX-perZ); pz = gc.FZ1+0.35; }
+        else { px = gc.FX0-0.35; pz = gc.FZ1+0.35-(d-2*perX-perZ); }
+        if (pz < gc.FZ0+0.8 && px > 8.1 && px < 11.9) continue;   // sluice mouth
+        const y = gc.terrainH(px,pz);
+        const m = box(0.72, 0.5+gc.h2(s*3.1)*0.3, 0.5, gc.h2(s*7.7)>0.6?M.stoneD:M.stone);
+        m.position.set(px, y+0.1, pz);
+        m.rotation.y = gc.h2(s*5.3)*1.2;
+        scene.add(m);
+      }
+      // field sign
+      const sx = 13.55, sz = 15.7, sy = gc.terrainH(sx,sz);
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.11,1.6,8), M.timber);
+      post.position.set(sx, sy+0.8, sz); post.castShadow = true; scene.add(post);
+      const cv = document.createElement('canvas'); cv.width = 256; cv.height = 96;
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#5d442b'; ctx.fillRect(0,0,256,96);
+      ctx.strokeStyle = '#3c2b1a'; ctx.lineWidth = 10; ctx.strokeRect(5,5,246,86);
+      ctx.fillStyle = '#f3e6c8'; ctx.font = 'bold 52px Georgia'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('FIELD', 128, 52);
+      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+      const board = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.72),
+        new THREE.MeshLambertMaterial({map:tex, side:THREE.DoubleSide}));
+      board.position.set(sx, sy+1.35, sz); board.castShadow = true; scene.add(board);
+      const cap = box(0.44,0.12,0.44, M.timber2); cap.position.set(sx, sy+1.72, sz); scene.add(cap);
+    })();
+
+    // ---------- pines, boulders, snow, clouds, mountains ----------
+    (function(){
+      const pineG = new THREE.Group();
+      for (let k=0;k<18;k++){
+        const side = k%2 ? 1 : -1;
+        const x = -29 + k*3.7 + (gc.h2(k+1)-0.5)*2.4;
+        const z = side*(8.5 + gc.h2(k+40)*8);
+        if (x > 19 && z < -0.4 && z > -7.6) continue;
+        if (Math.abs(z-gc.chZ(x)) < 4.5) continue;
+        if (x > 5.2 && x < 15.8 && z > 7.5) continue;   // keep the field bench clear
+        if (x > 12.2 && x < 29.5 && z > 2.4 && z < 11.2) continue;   // village apron clear
+        const y = gc.terrainH(x,z), s = 0.8 + gc.h2(k+7)*0.7;
+        const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.2,1.2,7), M.timber);
+        tr.position.set(x, y+0.6*s, z); tr.castShadow = true; pineG.add(tr);
+        const cs = [[1.15,1.6,1.1],[0.88,1.35,2.1],[0.55,1.1,3.0]];
+        for (const [r,h,yo] of cs){
+          const c = new THREE.Mesh(new THREE.ConeGeometry(r*s,h*s,8),
+            new THREE.MeshLambertMaterial({color: k%3===0 ? 0x35703c : 0x3e7d44}));
+          c.position.set(x, y+(yo+0.7)*s, z); c.castShadow = true; pineG.add(c);
+        }
+      }
+      scene.add(pineG);
+      const boulders = [[-15,5.6,1.1],[-8,-6.2,0.9],[0.5,6.8,1.3],[7,-6.6,1.0],[13,5.9,1.2],[-24,7.6,0.8],[21.5,1.9,0.7],[-2,-7.0,1.0]];
+      for (const [bx,bz,bs] of boulders){
+        const by = gc.terrainH(bx,bz);
+        const b = new THREE.Mesh(new THREE.DodecahedronGeometry(bs,0), M.stoneD);
+        b.position.set(bx, by+bs*0.35, bz);
+        b.scale.set(1, 0.72, 1.15);
+        b.rotation.set(gc.h2(bx)*2, gc.h2(bz)*3, gc.h2(bx+bz));
+        b.castShadow = true; b.receiveShadow = true;
+        scene.add(b);
+      }
+      for (const [sx,sz,r] of [[-20,-13,2.6],[-14,12.5,2.0],[-6,-14,1.8],[33,14,2.0]]){
+        const s = new THREE.Mesh(new THREE.CylinderGeometry(r,r*0.7,0.3,12), M.white);
+        s.position.set(sx, gc.terrainH(sx,sz)+0.05, sz);
+        scene.add(s);
+      }
+      // clouds
+      window.__clouds = [];
+      for (let k=0;k<5;k++){
+        const cg = new THREE.Group();
+        for (let m=0;m<3;m++){
+          const s = new THREE.Mesh(new THREE.SphereGeometry(1.9-m*0.35,10,8),
+            new THREE.MeshLambertMaterial({color:0xffffff}));
+          s.position.set(m*2.4-2.4, gc.h2(k*3+m)*0.5, gc.h2(k+m*2)*1.4);
+          s.scale.y = 0.5;
+          cg.add(s);
+        }
+        cg.position.set(-30+k*16, 26+gc.h2(k*9)*5, -24+gc.h2(k*5)*30);
+        scene.add(cg); window.__clouds.push({g:cg, base:cg.position.x, ph:k*1.7});
+      }
+      // mountains
+      const mts = [[-55,-52,18,20],[-20,-58,22,26],[15,-56,17,22],[45,-48,20,24],[-58,10,16,18],[58,18,18,20],[-45,52,20,22],[40,58,22,25]];
+      for (const [mx,mz,mr,mh] of mts){
+        const m = new THREE.Mesh(new THREE.ConeGeometry(mr,mh,7),
+          new THREE.MeshLambertMaterial({color:0x6f8296}));
+        m.position.set(mx, mh/2-4, mz);
+        scene.add(m);
+        const cap = new THREE.Mesh(new THREE.ConeGeometry(mr*0.36, mh*0.26, 7), M.white);
+        cap.position.set(mx, mh*0.74-4+mH(), mz);
+        function mH(){ return mh*0.0; }
+        scene.add(cap);
+      }
+    })();
+
+    // ---------- water surface mesh ----------
+    const water = (function(){
+      const cells = gc.activeCells, n = cells.length;
+      const pos = new Float32Array(n*18), col = new Float32Array(n*18), nor = new Float32Array(n*18);
+      const idx = new Uint32Array(n*6);
+      for (let c=0;c<n;c++){
+        const b = c*6;
+        idx[b]=c*4; idx[b+1]=c*4+1; idx[b+2]=c*4+2; idx[b+3]=c*4; idx[b+4]=c*4+2; idx[b+5]=c*4+3;
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+      g.setAttribute('color', new THREE.BufferAttribute(col,3));
+      g.setAttribute('normal', new THREE.BufferAttribute(nor,3));
+      g.setIndex(new THREE.BufferAttribute(idx,1));
+      const mesh = new THREE.Mesh(g, new THREE.MeshPhongMaterial({
+        vertexColors:true, transparent:true, opacity:0.82, shininess:80,
+        specular:0x9fd8ff, depthWrite:false
+      }));
+      mesh.renderOrder = 2; mesh.frustumCulled = false;
+      scene.add(mesh);
+      const Ddisp = new Float32Array(gc.NX*gc.NZ);
+      return {cells, pos, col, nor, Ddisp, geo:g};
+    })();
+
+    const cShallow = [0.62,0.86,0.92], cDeep = [0.07,0.38,0.62], cFoam = [0.97,0.99,1.0];
+    function surfY(i,j){ const k = j*gc.NX+i; return gc.G[k] + water.Ddisp[k]; }
+    function updateWater(dt){
+      const {cells,pos,col,nor,Ddisp} = water;
+      const lerp = Math.min(1, dt*12);
+      let qw = gc.state.flowAtWheel;
+      for (let c=0;c<cells.length;c++){
+        const k = cells[c];
+        Ddisp[k] += (gc.D[k]-Ddisp[k])*lerp;
+        const i = k%gc.NX, j = (k/gc.NX)|0;
+        const x = gc.X0+(i+0.5)*gc.CS, z = gc.Z0+(j+0.5)*gc.CS;
+        const d = Ddisp[k];
+        const dry = gc.D[k] < gc.DRY;
+        const y = dry ? gc.G[k]-0.3 : Math.min(Math.max(gc.G[k]+d, gc.G[k]+0.015), gc.G[k]+1.5);
+        const hw = Math.max(0,Math.min(1, d/1.0));
+        let r = cShallow[0]+(cDeep[0]-cShallow[0])*Math.pow(hw,0.8),
+            g2 = cShallow[1]+(cDeep[1]-cShallow[1])*Math.pow(hw,0.8),
+            b = cShallow[2]+(cDeep[2]-cShallow[2])*Math.pow(hw,0.8);
+        let foam = dry ? 0 : Math.max(0,(0.055-d)/0.055)*0.8;
+        if (!dry){
+          const kR = j*gc.NX+Math.min(gc.NX-1,i+1), kL = j*gc.NX+Math.max(0,i-1);
+          const kU = Math.min(gc.NZ-1,j+1)*gc.NX+i, kDn = Math.max(0,j-1)*gc.NX+i;
+          const gx = Math.abs((gc.T[kR]>0?Ddisp[kR]:d)-(gc.T[kL]>0?Ddisp[kL]:d));
+          const gz = Math.abs((gc.T[kU]>0?Ddisp[kU]:d)-(gc.T[kDn]>0?Ddisp[kDn]:d));
+          foam = Math.max(foam, Math.min(0.55,(gx+gz)*5));
+          if (x > 16.6 && x < 20.8) foam = Math.max(foam, Math.min(0.85, qw*0.28));
+          if (x > 20.8) foam = Math.max(foam, Math.min(0.5, qw*0.15));
+        }
+        r += (cFoam[0]-r)*foam; g2 += (cFoam[1]-g2)*foam; b += (cFoam[2]-b)*foam;
+        // flooded field: the water turns murky past the tolerance depth
+        if (gc.T[k]===6 && !dry && d > gc.state.fieldFloodTolerance){
+          const sev = Math.min(1, (d - gc.state.fieldFloodTolerance)/0.18);
+          r += (0.50-r)*sev*0.8; g2 += (0.47-g2)*sev*0.8; b += (0.30-b)*sev*0.8;
+        }
+        // normals from height field
+        const sl = (gc.T[j*gc.NX+Math.max(0,i-1)]>0 ? surfY(Math.max(0,i-1),j) : y);
+        const sr = (gc.T[j*gc.NX+Math.min(gc.NX-1,i+1)]>0 ? surfY(Math.min(gc.NX-1,i+1),j) : y);
+        const sd = (gc.T[Math.max(0,j-1)*gc.NX+i]>0 ? surfY(i,Math.max(0,j-1)) : y);
+        const su = (gc.T[Math.min(gc.NZ-1,j+1)*gc.NX+i]>0 ? surfY(i,Math.min(gc.NZ-1,j+1)) : y);
+        let nx = (sl-sr)*1.6, nz = (sd-su)*1.6, ny = 2*gc.CS;
+        const il = 1/Math.sqrt(nx*nx+ny*ny+nz*nz);
+        nx *= il; ny *= il; nz *= il;
+        // two triangles: v0(x-h,y,z-h) v1(x+h,y,z-h) v2(x+h,y,z+h) v3(x-h,y,z+h)
+        const H = gc.CS*0.5, o = c*18;
+        const vx = [x-H,x+H,x+H,x-H], vz = [z-H,z-H,z+H,z+H];
+        for (let v=0;v<4;v++){
+          const p = o+v*3;
+          pos[p]=vx[v]; pos[p+1]=y; pos[p+2]=vz[v];
+          col[p]=r; col[p+1]=g2; col[p+2]=b;
+          nor[p]=nx; nor[p+1]=ny; nor[p+2]=nz;
+        }
+        const o2 = c*18+12;
+        pos[o2]=vx[3]; pos[o2+1]=y; pos[o2+2]=vz[3];
+        col[o2]=r; col[o2+1]=g2; col[o2+2]=b;
+        nor[o2]=nx; nor[o2+1]=ny; nor[o2+2]=nz;
+      }
+      water.geo.attributes.position.needsUpdate = true;
+      water.geo.attributes.color.needsUpdate = true;
+      water.geo.attributes.normal.needsUpdate = true;
+    }
+
+    // ---------- spray particles ----------
+    const spray = (function(){
+      const N = 320;
+      const pos = new Float32Array(N*3), vel = new Float32Array(N*3), life = new Float32Array(N);
+      for (let k=0;k<N;k++){ pos[k*3+1] = -999; life[k] = 0; }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+      const cv = document.createElement('canvas'); cv.width = 32; cv.height = 32;
+      const ctx = cv.getContext('2d');
+      const gr = ctx.createRadialGradient(16,16,2,16,16,15);
+      gr.addColorStop(0,'rgba(255,255,255,1)'); gr.addColorStop(0.55,'rgba(240,250,255,0.85)');
+      gr.addColorStop(1,'rgba(220,240,255,0)');
+      ctx.fillStyle = gr; ctx.fillRect(0,0,32,32);
+      const tex = new THREE.CanvasTexture(cv);
+      const mat = new THREE.PointsMaterial({size:0.34, map:tex, transparent:true, opacity:0.9,
+        depthWrite:false, sizeAttenuation:true, color:0xffffff});
+      const pts = new THREE.Points(g, mat);
+      pts.renderOrder = 3; pts.frustumCulled = false;
+      scene.add(pts);
+      return {N, pos, vel, life, geo:g, acc:0};
+    })();
+    function updateSpray(dt){
+      const qw = gc.state.flowAtWheel;
+      const rate = 90*Math.min(1, qw/3.0);
+      spray.acc += rate*dt;
+      const px = 17.85, py = 2.25, pz = 0.1;
+      while (spray.acc >= 1){
+        spray.acc -= 1;
+        for (let k=0;k<spray.N;k++){
+          if (spray.life[k] <= 0){
+            const h1 = gc.h2(k*17+Math.floor(gc.state.elapsed*60));
+            const h2v = gc.h2(k*31+7+Math.floor(gc.state.elapsed*60));
+            const h3 = gc.h2(k*57+3);
+            spray.pos[k*3] = px + (h1-0.5)*0.9;
+            spray.pos[k*3+1] = py + h2v*0.5;
+            spray.pos[k*3+2] = pz + (h3-0.5)*1.5;
+            const s = 0.5 + 0.6*Math.min(1,qw/2.5);
+            spray.vel[k*3] = (1.2+h1*1.8)*s;
+            spray.vel[k*3+1] = (0.4+h2v*2.2)*s;
+            spray.vel[k*3+2] = (h3-0.5)*2.4*s;
+            spray.life[k] = 0.55+h1*0.35;
+            break;
+          }
+        }
+      }
+      for (let k=0;k<spray.N;k++){
+        if (spray.life[k] > 0){
+          spray.life[k] -= dt;
+          spray.vel[k*3+1] -= 7.5*dt;
+          spray.pos[k*3] += spray.vel[k*3]*dt;
+          spray.pos[k*3+1] += spray.vel[k*3+1]*dt;
+          spray.pos[k*3+2] += spray.vel[k*3+2]*dt;
+          if (spray.life[k] <= 0 || spray.pos[k*3+1] < 0.4) { spray.life[k] = 0; spray.pos[k*3+1] = -999; }
+        }
+      }
+      spray.geo.attributes.position.needsUpdate = true;
+    }
+
+    // ---------- paddle droplets ----------
+    const droplets = [];
+    (function(){
+      for (let k=0;k<10;k++){
+        const m = new THREE.Mesh(new THREE.SphereGeometry(0.11,8,6),
+          new THREE.MeshLambertMaterial({color:0xbfe8f5, transparent:true, opacity:0.9}));
+        m.visible = false; scene.add(m);
+        droplets.push({m, mode:0, x:0, y:0, vx:0, vy:0, k});
+      }
+    })();
+    function updateDroplets(dt){
+      const qw = gc.state.flowAtWheel, ang = gc.state.wheelAngle, R = gc.WHEEL_R-0.32;
+      const axleX = 18.9, axleY = 2.62, wz = 0.1;
+      for (const dr of droplets){
+        const phi = ang + dr.k*Math.PI/5;
+        const tipX = axleX + Math.cos(phi)*R, tipY = axleY + Math.sin(phi)*R;
+        const deg = ((phi*180/Math.PI)%360+360)%360;
+        if (dr.mode === 0){
+          // riding: paddles on the left/upper-left (phi in 100..190 deg)
+          if (deg > 100 && deg < 190 && qw > 0.4 && gc.h2(dr.k*7) < Math.min(1, qw/2.0)){
+            dr.mode = 1; dr.x = tipX; dr.y = tipY;
+          }
+        } else if (dr.mode === 1){
+          if (deg <= 100 || deg > 190){ // crested (top) — detach
+            dr.mode = 2;
+            dr.vx = Math.max(0.3, gc.state.wheelSpeed)*Math.sin(phi)*0.9;
+            dr.vy = -gc.state.wheelSpeed*Math.cos(phi)*0.9;
+          } else { dr.x = tipX; dr.y = tipY; }
+        }
+        if (dr.mode === 2){
+          dr.vy -= 9.0*dt;
+          dr.x += dr.vx*dt; dr.y += dr.vy*dt;
+          if (dr.y < 0.5){ dr.mode = 0; }
+        }
+        dr.m.visible = dr.mode > 0;
+        if (dr.mode > 0){ dr.m.position.set(dr.x, dr.y, wz + 0.2*(gc.h2(dr.k)-0.5)); }
+      }
+    }
+
+    // ---------- camera ----------
+    const cam = {az:0.15, el:0.52, r:46, tAz:0.15, tEl:0.52, tR:46, tgt:new THREE.Vector3(2,4.2,0)};
+    function updateCamera(dt){
+      const st = gc.state.phase;
+      if (st === 'title') cam.tAz += Math.sin(performance.now()*0.00012)*0.0004;
+      const k = Math.min(1, dt*7);
+      cam.az += (cam.tAz-cam.az)*k; cam.el += (cam.tEl-cam.el)*k; cam.r += (cam.tR-cam.r)*k;
+      const ce = Math.cos(cam.el), se = Math.sin(cam.el);
+      const x = cam.tgt.x + cam.r*se*Math.sin(cam.az);
+      const y = cam.tgt.y + cam.r*ce;
+      const z = cam.tgt.z + cam.r*se*Math.cos(cam.az);
+      let py = Math.max(y, gc.terrainH(x,z)+1.6);
+      if (x > 18.5 && x < 28 && z > -8 && z < 0.5) py = Math.max(py, 9.2); // never clip the mill
+      camera.position.set(x, py, z);
+      camera.lookAt(cam.tgt);
+    }
+
+    // ---------- input ----------
+    let downX = 0, downY = 0, dragging = false, moved = 0;
+    const dom = renderer.domElement;
+    function pickGate(ndc){
+      const ray = new THREE.Raycaster(); ray.setFromCamera(ndc, camera);
+      const hits = ray.intersectObjects([gateGrp.userData.proxy, proxyB, proxyC, proxyD, proxyE], false);
+      if (!hits.length) return -1;
+      return hits[0].object === proxyB ? 1 : hits[0].object === proxyC ? 2
+        : hits[0].object === proxyD ? 3 : hits[0].object === proxyE ? 4 : 0;
+    }
+    dom.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; moved = 0; dragging = true; });
+    window.addEventListener('pointerup', e => {
+      if (dragging && moved < 6 && gc.state.phase === 'playing'){
+        const ndc = new THREE.Vector2((e.clientX/window.innerWidth)*2-1, -(e.clientY/window.innerHeight)*2+1);
+        const idx = pickGate(ndc);
+        if (idx >= 0) gc.toggleGate(idx);
+      }
+      dragging = false;
+    });
+    window.addEventListener('pointermove', e => {
+      if (dragging){
+        const dx = e.movementX||0, dy = e.movementY||0;
+        moved += Math.abs(dx)+Math.abs(dy);
+        cam.tAz -= dx*0.005;
+        cam.tEl = Math.max(0.15, Math.min(1.25, cam.tEl + dy*0.004));
+      } else if (e.target === dom && gc.state.phase === 'playing'){
+        const ndc = new THREE.Vector2((e.clientX/window.innerWidth)*2-1, -(e.clientY/window.innerHeight)*2+1);
+        dom.style.cursor = pickGate(ndc) >= 0 ? 'pointer' : 'default';
+      }
+    });
+    dom.addEventListener('wheel', e => {
+      e.preventDefault();
+      cam.tR = Math.max(20, Math.min(70, cam.tR*Math.exp(e.deltaY*0.001)));
+    }, {passive:false});
+    window.addEventListener('keydown', e => {
+      if (e.repeat) return;
+      if (e.code === 'Enter'){ if (gc.state.phase !== 'playing') gc.startRound(); }
+      else if (e.code === 'KeyR'){ gc.startRound(); }
+      else if (e.code === 'Space'){ e.preventDefault(); if (gc.state.phase === 'playing') gc.toggleGate(0); }
+      else if (e.code === 'KeyF'){ if (gc.state.phase === 'playing') gc.toggleGate(1); }
+      else if (e.code === 'KeyG'){ if (gc.state.phase === 'playing') gc.toggleGate(2); }
+      else if (e.code === 'KeyD'){ if (gc.state.phase === 'playing') gc.toggleGate(3); }
+      else if (e.code === 'KeyE'){ if (gc.state.phase === 'playing') gc.toggleGate(4); }
+    });
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth/window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ---------- HUD ----------
+    const el = id => document.getElementById(id);
+    const H = {badge:el('genBadge'), badge2:el('genBadge2'), badge3:el('genBadge3'),
+      simB:el('simBadge'),
+      chargeF:el('chargeFill'), chargeT:el('chargeText'), grainF:el('grainFill'), grainT:el('grainText'),
+      vilF:el('villageFill'), vilT:el('villageText'),
+      timeT:el('timeText'), gate:el('gateChip'), gateB:el('gateChipB'), gateC:el('gateChipC'),
+      gateD:el('gateChipD'), gateE:el('gateChipE'),
+      title:el('title'), end:el('endcard'), endT:el('endTitle'), endG:el('endGrade'),
+      endS:el('endScore'), endB:el('endBody'), hint:el('hint')};
+    function fmt(t){ const s = Math.max(0,Math.ceil(t)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+    function chipText(prefix, open, moving, travel){
+      if (moving) return prefix+' · '+(open?'OPENING ':'CLOSING ')+Math.round(travel*100)+'%';
+      return prefix+' · '+(open?'OPEN':'CLOSED');
+    }
+    function updateHUD(){
+      const s = gc.state;
+      H.badge.textContent = s.wheelGenerating ? 'GEN' : 'IDLE';
+      H.badge.className = 'genstate' + (s.wheelGenerating ? ' on' : '');
+      H.badge2.textContent = s.wheel2Generating ? 'GEN' : 'IDLE';
+      H.badge2.className = 'genstate' + (s.wheel2Generating ? ' on' : '');
+      H.badge3.textContent = s.wheel3Generating ? 'GEN' : 'IDLE';
+      H.badge3.className = 'genstate' + (s.wheel3Generating ? ' on' : '');
+      H.simB.textContent = s.allGenerating ? 'ALL THREE GENERATING' : 'NOT SIMULTANEOUS';
+      H.simB.className = 'simbadge' + (s.allGenerating ? ' on' : '');
+      H.vilF.style.width = s.villageDamage.toFixed(1)+'%';
+      H.vilT.textContent = Math.round(s.villageDamage)+' / 100';
+      H.vilT.style.color = s.villageDamage > 0.5 ? '#ff8d6b' : '';
+      H.chargeF.style.width = Math.min(100, s.charge/s.chargeTarget*100).toFixed(1)+'%';
+      H.chargeT.textContent = Math.round(s.charge)+' / '+s.chargeTarget;
+      H.grainF.style.width = Math.min(100, s.grainHealth/s.grainTarget*100).toFixed(1)+'%';
+      H.grainT.textContent = Math.round(s.grainHealth)+' / '+s.grainTarget;
+      H.timeT.textContent = fmt(s.timeRemaining);
+      H.timeT.className = s.timeRemaining < 15 ? 'low' : '';
+      H.gate.textContent = chipText('SLUICE', s.gateOpen, s.gateMoving, s.gateTravel);
+      H.gate.className = 'chip' + (s.gateOpen ? ' open' : '');
+      H.gateB.textContent = chipText('FIELD', s.gateBOpen, s.gateBMoving, s.gateBTravel);
+      H.gateB.className = 'chip' + (s.gateBOpen ? ' open' : '');
+      H.gateC.textContent = chipText('VILLAGE', s.gateCOpen, s.gateCMoving, s.gateCTravel);
+      H.gateC.className = 'chip' + (s.gateCOpen ? ' open' : '');
+      H.gateD.textContent = chipText('UPPER', s.gateDOpen, s.gateDMoving, s.gateDTravel);
+      H.gateD.className = 'chip' + (s.gateDOpen ? ' open' : '');
+      H.gateE.textContent = chipText('LOWER', s.gateEOpen, s.gateEMoving, s.gateETravel);
+      H.gateE.className = 'chip' + (s.gateEOpen ? ' open' : '');
+      H.title.className = s.phase === 'title' ? 'card' : 'card hidden';
+      if (s.phase === 'won' || s.phase === 'lost'){
+        H.end.className = 'card';
+        const p = s.scoreParts || {charge:0, grain:0, flooding:0, village:0};
+        H.endG.textContent = 'GRADE ' + (s.grade || 'C');
+        H.endS.textContent = 'SCORE ' + s.score + '\n' +
+          'charge ' + p.charge + '  +  grain ' + p.grain + '  −  flooding ' + (-p.flooding) +
+          '  −  village ' + (-p.village) + '\n' +
+          'score = charge% + grain% − grain lost to flooding − 1.5 × village damage';
+        if (s.phase === 'won'){
+          H.endT.textContent = 'ALL THREE WHEELS TURN!';
+          H.endB.textContent = 'All three wheels charged the door and the grain is healthy — '+s.elapsed.toFixed(0)+' s, '+s.reservoirVolume.toFixed(0)+' m³ of meltwater to spare.';
+        } else {
+          H.endT.textContent = 'OUT OF TIME';
+          H.endB.textContent = 'The mill reached '+Math.round(s.charge)+' / '+s.chargeTarget+' and the grain '+
+            Math.round(s.grainHealth)+' / '+s.grainTarget+'. It takes BOTH — and the village must stay dry.';
+        }
+      } else H.end.className = 'card hidden';
+      H.hint.style.opacity = s.phase === 'playing' ? '0.85' : '0';
+    }
+
+    // ---------- main loop ----------
+    let last = performance.now();
+    function frame(now){
+      requestAnimationFrame(frame);
+      const dt = Math.min(0.08, (now-last)/1000); last = now;
+      gc.tick(dt);
+      window.__arena_state = gc.refresh();
+      updateWater(dt);
+      wheelGrp.rotation.z = gc.state.wheelAngle;
+      // gate visuals
+      const f = gc.chFloor(gc.CH_X0), cz = gc.chZ(gc.CH_X0);
+      gateBoard.position.y = f + 0.8 + gc.state.gateTravel*1.5;
+      for (const hw of handWheels){
+        if (hw.isRod){ hw.rod.position.y = f + 1.6 + 1.7 + gc.state.gateTravel*1.5; }
+        else hw.rotation.y = gc.state.gateAngle;
+      }
+      // fork gate visuals
+      const fB = gc.irFloor(2.75);
+      gateBoardB.position.y = fB + 0.8 + gc.state.gateBTravel*1.5;
+      for (const hw of handWheelsB){
+        if (hw.isRod){ hw.rod.position.y = hw.rod.userData.baseY + gc.state.gateBTravel*1.5; }
+        else hw.rotation.y = gc.state.gateBAngle;
+      }
+      // village gate visuals
+      const fC = gc.vFloorV(2.91);
+      gateBoardC.position.y = fC + 0.8 + gc.state.gateCTravel*1.5;
+      for (const hw of handWheelsC){
+        if (hw.isRod){ hw.rod.position.y = hw.rod.userData.baseY + gc.state.gateCTravel*1.5; }
+        else hw.rotation.y = gc.state.gateCAngle;
+      }
+      // village houses darken as flood damage accrues
+      const dmg = Math.min(1, gc.state.villageDamage/100);
+      if (dmg > 0) for (const hm of houseMats) hm.mat.color.copy(hm.base).lerp(hm.bad, dmg);
+      // wheel 2 spins about world x; wheel 3 about z like wheel 1
+      wheelGrp2.rotation.z = gc.state.wheelAngle2;
+      wheelGrp3.rotation.z = -gc.state.wheelAngle3;
+      // upper/lower gate visuals
+      gateBoardD.position.y = gc.w2Floor(gc.W2_ZBANK) + 0.7 + gc.state.gateDTravel*1.3;
+      for (const hw of handWheelsD){
+        if (hw.isRod){ hw.rod.position.y = hw.rod.userData.baseY + gc.state.gateDTravel*1.3; }
+        else hw.rotation.y = gc.state.gateDAngle;
+      }
+      gateBoardE.position.y = gc.w3Floor(gc.W3_ZBANK) + 0.72 + gc.state.gateETravel*1.4;
+      for (const hw of handWheelsE){
+        if (hw.isRod){ hw.rod.position.y = hw.rod.userData.baseY + gc.state.gateETravel*1.4; }
+        else hw.rotation.y = gc.state.gateEAngle;
+      }
+      updateTufts();
+      for (const c of window.__clouds) c.g.position.x = c.base + Math.sin(now*0.00003+c.ph)*3;
+      updateSpray(dt);
+      updateDroplets(dt);
+      updateCamera(dt);
+      updateHUD();
+      renderer.render(scene, camera);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- three.js loader with fallback ----------
+  if (window.THREE && window.THREE.WebGLRenderer){
+    try { boot(window.THREE); }
+    catch(err){ fatal(err); }
+  } else {
+    // primary build missing or is an ES-module file: import the vendored module build
+    import('./vendor/three/three.module.min.js')
+      .then(M => { try { boot(M); } catch(err){ fatal(err); } })
+      .catch(err => fatal(err));
+  }
+  function fatal(err){
+    console.error(err);
+    const f = document.getElementById('fatal');
+    f.style.display = 'block';
+    f.textContent = 'Could not start the 3D engine: '+(err && err.message ? err.message : err);
+  }
+})();
+</script>
+</body>
+</html>

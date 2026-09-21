@@ -1,0 +1,3648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kickflip Plaza</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #87ceeb;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+    /* HUD Overlays */
+    #hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px 28px;
+    }
+    .hud-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      width: 100%;
+    }
+    .hud-top-left {
+      display: flex;
+      gap: 12px;
+    }
+    .hud-top-right {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .stat-card {
+      background: rgba(18, 22, 28, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 12px;
+      padding: 10px 18px;
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+    .stat-label {
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #94a3b8;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+    .stat-val {
+      font-size: 26px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      color: #f8fafc;
+      letter-spacing: -0.5px;
+    }
+    .stance-badge {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 2px 6px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      background: #f59e0b;
+      color: #0f172a;
+      border-radius: 5px;
+      text-transform: uppercase;
+      display: none;
+    }
+    .stance-badge.active {
+      display: inline-block;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.05); }
+    }
+
+    /* Bail deduction popup */
+    #deduction-popup {
+      position: absolute;
+      top: 85px;
+      left: 32px;
+      color: #ef4444;
+      font-size: 20px;
+      font-weight: 900;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+      opacity: 0;
+      transition: all 0.4s ease;
+      pointer-events: none;
+    }
+    #deduction-popup.show {
+      opacity: 1;
+      transform: translateY(-8px);
+    }
+
+    /* Goal Panel (Round 6: 6 goals) */
+    #goal-panel {
+      position: absolute;
+      top: 95px;
+      left: 28px;
+      width: 310px;
+      background: rgba(18, 22, 28, 0.86);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 12px;
+      padding: 12px 16px;
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+      pointer-events: none;
+    }
+    #goal-panel.flash-red {
+      background: rgba(220, 38, 38, 0.7) !important;
+      border-color: #ef4444 !important;
+    }
+    .goal-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      padding-bottom: 5px;
+    }
+    .goal-panel-title {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #38bdf8;
+    }
+    .goal-panel-counter {
+      font-size: 13px;
+      font-weight: 800;
+      color: #facc15;
+    }
+    .goal-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .goal-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #cbd5e1;
+      transition: color 0.2s ease;
+    }
+    .goal-item.done {
+      color: #4ade80;
+    }
+    .goal-check {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      border: 1.5px solid #64748b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 900;
+      color: transparent;
+      flex-shrink: 0;
+      transition: all 0.25s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+    .goal-item.done .goal-check {
+      background: #4ade80;
+      border-color: #4ade80;
+      color: #0f172a;
+      transform: scale(1.1);
+    }
+
+    /* Territory Heat Panel */
+    #territory-panel {
+      position: absolute;
+      top: 350px;
+      left: 28px;
+      width: 310px;
+      background: rgba(18, 22, 28, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 12px;
+      padding: 10px 16px;
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      pointer-events: none;
+    }
+    .territory-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      padding-bottom: 4px;
+    }
+    .territory-title {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #f59e0b;
+    }
+    .territory-score {
+      font-size: 12px;
+      font-weight: 800;
+      color: #f8fafc;
+    }
+    .territory-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 6px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .territory-bar-bg {
+      width: 100px;
+      height: 8px;
+      background: #334155;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 0 8px;
+      display: flex;
+    }
+    .territory-bar-fill {
+      height: 100%;
+      background: #38bdf8;
+      width: 0%;
+      transition: width 0.3s ease, background-color 0.3s ease;
+    }
+
+    /* S-K-A-T-E Letters Panel */
+    #skate-panel {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(18, 22, 28, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 12px;
+      padding: 8px 14px;
+    }
+    .skate-title {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: #94a3b8;
+      margin-right: 4px;
+    }
+    .skate-letter {
+      font-size: 18px;
+      font-weight: 900;
+      color: #475569;
+      padding: 2px 5px;
+      border-radius: 4px;
+      transition: all 0.3s ease;
+    }
+    .skate-letter.taken {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.18);
+      text-shadow: 0 0 10px #ef4444;
+      transform: scale(1.15);
+    }
+
+    /* Rival Challenge Panel */
+    #challenge-panel {
+      position: absolute;
+      top: 85px;
+      right: 28px;
+      width: 320px;
+      background: rgba(18, 22, 28, 0.88);
+      backdrop-filter: blur(8px);
+      border: 1px solid #f97316;
+      border-radius: 12px;
+      padding: 12px 16px;
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(249, 115, 22, 0.25);
+      display: none;
+      pointer-events: none;
+      position: relative;
+    }
+    .challenge-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      padding-bottom: 4px;
+    }
+    .challenge-title {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #f97316;
+    }
+    .challenge-timer {
+      font-size: 14px;
+      font-weight: 900;
+      color: #facc15;
+      font-variant-numeric: tabular-nums;
+    }
+    .challenge-body {
+      font-size: 13px;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 4px;
+    }
+    .challenge-target {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .challenge-stamp {
+      position: absolute;
+      right: 15px;
+      bottom: 8px;
+      font-size: 22px;
+      font-weight: 900;
+      color: #4ade80;
+      border: 2px solid #4ade80;
+      padding: 2px 8px;
+      border-radius: 6px;
+      transform: rotate(-8deg) scale(0.9);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+    .challenge-stamp.show {
+      opacity: 1;
+      transform: rotate(-8deg) scale(1.15);
+    }
+
+    /* Finale Line Panel */
+    #finale-panel {
+      position: absolute;
+      top: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 440px;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(10px);
+      border: 2px solid #f59e0b;
+      border-radius: 14px;
+      padding: 10px 18px;
+      color: #fff;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      box-shadow: 0 10px 30px rgba(245, 158, 11, 0.35);
+      pointer-events: none;
+      z-index: 50;
+    }
+    .finale-header {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .finale-title {
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      color: #f59e0b;
+      text-transform: uppercase;
+    }
+    .finale-timer {
+      font-size: 16px;
+      font-weight: 900;
+      color: #facc15;
+    }
+    .finale-steps {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+      justify-content: space-between;
+    }
+    .finale-step {
+      flex: 1;
+      padding: 4px 6px;
+      background: #1e293b;
+      border: 1px solid #475569;
+      border-radius: 6px;
+      text-align: center;
+      font-size: 10px;
+      font-weight: 800;
+      color: #94a3b8;
+      transition: all 0.25s ease;
+    }
+    .finale-step.active {
+      background: #f59e0b;
+      color: #0f172a;
+      border-color: #f59e0b;
+      transform: scale(1.05);
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
+    }
+    .finale-step.done {
+      background: #4ade80;
+      color: #0f172a;
+      border-color: #4ade80;
+    }
+
+    /* Charge Meter */
+    #charge-meter-container {
+      position: absolute;
+      bottom: 95px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 220px;
+      height: 12px;
+      background: rgba(15, 23, 42, 0.8);
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      overflow: hidden;
+      display: none;
+    }
+    #charge-meter-bar {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #38bdf8, #f59e0b, #ef4444);
+      border-radius: 5px;
+      transition: width 0.05s linear;
+    }
+
+    /* Balance Meter (Grinds & Manuals) */
+    #balance-meter-container {
+      position: absolute;
+      bottom: 115px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 260px;
+      background: rgba(18, 22, 28, 0.88);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 12px;
+      padding: 8px 16px 12px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+    }
+    .balance-title {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: #38bdf8;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .balance-track {
+      position: relative;
+      width: 100%;
+      height: 12px;
+      background: #1e293b;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      overflow: hidden;
+    }
+    .balance-safe-zone {
+      position: absolute;
+      left: 25%;
+      width: 50%;
+      height: 100%;
+      background: rgba(56, 189, 248, 0.22);
+    }
+    .balance-center-line {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 2px;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.45);
+    }
+    .balance-needle {
+      position: absolute;
+      top: -2px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 7px;
+      height: 16px;
+      background: #facc15;
+      border-radius: 3px;
+      box-shadow: 0 0 10px #facc15;
+      transition: left 0.025s linear;
+    }
+
+    /* Popups & Trick Feedback */
+    #trick-popup {
+      position: absolute;
+      top: 25%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: #fff;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+    #trick-popup.show {
+      opacity: 1;
+      transform: translate(-50%, -60%) scale(1.1);
+    }
+    .popup-name {
+      font-size: 32px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      text-shadow: 0 4px 16px rgba(0,0,0,0.8), 0 0 20px rgba(56, 189, 248, 0.6);
+      color: #38bdf8;
+    }
+    .popup-points {
+      font-size: 22px;
+      font-weight: 800;
+      color: #facc15;
+      margin-top: 4px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+    }
+
+    /* Live Combo Tracker */
+    #combo-tracker {
+      position: absolute;
+      top: 105px;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+    }
+    .combo-chain {
+      font-size: 15px;
+      font-weight: 800;
+      color: #f8fafc;
+      letter-spacing: 0.5px;
+      background: rgba(15, 23, 42, 0.88);
+      padding: 6px 18px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.45);
+      margin-bottom: 6px;
+    }
+    .combo-total {
+      font-size: 28px;
+      font-weight: 900;
+      color: #38bdf8;
+      text-shadow: 0 2px 12px rgba(56, 189, 248, 0.6);
+    }
+    .combo-banked {
+      animation: comboBank 0.8s ease-out forwards;
+    }
+    @keyframes comboBank {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.25); color: #4ade80; text-shadow: 0 0 20px #4ade80; }
+      100% { transform: translateY(-30px) scale(0.9); opacity: 0; }
+    }
+
+    /* Overlay Screens (Ready / Session Over / Bail) */
+    .screen-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(10, 14, 20, 0.88);
+      backdrop-filter: blur(10px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: #f8fafc;
+      z-index: 100;
+      text-align: center;
+      padding: 40px;
+    }
+    .screen-title {
+      font-size: 58px;
+      font-weight: 900;
+      letter-spacing: -2px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, #38bdf8, #f59e0b);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+    .screen-subtitle {
+      font-size: 16px;
+      color: #cbd5e1;
+      margin-bottom: 24px;
+      max-width: 620px;
+      line-height: 1.5;
+    }
+    .controls-grid {
+      display: grid;
+      grid-template-columns: auto auto;
+      gap: 8px 24px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 16px 24px;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+    .key-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      background: #334155;
+      border: 1px solid #475569;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+    .start-prompt {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: #38bdf8;
+      animation: blink 1.2s infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    #bail-notification {
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 48px;
+      font-weight: 900;
+      color: #ef4444;
+      text-shadow: 0 4px 20px rgba(239, 68, 68, 0.8), 0 0 40px rgba(0,0,0,0.9);
+      letter-spacing: 4px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease;
+    }
+    #bail-notification.active {
+      opacity: 1;
+    }
+
+    .gameover-stats-grid {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      padding: 18px 28px;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      width: 440px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      text-align: left;
+    }
+    .gameover-stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+      color: #cbd5e1;
+      font-weight: 600;
+    }
+    .gameover-stat-val {
+      font-weight: 800;
+      font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-top">
+      <div class="hud-top-left">
+        <div class="stat-card">
+          <div class="stat-label">Player Score</div>
+          <div class="stat-val" id="hud-score">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Rival Score</div>
+          <div class="stat-val" id="hud-rival-score" style="color: #f97316;">0</div>
+        </div>
+      </div>
+
+      <div class="stat-card" style="text-align: center;">
+        <div class="stat-label">Session Time</div>
+        <div class="stat-val" id="hud-time">180</div>
+      </div>
+
+      <div class="hud-top-right">
+        <div class="stat-card" style="text-align: right;">
+          <div class="stat-label">Speed <span id="stance-tag" class="stance-badge">SWITCH</span></div>
+          <div class="stat-val" id="hud-speed">0.0 <span style="font-size: 14px; font-weight: 600; color: #94a3b8;">u/s</span></div>
+        </div>
+        <div id="skate-panel">
+          <span class="skate-title">SKATE</span>
+          <span id="letter-S" class="skate-letter">S</span>
+          <span id="letter-K" class="skate-letter">K</span>
+          <span id="letter-A" class="skate-letter">A</span>
+          <span id="letter-T" class="skate-letter">T</span>
+          <span id="letter-E" class="skate-letter">E</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bail deduction popup -->
+    <div id="deduction-popup">-50 PTS BAIL PENALTY</div>
+
+    <!-- Goal Panel (Round 6 Full Park Goals) -->
+    <div id="goal-panel">
+      <div class="goal-panel-header">
+        <span class="goal-panel-title">Park Goals</span>
+        <span class="goal-panel-counter" id="goal-counter">0 / 6</span>
+      </div>
+      <div class="goal-list">
+        <div class="goal-item" id="goal-item-0">
+          <div class="goal-check" id="goal-check-0">&#10003;</div>
+          <span>Grind handrail top to bottom</span>
+        </div>
+        <div class="goal-item" id="goal-item-1">
+          <div class="goal-check" id="goal-check-1">&#10003;</div>
+          <span>Clear stair gap with flip trick</span>
+        </div>
+        <div class="goal-item" id="goal-item-2">
+          <div class="goal-check" id="goal-check-2">&#10003;</div>
+          <span>Wallride for 2s in one touch</span>
+        </div>
+        <div class="goal-item" id="goal-item-3">
+          <div class="goal-check" id="goal-check-3">&#10003;</div>
+          <span>Bank a 4-trick combo</span>
+        </div>
+        <div class="goal-item" id="goal-item-4">
+          <div class="goal-check" id="goal-check-4">&#10003;</div>
+          <span>Clear road gap in switch stance</span>
+        </div>
+        <div class="goal-item" id="goal-item-5">
+          <div class="goal-check" id="goal-check-5">&#10003;</div>
+          <span>Bank 2500 total session score</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Territory Heat Panel (Original 3 Features) -->
+    <div id="territory-panel">
+      <div class="territory-header">
+        <span class="territory-title">Territory Heat</span>
+        <span class="territory-score" id="territory-held">Held: 0 – 0</span>
+      </div>
+      <div class="territory-item">
+        <span>Quarter Pipe</span>
+        <div class="territory-bar-bg"><div class="territory-bar-fill" id="bar-qp"></div></div>
+        <span id="heat-qp">NEUTRAL</span>
+      </div>
+      <div class="territory-item">
+        <span>Fun Box</span>
+        <div class="territory-bar-bg"><div class="territory-bar-fill" id="bar-fb"></div></div>
+        <span id="heat-fb">NEUTRAL</span>
+      </div>
+      <div class="territory-item">
+        <span>Rail &amp; Ledge</span>
+        <div class="territory-bar-bg"><div class="territory-bar-fill" id="bar-rl"></div></div>
+        <span id="heat-rl">NEUTRAL</span>
+      </div>
+    </div>
+
+    <!-- Rival Challenge Panel -->
+    <div id="challenge-panel">
+      <div class="challenge-header">
+        <span class="challenge-title">Rival Challenge</span>
+        <span class="challenge-timer" id="challenge-timer">20.0s</span>
+      </div>
+      <div class="challenge-body" id="challenge-desc">Rival: Kickflip &rarr; 50-50</div>
+      <div class="challenge-target">Match or beat: <span id="challenge-pts" style="color: #facc15; font-weight: 800;">180</span> pts</div>
+      <div class="challenge-stamp" id="challenge-stamp">MATCHED</div>
+    </div>
+
+    <!-- Finale Line Panel (30s) -->
+    <div id="finale-panel">
+      <div class="finale-header">
+        <span class="finale-title">&starf; FINALE LINE CHALLENGE &starf;</span>
+        <span class="finale-timer" id="finale-timer">30.0s</span>
+      </div>
+      <div class="finale-steps">
+        <div class="finale-step" id="fstep-0">1. KICKER AIR</div>
+        <div class="finale-step" id="fstep-1">2. FUN BOX GRIND</div>
+        <div class="finale-step" id="fstep-2">3. MANUAL</div>
+        <div class="finale-step" id="fstep-3">4. QP TRICK</div>
+      </div>
+    </div>
+
+    <!-- Ollie Charge Meter -->
+    <div id="charge-meter-container">
+      <div id="charge-meter-bar"></div>
+    </div>
+
+    <!-- Balance Meter for Grinds / Manuals -->
+    <div id="balance-meter-container">
+      <div class="balance-title" id="balance-title">BALANCE</div>
+      <div class="balance-track">
+        <div class="balance-safe-zone"></div>
+        <div class="balance-center-line"></div>
+        <div class="balance-needle" id="balance-needle"></div>
+      </div>
+    </div>
+
+    <!-- Trick Combo Tracker -->
+    <div id="combo-tracker">
+      <div class="combo-chain" id="combo-chain">Kickflip &rarr; 50-50</div>
+      <div class="combo-total" id="combo-total">0</div>
+    </div>
+
+    <!-- Floating Trick Popup -->
+    <div id="trick-popup">
+      <div class="popup-name" id="popup-name">KICKFLIP</div>
+      <div class="popup-points" id="popup-points">+40 PTS</div>
+    </div>
+
+    <div id="bail-notification">BAIL!</div>
+  </div>
+
+  <!-- Ready Overlay -->
+  <div id="screen-ready" class="screen-overlay">
+    <div class="screen-title">Kickflip Plaza</div>
+    <div class="screen-subtitle">Full Park &amp; Gap Zone: Skate the complete street plaza and gap zone! Complete 6 technical objectives, beat rival challenges, and nail the 4-part Finale Line.</div>
+    <div class="controls-grid">
+      <div><span class="key-badge">W</span> / <span class="key-badge">S</span></div>
+      <div>Push / Brake &amp; Reverse</div>
+      <div><span class="key-badge">A</span> / <span class="key-badge">D</span></div>
+      <div>Carve / In-Air Rotation / Balance / Wallride Steer</div>
+      <div><span class="key-badge">Space</span></div>
+      <div>Hold to Charge Ollie, Release to Pop / Ollie Off Rail &amp; Wall</div>
+      <div><span class="key-badge">Arrows</span> (Air)</div>
+      <div>Kickflip (&larr;) / Heelflip (&rarr;) / Pop Shove-it (&darr;)</div>
+      <div><span class="key-badge">Rails &amp; Ledges</span></div>
+      <div>50-50 / Boardslide / Nose grind (&uarr; at contact)</div>
+      <div><span class="key-badge">Hold &uarr;</span> (Ground)</div>
+      <div>Manual (Ride on back wheels)</div>
+      <div><span class="key-badge">Wall Kicker</span></div>
+      <div>Ride into vertical brick wall to Wallride</div>
+    </div>
+    <div class="start-prompt">PRESS ENTER TO START</div>
+  </div>
+
+  <!-- Session Over Overlay (Rewritten for C6) -->
+  <div id="screen-gameover" class="screen-overlay" style="display: none;">
+    <div class="screen-title" id="gameover-title">Session Over</div>
+    <div class="screen-subtitle" id="gameover-subtitle">Time's up! Great session across the plaza.</div>
+
+    <div class="gameover-stats-grid">
+      <div class="gameover-stat-row">
+        <span>Goals Completed:</span>
+        <span id="final-goals" class="gameover-stat-val" style="color: #4ade80;">0 / 6</span>
+      </div>
+      <div class="gameover-stat-row">
+        <span>Total Score (Player vs Rival):</span>
+        <span id="final-scores" class="gameover-stat-val" style="color: #38bdf8;">Player: 0 | Rival: 0</span>
+      </div>
+      <div class="gameover-stat-row">
+        <span>Features Held:</span>
+        <span id="final-features" class="gameover-stat-val" style="color: #f59e0b;">0 – 0</span>
+      </div>
+      <div class="gameover-stat-row">
+        <span>S-K-A-T-E Letters Taken:</span>
+        <span id="final-letters" class="gameover-stat-val" style="color: #ef4444;">None (0 / 5)</span>
+      </div>
+      <div class="gameover-stat-row">
+        <span>Best Combo (Player / Rival):</span>
+        <span id="final-best-combos" class="gameover-stat-val" style="color: #c084fc;">0 pts / 0 pts</span>
+      </div>
+      <div class="gameover-stat-row">
+        <span>Gaps Cleared:</span>
+        <span id="final-gaps" class="gameover-stat-val" style="color: #38bdf8;">Stairs: No | Road: No</span>
+      </div>
+      <div class="gameover-stat-row">
+        <span>Finale Line Status:</span>
+        <span id="final-finale" class="gameover-stat-val" style="color: #facc15;">Not Attempted</span>
+      </div>
+    </div>
+    <div class="start-prompt">PRESS R TO RESTART</div>
+  </div>
+
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+  <script>
+
+    /* ==========================================================================
+       AUDIO & CHIMES (Web Audio API)
+       ========================================================================== */
+    let audioCtx = null;
+    function playChime() {
+      try {
+        if (!audioCtx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) audioCtx = new AudioContext();
+        }
+        if (audioCtx && audioCtx.state === 'running') {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+          osc.frequency.exponentialRampToValueAtTime(880.0, audioCtx.currentTime + 0.12); // A5
+          gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.45);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+          osc.stop(audioCtx.currentTime + 0.45);
+        }
+      } catch (e) {}
+    }
+
+    /* ==========================================================================
+       CONSTANTS & DETERMINISTIC SETUP
+       Zero randomness anywhere in this game.
+       ========================================================================== */
+    const DT = 1 / 60;
+    const GRAVITY = 22.0;
+    const MAX_SPEED = 14.0;
+    const PUSH_ACCEL = 4.2;
+    const PUSH_ACCEL_SWITCH = 3.2;
+    const COAST_FRICTION = 0.55;
+    const BRAKE_DECEL = 8.0;
+    const REVERSE_MAX = 3.5;
+    const REVERSE_ACCEL = 3.0;
+
+    const COMBO_LINK_WINDOW = 0.6; // C4 tuning: 0.6s
+    const SWITCH_MULTIPLIER = 1.25; // C4 tuning: 1.25x
+    const BAIL_DURATION = 2.5; // C4 tuning: 2.5s
+
+    const BALANCE_LIMIT = 1.0;
+    const BALANCE_RECOVERY_RATE = 1.8;
+    const GRIND_FRICTION = 0.35;
+    const MANUAL_FRICTION = 0.45;
+
+    const START_POS = new THREE.Vector3(0, 0.15, 20);
+    const START_YAW = 0.0;
+
+    /* ==========================================================================
+       THREE.JS SETUP
+       ========================================================================== */
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xbfe3f7);
+    scene.fog = new THREE.FogExp2(0xbfe3f7, 0.009);
+
+    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 500);
+
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, failIfMajorPerformanceCaveat: false });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+    } catch (e) {
+      console.warn('WebGL context creation failed in this environment, using virtual canvas fallback:', e);
+      const dummyCanvas = document.createElement('canvas');
+      dummyCanvas.width = window.innerWidth;
+      dummyCanvas.height = window.innerHeight;
+      container.appendChild(dummyCanvas);
+      renderer = {
+        domElement: dummyCanvas,
+        setSize: function() {},
+        setPixelRatio: function() {},
+        render: function() {},
+        shadowMap: {}
+      };
+    }
+
+    // Dynamic Lighting for Plaza Night Pass (t=90s floodlight moment)
+    const ambientLight = new THREE.AmbientLight(0xfff6e8, 0.7);
+    scene.add(ambientLight);
+
+    const sunLight = new THREE.DirectionalLight(0xfffaed, 1.2);
+    sunLight.position.set(35, 55, 30);
+    sunLight.castShadow = true;
+    if (sunLight.shadow && sunLight.shadow.mapSize) {
+      sunLight.shadow.mapSize.width = 2048;
+      sunLight.shadow.mapSize.height = 2048;
+      sunLight.shadow.camera.near = 10;
+      sunLight.shadow.camera.far = 160;
+      const d = 60;
+      sunLight.shadow.camera.left = -d;
+      sunLight.shadow.camera.right = d;
+      sunLight.shadow.camera.top = d;
+      sunLight.shadow.camera.bottom = -d;
+      sunLight.shadow.bias = -0.0005;
+    }
+    scene.add(sunLight);
+
+    const fillLight = new THREE.DirectionalLight(0x90b5e0, 0.4);
+    fillLight.position.set(-30, 20, -30);
+    scene.add(fillLight);
+
+    const floodlights = [];
+    const lightPoolMeshes = [];
+    let floodlightsActive = false;
+
+    /* ==========================================================================
+       PROCEDURAL TEXTURES & SHARED MATERIALS
+       ========================================================================== */
+    function createConcreteTexture() {
+      const c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 512;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#b0b8c0';
+      ctx.fillRect(0, 0, 512, 512);
+
+      // Deterministic noise pattern (zero randomness)
+      let seed = 42;
+      function pseudoRand() {
+        seed = (seed * 9301 + 49297) % 233280;
+        return seed / 233280;
+      }
+      for (let i = 0; i < 4000; i++) {
+        const val = Math.floor(pseudoRand() * 40 - 20);
+        ctx.fillStyle = `rgba(${176 + val}, ${184 + val}, ${192 + val}, 0.35)`;
+        ctx.fillRect(pseudoRand() * 512, pseudoRand() * 512, 2, 2);
+      }
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(0, 0, 256, 256);
+      ctx.strokeRect(256, 0, 256, 256);
+      ctx.strokeRect(0, 256, 256, 256);
+      ctx.strokeRect(256, 256, 256, 256);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(10, 10);
+      return tex;
+    }
+
+    function createRoadTexture() {
+      const c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 512;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#27272a';
+      ctx.fillRect(0, 0, 512, 512);
+
+      // Yellow double line down the middle
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(250, 0, 4, 512);
+      ctx.fillRect(258, 0, 4, 512);
+
+      // White crosswalk zebra bars on one side
+      ctx.fillStyle = '#f8fafc';
+      for (let y = 30; y < 480; y += 45) {
+        ctx.fillRect(40, y, 70, 22);
+      }
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(1, 4);
+      return tex;
+    }
+
+    function createGraffitiTexture() {
+      const c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 256;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#854d0e';
+      ctx.fillRect(0, 0, 512, 256);
+      ctx.fillStyle = '#ef4444';
+      ctx.font = 'bold 72px sans-serif';
+      ctx.fillText('KICKFLIP', 40, 120);
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 54px sans-serif';
+      ctx.fillText('PLAZA', 140, 190);
+      return new THREE.CanvasTexture(c);
+    }
+
+    function createMuralTexture() {
+      const c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 256;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#7f1d1d';
+      ctx.fillRect(0, 0, 512, 256);
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = '900 68px sans-serif';
+      ctx.fillText('WALLRIDE', 45, 110);
+      ctx.fillStyle = '#10b981';
+      ctx.font = '800 48px sans-serif';
+      ctx.fillText('STREET GAP', 90, 180);
+      return new THREE.CanvasTexture(c);
+    }
+
+    const concreteTex = createConcreteTexture();
+    const roadTex = createRoadTexture();
+    const concreteMat = new THREE.MeshStandardMaterial({ map: concreteTex, roughness: 0.85 });
+    const roadMat = new THREE.MeshStandardMaterial({ map: roadTex, roughness: 0.9 });
+    const smoothRampMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.45 });
+    const metalEdgeMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.85, roughness: 0.2 });
+    const paintedCopingMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9, roughness: 0.15 });
+    const floodEmissiveMat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0x000000 });
+
+    /* ==========================================================================
+       PARK OBSTACLES, GRIND EDGES & GAPS
+       ========================================================================== */
+    const obstacles = [];
+    const grindEdges = [];
+
+    // 1. Plaza Main Ground
+    const groundGeo = new THREE.PlaneGeometry(60, 60);
+    const groundMesh = new THREE.Mesh(groundGeo, concreteMat);
+    groundMesh.rotation.x = -Math.PI / 2;
+    groundMesh.position.set(0, 0, 0);
+    groundMesh.receiveShadow = true;
+    scene.add(groundMesh);
+
+    // 2. Painted Center Line (at z = 2.0)
+    const lineMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+    const centerLine1 = new THREE.Mesh(new THREE.PlaneGeometry(50, 0.22), lineMat);
+    centerLine1.rotation.x = -Math.PI / 2;
+    centerLine1.position.set(0, 0.015, 1.88);
+    scene.add(centerLine1);
+    const centerLine2 = new THREE.Mesh(new THREE.PlaneGeometry(50, 0.22), lineMat);
+    centerLine2.rotation.x = -Math.PI / 2;
+    centerLine2.position.set(0, 0.015, 2.12);
+    scene.add(centerLine2);
+
+    // 3. Quarter Pipe (x: -13 to 13, z: -21 to -30, height: 4.5)
+    const QP_W = 26;
+    const QP_D = 9;
+    const QP_H = 4.5;
+    function buildQuarterPipe() {
+      const qpGroup = new THREE.Group();
+      const segments = 16;
+      const curveGeo = new THREE.BufferGeometry();
+      const positions = [];
+      const normals = [];
+      const uvs = [];
+      const indices = [];
+
+      for (let i = 0; i <= segments; i++) {
+        const t = i / segments;
+        const angle = t * (Math.PI / 2);
+        const y = QP_H * (1 - Math.cos(angle));
+        const z = QP_D * Math.sin(angle);
+        const ny = Math.cos(angle);
+        const nz = -Math.sin(angle);
+
+        positions.push(-QP_W / 2, y, z);
+        normals.push(0, ny, nz);
+        uvs.push(0, t);
+        positions.push(QP_W / 2, y, z);
+        normals.push(0, ny, nz);
+        uvs.push(1, t);
+      }
+      for (let i = 0; i < segments; i++) {
+        const r1 = i * 2;
+        const r2 = (i + 1) * 2;
+        indices.push(r1, r1 + 1, r2);
+        indices.push(r1 + 1, r2 + 1, r2);
+      }
+      curveGeo.setIndex(indices);
+      curveGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      curveGeo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+      curveGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      curveGeo.computeVertexNormals();
+
+      const rampMesh = new THREE.Mesh(curveGeo, smoothRampMat);
+      rampMesh.receiveShadow = true;
+      rampMesh.castShadow = true;
+      rampMesh.rotation.y = Math.PI;
+      rampMesh.position.set(0, 0, -21);
+      qpGroup.add(rampMesh);
+
+      const copingGeo = new THREE.CylinderGeometry(0.18, 0.18, QP_W, 16);
+      copingGeo.rotateZ(Math.PI / 2);
+      const copingMesh = new THREE.Mesh(copingGeo, paintedCopingMat);
+      copingMesh.position.set(0, QP_H, -30);
+      copingMesh.castShadow = true;
+      qpGroup.add(copingMesh);
+
+      const backGeo = new THREE.BoxGeometry(QP_W, QP_H, 2);
+      const backMesh = new THREE.Mesh(backGeo, concreteMat);
+      backMesh.position.set(0, QP_H / 2, -31);
+      qpGroup.add(backMesh);
+
+      scene.add(qpGroup);
+
+      grindEdges.push({
+        name: 'Quarter Pipe Coping',
+        feature: 'quarter_pipe',
+        type: 'coping',
+        start: new THREE.Vector3(-QP_W / 2, QP_H, -30),
+        end: new THREE.Vector3(QP_W / 2, QP_H, -30),
+        height: QP_H,
+        radius: 0.5,
+        driftScale: 1.0
+      });
+    }
+    buildQuarterPipe();
+
+    // 4. Fun Box (x: -2.5 to 2.5, z: 4 to -8, table at y=1.0)
+    const FB_TOP_W = 5.0;
+    const FB_TOP_D = 12.0;
+    const FB_TOP_H = 1.0;
+    function buildFunBox() {
+      const fbGroup = new THREE.Group();
+      const topTable = new THREE.Mesh(new THREE.BoxGeometry(FB_TOP_W, FB_TOP_H, FB_TOP_D), concreteMat);
+      topTable.position.set(0, FB_TOP_H / 2, -2);
+      topTable.castShadow = true;
+      topTable.receiveShadow = true;
+      fbGroup.add(topTable);
+
+      const edgeGeo = new THREE.BoxGeometry(0.12, 0.12, FB_TOP_D);
+      const edgeWest = new THREE.Mesh(edgeGeo, metalEdgeMat);
+      edgeWest.position.set(-FB_TOP_W / 2, FB_TOP_H, -2);
+      fbGroup.add(edgeWest);
+
+      const edgeEast = new THREE.Mesh(edgeGeo, metalEdgeMat);
+      edgeEast.position.set(FB_TOP_W / 2, FB_TOP_H, -2);
+      fbGroup.add(edgeEast);
+
+      // South Ramp
+      const sRampGeo = new THREE.BufferGeometry();
+      const sVerts = [
+        -FB_TOP_W/2, FB_TOP_H, 4,
+         FB_TOP_W/2, FB_TOP_H, 4,
+        -FB_TOP_W/2, 0, 8,
+         FB_TOP_W/2, 0, 8
+      ];
+      sRampGeo.setIndex([0, 2, 1, 1, 2, 3]);
+      sRampGeo.setAttribute('position', new THREE.Float32BufferAttribute(sVerts, 3));
+      sRampGeo.computeVertexNormals();
+      const sRampMesh = new THREE.Mesh(sRampGeo, smoothRampMat);
+      sRampMesh.receiveShadow = true;
+      fbGroup.add(sRampMesh);
+
+      // North Ramp
+      const nRampGeo = new THREE.BufferGeometry();
+      const nVerts = [
+        -FB_TOP_W/2, FB_TOP_H, -8,
+         FB_TOP_W/2, FB_TOP_H, -8,
+        -FB_TOP_W/2, 0, -12,
+         FB_TOP_W/2, 0, -12
+      ];
+      nRampGeo.setIndex([1, 2, 0, 1, 3, 2]);
+      nRampGeo.setAttribute('position', new THREE.Float32BufferAttribute(nVerts, 3));
+      nRampGeo.computeVertexNormals();
+      const nRampMesh = new THREE.Mesh(nRampGeo, smoothRampMat);
+      nRampMesh.receiveShadow = true;
+      fbGroup.add(nRampMesh);
+
+      scene.add(fbGroup);
+
+      grindEdges.push({
+        name: 'Fun Box Ledge (West)',
+        feature: 'fun_box',
+        type: 'ledge',
+        start: new THREE.Vector3(-FB_TOP_W / 2, FB_TOP_H, 4),
+        end: new THREE.Vector3(-FB_TOP_W / 2, FB_TOP_H, -8),
+        height: FB_TOP_H,
+        radius: 0.45,
+        driftScale: 1.0
+      });
+      grindEdges.push({
+        name: 'Fun Box Ledge (East)',
+        feature: 'fun_box',
+        type: 'ledge',
+        start: new THREE.Vector3(FB_TOP_W / 2, FB_TOP_H, 4),
+        end: new THREE.Vector3(FB_TOP_W / 2, FB_TOP_H, -8),
+        height: FB_TOP_H,
+        radius: 0.45,
+        driftScale: 1.0
+      });
+    }
+    buildFunBox();
+
+    // 5. Kicker Launch Ramp (Aligned with Fun Box at x: -2.5, z: 12.5)
+    const KW = 3.6;
+    const KD = 5.0;
+    const KH = 1.35;
+    const KX = -2.5;
+    const KZ = 12.5;
+    function buildKickerRamp() {
+      const wedgeGeo = new THREE.BufferGeometry();
+      const v = [
+        -KW/2, KH, -KD/2,
+         KW/2, KH, -KD/2,
+        -KW/2, 0, KD/2,
+         KW/2, 0, KD/2,
+        -KW/2, 0, -KD/2,
+         KW/2, 0, -KD/2
+      ];
+      const indices = [2, 3, 0, 3, 1, 0, 4, 0, 5, 5, 0, 1, 2, 0, 4, 3, 5, 1];
+      wedgeGeo.setIndex(indices);
+      wedgeGeo.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+      wedgeGeo.computeVertexNormals();
+
+      const wedgeMesh = new THREE.Mesh(wedgeGeo, smoothRampMat);
+      wedgeMesh.position.set(KX, 0, KZ);
+      wedgeMesh.castShadow = true;
+      wedgeMesh.receiveShadow = true;
+      scene.add(wedgeMesh);
+
+      const lipGeo = new THREE.BoxGeometry(KW, 0.08, 0.15);
+      const lipMesh = new THREE.Mesh(lipGeo, metalEdgeMat);
+      lipMesh.position.set(KX, KH, KZ - KD/2);
+      scene.add(lipMesh);
+    }
+    buildKickerRamp();
+
+    // 6. Street Ledge (at x: 13, z: -5)
+    function buildStreetLedge() {
+      const lw = 2.4;
+      const lh = 0.65;
+      const ld = 14.0;
+      const lx = 13.0;
+      const lz = -5.0;
+
+      const ledgeMesh = new THREE.Mesh(new THREE.BoxGeometry(lw, lh, ld), concreteMat);
+      ledgeMesh.position.set(lx, lh / 2, lz);
+      ledgeMesh.castShadow = true;
+      ledgeMesh.receiveShadow = true;
+      scene.add(ledgeMesh);
+
+      const angleGeo = new THREE.BoxGeometry(0.1, 0.1, ld);
+      const angleWest = new THREE.Mesh(angleGeo, metalEdgeMat);
+      angleWest.position.set(lx - lw / 2, lh, lz);
+      scene.add(angleWest);
+
+      obstacles.push({
+        type: 'wall',
+        box: new THREE.Box3().setFromObject(ledgeMesh)
+      });
+
+      grindEdges.push({
+        name: 'Plaza Ledge (Inner)',
+        feature: 'rail_ledge',
+        type: 'ledge',
+        start: new THREE.Vector3(lx - lw / 2, lh, lz + ld / 2),
+        end: new THREE.Vector3(lx - lw / 2, lh, lz - ld / 2),
+        height: lh,
+        radius: 0.4,
+        driftScale: 1.0
+      });
+      grindEdges.push({
+        name: 'Plaza Ledge (Outer)',
+        feature: 'rail_ledge',
+        type: 'ledge',
+        start: new THREE.Vector3(lx + lw / 2, lh, lz + ld / 2),
+        end: new THREE.Vector3(lx + lw / 2, lh, lz - ld / 2),
+        height: lh,
+        radius: 0.4,
+        driftScale: 1.0
+      });
+    }
+    buildStreetLedge();
+
+    // 7. Flat Rail on posts (at x: -13, z: -8, driftScale = 1.5)
+    function buildFlatRail() {
+      const railLen = 14.0;
+      const railH = 0.75;
+      const rx = -13.0;
+      const rz = -8.0;
+
+      const railGeo = new THREE.CylinderGeometry(0.08, 0.08, railLen, 16);
+      railGeo.rotateX(Math.PI / 2);
+      const railMesh = new THREE.Mesh(railGeo, metalEdgeMat);
+      railMesh.position.set(rx, railH, rz);
+      railMesh.castShadow = true;
+      scene.add(railMesh);
+
+      const postGeo = new THREE.CylinderGeometry(0.06, 0.06, railH, 12);
+      const postMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.8, roughness: 0.3 });
+      [-5.5, 0, 5.5].forEach(offsetZ => {
+        const post = new THREE.Mesh(postGeo, postMat);
+        post.position.set(rx, railH / 2, rz + offsetZ);
+        post.castShadow = true;
+        scene.add(post);
+      });
+
+      obstacles.push({
+        type: 'rail',
+        box: new THREE.Box3(
+          new THREE.Vector3(rx - 0.25, 0, rz - railLen / 2),
+          new THREE.Vector3(rx + 0.25, railH, rz + railLen / 2)
+        )
+      });
+
+      grindEdges.push({
+        name: 'Flat Rail',
+        feature: 'rail_ledge',
+        type: 'rail',
+        start: new THREE.Vector3(rx, railH, rz + railLen / 2),
+        end: new THREE.Vector3(rx, railH, rz - railLen / 2),
+        height: railH,
+        radius: 0.38,
+        driftScale: 1.5
+      });
+    }
+    buildFlatRail();
+
+    /* ==========================================================================
+       GAP ZONE: DOWNTOWN STREET EXTENSION (Round 6)
+       Stair Set + Handrail, Road Gap, Wallride Wall, Streetscape
+       ========================================================================== */
+    // Gate opening beside Quarter Pipe (at x: 13 to 22, z: -28 to -34)
+    function buildPlazaGate() {
+      const gateGroup = new THREE.Group();
+      const brickMat = new THREE.MeshStandardMaterial({ color: 0x854d0e, roughness: 0.8 });
+      const ironMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9, roughness: 0.3 });
+
+      // Pillars
+      const pillarGeo = new THREE.BoxGeometry(1.2, 5.0, 1.2);
+      const p1 = new THREE.Mesh(pillarGeo, brickMat);
+      p1.position.set(13.5, 2.5, -31);
+      p1.castShadow = true;
+      gateGroup.add(p1);
+
+      const p2 = new THREE.Mesh(pillarGeo, brickMat);
+      p2.position.set(22.5, 2.5, -31);
+      p2.castShadow = true;
+      gateGroup.add(p2);
+
+      // Arch banner
+      const archGeo = new THREE.BoxGeometry(9.0, 0.8, 0.3);
+      const archMesh = new THREE.Mesh(archGeo, ironMat);
+      archMesh.position.set(18.0, 4.8, -31);
+      gateGroup.add(archMesh);
+
+      scene.add(gateGroup);
+    }
+    buildPlazaGate();
+
+    // Gap Zone Ground: Lower street level at y=0, upper terrace at y=1.8
+    const TERRACE_Y = 1.8;
+    function buildGapZoneGround() {
+      // Lower street flat extending from z: -30 to -80, x: -30 to 30
+      const streetGeo = new THREE.PlaneGeometry(60, 52);
+      const streetMesh = new THREE.Mesh(streetGeo, roadMat);
+      streetMesh.rotation.x = -Math.PI / 2;
+      streetMesh.position.set(0, 0, -56);
+      streetMesh.receiveShadow = true;
+      scene.add(streetMesh);
+
+      // Upper Terrace (z: -31 to -42, x: 12 to 24 at y = 1.8)
+      const terraceGeo = new THREE.BoxGeometry(12, TERRACE_Y, 11);
+      const terraceMesh = new THREE.Mesh(terraceGeo, concreteMat);
+      terraceMesh.position.set(18, TERRACE_Y / 2, -36.5);
+      terraceMesh.receiveShadow = true;
+      terraceMesh.castShadow = true;
+      scene.add(terraceMesh);
+    }
+    buildGapZoneGround();
+
+    // 8. Stair Set of 6 Steps (z: -42 to -48.5, x: 14 to 20, descending from y=1.8 to 0)
+    const STAIR_COUNT = 6;
+    const STAIR_START_Z = -42.0;
+    const STAIR_END_Z = -48.6;
+    const STAIR_STEP_D = (Math.abs(STAIR_END_Z - STAIR_START_Z)) / STAIR_COUNT; // ~1.1m
+    const STAIR_STEP_H = TERRACE_Y / STAIR_COUNT; // 0.3m per step
+    function buildStairSet() {
+      const stairGroup = new THREE.Group();
+      for (let i = 0; i < STAIR_COUNT; i++) {
+        const stepH = TERRACE_Y - i * STAIR_STEP_H;
+        const zPos = STAIR_START_Z - (i + 0.5) * STAIR_STEP_D;
+        const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(6.5, stepH, STAIR_STEP_D + 0.05), concreteMat);
+        stepMesh.position.set(17.0, stepH / 2, zPos);
+        stepMesh.castShadow = true;
+        stepMesh.receiveShadow = true;
+        stairGroup.add(stepMesh);
+      }
+      scene.add(stairGroup);
+
+      // Sloped Handrail beside stair set (at x: 17.0, slope from y=2.55 down to 0.75)
+      const railStartX = 17.0;
+      const railStartZ = STAIR_START_Z + 0.5;
+      const railStartY = TERRACE_Y + 0.75; // 2.55
+      const railEndZ = STAIR_END_Z - 0.5;
+      const railEndY = 0.75;
+
+      const vRail = new THREE.Vector3(0, railEndY - railStartY, railEndZ - railStartZ);
+      const railLen = vRail.length();
+
+      const handrailGeo = new THREE.CylinderGeometry(0.065, 0.065, railLen, 16);
+      const handrailMesh = new THREE.Mesh(handrailGeo, metalEdgeMat);
+      handrailMesh.position.set(railStartX, (railStartY + railEndY) / 2, (railStartZ + railEndZ) / 2);
+      const angleX = Math.atan2(railEndY - railStartY, railEndZ - railStartZ);
+      handrailMesh.rotation.x = angleX + Math.PI / 2;
+      handrailMesh.castShadow = true;
+      scene.add(handrailMesh);
+
+      // Handrail posts
+      [0.15, 0.5, 0.85].forEach(t => {
+        const postZ = railStartZ + t * (railEndZ - railStartZ);
+        const postTopY = railStartY + t * (railEndY - railStartY);
+        const groundYAtPost = getGroundHeightAt(railStartX, postZ);
+        const postH = postTopY - groundYAtPost;
+        const postMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, postH, 12), metalEdgeMat);
+        postMesh.position.set(railStartX, groundYAtPost + postH / 2, postZ);
+        postMesh.castShadow = true;
+        scene.add(postMesh);
+      });
+
+      grindEdges.push({
+        name: 'Stair Handrail',
+        type: 'handrail',
+        isSloped: true,
+        start: new THREE.Vector3(railStartX, railStartY, railStartZ),
+        end: new THREE.Vector3(railStartX, railEndY, railEndZ),
+        height: railStartY,
+        radius: 0.45,
+        driftScale: 1.0
+      });
+    }
+    buildStairSet();
+
+    // 9. Street Gap: Two Raised Banks facing each other across the road piece (z: -42 to -59, x: -6 to 6)
+    // South bank rises from z = -42 to -47, height = 1.6
+    // Road gap between z = -47 and -54 (7m wide)
+    // North bank receives from z = -54 (height 1.6) to -59 (height 0)
+    const ROAD_GAP_SOUTH_Z = -47.0;
+    const ROAD_GAP_NORTH_Z = -54.0;
+    const BANK_H = 1.6;
+    const BANK_W = 10.0;
+    function buildStreetGap() {
+      const gapGroup = new THREE.Group();
+
+      // South Bank Wedge
+      const sBankGeo = new THREE.BufferGeometry();
+      const sVerts = [
+        -BANK_W/2, BANK_H, -47,
+         BANK_W/2, BANK_H, -47,
+        -BANK_W/2, 0, -42,
+         BANK_W/2, 0, -42
+      ];
+      sBankGeo.setIndex([0, 2, 1, 1, 2, 3]);
+      sBankGeo.setAttribute('position', new THREE.Float32BufferAttribute(sVerts, 3));
+      sBankGeo.computeVertexNormals();
+      const sBankMesh = new THREE.Mesh(sBankGeo, smoothRampMat);
+      sBankMesh.receiveShadow = true;
+      sBankMesh.castShadow = true;
+      sBankMesh.position.set(0, 0, 0);
+      gapGroup.add(sBankMesh);
+
+      // South Bank Lip
+      const lipGeo = new THREE.BoxGeometry(BANK_W, 0.08, 0.15);
+      const sLip = new THREE.Mesh(lipGeo, metalEdgeMat);
+      sLip.position.set(0, BANK_H, -47);
+      gapGroup.add(sLip);
+
+      // North Bank Wedge
+      const nBankGeo = new THREE.BufferGeometry();
+      const nVerts = [
+        -BANK_W/2, BANK_H, -54,
+         BANK_W/2, BANK_H, -54,
+        -BANK_W/2, 0, -59,
+         BANK_W/2, 0, -59
+      ];
+      nBankGeo.setIndex([1, 2, 0, 1, 3, 2]);
+      nBankGeo.setAttribute('position', new THREE.Float32BufferAttribute(nVerts, 3));
+      nBankGeo.computeVertexNormals();
+      const nBankMesh = new THREE.Mesh(nBankGeo, smoothRampMat);
+      nBankMesh.receiveShadow = true;
+      nBankMesh.castShadow = true;
+      nBankMesh.position.set(0, 0, 0);
+      gapGroup.add(nBankMesh);
+
+      const nLip = new THREE.Mesh(lipGeo, metalEdgeMat);
+      nLip.position.set(0, BANK_H, -54);
+      gapGroup.add(nLip);
+
+      scene.add(gapGroup);
+    }
+    buildStreetGap();
+
+    // 10. Wallride Wall (at x = -16, z: -42 to -68, height 5.0) with angled kicker
+    const WALL_X = -16.0;
+    const WALL_START_Z = -42.0;
+    const WALL_END_Z = -68.0;
+    const WALL_H = 5.5;
+    function buildWallrideWall() {
+      const wallGroup = new THREE.Group();
+      const wallLen = Math.abs(WALL_END_Z - WALL_START_Z);
+
+      // Vertical Wall
+      const wallGeo = new THREE.BoxGeometry(1.0, WALL_H, wallLen);
+      const muralMat = new THREE.MeshStandardMaterial({ map: createMuralTexture(), roughness: 0.75 });
+      const wallMesh = new THREE.Mesh(wallGeo, muralMat);
+      wallMesh.position.set(WALL_X - 0.5, WALL_H / 2, (WALL_START_Z + WALL_END_Z) / 2);
+      wallMesh.castShadow = true;
+      wallMesh.receiveShadow = true;
+      wallGroup.add(wallMesh);
+
+      // Angled kicker into wall (at z: -44 to -48, x: -13 to -15.8, rises to y=1.4)
+      const kwGeo = new THREE.BufferGeometry();
+      const kwVerts = [
+        -15.8, 1.4, -48,
+        -13.0, 0.0, -48,
+        -15.8, 1.4, -44,
+        -13.0, 0.0, -44
+      ];
+      kwGeo.setIndex([0, 1, 2, 1, 3, 2]);
+      kwGeo.setAttribute('position', new THREE.Float32BufferAttribute(kwVerts, 3));
+      kwGeo.computeVertexNormals();
+      const kwMesh = new THREE.Mesh(kwGeo, smoothRampMat);
+      kwMesh.receiveShadow = true;
+      kwMesh.castShadow = true;
+      wallGroup.add(kwMesh);
+
+      scene.add(wallGroup);
+
+      obstacles.push({
+        type: 'wall',
+        box: new THREE.Box3(
+          new THREE.Vector3(WALL_X - 1.2, 0, WALL_END_Z),
+          new THREE.Vector3(WALL_X, WALL_H, WALL_START_Z)
+        )
+      });
+    }
+    buildWallrideWall();
+
+    // 11. Street Scenery: Bus shelter, hydrants, litter bins, storefronts, streetlights
+    function buildStreetScenery() {
+      const streetMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.8 });
+      const glassMat = new THREE.MeshStandardMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.45, roughness: 0.1 });
+      const redPaintMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.4 });
+      const yellowPaintMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4 });
+
+      // Bus shelter at x: 21, z: -55
+      const shelter = new THREE.Group();
+      shelter.position.set(21, 0, -55);
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.8, 4.0), glassMat);
+      frame.position.set(0, 1.4, 0);
+      shelter.add(frame);
+      const roof = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.1, 4.2), streetMat);
+      roof.position.set(-0.8, 2.8, 0);
+      shelter.add(roof);
+      const bench = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.45, 3.0), streetMat);
+      bench.position.set(-0.5, 0.22, 0);
+      shelter.add(bench);
+      scene.add(shelter);
+
+      // Hydrants
+      [-40, -52, -64].forEach((z, idx) => {
+        const hyd = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.7, 12), idx % 2 === 0 ? redPaintMat : yellowPaintMat);
+        hyd.position.set(21.5, 0.35, z);
+        hyd.castShadow = true;
+        scene.add(hyd);
+      });
+
+      // Litter bins
+      [-46, -60].forEach(z => {
+        const bin = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.25, 0.9, 12), streetMat);
+        bin.position.set(21.5, 0.45, z);
+        bin.castShadow = true;
+        scene.add(bin);
+      });
+
+      // Storefront facades at North end (z: -70, x: -25 to 25)
+      const storeGeo = new THREE.BoxGeometry(50, 8.0, 2.0);
+      const storeMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.9 });
+      const storeMesh = new THREE.Mesh(storeGeo, storeMat);
+      storeMesh.position.set(0, 4.0, -71);
+      storeMesh.castShadow = true;
+      scene.add(storeMesh);
+
+      // Colorful striped awnings
+      const awningGeo = new THREE.BoxGeometry(10, 0.2, 2.5);
+      const awn1 = new THREE.Mesh(awningGeo, new THREE.MeshStandardMaterial({ color: 0xef4444 }));
+      awn1.position.set(-12, 3.6, -69.5);
+      awn1.rotation.x = 0.2;
+      scene.add(awn1);
+      const awn2 = new THREE.Mesh(awningGeo, new THREE.MeshStandardMaterial({ color: 0x3b82f6 }));
+      awn2.position.set(12, 3.6, -69.5);
+      awn2.rotation.x = 0.2;
+      scene.add(awn2);
+
+      // Floodlight Towers & Streetlights
+      const floodPositions = [
+        { x: -24, z: -25, target: new THREE.Vector3(-10, 0, -20) },
+        { x: 24, z: -25, target: new THREE.Vector3(10, 0, -20) },
+        { x: -24, z: 15, target: new THREE.Vector3(-5, 0, 0) },
+        { x: 24, z: 15, target: new THREE.Vector3(5, 0, 0) },
+        // Gap Zone streetlights
+        { x: 21, z: -38, target: new THREE.Vector3(17, 0, -45) },
+        { x: 21, z: -52, target: new THREE.Vector3(0, 0, -50) },
+        { x: -14, z: -58, target: new THREE.Vector3(-10, 0, -50) }
+      ];
+
+      floodPositions.forEach(fp => {
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 11, 8), metalEdgeMat);
+        pole.position.set(fp.x, 5.5, fp.z);
+        pole.castShadow = true;
+        scene.add(pole);
+
+        const fixture = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.4, 0.6), floodEmissiveMat);
+        fixture.position.set(fp.x, 11, fp.z);
+        scene.add(fixture);
+
+        const spot = new THREE.SpotLight(0xfffaed, 0.0, 70, Math.PI / 3.5, 0.45);
+        spot.position.set(fp.x, 11, fp.z);
+        const tObj = new THREE.Object3D();
+        tObj.position.copy(fp.target);
+        scene.add(tObj);
+        spot.target = tObj;
+        spot.castShadow = false;
+        scene.add(spot);
+        floodlights.push(spot);
+
+        // Ground light pool decal
+        const poolGeo = new THREE.CircleGeometry(6.5, 16);
+        const poolMat = new THREE.MeshBasicMaterial({ color: 0xfffaed, transparent: true, opacity: 0.0 });
+        const poolMesh = new THREE.Mesh(poolGeo, poolMat);
+        poolMesh.rotation.x = -Math.PI / 2;
+        poolMesh.position.set(fp.target.x, 0.02, fp.target.z);
+        scene.add(poolMesh);
+        lightPoolMeshes.push(poolMesh);
+      });
+    }
+    buildStreetScenery();
+
+    /* ==========================================================================
+       PARK HEIGHT QUERY & SLOPE TANGENT
+       ========================================================================== */
+    function getGroundHeightAt(px, pz) {
+      // 1. Fun Box (table and ramps)
+      if (Math.abs(px) <= FB_TOP_W / 2) {
+        if (pz >= -8.0 && pz <= 4.0) {
+          return FB_TOP_H;
+        } else if (pz > 4.0 && pz <= 8.0) {
+          const t = (8.0 - pz) / 4.0;
+          return FB_TOP_H * t;
+        } else if (pz < -8.0 && pz >= -12.0) {
+          const t = (pz - (-12.0)) / 4.0;
+          return FB_TOP_H * t;
+        }
+      }
+
+      // 2. Kicker Launch Ramp
+      if (px >= KX - KW/2 && px <= KX + KW/2 && pz >= KZ - KD/2 && pz <= KZ + KD/2) {
+        const t = ((KZ + KD/2) - pz) / KD;
+        return KH * t;
+      }
+
+      // 3. Quarter Pipe transition
+      if (px >= -QP_W/2 && px <= QP_W/2 && pz >= -30.0 && pz <= -21.0) {
+        const t = ((-21.0) - pz) / 9.0;
+        const angle = t * (Math.PI / 2);
+        return QP_H * (1 - Math.cos(angle));
+      }
+
+      // 4. Gap Zone: Upper Terrace (x: 12 to 24, z: -31 to -42)
+      if (px >= 12.0 && px <= 24.0 && pz <= -31.0 && pz >= STAIR_START_Z) {
+        return TERRACE_Y;
+      }
+
+      // 5. Gap Zone: 6 Stairs (x: 13.5 to 20.5, z: -42.0 to -48.6)
+      if (px >= 13.5 && px <= 20.5 && pz < STAIR_START_Z && pz >= STAIR_END_Z) {
+        const stepIdx = Math.floor((STAIR_START_Z - pz) / STAIR_STEP_D);
+        const safeIdx = Math.max(0, Math.min(STAIR_COUNT - 1, stepIdx));
+        return Math.max(0.15, TERRACE_Y - (safeIdx + 1) * STAIR_STEP_H);
+      }
+
+      // 6. Gap Zone: Street Gap Raised Banks (x: -5 to 5)
+      if (Math.abs(px) <= BANK_W / 2) {
+        // South Bank
+        if (pz <= -42.0 && pz >= ROAD_GAP_SOUTH_Z) {
+          const t = (-42.0 - pz) / 5.0;
+          return BANK_H * t;
+        }
+        // North Bank
+        if (pz <= ROAD_GAP_NORTH_Z && pz >= -59.0) {
+          const t = (pz - (-59.0)) / 5.0;
+          return BANK_H * t;
+        }
+      }
+
+      // 7. Wallride Angled Kicker (z: -44 to -48, x: -13 to -15.8)
+      if (pz <= -44.0 && pz >= -48.0 && px <= -13.0 && px >= -15.8) {
+        const t = (-13.0 - px) / 2.8;
+        return 1.4 * t;
+      }
+
+      return 0.15;
+    }
+
+    function getSurfaceNormalAt(px, pz) {
+      const normal = new THREE.Vector3(0, 1, 0);
+
+      if (Math.abs(px) <= FB_TOP_W / 2) {
+        if (pz > 4.0 && pz <= 8.0) return new THREE.Vector3(0, 4.0, 1.0).normalize();
+        if (pz < -8.0 && pz >= -12.0) return new THREE.Vector3(0, 4.0, -1.0).normalize();
+      }
+
+      if (px >= KX - KW/2 && px <= KX + KW/2 && pz >= KZ - KD/2 && pz <= KZ + KD/2) {
+        return new THREE.Vector3(0, KD, KH).normalize();
+      }
+
+      if (px >= -QP_W/2 && px <= QP_W/2 && pz >= -30.0 && pz <= -21.0) {
+        const t = ((-21.0) - pz) / 9.0;
+        const angle = t * (Math.PI / 2);
+        return new THREE.Vector3(0, Math.cos(angle), Math.sin(angle)).normalize();
+      }
+
+      if (Math.abs(px) <= BANK_W / 2) {
+        if (pz <= -42.0 && pz >= ROAD_GAP_SOUTH_Z) return new THREE.Vector3(0, 5.0, BANK_H).normalize();
+        if (pz <= ROAD_GAP_NORTH_Z && pz >= -59.0) return new THREE.Vector3(0, 5.0, -BANK_H).normalize();
+      }
+
+      return normal;
+    }
+
+    /* ==========================================================================
+       SPARKS PARTICLE SYSTEM (Grinds & Slides)
+       ========================================================================== */
+    const SPARK_COUNT = 40;
+    const sparkGeo = new THREE.BufferGeometry();
+    const sparkPositions = new Float32Array(SPARK_COUNT * 3);
+    const sparkVel = [];
+    for (let i = 0; i < SPARK_COUNT; i++) {
+      sparkPositions[i * 3 + 1] = -100;
+      sparkVel.push(new THREE.Vector3());
+    }
+    sparkGeo.setAttribute('position', new THREE.BufferAttribute(sparkPositions, 3));
+    const sparkMat = new THREE.PointsMaterial({ color: 0xfacc15, size: 0.16, transparent: true, opacity: 0.9 });
+    const sparkPoints = new THREE.Points(sparkGeo, sparkMat);
+    scene.add(sparkPoints);
+
+    let sparkIdx = 0;
+    function emitSparks(contactPos, moveDir) {
+      const positions = sparkGeo.attributes.position.array;
+      for (let k = 0; k < 2; k++) {
+        const i = sparkIdx % SPARK_COUNT;
+        sparkIdx++;
+        positions[i * 3] = contactPos.x;
+        positions[i * 3 + 1] = contactPos.y + 0.05;
+        positions[i * 3 + 2] = contactPos.z;
+
+        const pSeed = (i * 13 + Math.floor(contactPos.z * 10)) % 100 / 100;
+        sparkVel[i].set(
+          -moveDir.x * 2.5 + (pSeed - 0.5) * 1.5,
+          1.5 + pSeed * 2.0,
+          -moveDir.z * 2.5 + (pSeed - 0.5) * 1.5
+        );
+      }
+      sparkGeo.attributes.position.needsUpdate = true;
+    }
+
+    function updateSparks(dt) {
+      const positions = sparkGeo.attributes.position.array;
+      for (let i = 0; i < SPARK_COUNT; i++) {
+        if (positions[i * 3 + 1] > -50) {
+          positions[i * 3] += sparkVel[i].x * dt;
+          positions[i * 3 + 1] += sparkVel[i].y * dt;
+          positions[i * 3 + 2] += sparkVel[i].z * dt;
+          sparkVel[i].y -= 9.8 * dt;
+          if (positions[i * 3 + 1] <= 0) positions[i * 3 + 1] = -100;
+        }
+      }
+      sparkGeo.attributes.position.needsUpdate = true;
+    }
+
+    /* ==========================================================================
+       SKATER 3D MODEL BUILDER (Player & Rival)
+       ========================================================================== */
+    function buildSkaterMesh(options) {
+      const root = new THREE.Group();
+      scene.add(root);
+
+      const boardGroup = new THREE.Group();
+      root.add(boardGroup);
+
+      const deckMat = new THREE.MeshStandardMaterial({ color: options.deckColor, roughness: 0.85 });
+      const deckMesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.04, 1.7), deckMat);
+      deckMesh.position.y = 0.12;
+      deckMesh.castShadow = true;
+      boardGroup.add(deckMesh);
+
+      const kickGeo = new THREE.BoxGeometry(0.48, 0.038, 0.25);
+      const noseKick = new THREE.Mesh(kickGeo, deckMat);
+      noseKick.position.set(0, 0.145, -0.92);
+      noseKick.rotation.x = -0.22;
+      boardGroup.add(noseKick);
+
+      const tailKick = new THREE.Mesh(kickGeo, deckMat);
+      tailKick.position.set(0, 0.145, 0.92);
+      tailKick.rotation.x = 0.22;
+      boardGroup.add(tailKick);
+
+      const truckMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.85, roughness: 0.25 });
+      [-0.6, 0.6].forEach(z => {
+        const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.45, 8), truckMat);
+        tr.rotation.z = Math.PI / 2;
+        tr.position.set(0, 0.07, z);
+        boardGroup.add(tr);
+      });
+
+      const wheelMat = new THREE.MeshStandardMaterial({ color: options.wheelColor, roughness: 0.35 });
+      const wheelGeo = new THREE.CylinderGeometry(0.065, 0.065, 0.06, 12);
+      wheelGeo.rotateZ(Math.PI / 2);
+      const wheels = [];
+      [
+        { x: -0.22, y: 0.065, z: -0.6 },
+        { x: 0.22, y: 0.065, z: -0.6 },
+        { x: -0.22, y: 0.065, z: 0.6 },
+        { x: 0.22, y: 0.065, z: 0.6 },
+      ].forEach(wo => {
+        const w = new THREE.Mesh(wheelGeo, wheelMat);
+        w.position.set(wo.x, wo.y, wo.z);
+        w.castShadow = true;
+        boardGroup.add(w);
+        wheels.push(w);
+      });
+
+      const figure = new THREE.Group();
+      root.add(figure);
+
+      const skinMat = new THREE.MeshStandardMaterial({ color: 0xfbcfe8, roughness: 0.6 });
+      const clothesMat = new THREE.MeshStandardMaterial({ color: options.clothesColor, roughness: 0.8 });
+      const pantsMat = new THREE.MeshStandardMaterial({ color: options.pantsColor, roughness: 0.9 });
+      const shoeMat = new THREE.MeshStandardMaterial({ color: options.shoeColor, roughness: 0.5 });
+      const capMat = new THREE.MeshStandardMaterial({ color: options.capColor, roughness: 0.6 });
+
+      const pelvis = new THREE.Group();
+      pelvis.position.set(0, 0.85, 0);
+      figure.add(pelvis);
+
+      const torsoMesh = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.55, 0.26), clothesMat);
+      torsoMesh.position.set(0, 0.28, 0);
+      torsoMesh.castShadow = true;
+      pelvis.add(torsoMesh);
+
+      const headGroup = new THREE.Group();
+      headGroup.position.set(0, 0.68, 0);
+      pelvis.add(headGroup);
+
+      const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 12), skinMat);
+      headMesh.castShadow = true;
+      headGroup.add(headMesh);
+
+      const capMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.08, 12), capMat);
+      capMesh.position.y = 0.09;
+      headGroup.add(capMesh);
+
+      const brimMesh = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.02, 0.16), capMat);
+      brimMesh.position.set(0, 0.06, -0.2);
+      headGroup.add(brimMesh);
+
+      const leftArmGroup = new THREE.Group();
+      leftArmGroup.position.set(-0.26, 0.5, 0);
+      pelvis.add(leftArmGroup);
+      const leftArmMesh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.45, 0.12), clothesMat);
+      leftArmMesh.position.y = -0.22;
+      leftArmGroup.add(leftArmMesh);
+
+      const rightArmGroup = new THREE.Group();
+      rightArmGroup.position.set(0.26, 0.5, 0);
+      pelvis.add(rightArmGroup);
+      const rightArmMesh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.45, 0.12), clothesMat);
+      rightArmMesh.position.y = -0.22;
+      rightArmGroup.add(rightArmMesh);
+
+      const leftLegGroup = new THREE.Group();
+      leftLegGroup.position.set(-0.14, 0, 0);
+      pelvis.add(leftLegGroup);
+      const leftLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.6, 0.16), pantsMat);
+      leftLegMesh.position.y = -0.3;
+      leftLegMesh.castShadow = true;
+      leftLegGroup.add(leftLegMesh);
+
+      const leftFoot = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.3), shoeMat);
+      leftFoot.position.set(0, -0.65, -0.05);
+      leftLegGroup.add(leftFoot);
+
+      const rightLegGroup = new THREE.Group();
+      rightLegGroup.position.set(0.14, 0, 0);
+      pelvis.add(rightLegGroup);
+      const rightLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.6, 0.16), pantsMat);
+      rightLegMesh.position.y = -0.3;
+      rightLegMesh.castShadow = true;
+      rightLegGroup.add(rightLegMesh);
+
+      const rightFoot = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.3), shoeMat);
+      rightFoot.position.set(0, -0.65, 0.05);
+      rightLegGroup.add(rightFoot);
+
+      figure.rotation.y = Math.PI / 2;
+
+      return {
+        root, boardGroup, figure, pelvis, leftArmGroup, rightArmGroup, wheels
+      };
+    }
+
+    // Player Skater: Blue hoodie, slate pants, red cap, charcoal deck
+    const playerModel = buildSkaterMesh({
+      clothesColor: 0x3b82f6,
+      pantsColor: 0x1e293b,
+      shoeColor: 0xd97706,
+      capColor: 0xef4444,
+      deckColor: 0x222222,
+      wheelColor: 0xf8fafc
+    });
+    const skaterRoot = playerModel.root;
+    const boardGroup = playerModel.boardGroup;
+    const skaterFigure = playerModel.figure;
+    const pelvis = playerModel.pelvis;
+    const leftArmGroup = playerModel.leftArmGroup;
+    const rightArmGroup = playerModel.rightArmGroup;
+    const wheels = playerModel.wheels;
+
+    // Rival Skater: Crimson hoodie, black pants, white cap, electric purple deck, neon wheels
+    const rivalModel = buildSkaterMesh({
+      clothesColor: 0xe11d48,
+      pantsColor: 0x0f172a,
+      shoeColor: 0x0d9488,
+      capColor: 0xf1f5f9,
+      deckColor: 0x9333ea,
+      wheelColor: 0xa3e635
+    });
+
+    /* ==========================================================================
+       GOALS & SESSION REWRITE (Round 6)
+       ========================================================================== */
+    const goals = [
+      { id: 0, text: 'Grind handrail top to bottom', completed: false },
+      { id: 1, text: 'Clear stair gap with flip trick', completed: false },
+      { id: 2, text: 'Wallride for 2s in one touch', completed: false },
+      { id: 3, text: 'Bank a 4-trick combo', completed: false },
+      { id: 4, text: 'Clear road gap in switch stance', completed: false },
+      { id: 5, text: 'Bank 2500 total session score', completed: false }
+    ];
+
+    let sessionCleared = false;
+    let perfectClearAchieved = false;
+    let stairGapCleared = false;
+    let roadGapCleared = false;
+
+    // Territory Heat (The 3 original features only)
+    const territory = {
+      quarter_pipe: { playerHeat: 0, rivalHeat: 0, lastOwner: 'neutral' },
+      fun_box: { playerHeat: 0, rivalHeat: 0, lastOwner: 'neutral' },
+      rail_ledge: { playerHeat: 0, rivalHeat: 0, lastOwner: 'neutral' }
+    };
+    let playerComboFeatures = { quarter_pipe: false, fun_box: false, rail_ledge: false };
+    let rivalComboFeatures = { quarter_pipe: false, fun_box: false, rail_ledge: false };
+
+    // S-K-A-T-E Letters & Trick Trading Challenge
+    const skateLetters = [];
+    let challengeActive = false;
+    let challengeTimer = 0.0;
+    let challengeTargetScore = 0;
+    let challengeChain = '';
+
+    // Finale Line Challenge (30s)
+    let finaleActive = false;
+    let finaleTimer = 30.0;
+    let finaleStages = [false, false, false, false]; // [0: Kicker Air, 1: Fun Box Grind, 2: Manual, 3: QP Trick]
+    let finaleFinished = false;
+
+    function completeGoal(index) {
+      if (goals[index] && !goals[index].completed) {
+        goals[index].completed = true;
+        const itemEl = document.getElementById(`goal-item-${index}`);
+        if (itemEl) itemEl.classList.add('done');
+
+        playChime();
+        updateGoalCounter();
+
+        // Check if all 6 completed -> Trigger Finale Line Challenge!
+        const completedCount = goals.filter(g => g.completed).length;
+        if (completedCount === 6 && !sessionCleared && phase === 'active') {
+          sessionCleared = true;
+          const timeBonus = Math.floor(sessionTimer) * 5;
+          score += timeBonus;
+          showPopup('CLEAR!', `+${timeBonus} TIME BONUS`);
+
+          // Activate Finale Line Challenge (30s)
+          if (!finaleActive && !finaleFinished) {
+            finaleActive = true;
+            finaleTimer = 30.0;
+            finaleStages = [false, false, false, false];
+            document.getElementById('finale-panel').style.display = 'flex';
+          }
+        }
+      }
+    }
+
+    function updateGoalCounter() {
+      const count = goals.filter(g => g.completed).length;
+      document.getElementById('goal-counter').innerText = `${count} / 6`;
+    }
+
+    function flashGoalPanelRed() {
+      const panel = document.getElementById('goal-panel');
+      panel.classList.add('flash-red');
+      setTimeout(() => {
+        panel.classList.remove('flash-red');
+      }, 500);
+    }
+
+    function flashDeductionPopup() {
+      const pop = document.getElementById('deduction-popup');
+      pop.classList.add('show');
+      setTimeout(() => {
+        pop.classList.remove('show');
+      }, 900);
+    }
+
+    /* ==========================================================================
+       GAME STATE & VARIABLES
+       ========================================================================== */
+    let phase = 'ready'; // 'ready', 'active', 'bail', 'gameover'
+    let score = 0;
+    let sessionTimer = 180.0; // Round 6: 180 seconds
+    let bestScore = 0;
+
+    const pos = new THREE.Vector3().copy(START_POS);
+    let speed = 0.0;
+    let yaw = START_YAW;
+    let vy = 0.0;
+    let isAirborne = false;
+    let airTime = 0.0;
+    let lastGroundedY = 0.15;
+    let jumpStartPos = new THREE.Vector3();
+
+    let ollieCharge = 0.0;
+    let isChargingOllie = false;
+
+    let switchStance = false;
+    let airborneRotation = 0.0;
+    let currentFlipType = null; // 'kickflip', 'heelflip', 'shoveit'
+    let flipProgress = 0.0;
+
+    let isGrinding = false;
+    let activeGrindEdge = null;
+    let grindType = null;
+    let grindDuration = 0.0;
+    let grindCooldown = 0.0;
+    let grindStartProj = 0.0;
+    let grindMaxProj = 0.0;
+    let balanceNeedle = 0.0;
+    let balanceDriftVel = 0.0;
+
+    let isManual = false;
+    let manualDuration = 0.0;
+
+    let isWallriding = false;
+    let wallrideDuration = 0.0;
+    let wallrideCooldown = 0.0;
+
+    let comboChain = [];
+    let comboBaseSum = 0;
+    let comboMultiplier = 1;
+    let comboTimer = 0.0;
+    let isComboActive = false;
+
+    let bailTimer = 0.0;
+    let pushAnimTimer = 0.0;
+    let isPushing = false;
+    let wheelRollAngle = 0.0;
+
+    // Rival Skater state
+    const rival = {
+      pos: new THREE.Vector3(6.0, 0.15, 18.0),
+      speed: 0.0,
+      yaw: 0.0,
+      vy: 0.0,
+      isAirborne: false,
+      airTime: 0.0,
+      lastGroundedY: 0.15,
+      isGrinding: false,
+      activeGrindEdge: null,
+      grindType: null,
+      grindDuration: 0.0,
+      balanceNeedle: 0.0,
+      balanceDriftVel: 0.0,
+      isManual: false,
+      manualDuration: 0.0,
+      isWallriding: false,
+      wallrideDuration: 0.0,
+      currentFlipType: null,
+      flipProgress: 0.0,
+      airborneRotation: 0.0,
+      switchStance: false,
+      phase: 'active',
+      bailTimer: 0.0,
+      score: 0,
+      bestScore: 0,
+      comboChain: [],
+      comboBaseSum: 0,
+      comboMultiplier: 1,
+      comboTimer: 0.0,
+      isComboActive: false,
+      wheelRollAngle: 0.0,
+      targetWaypointIdx: 0,
+      currentTrick: 'None'
+    };
+
+    const keys = {};
+
+    /* ==========================================================================
+       INPUT LISTENERS
+       (All grab inputs Shift+Arrow are completely ignored / disabled)
+       ========================================================================== */
+    window.addEventListener('keydown', (e) => {
+      const code = e.code;
+      keys[code] = true;
+
+      if (code === 'Enter' && phase === 'ready') {
+        startGame();
+      }
+
+      if (code === 'KeyR' && phase === 'gameover') {
+        restartGame();
+      }
+
+      if (code === 'Space') {
+        if (phase === 'active') {
+          if (isGrinding) {
+            exitGrind(true);
+          } else if (isWallriding) {
+            exitWallride(true);
+          } else if (!isAirborne && !isManual) {
+            isChargingOllie = true;
+          }
+        }
+      }
+
+      if (code === 'ArrowUp' && phase === 'active' && !isAirborne && !isGrinding && !isManual && !isWallriding) {
+        if (Math.abs(speed) > 1.0) {
+          startManual();
+        }
+      }
+
+      // Air tricks: flips and rotations only. Shift+Arrow does nothing!
+      if (phase === 'active' && isAirborne && !e.shiftKey) {
+        if (code === 'ArrowLeft' && !currentFlipType) {
+          currentFlipType = 'kickflip';
+          flipProgress = 0.0;
+        } else if (code === 'ArrowRight' && !currentFlipType) {
+          currentFlipType = 'heelflip';
+          flipProgress = 0.0;
+        } else if (code === 'ArrowDown' && !currentFlipType) {
+          currentFlipType = 'shoveit';
+          flipProgress = 0.0;
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const code = e.code;
+      keys[code] = false;
+
+      if (code === 'Space' && isChargingOllie && !isAirborne) {
+        popOllie();
+      }
+
+      if (code === 'ArrowUp' && isManual) {
+        endManual();
+      }
+    });
+
+    /* ==========================================================================
+       GAME FLOW & LIFECYCLE
+       ========================================================================== */
+    function startGame() {
+      phase = 'active';
+      document.getElementById('screen-ready').style.display = 'none';
+      document.getElementById('screen-gameover').style.display = 'none';
+      if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) audioCtx = new AudioContext();
+      }
+    }
+
+    function restartGame() {
+      pos.copy(START_POS);
+      speed = 0.0;
+      yaw = START_YAW;
+      vy = 0.0;
+      isAirborne = false;
+      airTime = 0.0;
+      lastGroundedY = 0.15;
+      score = 0;
+      sessionTimer = 180.0;
+      sessionCleared = false;
+      perfectClearAchieved = false;
+      stairGapCleared = false;
+      roadGapCleared = false;
+      switchStance = false;
+      isGrinding = false;
+      isManual = false;
+      isWallriding = false;
+      resetCombo();
+      resetBoardTransform();
+
+      // Reset goals
+      goals.forEach((g, idx) => {
+        g.completed = false;
+        const item = document.getElementById('goal-item-' + idx);
+        if (item) item.classList.remove('done');
+      });
+      updateGoalCounter();
+
+      // Reset territory heat
+      ['quarter_pipe', 'fun_box', 'rail_ledge'].forEach(k => {
+        territory[k].playerHeat = 0;
+        territory[k].rivalHeat = 0;
+        territory[k].lastOwner = 'neutral';
+      });
+      updateTerritoryHUD();
+
+      // Reset S-K-A-T-E letters & challenge
+      skateLetters.length = 0;
+      ['S', 'K', 'A', 'T', 'E'].forEach(l => {
+        const el = document.getElementById('letter-' + l);
+        if (el) el.classList.remove('taken');
+      });
+      challengeActive = false;
+      challengeTimer = 0.0;
+      document.getElementById('challenge-panel').style.display = 'none';
+
+      // Reset Finale Line
+      finaleActive = false;
+      finaleFinished = false;
+      finaleStages = [false, false, false, false];
+      document.getElementById('finale-panel').style.display = 'none';
+
+      // Reset Rival
+      rival.pos.set(6.0, 0.15, 18.0);
+      rival.speed = 0.0;
+      rival.yaw = 0.0;
+      rival.vy = 0.0;
+      rival.isAirborne = false;
+      rival.score = 0;
+      rival.bestScore = 0;
+      rival.phase = 'active';
+      rival.targetWaypointIdx = 0;
+      rival.comboChain = [];
+      rival.isComboActive = false;
+
+      // Reset Floodlights
+      floodlightsActive = false;
+      floodlights.forEach(fl => fl.intensity = 0.0);
+      lightPoolMeshes.forEach(lp => lp.material.opacity = 0.0);
+      floodEmissiveMat.emissive.setHex(0x000000);
+
+      phase = 'active';
+      document.getElementById('screen-gameover').style.display = 'none';
+      document.getElementById('screen-ready').style.display = 'none';
+      updateHUD();
+    }
+
+    function gameOver(outcome = 'timeout') {
+      bankCombo();
+      phase = 'gameover';
+      const screen = document.getElementById('screen-gameover');
+      const title = document.getElementById('gameover-title');
+      const subtitle = document.getElementById('gameover-subtitle');
+
+      const completedCount = goals.filter(g => g.completed).length;
+      document.getElementById('final-goals').innerText = completedCount + ' / 6';
+      document.getElementById('final-scores').innerText = 'Player: ' + Math.round(score) + ' | Rival: ' + Math.round(rival.score);
+
+      // Features held calculation
+      let pHeld = 0;
+      let rHeld = 0;
+      ['quarter_pipe', 'fun_box', 'rail_ledge'].forEach(k => {
+        if (territory[k].playerHeat > territory[k].rivalHeat) pHeld++;
+        else if (territory[k].rivalHeat > territory[k].playerHeat) rHeld++;
+      });
+      document.getElementById('final-features').innerText = pHeld + ' – ' + rHeld;
+
+      // Letters taken
+      document.getElementById('final-letters').innerText = skateLetters.length > 0 ? (skateLetters.join('-') + ' (' + skateLetters.length + ' / 5)') : 'None (0 / 5)';
+
+      // Best combos
+      document.getElementById('final-best-combos').innerText = Math.round(bestScore) + ' pts / ' + Math.round(rival.bestScore) + ' pts';
+
+      // Gaps cleared
+      document.getElementById('final-gaps').innerText = 'Stairs: ' + (stairGapCleared ? 'YES' : 'No') + ' | Road: ' + (roadGapCleared ? 'YES' : 'No');
+
+      // Finale Status & Title styling
+      if (outcome === 'perfect_clear' || perfectClearAchieved) {
+        title.innerText = '★ PERFECT CLEAR ★';
+        title.style.background = 'linear-gradient(135deg, #facc15, #4ade80, #38bdf8)';
+        subtitle.innerText = 'Legendary run! All 6 goals cleared and the 4-part Finale Line landed clean!';
+        document.getElementById('final-finale').innerText = 'PERFECT CLEAR!';
+        document.getElementById('final-finale').style.color = '#4ade80';
+      } else if (outcome === 'skate_defeat') {
+        title.innerText = 'Defeat by SKATE';
+        title.style.background = 'linear-gradient(135deg, #ef4444, #f97316)';
+        subtitle.innerText = 'The rival out-skated you! 5 SKATE letters collected.';
+        document.getElementById('final-finale').innerText = 'Defeated by Rival';
+        document.getElementById('final-finale').style.color = '#ef4444';
+      } else if (completedCount === 6) {
+        title.innerText = 'CLEAR!';
+        title.style.background = 'linear-gradient(135deg, #4ade80, #38bdf8)';
+        subtitle.innerText = 'All 6 goals cleared! Phenomenal park domination.';
+        document.getElementById('final-finale').innerText = finaleFinished ? 'Finale Line Missed' : 'Ordinary CLEAR';
+      } else {
+        title.innerText = 'Session Over';
+        title.style.background = 'linear-gradient(135deg, #f59e0b, #ef4444)';
+        subtitle.innerText = "Time's up! Great run across the plaza and gap zone.";
+        document.getElementById('final-finale').innerText = 'Incomplete';
+      }
+
+      screen.style.display = 'flex';
+    }
+
+    /* ==========================================================================
+       COMBO SYSTEM (0.6s link window, territory heat attribution)
+       ========================================================================== */
+    function addToCombo(trickName, trickScore, featureName = null) {
+      if (phase !== 'active') return;
+      isComboActive = true;
+      comboTimer = COMBO_LINK_WINDOW;
+      comboChain.push(trickName);
+
+      if (featureName && playerComboFeatures[featureName] !== undefined) {
+        playerComboFeatures[featureName] = true;
+      }
+
+      let scoreEarned = trickScore;
+      if (switchStance) {
+        scoreEarned *= SWITCH_MULTIPLIER;
+      }
+      comboBaseSum += scoreEarned;
+      comboMultiplier = comboChain.length;
+
+      // Finale Step Check
+      if (finaleActive && !finaleFinished) {
+        checkPlayerFinaleProgress(trickName);
+      }
+
+      updateComboHUD();
+    }
+
+    function checkPlayerFinaleProgress(trickName) {
+      // 1. Kicker Air
+      if (!finaleStages[0] && (trickName.includes('Kicker Air') || (jumpStartPos.z >= 9.5 && jumpStartPos.z <= 13.5 && Math.abs(jumpStartPos.x - KX) <= 2.5))) {
+        finaleStages[0] = true;
+        document.getElementById('fstep-0').classList.add('done');
+      }
+      // 2. Fun Box Grind
+      else if (finaleStages[0] && !finaleStages[1] && (trickName.includes('50-50') || trickName.includes('Boardslide') || trickName.includes('Nose grind')) && activeGrindEdge && activeGrindEdge.feature === 'fun_box') {
+        finaleStages[1] = true;
+        document.getElementById('fstep-1').classList.add('done');
+      }
+      // 3. Manual
+      else if (finaleStages[1] && !finaleStages[2] && trickName === 'Manual') {
+        finaleStages[2] = true;
+        document.getElementById('fstep-2').classList.add('done');
+      }
+      // 4. QP Trick
+      else if (finaleStages[2] && !finaleStages[3] && (trickName.includes('Quarter Pipe') || (pos.z <= -20.0 && isAirborne))) {
+        finaleStages[3] = true;
+        document.getElementById('fstep-3').classList.add('done');
+      }
+    }
+
+    function bankCombo() {
+      if (!isComboActive || comboChain.length === 0) return;
+      isComboActive = false;
+      const totalComboPoints = Math.round(comboBaseSum * comboMultiplier);
+      score += totalComboPoints;
+      if (totalComboPoints > bestScore) {
+        bestScore = totalComboPoints;
+      }
+
+      // Check Goal 3: Bank a 4-trick combo
+      if (comboChain.length >= 4) {
+        completeGoal(3);
+      }
+
+      // Check Goal 5: Bank 2500 total session score
+      if (score >= 2500) {
+        completeGoal(5);
+      }
+
+      // Attribute Territory Heat to player
+      ['quarter_pipe', 'fun_box', 'rail_ledge'].forEach(feat => {
+        if (playerComboFeatures[feat]) {
+          territory[feat].playerHeat += totalComboPoints;
+          territory[feat].lastOwner = 'player';
+        }
+      });
+      playerComboFeatures = { quarter_pipe: false, fun_box: false, rail_ledge: false };
+      updateTerritoryHUD();
+
+      // Check Rival Trick Challenge Matching
+      if (challengeActive && totalComboPoints >= challengeTargetScore) {
+        challengeActive = false;
+        const stamp = document.getElementById('challenge-stamp');
+        stamp.classList.add('show');
+        playChime();
+        showPopup('MATCHED!', '+' + totalComboPoints + ' PTS');
+        setTimeout(() => {
+          stamp.classList.remove('show');
+          document.getElementById('challenge-panel').style.display = 'none';
+        }, 1200);
+      }
+
+      // Check Finale Line Success
+      if (finaleActive && !finaleFinished) {
+        if (finaleStages[0] && finaleStages[1] && finaleStages[2] && finaleStages[3]) {
+          finaleActive = false;
+          finaleFinished = true;
+          perfectClearAchieved = true;
+          gameOver('perfect_clear');
+          return;
+        }
+      }
+
+      showPopup('COMBO x' + comboMultiplier + '!', '+' + totalComboPoints + ' PTS');
+
+      const tracker = document.getElementById('combo-tracker');
+      tracker.classList.add('combo-banked');
+      setTimeout(() => {
+        tracker.classList.remove('combo-banked');
+        resetCombo();
+      }, 600);
+
+      updateHUD();
+    }
+
+    function voidCombo() {
+      if (!isComboActive && comboChain.length === 0) return;
+      resetCombo();
+    }
+
+    function resetCombo() {
+      isComboActive = false;
+      comboChain = [];
+      comboBaseSum = 0;
+      comboMultiplier = 1;
+      comboTimer = 0.0;
+      playerComboFeatures = { quarter_pipe: false, fun_box: false, rail_ledge: false };
+      document.getElementById('combo-tracker').style.display = 'none';
+    }
+
+    function updateComboHUD() {
+      const tracker = document.getElementById('combo-tracker');
+      const chainEl = document.getElementById('combo-chain');
+      const totalEl = document.getElementById('combo-total');
+
+      if (comboChain.length > 0) {
+        tracker.style.display = 'flex';
+        chainEl.innerHTML = comboChain.join(' &rarr; ');
+        const runningTotal = Math.round(comboBaseSum * comboMultiplier);
+        totalEl.innerText = runningTotal + ' pts (x' + comboMultiplier + ')';
+      } else {
+        tracker.style.display = 'none';
+      }
+    }
+
+    function updateTerritoryHUD() {
+      let pHeld = 0;
+      let rHeld = 0;
+      ['quarter_pipe', 'fun_box', 'rail_ledge'].forEach(feat => {
+        const t = territory[feat];
+        const bar = document.getElementById(feat === 'quarter_pipe' ? 'bar-qp' : (feat === 'fun_box' ? 'bar-fb' : 'bar-rl'));
+        const lbl = document.getElementById(feat === 'quarter_pipe' ? 'heat-qp' : (feat === 'fun_box' ? 'heat-fb' : 'heat-rl'));
+
+        const totalHeat = t.playerHeat + t.rivalHeat;
+        if (totalHeat > 0) {
+          const pPct = Math.round((t.playerHeat / totalHeat) * 100);
+          bar.style.width = pPct + '%';
+          bar.style.backgroundColor = t.lastOwner === 'player' ? '#38bdf8' : '#f97316';
+          lbl.innerText = t.lastOwner.toUpperCase() + ' (P:' + t.playerHeat + '|R:' + t.rivalHeat + ')';
+          lbl.style.color = t.lastOwner === 'player' ? '#38bdf8' : '#f97316';
+        } else {
+          bar.style.width = '0%';
+          lbl.innerText = 'NEUTRAL';
+          lbl.style.color = '#94a3b8';
+        }
+
+        if (t.playerHeat > t.rivalHeat) pHeld++;
+        else if (t.rivalHeat > t.playerHeat) rHeld++;
+      });
+      document.getElementById('territory-held').innerText = 'Held: ' + pHeld + ' – ' + rHeld;
+    }
+
+    /* ==========================================================================
+       BAIL SYSTEM & PENALTY (-50 pts if any goal unchecked)
+       ========================================================================== */
+    function triggerBail(reason) {
+      if (phase === 'bail') return;
+      phase = 'bail';
+      bailTimer = BAIL_DURATION;
+      speed = 0.0;
+      vy = 0.0;
+      isChargingOllie = false;
+      ollieCharge = 0.0;
+      isAirborne = false;
+      isGrinding = false;
+      isManual = false;
+      isWallriding = false;
+
+      // No Free Bails on Goals: deduct 50 pts if at least one goal is unchecked
+      const hasUncheckedGoals = goals.some(g => !g.completed);
+      if (hasUncheckedGoals) {
+        score = Math.max(0, score - 50);
+        flashDeductionPopup();
+        flashGoalPanelRed();
+      }
+
+      // If during Finale Line: bailing falls back to ordinary CLEAR
+      if (finaleActive && !finaleFinished) {
+        finaleActive = false;
+        finaleFinished = true;
+        document.getElementById('finale-panel').style.display = 'none';
+        gameOver('clear');
+        return;
+      }
+
+      voidCombo();
+
+      const bailEl = document.getElementById('bail-notification');
+      bailEl.classList.add('active');
+      document.getElementById('balance-meter-container').style.display = 'none';
+      document.getElementById('charge-meter-container').style.display = 'none';
+
+      skaterFigure.position.set(0, 0.2, 0.4);
+      skaterFigure.rotation.set(1.4, 0.5, 0.8);
+      boardGroup.position.set(0.3, 0.1, -0.6);
+      boardGroup.rotation.set(0.6, 0.2, 1.2);
+    }
+
+    function recoverFromBail() {
+      phase = 'active';
+      document.getElementById('bail-notification').classList.remove('active');
+      resetBoardTransform();
+      pos.y = getGroundHeightAt(pos.x, pos.z);
+    }
+
+    function resetBoardTransform() {
+      boardGroup.position.set(0, 0, 0);
+      boardGroup.rotation.set(0, 0, 0);
+      skaterFigure.position.set(0, 0, 0);
+      skaterFigure.rotation.set(0, switchStance ? -Math.PI / 2 : Math.PI / 2, 0);
+      leftArmGroup.rotation.set(0, 0, 0);
+      rightArmGroup.rotation.set(0, 0, 0);
+      pelvis.position.set(0, 0.85, 0);
+    }
+
+    /* ==========================================================================
+       OLLIE & AIRTIME
+       ========================================================================== */
+    function popOllie() {
+      isChargingOllie = false;
+      const chargeRatio = Math.min(ollieCharge / 0.8, 1.0);
+      document.getElementById('charge-meter-container').style.display = 'none';
+      ollieCharge = 0.0;
+
+      vy = 5.5 + chargeRatio * 4.5;
+      isAirborne = true;
+      airTime = 0.0;
+      lastGroundedY = pos.y;
+      jumpStartPos.copy(pos);
+
+      currentFlipType = null;
+      flipProgress = 0.0;
+      airborneRotation = 0.0;
+    }
+
+    /* ==========================================================================
+       WALLRIDE MECHANICS (Vertical Wall at x = -16)
+       ========================================================================== */
+    function checkWallrideAttachment() {
+      if (isWallriding || isGrinding || wallrideCooldown > 0) return;
+      if (pos.x <= -15.2 && pos.x >= -16.8 && pos.z <= WALL_START_Z && pos.z >= WALL_END_Z && pos.y >= 0.6) {
+        if (Math.abs(speed) > 2.5) {
+          isWallriding = true;
+          isAirborne = false;
+          vy = 0;
+          wallrideDuration = 0.0;
+          pos.x = -15.65;
+          showBalanceMeter('WALLRIDE');
+        }
+      }
+    }
+
+    function updateWallride(dt) {
+      if (!isWallriding) return;
+      wallrideDuration += dt;
+      speed = THREE.MathUtils.damp(speed, 0, 0.25, dt);
+
+      if (keys['KeyA']) pos.y += 1.8 * dt;
+      if (keys['KeyD']) pos.y -= 1.8 * dt;
+
+      boardGroup.rotation.set(0, 0, -Math.PI / 2);
+      skaterFigure.position.set(-0.15, 0.2, 0);
+
+      pos.z += Math.sign(speed) * Math.abs(speed) * dt;
+
+      // Check Goal 2: Wallride for 2 seconds in one touch
+      if (wallrideDuration >= 2.0) {
+        completeGoal(2);
+      }
+
+      if (pos.z > WALL_START_Z || pos.z < WALL_END_Z || Math.abs(speed) < 1.0) {
+        exitWallride(false);
+      }
+    }
+
+    function exitWallride(isOllieOff) {
+      if (!isWallriding) return;
+      const wallridePts = Math.round(30 + wallrideDuration * 10);
+      showPopup('WALLRIDE (' + wallrideDuration.toFixed(1) + 's)', '+' + wallridePts + ' PTS');
+      addToCombo('Wallride (' + wallrideDuration.toFixed(1) + 's)', wallridePts);
+
+      isWallriding = false;
+      wallrideCooldown = 0.4;
+      hideBalanceMeter();
+      resetBoardTransform();
+
+      if (isOllieOff) {
+        vy = 4.5;
+        speed = Math.max(Math.abs(speed), 5.0);
+        pos.x += 1.2;
+        isAirborne = true;
+        airTime = 0.0;
+        lastGroundedY = pos.y;
+      } else {
+        const groundY = getGroundHeightAt(pos.x, pos.z);
+        if (pos.y - groundY > 2.2) {
+          triggerBail('Drop from wallride');
+        } else {
+          isAirborne = true;
+          vy = 1.0;
+          airTime = 0.0;
+          lastGroundedY = pos.y;
+        }
+      }
+    }
+
+    /* ==========================================================================
+       GRINDS, SLIDES & SLOPED HANDRAIL
+       ========================================================================== */
+    function checkGrindAttachment() {
+      if (isGrinding || isWallriding || !isAirborne || vy > 1.0 || grindCooldown > 0) return;
+      const boardFwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)).normalize();
+
+      for (let i = 0; i < grindEdges.length; i++) {
+        const edge = grindEdges[i];
+        const vEdge = new THREE.Vector3().subVectors(edge.end, edge.start);
+        const edgeLen = vEdge.length();
+        const vEdgeDir = vEdge.clone().normalize();
+
+        const vSkater = new THREE.Vector3().subVectors(pos, edge.start);
+        const proj = vSkater.dot(vEdgeDir);
+
+        if (proj >= -0.4 && proj <= edgeLen + 0.4) {
+          const closestPoint = new THREE.Vector3().copy(edge.start).addScaledVector(vEdgeDir, Math.max(0, Math.min(proj, edgeLen)));
+          const distXZ = new THREE.Vector2(pos.x - closestPoint.x, pos.z - closestPoint.z).length();
+          const distY = Math.abs(pos.y - closestPoint.y);
+
+          if (distXZ <= edge.radius && distY <= 0.65) {
+            const dot = Math.abs(boardFwd.dot(vEdgeDir));
+            let trickName = '50-50';
+            if (dot < 0.45) {
+              trickName = 'Boardslide';
+            } else if (keys['ArrowUp']) {
+              trickName = 'Nose grind';
+            } else {
+              trickName = '50-50';
+            }
+
+            isGrinding = true;
+            isAirborne = false;
+            activeGrindEdge = edge;
+            grindType = trickName;
+            grindDuration = 0.0;
+            grindStartProj = proj;
+            grindMaxProj = proj;
+
+            pos.copy(closestPoint);
+            pos.y += 0.12;
+
+            const moveSign = boardFwd.dot(vEdgeDir) >= 0 ? 1 : -1;
+            speed = Math.max(Math.abs(speed), 4.2) * moveSign;
+
+            const entryAngle = Math.asin(Math.max(-1, Math.min(1, boardFwd.cross(vEdgeDir).y)));
+            balanceNeedle = entryAngle * 0.35;
+            balanceDriftVel = Math.sin(entryAngle * 3.0 + speed) * 0.8;
+
+            showBalanceMeter('GRIND: ' + trickName);
+            return;
+          }
+        }
+      }
+    }
+
+    function updateGrind(dt) {
+      if (!isGrinding || !activeGrindEdge) return;
+      grindDuration += dt;
+
+      const edge = activeGrindEdge;
+      const vEdge = new THREE.Vector3().subVectors(edge.end, edge.start);
+      const edgeLen = vEdge.length();
+      const vEdgeDir = vEdge.clone().normalize();
+
+      // Sloped Handrail: Downhill acceleration along rail, speed-scaled balance drift
+      if (edge.isSloped) {
+        // Downhill is moving toward positive proj (lower y)
+        if (speed > 0) {
+          speed += 4.5 * dt; // Accelerate downhill
+        } else {
+          speed -= 4.5 * dt; // Decelerate if trying to grind uphill
+        }
+      } else {
+        speed = THREE.MathUtils.damp(speed, 0, GRIND_FRICTION, dt);
+      }
+
+      const moveStep = speed * dt;
+      pos.addScaledVector(vEdgeDir, moveStep);
+
+      const vSkater = new THREE.Vector3().subVectors(pos, edge.start);
+      const proj = vSkater.dot(vEdgeDir);
+      if (proj > grindMaxProj) grindMaxProj = proj;
+
+      // Follow rail line height exactly
+      const currentPoint = new THREE.Vector3().copy(edge.start).addScaledVector(vEdgeDir, Math.max(0, Math.min(proj, edgeLen)));
+      pos.y = currentPoint.y + 0.12;
+
+      // Goal 0: Grind the handrail top to bottom
+      if (edge.type === 'handrail' && grindStartProj <= 1.2 && grindMaxProj >= edgeLen - 1.2) {
+        completeGoal(0);
+      }
+
+      if (grindType === 'Boardslide') {
+        boardGroup.rotation.y = Math.PI / 2;
+        boardGroup.rotation.z = 0;
+        boardGroup.rotation.x = 0;
+      } else if (grindType === 'Nose grind') {
+        boardGroup.rotation.set(0.18, 0, 0);
+        skaterFigure.position.set(0, 0.05, -0.15);
+      } else {
+        boardGroup.rotation.set(0, 0, 0);
+      }
+
+      emitSparks(pos, vEdgeDir.clone().multiplyScalar(Math.sign(speed)));
+
+      if (keys['KeyA']) balanceNeedle -= BALANCE_RECOVERY_RATE * dt;
+      if (keys['KeyD']) balanceNeedle += BALANCE_RECOVERY_RATE * dt;
+
+      // Balance drift grows with gained speed on sloped handrail
+      let dScale = edge.driftScale || 1.0;
+      if (edge.isSloped) {
+        dScale += Math.min(1.5, Math.abs(speed) * 0.12);
+      }
+      balanceNeedle += (balanceDriftVel * dScale + balanceNeedle * 1.2 * dScale) * dt;
+      updateBalanceMeter();
+
+      if (Math.abs(balanceNeedle) >= BALANCE_LIMIT) {
+        triggerBail('Grind balance lost');
+        return;
+      }
+
+      if (proj < 0 || proj > edgeLen || Math.abs(speed) < 0.6) {
+        exitGrind(false);
+      }
+    }
+
+    function exitGrind(isEarlyOllie) {
+      if (!isGrinding) return;
+      const baseScore = grindType === 'Nose grind' ? 50 : (grindType === 'Boardslide' ? 40 : 30);
+      const timeBonus = Math.floor(grindDuration * 10);
+      const totalGrindScore = baseScore + timeBonus;
+
+      showPopup(grindType + ' (' + grindDuration.toFixed(1) + 's)', '+' + totalGrindScore + ' PTS');
+      addToCombo(grindType, totalGrindScore, activeGrindEdge ? activeGrindEdge.feature : null);
+
+      isGrinding = false;
+      activeGrindEdge = null;
+      grindCooldown = 0.35;
+      hideBalanceMeter();
+      resetBoardTransform();
+
+      vy = isEarlyOllie ? 6.5 : 3.5;
+      isAirborne = true;
+      airTime = 0.0;
+      lastGroundedY = pos.y;
+    }
+
+    /* ==========================================================================
+       MANUALS (Governed by balance meter)
+       ========================================================================== */
+    function startManual() {
+      isManual = true;
+      manualDuration = 0.0;
+      balanceNeedle = 0.05;
+      balanceDriftVel = Math.sin(speed * 2.5) * 0.6;
+      showBalanceMeter('MANUAL');
+    }
+
+    function updateManual(dt) {
+      if (!isManual) return;
+      manualDuration += dt;
+      speed = THREE.MathUtils.damp(speed, 0, MANUAL_FRICTION, dt);
+
+      boardGroup.rotation.x = -0.32;
+      skaterFigure.position.set(0, 0.05, 0.15);
+      leftArmGroup.rotation.x = -0.5;
+      rightArmGroup.rotation.x = -0.5;
+
+      if (keys['KeyA']) balanceNeedle -= BALANCE_RECOVERY_RATE * dt;
+      if (keys['KeyD']) balanceNeedle += BALANCE_RECOVERY_RATE * dt;
+      balanceNeedle += (balanceDriftVel + balanceNeedle * 1.1) * dt;
+      updateBalanceMeter();
+
+      if (Math.abs(balanceNeedle) >= BALANCE_LIMIT) {
+        triggerBail('Manual balance lost');
+        return;
+      }
+      if (Math.abs(speed) < 0.5) {
+        endManual();
+      }
+    }
+
+    function endManual() {
+      if (!isManual) return;
+      isManual = false;
+      hideBalanceMeter();
+      resetBoardTransform();
+
+      const manualPoints = Math.max(5, Math.floor(manualDuration * 10));
+      showPopup('MANUAL', '+' + manualPoints + ' PTS');
+      addToCombo('Manual', manualPoints);
+    }
+
+    function showBalanceMeter(title) {
+      const container = document.getElementById('balance-meter-container');
+      document.getElementById('balance-title').innerText = title;
+      container.style.display = 'flex';
+    }
+
+    function hideBalanceMeter() {
+      document.getElementById('balance-meter-container').style.display = 'none';
+    }
+
+    function updateBalanceMeter() {
+      const needle = document.getElementById('balance-needle');
+      const pct = Math.max(0, Math.min(100, (balanceNeedle + 1.0) * 50));
+      needle.style.left = pct + '%';
+    }
+
+    /* ==========================================================================
+       TOUCHDOWN & LANDING JUDGMENT (Stairs Gap & Road Gap Bonuses)
+       ========================================================================== */
+    function handleLanding(targetGroundY, normal) {
+      const dropHeight = lastGroundedY - targetGroundY;
+
+      // Hard drop bail
+      if (normal.y > 0.95 && dropHeight > 2.5) {
+        triggerBail('Hard drop impact');
+        return;
+      }
+
+      // Incomplete flip bail
+      if (currentFlipType && flipProgress < 0.92) {
+        triggerBail('Incomplete flip rotation');
+        return;
+      }
+
+      // Rotation alignment bail (> 32 deg deviation from nearest 180)
+      const rotDeg = Math.abs(THREE.MathUtils.radToDeg(airborneRotation));
+      const rem180 = rotDeg % 180;
+      const deviation = Math.min(rem180, 180 - rem180);
+      if (deviation > 32) {
+        triggerBail('Sideways rotation landing');
+        return;
+      }
+
+      isAirborne = false;
+      pos.y = targetGroundY;
+      vy = 0;
+
+      const landed180s = Math.round(rotDeg / 180);
+      if (landed180s % 2 === 1) {
+        switchStance = !switchStance;
+      }
+
+      let trickNameParts = [];
+      let trickScore = 0;
+
+      if (landed180s > 0) {
+        trickNameParts.push(landed180s === 1 ? '180' : '360');
+        trickScore += landed180s * 25;
+      }
+
+      const performedFlip = currentFlipType;
+      if (currentFlipType === 'kickflip') {
+        trickNameParts.push('Kickflip');
+        trickScore += 40;
+      } else if (currentFlipType === 'heelflip') {
+        trickNameParts.push('Heelflip');
+        trickScore += 40;
+      } else if (currentFlipType === 'shoveit') {
+        trickNameParts.push('Pop Shove-it');
+        trickScore += 35; // C4 tuning: 35 pts
+      }
+
+      const airtimeBonus = Math.floor(airTime) * 10;
+      trickScore += airtimeBonus;
+
+      // GAP 1: Stair Gap (Takeoff above top step z > -42, landing beyond bottom step z < -48.5)
+      if (jumpStartPos.z >= -42.5 && jumpStartPos.y >= 1.5 && pos.z <= -48.5 && pos.y <= 0.3) {
+        stairGapCleared = true;
+        trickNameParts.push('Gap: Stairs');
+        trickScore += 60; // 60 gap bonus
+
+        // Goal 1: Clear the stair gap with any flip trick
+        if (performedFlip) {
+          completeGoal(1);
+        }
+      }
+
+      // GAP 2: Street Gap / Road Gap (Takeoff from South bank z >= -47.5, landing on North bank z <= -53.5)
+      if (jumpStartPos.z >= -47.5 && jumpStartPos.z <= -42.0 && pos.z <= -53.5 && pos.z >= -60.0 && pos.y >= 0.8) {
+        roadGapCleared = true;
+        trickNameParts.push('Gap: Road');
+        trickScore += 80; // 80 gap bonus
+
+        // Goal 4: Clear the road gap in switch stance
+        if (switchStance) {
+          completeGoal(4);
+        }
+      }
+
+      // Finale Step 1: Kicker Launch Air
+      if (jumpStartPos.z >= 9.5 && jumpStartPos.z <= 13.5 && Math.abs(jumpStartPos.x - KX) <= 2.5) {
+        trickNameParts.unshift('Kicker Air');
+      }
+
+      // Quarter Pipe Air Trick feature attribution
+      let feat = null;
+      if (jumpStartPos.z <= -20.0 || pos.z <= -20.0) {
+        feat = 'quarter_pipe';
+      }
+
+      const fullTrickName = trickNameParts.length > 0 ? trickNameParts.join(' ') : 'Ollie';
+      if (trickScore > 0) {
+        showPopup(fullTrickName, '+' + trickScore + ' PTS');
+        addToCombo(fullTrickName, trickScore, feat);
+      }
+
+      if (keys['ArrowUp'] && Math.abs(speed) > 1.0) {
+        startManual();
+      } else {
+        resetBoardTransform();
+      }
+
+      currentFlipType = null;
+      airTime = 0.0;
+    }
+
+    function showPopup(name, points) {
+      const popup = document.getElementById('trick-popup');
+      document.getElementById('popup-name').innerText = name;
+      document.getElementById('popup-points').innerText = points;
+      popup.classList.add('show');
+      setTimeout(() => {
+        popup.classList.remove('show');
+      }, 1400);
+    }
+
+    /* ==========================================================================
+       RIVAL SKATER AI & PHYSICS (Circuits Main Plaza & Gap Zone)
+       ========================================================================== */
+    const rivalWaypoints = [
+      // 0: Approach Street Ledge
+      { x: 13.0, z: 3.5, speed: 7.2, action: 'ledge_approach' },
+      { x: 13.0, z: -10.0, speed: 6.5, action: 'ledge_grind' },
+      // 1: Fun Box West line
+      { x: -2.5, z: 12.0, speed: 8.5, action: 'kicker_approach' },
+      { x: -2.5, z: -6.0, speed: 7.0, action: 'funbox_grind' },
+      // 2: Gap Zone Gate & Stairs
+      { x: 17.0, z: -30.0, speed: 7.0, action: 'gate_enter' },
+      { x: 17.0, z: -41.0, speed: 7.5, action: 'stairs_approach' },
+      { x: 17.0, z: -50.0, speed: 8.0, action: 'handrail_grind' },
+      // 3: Wallride Wall
+      { x: -14.0, z: -44.0, speed: 7.5, action: 'wallride_approach' },
+      { x: -15.65, z: -58.0, speed: 6.5, action: 'wallride' },
+      // 4: Quarter Pipe & Flat Rail
+      { x: 0.0, z: -20.0, speed: 8.5, action: 'qp_approach' },
+      { x: -13.0, z: -3.0, speed: 7.5, action: 'rail_approach' },
+      { x: -13.0, z: -13.0, speed: 6.5, action: 'rail_grind' },
+      { x: 0.0, z: 15.0, speed: 6.0, action: 'loop_reset' }
+    ];
+
+    function updateRivalPhysics(dt) {
+      if (rival.phase === 'bail') {
+        rival.bailTimer -= dt;
+        if (rival.bailTimer <= 0) {
+          rival.phase = 'active';
+          rival.boardGroup.position.set(0, 0, 0);
+          rival.boardGroup.rotation.set(0, 0, 0);
+          rival.figure.position.set(0, 0, 0);
+          rival.figure.rotation.set(0, Math.PI / 2, 0);
+          rival.pos.y = getGroundHeightAt(rival.pos.x, rival.pos.z);
+        }
+        return;
+      }
+
+      // Waypoint following
+      const wp = rivalWaypoints[rival.targetWaypointIdx];
+      const toWp = new THREE.Vector2(wp.x - rival.pos.x, wp.z - rival.pos.z);
+      const distToWp = toWp.length();
+
+      // Steering
+      const targetYaw = Math.atan2(-toWp.x, -toWp.y);
+      let yawDiff = targetYaw - rival.yaw;
+      while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+      while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+
+      // Avoid player if close and in path
+      const toPlayer = new THREE.Vector2(pos.x - rival.pos.x, pos.z - rival.pos.z);
+      const distToPlayer = toPlayer.length();
+      if (distToPlayer < 4.0) {
+        // Steer away deterministically
+        const cross = toWp.x * toPlayer.y - toWp.y * toPlayer.x;
+        yawDiff += cross > 0 ? -1.0 : 1.0;
+      }
+
+      rival.yaw += THREE.MathUtils.clamp(yawDiff * 4.0 * dt, -2.5 * dt, 2.5 * dt);
+      rival.speed = THREE.MathUtils.damp(rival.speed, wp.speed, 3.5, dt);
+
+      // Perform actions at waypoints
+      if (distToWp < 1.4) {
+        if (wp.action === 'ledge_approach' || wp.action === 'rail_approach') {
+          // Ollie onto ledge/rail
+          rival.vy = 5.2;
+          rival.isAirborne = true;
+          rival.currentFlipType = 'kickflip';
+          rival.flipProgress = 0.0;
+        } else if (wp.action === 'stairs_approach') {
+          // Ollie onto handrail
+          rival.vy = 5.5;
+          rival.isAirborne = true;
+          rival.currentFlipType = 'heelflip';
+          rival.flipProgress = 0.0;
+        } else if (wp.action === 'kicker_approach') {
+          rival.vy = 8.5;
+          rival.isAirborne = true;
+          rival.currentFlipType = 'shoveit';
+          rival.flipProgress = 0.0;
+        } else if (wp.action === 'qp_approach') {
+          rival.vy = 10.5;
+          rival.isAirborne = true;
+          rival.airborneRotation = Math.PI;
+        }
+
+        rival.targetWaypointIdx = (rival.targetWaypointIdx + 1) % rivalWaypoints.length;
+      }
+
+      // Air & Ground movement
+      if (rival.isAirborne) {
+        rival.airTime += dt;
+        rival.vy -= GRAVITY * dt;
+        rival.pos.y += rival.vy * dt;
+
+        if (rival.currentFlipType) {
+          rival.flipProgress += dt / 0.4;
+          if (rival.flipProgress >= 1.0) {
+            rival.currentFlipType = null;
+            rival.boardGroup.rotation.set(0, 0, 0);
+          } else {
+            rival.boardGroup.rotation.z = rival.flipProgress * Math.PI * 2;
+          }
+        }
+
+        const gY = getGroundHeightAt(rival.pos.x, rival.pos.z);
+        if (rival.pos.y <= gY && rival.vy < 0) {
+          rival.isAirborne = false;
+          rival.pos.y = gY;
+          rival.vy = 0;
+          rival.boardGroup.rotation.set(0, 0, 0);
+
+          // Bank rival combo
+          rivalBankCombo();
+        }
+      } else {
+        rival.pos.y = getGroundHeightAt(rival.pos.x, rival.pos.z);
+      }
+
+      const fwdX = -Math.sin(rival.yaw);
+      const fwdZ = -Math.cos(rival.yaw);
+      rival.pos.x += fwdX * rival.speed * dt;
+      rival.pos.z += fwdZ * rival.speed * dt;
+
+      rival.wheelRollAngle += rival.speed * dt * 8.0;
+      rival.wheels.forEach(w => w.rotation.x = rival.wheelRollAngle);
+
+      rival.root.position.copy(rival.pos);
+      rival.root.rotation.y = rival.yaw;
+    }
+
+    function rivalBankCombo() {
+      // Deterministic scoring for rival based on current circuit progress
+      const comboScore = 160 + (rival.targetWaypointIdx * 25) % 180;
+      rival.score += comboScore;
+      if (comboScore > rival.bestScore) rival.bestScore = comboScore;
+
+      // Attribute Territory Heat to rival on current section
+      let rFeat = 'fun_box';
+      if (rival.pos.z <= -20.0) rFeat = 'quarter_pipe';
+      else if (Math.abs(rival.pos.x) >= 8.0) rFeat = 'rail_ledge';
+
+      territory[rFeat].rivalHeat += comboScore;
+      territory[rFeat].lastOwner = 'rival';
+      updateTerritoryHUD();
+
+      // Issue Rival Challenge (if >= 150 pts)
+      if (comboScore >= 150) {
+        if (!challengeActive || comboScore > challengeTargetScore) {
+          challengeActive = true;
+          challengeTargetScore = comboScore;
+          challengeTimer = 20.0;
+          challengeChain = 'Rival: ' + (comboScore > 250 ? '360 Heelflip → 50-50' : 'Kickflip → Ledge Grind');
+          document.getElementById('challenge-desc').innerText = challengeChain;
+          document.getElementById('challenge-pts').innerText = challengeTargetScore;
+          document.getElementById('challenge-panel').style.display = 'block';
+        }
+      }
+
+      updateHUD();
+    }
+
+    /* ==========================================================================
+       MAIN PHYSICS & SIMULATION LOOP
+       ========================================================================== */
+    function updatePhysics(dt) {
+      if (phase === 'bail') {
+        bailTimer -= dt;
+        if (bailTimer <= 0) recoverFromBail();
+        return;
+      }
+      if (phase !== 'active') return;
+
+      if (grindCooldown > 0) grindCooldown -= dt;
+      if (wallrideCooldown > 0) wallrideCooldown -= dt;
+
+      // Session Timer (180s)
+      sessionTimer -= dt;
+      if (sessionTimer <= 0) {
+        sessionTimer = 0;
+        updateHUD();
+        gameOver('timeout');
+        return;
+      }
+
+      // Plaza Night Pass: Floodlights switch on at t=90s (sessionTimer <= 90.0)
+      const elapsed = 180.0 - sessionTimer;
+      const tRatio = THREE.MathUtils.clamp(elapsed / 180.0, 0, 1);
+
+      // Sun sinks lower, shadows lengthen, colors shift to dusk
+      const sunAngle = tRatio * (Math.PI * 0.45);
+      sunLight.position.set(35 + 20 * Math.sin(sunAngle), Math.max(10, 55 * Math.cos(sunAngle)), 30 + 15 * Math.sin(sunAngle));
+      sunLight.intensity = THREE.MathUtils.lerp(1.2, 0.35, tRatio);
+      ambientLight.intensity = THREE.MathUtils.lerp(0.7, 0.32, tRatio);
+
+      // Floodlights at t=90s
+      if (sessionTimer <= 90.0 && !floodlightsActive) {
+        floodlightsActive = true;
+        floodlights.forEach(fl => fl.intensity = 2.2);
+        lightPoolMeshes.forEach(lp => lp.material.opacity = 0.42);
+        floodEmissiveMat.emissive.setHex(0xfffaed);
+      }
+
+      // Rival Challenge Countdown (20s)
+      if (challengeActive) {
+        challengeTimer -= dt;
+        document.getElementById('challenge-timer').innerText = Math.max(0, challengeTimer).toFixed(1) + 's';
+        if (challengeTimer <= 0) {
+          challengeActive = false;
+          document.getElementById('challenge-panel').style.display = 'none';
+
+          // Player takes next letter of S-K-A-T-E
+          const letters = ['S', 'K', 'A', 'T', 'E'];
+          if (skateLetters.length < 5) {
+            const nextL = letters[skateLetters.length];
+            skateLetters.push(nextL);
+            const lEl = document.getElementById('letter-' + nextL);
+            if (lEl) lEl.classList.add('taken');
+            showPopup('LETTER ' + nextL + ' TAKEN!', 'Rival Challenge Failed');
+
+            if (skateLetters.length === 5) {
+              gameOver('skate_defeat');
+              return;
+            }
+          }
+        }
+      }
+
+      // Finale Line Timer (30s)
+      if (finaleActive && !finaleFinished) {
+        finaleTimer -= dt;
+        document.getElementById('finale-timer').innerText = Math.max(0, finaleTimer).toFixed(1) + 's';
+        if (finaleTimer <= 0) {
+          finaleActive = false;
+          finaleFinished = true;
+          document.getElementById('finale-panel').style.display = 'none';
+          gameOver('clear');
+          return;
+        }
+      }
+
+      // Combo timer decay
+      if (isComboActive && !isAirborne && !isGrinding && !isManual && !isWallriding) {
+        comboTimer -= dt;
+        if (comboTimer <= 0) bankCombo();
+      }
+
+      // Ollie charging
+      if (isChargingOllie) {
+        ollieCharge += dt;
+        const meterContainer = document.getElementById('charge-meter-container');
+        meterContainer.style.display = 'block';
+        const pct = Math.min(100, (ollieCharge / 0.8) * 100);
+        document.getElementById('charge-meter-bar').style.width = pct + '%';
+        pelvis.position.y = 0.85 - Math.min(1.0, ollieCharge / 0.8) * 0.25;
+      }
+
+      // Ground controls
+      if (!isAirborne && !isGrinding && !isWallriding) {
+        const turnSpeed = Math.max(0.4, 2.8 - Math.abs(speed) * 0.12);
+        if (keys['KeyA']) yaw += turnSpeed * dt;
+        if (keys['KeyD']) yaw -= turnSpeed * dt;
+
+        if (keys['KeyW']) {
+          const accel = switchStance ? PUSH_ACCEL_SWITCH : PUSH_ACCEL;
+          speed = THREE.MathUtils.damp(speed, MAX_SPEED, accel, dt);
+          isPushing = true;
+          pushAnimTimer += dt * 8.0;
+        } else {
+          isPushing = false;
+        }
+
+        if (keys['KeyS']) {
+          if (speed > 0.2) speed = THREE.MathUtils.damp(speed, 0, BRAKE_DECEL, dt);
+          else speed = THREE.MathUtils.damp(speed, -REVERSE_MAX, REVERSE_ACCEL, dt);
+        }
+
+        if (!keys['KeyW'] && !keys['KeyS'] && !isManual) {
+          speed = THREE.MathUtils.damp(speed, 0, COAST_FRICTION, dt);
+        }
+
+        if (isManual) updateManual(dt);
+      }
+
+      const groundY = getGroundHeightAt(pos.x, pos.z);
+      const normal = getSurfaceNormalAt(pos.x, pos.z);
+
+      if (!isAirborne && !isGrinding && !isWallriding) {
+        const fwdX = -Math.sin(yaw);
+        const fwdZ = -Math.cos(yaw);
+
+        // Slope dynamics
+        if (normal.y < 0.98) {
+          const slopePitch = normal.z * fwdZ + normal.x * fwdX;
+          speed -= slopePitch * GRAVITY * 0.8 * dt;
+
+          // Quarter pipe launch
+          if (pos.z <= -24.0 && pos.z >= -30.0 && speed > 2.0 && fwdZ < 0) {
+            if (pos.z <= -28.5) {
+              vy = speed * 1.1 + 3.0;
+              speed *= 0.3;
+              isAirborne = true;
+              airTime = 0.0;
+              lastGroundedY = pos.y;
+              jumpStartPos.copy(pos);
+            }
+          }
+
+          // Kicker launch
+          if (pos.x >= KX - KW/2 && pos.x <= KX + KW/2 && pos.z <= KZ - KD/2 + 0.3 && speed > 2.5 && fwdZ < 0) {
+            vy = speed * 0.75 + 4.5;
+            isAirborne = true;
+            airTime = 0.0;
+            lastGroundedY = pos.y;
+            jumpStartPos.copy(pos);
+          }
+
+          // Road Gap South Bank launch
+          if (Math.abs(pos.x) <= BANK_W / 2 && pos.z <= ROAD_GAP_SOUTH_Z + 0.3 && speed > 4.5 && fwdZ < 0) {
+            vy = speed * 0.65 + 4.0;
+            isAirborne = true;
+            airTime = 0.0;
+            lastGroundedY = pos.y;
+            jumpStartPos.copy(pos);
+          }
+        }
+
+        pos.x += fwdX * speed * dt;
+        pos.z += fwdZ * speed * dt;
+        pos.y = getGroundHeightAt(pos.x, pos.z);
+
+        const carveLean = (keys['KeyA'] ? 0.25 : 0) - (keys['KeyD'] ? 0.25 : 0);
+        skaterRoot.rotation.z = THREE.MathUtils.lerp(skaterRoot.rotation.z, carveLean, 0.1);
+
+        wheelRollAngle += speed * dt * 8.0;
+        wheels.forEach(w => w.rotation.x = wheelRollAngle);
+
+        // Check entry into Wallride
+        checkWallrideAttachment();
+      }
+
+      if (isAirborne) {
+        airTime += dt;
+        vy -= GRAVITY * dt;
+        pos.y += vy * dt;
+
+        const fwdX = -Math.sin(yaw);
+        const fwdZ = -Math.cos(yaw);
+        pos.x += fwdX * speed * dt;
+        pos.z += fwdZ * speed * dt;
+
+        if (keys['KeyA']) {
+          const rStep = 3.8 * dt;
+          yaw += rStep;
+          airborneRotation += rStep;
+        }
+        if (keys['KeyD']) {
+          const rStep = 3.8 * dt;
+          yaw -= rStep;
+          airborneRotation -= rStep;
+        }
+
+        if (currentFlipType) {
+          flipProgress += dt / 0.4;
+          if (currentFlipType === 'kickflip') boardGroup.rotation.z = flipProgress * Math.PI * 2;
+          else if (currentFlipType === 'heelflip') boardGroup.rotation.z = -flipProgress * Math.PI * 2;
+          else if (currentFlipType === 'shoveit') boardGroup.rotation.y = flipProgress * Math.PI;
+          if (flipProgress >= 1.0) boardGroup.rotation.set(0, 0, 0);
+        }
+
+        checkGrindAttachment();
+        checkWallrideAttachment();
+
+        const currentGroundY = getGroundHeightAt(pos.x, pos.z);
+        if (pos.y <= currentGroundY && vy < 0) {
+          handleLanding(currentGroundY, getSurfaceNormalAt(pos.x, pos.z));
+        }
+      }
+
+      if (isGrinding) updateGrind(dt);
+      if (isWallriding) updateWallride(dt);
+
+      // Solid Collision between Player & Rival
+      const dX = pos.x - rival.pos.x;
+      const dZ = pos.z - rival.pos.z;
+      const dY = Math.abs(pos.y - rival.pos.y);
+      const distBetween = Math.hypot(dX, dZ);
+      if (distBetween < 0.85 && dY < 1.4 && (Math.abs(speed) > 2.0 || Math.abs(rival.speed) > 2.0)) {
+        triggerBail('Collision with Rival Skater');
+        rival.phase = 'bail';
+        rival.bailTimer = BAIL_DURATION;
+      }
+
+      // Obstacle wall impacts
+      obstacles.forEach(obs => {
+        if (obs.type === 'wall' && obs.box && obs.box.containsPoint(pos)) {
+          if (Math.abs(speed) > 6.0) triggerBail('High-speed wall impact');
+          else speed = -speed * 0.3;
+        }
+      });
+
+      skaterRoot.position.copy(pos);
+      skaterRoot.rotation.y = yaw;
+
+      updateRivalPhysics(dt);
+      updateSparks(dt);
+      updateHUD();
+    }
+
+    function updateHUD() {
+      document.getElementById('hud-score').innerText = Math.round(score);
+      document.getElementById('hud-rival-score').innerText = Math.round(rival.score);
+      document.getElementById('hud-time').innerText = Math.ceil(sessionTimer);
+      document.getElementById('hud-speed').innerText = Math.abs(speed).toFixed(1);
+
+      const stanceBadge = document.getElementById('stance-tag');
+      if (switchStance) stanceBadge.classList.add('active');
+      else stanceBadge.classList.remove('active');
+    }
+
+    /* ==========================================================================
+       CAMERA & REPLAY PAN
+       ========================================================================== */
+    const camTarget = new THREE.Vector3();
+    const camPos = new THREE.Vector3();
+    let replayAngle = 0.0;
+
+    function updateCamera() {
+      // Replay slow cinematic pan on PERFECT CLEAR
+      if (phase === 'gameover' && perfectClearAchieved) {
+        replayAngle += 0.005;
+        camera.position.set(Math.sin(replayAngle) * 35, 14, Math.cos(replayAngle) * 35);
+        camera.lookAt(0, 2, -10);
+        return;
+      }
+
+      const speedOffset = Math.min(Math.abs(speed) * 0.12, 1.8);
+      const baseDist = 5.5 + speedOffset;
+      const baseHeight = 2.4 + (pos.y > 1.0 ? pos.y * 0.4 : 0);
+
+      const idealX = pos.x + Math.sin(yaw) * baseDist;
+      const idealZ = pos.z + Math.cos(yaw) * baseDist;
+      const idealY = Math.max(1.2, pos.y + baseHeight);
+
+      camPos.lerp(new THREE.Vector3(idealX, idealY, idealZ), 0.08);
+      camera.position.copy(camPos);
+
+      const lookAhead = 1.8;
+      camTarget.lerp(new THREE.Vector3(
+        pos.x - Math.sin(yaw) * lookAhead,
+        pos.y + 1.2,
+        pos.z - Math.cos(yaw) * lookAhead
+      ), 0.1);
+      camera.lookAt(camTarget);
+    }
+
+    /* ==========================================================================
+       SYNCHRONOUS VERIFICATION MIRROR
+       window.__arena_state
+       ========================================================================== */
+    function updateVerificationMirror() {
+      const completedCount = goals.filter(g => g.completed).length;
+      let pHeld = 0;
+      let rHeld = 0;
+      ['quarter_pipe', 'fun_box', 'rail_ledge'].forEach(k => {
+        if (territory[k].playerHeat > territory[k].rivalHeat) pHeld++;
+        else if (territory[k].rivalHeat > territory[k].playerHeat) rHeld++;
+      });
+
+      window.__arena_state = {
+        phase: phase,
+        speed: speed,
+        airborne: isAirborne,
+        board_rotation: {
+          x: boardGroup.rotation.x,
+          y: boardGroup.rotation.y,
+          z: boardGroup.rotation.z
+        },
+        session_time: sessionTimer,
+        score: Math.round(score),
+        current_trick: currentFlipType || (isGrinding ? grindType : (isManual ? 'Manual' : (isWallriding ? 'Wallride' : (isAirborne ? 'Ollie' : 'None')))),
+        is_grinding: isGrinding,
+        is_manual: isManual,
+        is_wallriding: isWallriding,
+        balance_needle: balanceNeedle,
+        switch_stance: switchStance,
+        combo_count: comboChain.length,
+        combo_score: Math.round(comboBaseSum * comboMultiplier),
+        goals_completed: completedCount,
+        cleared: sessionCleared,
+        perfect_clear: perfectClearAchieved,
+        finale_active: finaleActive,
+        finale_stages: finaleStages,
+        goals: goals.map(g => ({ name: g.text, completed: g.completed })),
+        position: { x: pos.x, y: pos.y, z: pos.z },
+        rival: {
+          position: { x: rival.pos.x, y: rival.pos.y, z: rival.pos.z },
+          speed: rival.speed,
+          airborne: rival.isAirborne,
+          score: Math.round(rival.score),
+          current_trick: rival.currentTrick,
+          is_grinding: rival.isGrinding,
+          is_manual: rival.isManual,
+          combo_score: Math.round(rival.comboBaseSum * rival.comboMultiplier),
+          best_combo: Math.round(rival.bestScore)
+        },
+        challenge: {
+          active: challengeActive,
+          target_score: challengeTargetScore,
+          chain: challengeChain,
+          time_remaining: Math.max(0, challengeTimer)
+        },
+        skate_letters: skateLetters.join(''),
+        letters_taken: skateLetters.length,
+        territory: {
+          quarter_pipe: { player_heat: territory.quarter_pipe.playerHeat, rival_heat: territory.quarter_pipe.rivalHeat, owner: territory.quarter_pipe.lastOwner },
+          fun_box: { player_heat: territory.fun_box.playerHeat, rival_heat: territory.fun_box.rivalHeat, owner: territory.fun_box.lastOwner },
+          rail_ledge: { player_heat: territory.rail_ledge.playerHeat, rival_heat: territory.rail_ledge.rivalHeat, owner: territory.rail_ledge.lastOwner }
+        },
+        features_held: { player: pHeld, rival: rHeld },
+        gaps_cleared: { stairs: stairGapCleared, road: roadGapCleared },
+        floodlights_on: sessionTimer <= 90.0
+      };
+    }
+
+    /* ==========================================================================
+       ANIMATION LOOP
+       ========================================================================== */
+    skaterRoot.position.copy(pos);
+    skaterRoot.rotation.y = yaw;
+    camPos.set(pos.x, pos.y + 3, pos.z + 8);
+    camera.position.copy(camPos);
+    updateVerificationMirror();
+
+    let lastTime = performance.now();
+    function animate(now) {
+      requestAnimationFrame(animate);
+      lastTime = now;
+
+      updatePhysics(DT);
+      updateCamera();
+      updateVerificationMirror();
+
+      renderer.render(scene, camera);
+    }
+    requestAnimationFrame(animate);
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>

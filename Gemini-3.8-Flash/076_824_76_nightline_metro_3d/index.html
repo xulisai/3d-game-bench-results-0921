@@ -1,0 +1,3318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nightline Metro</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #05070c;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #e2e8f0;
+    }
+    #canvas-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+    #hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 24px 32px;
+      font-family: "Courier New", Courier, monospace;
+    }
+    .hud-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      text-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+    }
+    .hud-card {
+      background: rgba(10, 16, 26, 0.78);
+      border: 1px solid rgba(0, 229, 255, 0.25);
+      border-radius: 6px;
+      padding: 12px 18px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+    }
+    .hud-route {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #00f0ff;
+      margin-bottom: 4px;
+    }
+    .hud-sub {
+      font-size: 12px;
+      letter-spacing: 1px;
+      color: #94a3b8;
+    }
+    .hud-metrics {
+      display: flex;
+      gap: 16px;
+    }
+    .metric-box {
+      text-align: center;
+      min-width: 90px;
+    }
+    .metric-value {
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      color: #f8fafc;
+    }
+    .metric-label {
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    .overspeed-flash {
+      color: #ff3344 !important;
+      text-shadow: 0 0 14px #ff0022 !important;
+      animation: alert-pulse 0.4s infinite alternate;
+    }
+    @keyframes alert-pulse {
+      0% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0.75; transform: scale(1.05); }
+    }
+    .hud-center-warning {
+      position: absolute;
+      top: 15%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 20, 40, 0.9);
+      color: #fff;
+      padding: 8px 20px;
+      border-radius: 4px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      font-size: 14px;
+      box-shadow: 0 0 25px rgba(255, 0, 0, 0.8);
+      display: none;
+    }
+    .hud-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .controls-reminder {
+      font-size: 12px;
+      color: #94a3b8;
+      background: rgba(10, 16, 26, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 10px 14px;
+      border-radius: 6px;
+      line-height: 1.6;
+    }
+    .controls-reminder span.key {
+      display: inline-block;
+      padding: 1px 6px;
+      background: #1e293b;
+      border: 1px solid #475569;
+      border-radius: 4px;
+      color: #38bdf8;
+      font-weight: bold;
+    }
+    .notch-readout {
+      display: flex;
+      gap: 16px;
+      background: rgba(10, 16, 26, 0.85);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      padding: 12px 20px;
+      border-radius: 6px;
+    }
+    .notch-col {
+      text-align: center;
+      min-width: 80px;
+    }
+    .notch-title {
+      font-size: 10px;
+      letter-spacing: 1px;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+    .notch-state {
+      font-size: 22px;
+      font-weight: 800;
+      color: #38bdf8;
+    }
+    .notch-state.brake {
+      color: #f97316;
+    }
+
+    /* Modal Screens: Ready & Report */
+    .overlay-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(4, 7, 13, 0.88);
+      backdrop-filter: blur(12px);
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: auto;
+    }
+    .panel-card {
+      width: 580px;
+      max-width: 90%;
+      background: #090f1d;
+      border: 1px solid #00e5ff44;
+      box-shadow: 0 0 50px rgba(0, 229, 255, 0.15), inset 0 0 20px rgba(0, 229, 255, 0.05);
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+    }
+    .title-main {
+      font-size: 36px;
+      font-weight: 900;
+      letter-spacing: 4px;
+      color: #00f0ff;
+      text-transform: uppercase;
+      text-shadow: 0 0 15px rgba(0, 240, 255, 0.6);
+      margin-bottom: 6px;
+    }
+    .title-sub {
+      font-size: 13px;
+      letter-spacing: 3px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      margin-bottom: 32px;
+    }
+    .key-binding-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 32px;
+      text-align: left;
+      background: #050a14;
+      padding: 18px 20px;
+      border-radius: 8px;
+      border: 1px solid #1e293b;
+    }
+    .key-binding-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: #cbd5e1;
+    }
+    .kbd-btn {
+      display: inline-block;
+      padding: 4px 10px;
+      background: #0f172a;
+      border: 1px solid #38bdf8;
+      border-radius: 4px;
+      font-family: monospace;
+      font-weight: bold;
+      color: #38bdf8;
+      font-size: 13px;
+      box-shadow: 0 0 6px rgba(56, 189, 248, 0.3);
+    }
+    .prompt-action {
+      margin-top: 16px;
+      font-size: 18px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      color: #f1f5f9;
+      animation: prompt-blink 1.2s infinite;
+    }
+    @keyframes prompt-blink {
+      0%, 100% { opacity: 1; transform: translateY(0); }
+      50% { opacity: 0.35; transform: translateY(2px); }
+    }
+    .start-btn {
+      margin-top: 24px;
+      background: linear-gradient(135deg, #00f0ff, #0284c7);
+      border: none;
+      color: #020617;
+      padding: 12px 36px;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      border-radius: 6px;
+      cursor: pointer;
+      text-transform: uppercase;
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
+      transition: all 0.2s;
+    }
+    .start-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 30px rgba(0, 240, 255, 0.7);
+    }
+
+    /* Report Card */
+    .report-stat-list {
+      margin: 24px 0;
+      background: #050a14;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .report-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 20px;
+      border-bottom: 1px solid #0f172a;
+      font-size: 14px;
+    }
+    .report-row:last-child {
+      border-bottom: none;
+    }
+    .report-label {
+      color: #94a3b8;
+    }
+    .report-val {
+      font-weight: 800;
+      font-family: monospace;
+      color: #f8fafc;
+    }
+    .verdict-badge {
+      display: inline-block;
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      padding: 12px 28px;
+      border-radius: 6px;
+      margin: 16px 0;
+      text-transform: uppercase;
+    }
+    .verdict-on-target {
+      background: rgba(34, 197, 94, 0.2);
+      border: 2px solid #22c55e;
+      color: #4ade80;
+      box-shadow: 0 0 25px rgba(34, 197, 94, 0.4);
+    }
+    .verdict-late {
+      background: rgba(234, 179, 8, 0.2);
+      border: 2px solid #eab308;
+      color: #fde047;
+      box-shadow: 0 0 25px rgba(234, 179, 8, 0.4);
+    }
+    .verdict-missed {
+      background: rgba(239, 68, 68, 0.2);
+      border: 2px solid #ef4444;
+      color: #f87171;
+      box-shadow: 0 0 25px rgba(239, 68, 68, 0.4);
+    }
+    .verdict-buffer {
+      background: rgba(185, 28, 28, 0.35);
+      border: 2px solid #b91c1c;
+      color: #fca5a5;
+      box-shadow: 0 0 35px rgba(185, 28, 28, 0.8);
+    }
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- In-game HUD -->
+  <div id="hud">
+  <div class="hud-top">
+    <div class="hud-card">
+      <div class="hud-route">DEPOT &rarr; PARKSIDE</div>
+      <div class="hud-sub">SERVICE: NIGHT METRO LINE 1 &nbsp;|&nbsp; SCHED: 70s</div>
+      <div id="hud-timetable" style="font-size: 11px; color: #38bdf8; margin-top: 4px; letter-spacing: 0.5px;">
+        DEPOT 23:00:00 &rarr; PARKSIDE 23:01:10
+      </div>
+      <div id="hud-passenger-note" style="font-size: 11px; color: #facc15; font-weight: bold; margin-top: 4px; letter-spacing: 0.5px;">
+        DEPOT: ready for departure
+      </div>
+      <div id="hud-route-order" style="font-size: 11px; color: #fb923c; font-weight: bold; margin-top: 3px; letter-spacing: 0.5px;">
+        ORDER: RIVERSIDE PLATFORM 2
+      </div>
+    </div>
+    <div class="hud-metrics">
+      <div class="hud-card metric-box">
+        <div id="hud-clock" class="metric-value" style="color: #38bdf8; font-size: 22px;">23:00:00</div>
+        <div class="metric-label">SERVICE CLOCK</div>
+      </div>
+      <div class="hud-card metric-box">
+        <div id="hud-sched-dev" class="metric-value" style="color: #a78bfa; font-size: 22px;">--</div>
+        <div class="metric-label">SCHED DEV (S)</div>
+      </div>
+      <div class="hud-card metric-box" id="hud-switch-box" style="min-width: 90px;">
+        <div id="hud-switch-state" class="metric-value" style="color: #38bdf8; font-size: 20px;">MAIN</div>
+        <div class="metric-label">SWITCH (F)</div>
+      </div>
+      <div class="hud-card metric-box">
+        <div id="hud-satisfaction" class="metric-value" style="color: #4ade80; font-size: 20px;">100%</div>
+        <div class="metric-label">SATISFACTION</div>
+      </div>
+      <div id="hud-dwell-box" class="hud-card metric-box" style="display: none; border-color: #f59e0b;">
+        <div id="hud-dwell-val" class="metric-value" style="color: #f59e0b; font-size: 20px;">6.0s</div>
+        <div class="metric-label">DWELL TIME</div>
+      </div>
+      <div class="hud-card metric-box" style="min-width: 90px;">
+        <div id="hud-gradient" class="metric-value" style="color: #94a3b8; font-size: 20px;">FLAT</div>
+        <div class="metric-label">GRADIENT</div>
+      </div>
+      <div class="hud-card metric-box" style="min-width: 120px;">
+        <div id="hud-next-signal" class="metric-value" style="color: #4ade80; font-size: 20px;">GREEN</div>
+        <div class="metric-label" id="hud-signal-label">NEXT SIGNAL: S1</div>
+      </div>
+      <div class="hud-card metric-box">
+        <div id="hud-energy" class="metric-value" style="color: #38bdf8; font-size: 20px;">100.0</div>
+        <div class="metric-label">ENERGY</div>
+      </div>
+      <div class="hud-card metric-box">
+        <div id="hud-speed" class="metric-value">0</div>
+        <div class="metric-label">SPEED (KM/H)</div>
+      </div>
+      <div class="hud-card metric-box">
+        <div id="hud-limit" class="metric-value" style="color: #38bdf8;">54</div>
+        <div class="metric-label">LIMIT (KM/H)</div>
+      </div>
+      <div class="hud-card metric-box">
+        <div id="hud-odo" class="metric-value">0.0</div>
+        <div class="metric-label">ODOMETER (M)</div>
+      </div>
+      <div class="hud-card metric-box">
+        <div id="hud-dist" class="metric-value">800.0</div>
+        <div class="metric-label">DIST TO STOP (M)</div>
+      </div>
+      </div>
+      </div>
+
+      <div id="overspeed-warning" class="hud-center-warning">
+      OVERSPEED VIOLATION WARNING
+      </div>
+
+      <div id="emergency-warning" class="hud-center-warning" style="background: rgba(220, 38, 38, 0.95); box-shadow: 0 0 35px #ff0033;">
+      EMERGENCY BRAKE &mdash; SPAD VIOLATION (HOLDING 5S)
+      </div>
+
+      <div id="throw-zone-banner" class="hud-center-warning" style="background: rgba(14, 165, 233, 0.95); box-shadow: 0 0 30px #0284c7;">
+      THROW ZONE (790&ndash;820M) &bull; PRESS [F] TO THROW SWITCH TO SIDE
+      </div>
+
+      <div class="hud-bottom">
+      <div class="controls-reminder">
+      <div><span class="key">W</span> Throttle &nbsp;|&nbsp; <span class="key">S</span> Brake &nbsp;|&nbsp; <span class="key">X</span> Coast &nbsp;|&nbsp; <span class="key">F</span> Switch Points (790-820m)</div>
+      <div style="margin-top: 4px;"><span class="key">Space</span> Open Doors (at platform stop) &nbsp;|&nbsp; <span class="key">R</span> Restart</div>
+      </div>
+      <div class="notch-readout">
+      <div class="notch-col">
+        <div class="notch-title">THROTTLE</div>
+        <div id="hud-throttle" class="notch-state">COAST</div>
+      </div>
+      <div class="notch-col">
+        <div class="notch-title">BRAKE</div>
+        <div id="hud-brake" class="notch-state brake">RELEASE</div>
+      </div>
+      <div class="notch-col">
+        <div class="notch-title">OVERSPEED</div>
+        <div id="hud-violations" class="notch-state" style="color: #cbd5e1;">0</div>
+      </div>
+      </div>
+      </div>
+      </div>
+
+      <!-- Ready Overlay Screen -->
+      <div id="ready-screen" class="overlay-screen">
+      <div class="panel-card">
+      <div class="title-main">Nightline Metro</div>
+      <div class="title-sub">Depot &rarr; Parkside Section (800m)</div>
+
+      <div style="background: #060e1d; border: 1px solid #1e293b; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; text-align: left; font-size: 13px; font-family: monospace;">
+      <div style="color: #38bdf8; font-weight: bold; margin-bottom: 4px;">SERVICE TIMETABLE</div>
+      <div style="display: flex; justify-content: space-between; color: #94a3b8;">
+        <span>Depart DEPOT:</span> <strong style="color: #f1f5f9;">23:00:00</strong>
+      </div>
+      <div style="display: flex; justify-content: space-between; color: #94a3b8; margin-top: 2px;">
+        <span>Arrive PARKSIDE:</span> <strong style="color: #f1f5f9;">23:01:10 (70s)</strong>
+      </div>
+      </div>
+
+      <div class="key-binding-grid">
+      <div class="key-binding-item">
+        <span class="kbd-btn">W</span>
+        <span>Throttle Notch (T1 &rarr; T4)</span>
+      </div>
+      <div class="key-binding-item">
+        <span class="kbd-btn">S</span>
+        <span>Brake Notch (B1 &rarr; B3)</span>
+      </div>
+      <div class="key-binding-item">
+        <span class="kbd-btn">X</span>
+        <span>Coast (Zero Notch)</span>
+      </div>
+      <div class="key-binding-item">
+        <span class="kbd-btn">Space</span>
+        <span>Open Doors (At Stop)</span>
+      </div>
+      </div>
+
+      <div style="font-size: 13px; color: #94a3b8; line-height: 1.5; margin-bottom: 24px;">
+      Speed caps: <strong style="color: #38bdf8;">54 km/h</strong> on straight (0-500m), <strong style="color: #38bdf8;">36 km/h</strong> on curve (500-800m).<br>
+      Stop within <strong style="color: #4ade80;">&plusmn;2m</strong> of stop marker &bull; Arrival within <strong style="color: #a78bfa;">&plusmn;3s</strong> is ON TIME.
+      </div>
+
+      <div class="prompt-action">PRESS ENTER TO START</div>
+      <button id="start-btn" class="start-btn">ENGAGE CAB CONSOLE</button>
+    </div>
+  </div>
+
+  <!-- Intermediate Station Stop Screen (Parkside & Riverside) -->
+  <div id="station-screen" class="overlay-screen hidden">
+    <div class="panel-card" style="width: 520px;">
+      <div id="station-title" class="title-main" style="font-size: 28px;">PARKSIDE ARRIVAL</div>
+      <div id="station-sub" class="title-sub">STATION STOP COMPLETE</div>
+
+      <div style="display: flex; justify-content: center; gap: 14px; margin: 16px 0;">
+        <div id="station-stop-verdict" class="verdict-badge verdict-on-target" style="margin: 0;">ON TARGET</div>
+        <div id="station-punctuality-verdict" class="verdict-badge verdict-on-target" style="margin: 0; background: rgba(168, 85, 247, 0.2); border-color: #a855f7; color: #c084fc;">ON TIME</div>
+      </div>
+
+      <div class="report-stat-list">
+        <div class="report-row">
+          <span class="report-label">Scheduled Arrival</span>
+          <span id="station-sched-arr" class="report-val" style="color: #38bdf8;">23:01:10</span>
+        </div>
+        <div class="report-row">
+          <span class="report-label">Actual Arrival Clock</span>
+          <span id="station-act-arr" class="report-val">23:01:08</span>
+        </div>
+        <div class="report-row">
+          <span class="report-label">Schedule Deviation</span>
+          <span id="station-dev" class="report-val">-2.00 s</span>
+        </div>
+        <div class="report-row">
+          <span class="report-label">Stop Error</span>
+          <span id="station-err" class="report-val">+0.40 m</span>
+        </div>
+        <div class="report-row">
+          <span class="report-label">Next Scheduled Departure</span>
+          <span id="station-next-dep" class="report-val" style="color: #4ade80;">23:01:30</span>
+        </div>
+      </div>
+
+      <div id="station-dwell-msg" style="color: #f59e0b; font-size: 14px; font-weight: bold; margin-bottom: 12px; font-family: monospace;">
+        DWELL: 6.0s (DOORS OPEN &bull; BOARDING)
+      </div>
+
+      <div id="station-prompt" class="prompt-action">BOARDING IN PROGRESS</div>
+      <button id="depart-btn" class="start-btn" style="background: linear-gradient(135deg, #10b981, #0284c7);" disabled>DOORS HOLDING TRAIN</button>
+    </div>
+  </div>
+
+  <!-- Turnback Screen (Terminus Change Ends) -->
+  <div id="turnback-screen" class="overlay-screen hidden">
+    <div class="panel-card" style="width: 560px;">
+      <div class="title-main" style="font-size: 28px;">TERMINUS TURNBACK</div>
+      <div id="turnback-sub" class="title-sub">OUTBOUND RUN COMPLETE &bull; PREPARE RETURN SERVICE</div>
+
+      <div id="turnback-countdown-msg" style="color: #f59e0b; font-size: 15px; font-weight: bold; margin: 16px 0; font-family: monospace;">
+        PASSENGERS ALIGHTING &bull; DWELL: 8.0s
+      </div>
+
+      <div style="background: #060e1d; border: 1px solid #1e293b; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; text-align: left; font-size: 12px; font-family: monospace;">
+        <div style="color: #38bdf8; font-weight: bold; margin-bottom: 4px;">RETURN TIMETABLE (DEPOT BOUND)</div>
+        <div style="display: flex; justify-content: space-between; color: #94a3b8;">
+          <span>Depart TERMINUS:</span> <strong style="color: #f1f5f9;">23:10:00</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; color: #94a3b8; margin-top: 2px;">
+          <span>Arrive RIVERSIDE:</span> <strong style="color: #f1f5f9;">23:11:20 (80s)</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; color: #94a3b8; margin-top: 2px;">
+          <span>Arrive PARKSIDE:</span> <strong style="color: #f1f5f9;">23:13:00 (80s)</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; color: #94a3b8; margin-top: 2px;">
+          <span>Arrive DEPOT:</span> <strong style="color: #f1f5f9;">23:14:30 (70s)</strong>
+        </div>
+      </div>
+
+      <div id="turnback-prompt" class="prompt-action">PASSENGERS ALIGHTING</div>
+      <button id="change-ends-btn" class="start-btn" style="background: linear-gradient(135deg, #0284c7, #38bdf8);" disabled>PRESS [E] TO CHANGE ENDS</button>
+    </div>
+  </div>
+
+  <!-- Cab Change Transition Overlay -->
+  <div id="cab-change-overlay" class="overlay-screen hidden" style="background: #020617; z-index: 100;">
+    <div style="text-align: center;">
+      <div style="font-size: 26px; font-weight: 900; letter-spacing: 4px; color: #00f0ff; text-transform: uppercase;">CHANGING DRIVING ENDS...</div>
+      <div style="font-size: 13px; letter-spacing: 2px; color: #94a3b8; margin-top: 10px;">SWITCHING TO OPPOSITE CAB FOR RETURN SERVICE</div>
+    </div>
+  </div>
+
+  <!-- Final Duty Report Overlay Screen (Depot Return) -->
+  <div id="report-screen" class="overlay-screen hidden" style="padding: 10px; background: rgba(2, 6, 23, 0.94);">
+    <div class="panel-card" style="width: 660px; max-width: 96%; max-height: 94vh; padding: 14px 20px; box-sizing: border-box; overflow: hidden;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; padding-bottom: 6px; margin-bottom: 8px;">
+        <div>
+          <div class="title-main" style="font-size: 22px; text-align: left; margin: 0; color: #f8fafc;">Nightline Metro &bull; Duty Report</div>
+          <div class="title-sub" style="text-align: left; margin: 2px 0 0 0; font-size: 11px; color: #94a3b8;">FULL DUTY: DEPOT &rarr; TERMINUS &rarr; DEPOT (6 STOPS)</div>
+        </div>
+        <div style="text-align: right;">
+          <div id="rep-duty-grade-badge" class="verdict-badge verdict-on-target" style="margin: 0; font-size: 15px; padding: 5px 14px;">GOLD CONDUCTOR</div>
+          <div id="rep-duty-score" style="font-size: 11px; color: #38bdf8; font-family: monospace; margin-top: 2px;">GRADE SCORE: 120.00</div>
+        </div>
+      </div>
+
+      <!-- Six Station Arrival Rows -->
+      <div style="margin: 6px 0; background: #050a14; border: 1px solid #1e293b; border-radius: 6px; overflow: hidden; font-family: monospace; font-size: 11px;">
+        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1.2fr 1fr; background: #0c1526; padding: 5px 8px; font-weight: bold; color: #94a3b8; border-bottom: 1px solid #1e293b;">
+          <span>STATION ARRIVAL</span>
+          <span>SCHED</span>
+          <span>ACTUAL</span>
+          <span>DEVIATION</span>
+          <span>VERDICT</span>
+        </div>
+        <div id="rep-row-parkside" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1.2fr 1fr; padding: 4px 8px; border-bottom: 1px solid #0f172a; color: #f8fafc;">
+          <span style="color: #38bdf8; font-weight: bold;">OUT &bull; PARKSIDE</span><span>23:01:10</span><span id="rep-parkside-act">--</span><span id="rep-parkside-dev">--</span><span id="rep-parkside-stop">--</span>
+        </div>
+        <div id="rep-row-riverside" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1.2fr 1fr; padding: 4px 8px; border-bottom: 1px solid #0f172a; color: #f8fafc;">
+          <span style="color: #38bdf8; font-weight: bold;">OUT &bull; RIVERSIDE</span><span>23:02:50</span><span id="rep-riverside-act">--</span><span id="rep-riverside-dev">--</span><span id="rep-riverside-stop">--</span>
+        </div>
+        <div id="rep-row-terminus" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1.2fr 1fr; padding: 4px 8px; border-bottom: 1px solid #0f172a; color: #f8fafc;">
+          <span style="color: #38bdf8; font-weight: bold;">OUT &bull; TERMINUS</span><span>23:04:25</span><span id="rep-terminus-act">--</span><span id="rep-terminus-dev">--</span><span id="rep-terminus-stop">--</span>
+        </div>
+        <div id="rep-row-ret-riverside" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1.2fr 1fr; padding: 4px 8px; border-bottom: 1px solid #0f172a; color: #f8fafc;">
+          <span style="color: #a78bfa; font-weight: bold;">RET &bull; RIVERSIDE</span><span>23:11:20</span><span id="rep-ret-riverside-act">--</span><span id="rep-ret-riverside-dev">--</span><span id="rep-ret-riverside-stop">--</span>
+        </div>
+        <div id="rep-row-ret-parkside" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1.2fr 1fr; padding: 4px 8px; border-bottom: 1px solid #0f172a; color: #f8fafc;">
+          <span style="color: #a78bfa; font-weight: bold;">RET &bull; PARKSIDE</span><span>23:13:00</span><span id="rep-ret-parkside-act">--</span><span id="rep-ret-parkside-dev">--</span><span id="rep-ret-parkside-stop">--</span>
+        </div>
+        <div id="rep-row-ret-depot" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1.2fr 1fr; padding: 4px 8px; color: #f8fafc;">
+          <span style="color: #a78bfa; font-weight: bold;">RET &bull; DEPOT</span><span>23:14:30</span><span id="rep-ret-depot-act">--</span><span id="rep-ret-depot-dev">--</span><span id="rep-ret-depot-stop">--</span>
+        </div>
+      </div>
+
+      <!-- Specific Duty Report Labeled Rows -->
+      <div class="report-stat-list" style="margin: 6px 0; font-size: 11px;">
+        <div class="report-row" style="padding: 2px 0;">
+          <span class="report-label">ON TIME COUNT</span>
+          <span id="rep-ontime-count" class="report-val" style="color: #4ade80;">6 / 6</span>
+        </div>
+        <div class="report-row" style="padding: 2px 0;">
+          <span class="report-label">STOP ACCURACY</span>
+          <span id="rep-stop-accuracy" class="report-val" style="color: #38bdf8;">0.00 m</span>
+        </div>
+        <div class="report-row" style="padding: 2px 0;">
+          <span class="report-label">SATISFACTION</span>
+          <span id="rep-satisfaction" class="report-val" style="color: #4ade80;">100%</span>
+        </div>
+        <div class="report-row" style="padding: 2px 0;">
+          <span class="report-label">ENERGY REMAINING</span>
+          <span id="rep-energy" class="report-val" style="color: #38bdf8;">100.0 / 100</span>
+        </div>
+        <div class="report-row" style="padding: 2px 0;">
+          <span class="report-label">VIOLATIONS</span>
+          <span id="rep-violations-row" class="report-val" style="color: #cbd5e1;">Overspeeds: 0 &bull; SPADs: 0 &bull; TSR: 0 &bull; Wrong Route: 0 &bull; Buffer Hits: 0</span>
+        </div>
+        <div class="report-row" style="padding: 2px 0; border-top: 1px dashed #334155; margin-top: 3px;">
+          <span class="report-label" style="font-weight: bold; color: #f8fafc;">DUTY GRADE</span>
+          <span id="rep-duty-grade" class="report-val" style="font-weight: bold; color: #fbbf24;">GOLD CONDUCTOR (Score: 120.00)</span>
+        </div>
+      </div>
+
+      <div class="prompt-action" style="margin-top: 6px;">PRESS R TO RESTART FULL DUTY</div>
+      <button id="restart-btn" class="start-btn" style="padding: 8px; margin-top: 4px; background: linear-gradient(135deg, #38bdf8, #2563eb);">RESTART FULL DUTY</button>
+    </div>
+  </div>
+
+  <!-- Classic Local Three.js runtime -->
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+
+  <script>
+    /* =========================================================================
+       DETERMINISTIC PSEUDO-RANDOM NUMBER GENERATOR (NO Math.random)
+       ========================================================================= */
+    let _seed = 133742;
+    function deterministicRandom() {
+      _seed = (_seed * 1664525 + 1013904223) >>> 0;
+      return _seed / 4294967296;
+    }
+    function resetDeterministicRNG(seed = 133742) {
+      _seed = seed >>> 0;
+    }
+
+    /* =========================================================================
+       GAME STATE, TIMETABLE & SECTIONS SPECIFICATION
+       ========================================================================= */
+    const SECTIONS = [
+      {
+        id: 0,
+        name: 'DEPOT → PARKSIDE',
+        stationFrom: 'DEPOT',
+        stationTo: 'PARKSIDE',
+        length: 800.0,
+        targetStop: 800.0,
+        bufferDist: 818.0,
+        platformStart: 720.0,
+        platformEnd: 816.0,
+        scheduledDepart: 0.0, // 23:00:00
+        scheduledArrive: 70.0, // 23:01:10
+        scheduledDwellDepart: 90.0, // 23:01:30
+        signals: [
+          { name: 'S1', dist: 300.0 },
+          { name: 'S2', dist: 620.0 }
+        ],
+        // Round 6 tighter limits: 90% rounded -> 54 straight / 36 curve
+        getLimit: (dist) => (dist < 500.0 ? 54 : 36),
+        getGradient: (dist) => ({ name: 'FLAT', value: 0.0, accelMod: 0.0 })
+      },
+      {
+        id: 1,
+        name: 'PARKSIDE → RIVERSIDE',
+        stationFrom: 'PARKSIDE',
+        stationTo: 'RIVERSIDE',
+        length: 900.0,
+        targetStop: 900.0,
+        bufferDist: 918.0,
+        platformStart: 820.0,
+        platformEnd: 916.0,
+        scheduledDepart: 90.0, // 23:01:30
+        scheduledArrive: 170.0, // 23:02:50
+        scheduledDwellDepart: 190.0, // 23:03:10
+        signals: [
+          { name: 'S3', dist: 300.0 },
+          { name: 'S4', dist: 700.0 }
+        ],
+        // Round 6 tighter limits: 90% rounded -> 54 straight / 27 bridge slow zone (550m-900m)
+        getLimit: (dist) => (dist < 550.0 ? 54 : 27),
+        // +2% climb from 300m to 700m (-0.2 m/s² accel)
+        getGradient: (dist) => {
+          if (dist >= 300.0 && dist <= 700.0) {
+            return { name: '+2%', value: 0.02, accelMod: -0.2 };
+          }
+          return { name: 'FLAT', value: 0.0, accelMod: 0.0 };
+        }
+      },
+      {
+        id: 2,
+        name: 'RIVERSIDE → TERMINUS',
+        stationFrom: 'RIVERSIDE',
+        stationTo: 'TERMINUS',
+        length: 850.0,
+        targetStop: 850.0,
+        bufferDist: 868.0,
+        platformStart: 770.0,
+        platformEnd: 866.0,
+        scheduledDepart: 190.0, // 23:03:10
+        scheduledArrive: 265.0, // 23:04:25
+        signals: [
+          { name: 'S5', dist: 250.0 },
+          { name: 'S6', dist: 650.0 }
+        ],
+        // Round 8 TSR: 200m to 500m drops limit to 30 km/h; outside: 63 straight / 45 curve
+        getLimit: (dist) => {
+          if (dist >= 200.0 && dist <= 500.0) {
+            return 30;
+          } else if (dist < 550.0) {
+            return 63;
+          } else {
+            return 45;
+          }
+        },
+        // −2% drop from 200m to 500m (+0.2 m/s² accel)
+        getGradient: (dist) => {
+          if (dist >= 200.0 && dist <= 500.0) {
+            return { name: '-2%', value: -0.02, accelMod: 0.2 };
+          }
+          return { name: 'FLAT', value: 0.0, accelMod: 0.0 };
+        }
+      }
+    ];
+
+    // Round 9: Return Route (TERMINUS → RIVERSIDE → PARKSIDE → DEPOT)
+    const SECTIONS_RETURN = [
+      {
+        id: 0,
+        name: 'TERMINUS → RIVERSIDE',
+        stationFrom: 'TERMINUS',
+        stationTo: 'RIVERSIDE',
+        length: 850.0,
+        targetStop: 850.0,
+        bufferDist: 868.0,
+        platformStart: 770.0,
+        platformEnd: 866.0,
+        scheduledDepart: 600.0, // 23:10:00
+        scheduledArrive: 680.0, // 23:11:20 (80s)
+        scheduledDwellDepart: 700.0, // 23:11:40
+        signals: [
+          { name: 'S5', dist: 250.0 },
+          { name: 'S6', dist: 650.0 }
+        ],
+        // Curve first out of Terminus at 45 km/h for 300m, then 63 km/h straight
+        getLimit: (dist) => (dist < 300.0 ? 45 : 63),
+        // Drop toward Terminus is a climb toward Riverside: +2% climb from 350m to 650m
+        getGradient: (dist) => {
+          if (dist >= 350.0 && dist <= 650.0) {
+            return { name: '+2%', value: 0.02, accelMod: -0.2 };
+          }
+          return { name: 'FLAT', value: 0.0, accelMod: 0.0 };
+        }
+      },
+      {
+        id: 1,
+        name: 'RIVERSIDE → PARKSIDE',
+        stationFrom: 'RIVERSIDE',
+        stationTo: 'PARKSIDE',
+        length: 900.0,
+        targetStop: 900.0,
+        bufferDist: 918.0,
+        platformStart: 820.0,
+        platformEnd: 916.0,
+        scheduledDepart: 700.0, // 23:11:40
+        scheduledArrive: 780.0, // 23:13:00 (80s)
+        scheduledDwellDepart: 800.0, // 23:13:20
+        signals: [
+          { name: 'S3', dist: 300.0 },
+          { name: 'S4', dist: 700.0 }
+        ],
+        // Bridge slow zone first (0 to 350m is 27 km/h, then 54 km/h straight)
+        getLimit: (dist) => (dist < 350.0 ? 27 : 54),
+        // Climb toward Riverside is now downhill toward Parkside: -2% drop from 200m to 600m
+        getGradient: (dist) => {
+          if (dist >= 200.0 && dist <= 600.0) {
+            return { name: '-2%', value: -0.02, accelMod: 0.2 };
+          }
+          return { name: 'FLAT', value: 0.0, accelMod: 0.0 };
+        }
+      },
+      {
+        id: 2,
+        name: 'PARKSIDE → DEPOT',
+        stationFrom: 'PARKSIDE',
+        stationTo: 'DEPOT',
+        length: 800.0,
+        targetStop: 800.0,
+        bufferDist: 818.0,
+        platformStart: 720.0,
+        platformEnd: 816.0,
+        scheduledDepart: 800.0, // 23:13:20
+        scheduledArrive: 870.0, // 23:14:30 (70s)
+        signals: [
+          { name: 'S1', dist: 300.0 },
+          { name: 'S2', dist: 620.0 }
+        ],
+        // Curve out of Parkside first (0 to 300m is 36 km/h, then 54 km/h straight)
+        getLimit: (dist) => (dist < 300.0 ? 36 : 54),
+        getGradient: (dist) => ({ name: 'FLAT', value: 0.0, accelMod: 0.0 })
+      }
+    ];
+
+    function getCurrentSection() {
+      if (GameState.direction === 'RETURN') {
+        return SECTIONS_RETURN[GameState.sectionIndex] || SECTIONS_RETURN[0];
+      }
+      return SECTIONS[GameState.sectionIndex] || SECTIONS[0];
+    }
+
+    const TRACK_TOTAL_LENGTH = 800.0;
+    const STRAIGHT_LENGTH = 500.0;
+    const CURVE_LENGTH = 300.0;
+    const CURVE_RADIUS = 380.0;
+
+    const SERVICE_START_SECONDS = 23 * 3600; // 23:00:00 = 82800s
+
+    function getServiceClockString(elapsedSeconds) {
+      const totalSecs = Math.max(0, Math.floor(SERVICE_START_SECONDS + elapsedSeconds));
+      const h = Math.floor(totalSecs / 3600) % 24;
+      const m = Math.floor((totalSecs % 3600) / 60);
+      const s = totalSecs % 60;
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function getPunctualityVerdict(dev) {
+      if (Math.abs(dev) <= 3.0) {
+        return 'ON TIME';
+      } else if (dev < -3.0) {
+        // Early arrival (both -3 to -15 and worse than -15 count as EARLY)
+        return 'EARLY';
+      } else if (dev <= 15.0) {
+        // 3–15 seconds late
+        return 'LATE';
+      } else {
+        // Worse than 15 seconds late
+        return 'OFF SCHEDULE';
+      }
+    }
+
+    // Signal aspect table tied to service clock
+    // S1 at 300m: always GREEN
+    // S2 at 620m: 0-29s RED, 30-54s YELLOW, 55s+ GREEN
+    // S3, S4, S5, S6: always GREEN
+    // All return signals show GREEN
+    function getSignalAspects(elapsedSecs) {
+      if (GameState.direction === 'RETURN') {
+        return {
+          s1: 'GREEN',
+          s2: 'GREEN',
+          s3: 'GREEN',
+          s4: 'GREEN',
+          s5: 'GREEN',
+          s6: 'GREEN'
+        };
+      }
+      const t = Math.max(0, elapsedSecs);
+      const s1 = 'GREEN';
+      let s2 = 'RED';
+      if (t >= 55.0) {
+        s2 = 'GREEN';
+      } else if (t >= 30.0) {
+        s2 = 'YELLOW';
+      } else {
+        s2 = 'RED';
+      }
+      return {
+        s1,
+        s2,
+        s3: 'GREEN',
+        s4: 'GREEN',
+        s5: 'GREEN',
+        s6: 'GREEN'
+      };
+    }
+
+    function getNextSignalInfo() {
+      const aspects = getSignalAspects(GameState.runTime);
+      const curSec = getCurrentSection();
+      const sigs = curSec.signals;
+      if (GameState.odometer < sigs[0].dist) {
+        const name = sigs[0].name;
+        const aspectKey = name.toLowerCase();
+        return { name: name, distance: sigs[0].dist - GameState.odometer, aspect: aspects[aspectKey] || 'GREEN' };
+      } else if (GameState.odometer < sigs[1].dist) {
+        const name = sigs[1].name;
+        const aspectKey = name.toLowerCase();
+        return { name: name, distance: sigs[1].dist - GameState.odometer, aspect: aspects[aspectKey] || 'GREEN' };
+      } else {
+        return { name: 'CLEAR', distance: 0, aspect: 'CLEAR' };
+      }
+    }
+
+    const GameState = {
+      phase: 'READY', // 'READY', 'DRIVING', 'STOPPED', 'STATION_STOP', 'TURNBACK', 'REPORT', 'BUFFER_HIT'
+      direction: 'OUTBOUND', // 'OUTBOUND' or 'RETURN'
+      turnbackPhase: 'NONE', // 'NONE', 'ALIGHTING', 'WAITING_CHANGE_ENDS', 'CHANGING_ENDS'
+      cabChangeTimer: 0.0,
+      sectionIndex: 0,
+      speed: 0.0, // m/s
+      odometer: 0.0, // meters in current section
+      throttleNotch: 0, // 0..4 (T0, T1, T2, T3, T4)
+      brakeNotch: 0, // 0..3 (B0, B1, B2, B3)
+      currentLimit: 54, // km/h (90% tighter limit)
+      currentGradient: 'FLAT',
+      gradientValue: 0.0,
+      overspeedCount: 0,
+      overspeedTimer: 0.0,
+      isOverspeeding: false,
+      stopError: 0.0,
+      runTime: 0.0,
+      scheduleDeviation: 0.0,
+      punctualityVerdict: 'ON TIME',
+      targetStopDistance: 800.0,
+      bufferDistance: 818.0,
+      verdict: '',
+      // Signal system
+      passedSignal0: false,
+      passedSignal1: false,
+      spadCount: 0,
+      overspeedAtRestrictionCount: 0,
+      violationList: [], // array of violation strings e.g. ['SPAD', 'OVERSPEED AT RESTRICTION']
+      emergencyBrakeActive: false,
+      emergencyBrakeStandstillTimer: 0.0,
+      // Station arrivals record
+      stationArrivals: [],
+      outboundArrivals: [],
+      returnArrivals: [],
+      perStationDeviations: [],
+      // Round 5: Passenger satisfaction, dwell countdown & ride comfort
+      satisfaction: 100.0,
+      dwellActive: false,
+      dwellCountdown: 0.0,
+      passengerNote: 'DEPOT: ready for departure',
+      longitudinalAccel: 0.0,
+      // Round 6: Energy
+      energy: 100.0,
+      // Round 7: Riverside Switch & Route Order
+      switchState: 'MAIN',
+      thrownInsideZone: false,
+      wrongRouteCount: 0,
+      // Round 8: Temporary Speed Restriction (TSR)
+      inTsrZone: false,
+      enteredTsr: false,
+      tsrViolationCount: 0,
+      // Round 11: Duty Report & Grade
+      bufferHitCount: 0,
+      onTimeCount: 0,
+      avgStopError: 0.0,
+      totalViolations: 0,
+      gradeScore: 0.0,
+      dutyGrade: ''
+    };
+
+    // Hardcoded notch accelerations (m/s²)
+    const THROTTLE_ACCELS = [0.0, 0.4, 0.7, 1.0, 1.3];
+    // Hardcoded brake decelerations (m/s²)
+    const BRAKE_DECELS = [0.0, 0.6, 1.0, 1.5];
+    // Aerodynamic and mechanical drag constants calibrated for notch equilibrium:
+    // T1 (0.4 m/s²) converges to ~38 km/h (10.55 m/s)
+    // T2 (0.7 m/s²) converges to ~58 km/h (16.11 m/s)
+    const DRAG_C1 = 0.0274;
+    const DRAG_C2 = 0.0010;
+
+    /* Read-only debugging object window.__arena_state */
+    function exportArenaState() {
+      const curSec = getCurrentSection();
+      const gradObj = curSec.getGradient(GameState.odometer);
+      GameState.currentGradient = gradObj.name;
+      GameState.gradientValue = gradObj.value;
+      GameState.currentLimit = curSec.getLimit(GameState.odometer);
+
+      const spdKmh = parseFloat((GameState.speed * 3.6).toFixed(2));
+      const spdMs = parseFloat(GameState.speed.toFixed(3));
+      const odo = parseFloat(GameState.odometer.toFixed(2));
+      const err = parseFloat((GameState.odometer - curSec.targetStop).toFixed(3));
+      const clockSecs = parseFloat(GameState.runTime.toFixed(2));
+      const clockStr = getServiceClockString(GameState.runTime);
+      const schedDev = parseFloat(GameState.scheduleDeviation.toFixed(2));
+      const aspects = getSignalAspects(GameState.runTime);
+      const nextSig = getNextSignalInfo();
+      const vList = [...GameState.violationList];
+      const sat = parseFloat(GameState.satisfaction.toFixed(1));
+      const dwellCd = parseFloat(GameState.dwellCountdown.toFixed(1));
+      const longAccel = parseFloat(GameState.longitudinalAccel.toFixed(3));
+      const eng = parseFloat(GameState.energy.toFixed(1));
+      const inTsr = (GameState.direction === 'OUTBOUND' && GameState.sectionIndex === 2 && GameState.odometer >= 200.0 && GameState.odometer <= 500.0);
+      GameState.inTsrZone = inTsr;
+
+      window.__arena_state = {
+        phase: GameState.phase,
+        speed: spdKmh,
+        speed_kmh: spdKmh,
+        speed_ms: spdMs,
+
+        // Exact keys with spaces
+        'throttle notch': GameState.throttleNotch,
+        'brake notch': GameState.brakeNotch,
+        'current limit': GameState.currentLimit,
+        'overspeed count': GameState.overspeedCount,
+        'stop error': err,
+        'service clock seconds': clockSecs,
+        'schedule deviation': schedDev,
+        'schedule deviation at stop': schedDev,
+        'service clock': clockStr,
+        'punctuality': GameState.punctualityVerdict,
+        's1 aspect': aspects.s1,
+        's2 aspect': aspects.s2,
+        's3 aspect': aspects.s3,
+        's4 aspect': aspects.s4,
+        's5 aspect': aspects.s5,
+        's6 aspect': aspects.s6,
+        'next signal aspect': nextSig.aspect,
+        'violation list': vList,
+        'spad count': GameState.spadCount,
+        'overspeed at restriction count': GameState.overspeedAtRestrictionCount,
+        'section index': GameState.sectionIndex,
+        'gradient': gradObj.name,
+        'satisfaction': sat,
+        'dwell countdown': dwellCd,
+        'longitudinal acceleration': longAccel,
+        'energy': eng,
+        'switch state': GameState.switchState,
+        'thrown inside zone': GameState.thrownInsideZone,
+        'wrong route count': GameState.wrongRouteCount,
+        'in tsr zone': inTsr,
+        'tsr violation count': GameState.tsrViolationCount,
+        'direction': GameState.direction,
+        'run direction': GameState.direction,
+        'turnback phase': GameState.turnbackPhase,
+        'per-station deviations': [...GameState.perStationDeviations],
+        'per_station_deviations': [...GameState.perStationDeviations],
+        'per station deviations': [...GameState.perStationDeviations],
+        'on time count': GameState.onTimeCount,
+        'stop accuracy': GameState.avgStopError,
+        'average stop error': GameState.avgStopError,
+        'total violations': GameState.totalViolations,
+        'grade score': GameState.gradeScore,
+        'duty grade': GameState.dutyGrade,
+        'buffer hit count': GameState.bufferHitCount,
+
+        // snake_case keys
+        throttle_notch: GameState.throttleNotch,
+        brake_notch: GameState.brakeNotch,
+        odometer: odo,
+        current_limit: GameState.currentLimit,
+        overspeed_count: GameState.overspeedCount,
+        stop_error: err,
+        service_clock_seconds: clockSecs,
+        schedule_deviation: schedDev,
+        schedule_deviation_at_stop: schedDev,
+        service_clock: clockStr,
+        punctuality: GameState.punctualityVerdict,
+        punctuality_verdict: GameState.punctualityVerdict,
+        s1_aspect: aspects.s1,
+        s2_aspect: aspects.s2,
+        s3_aspect: aspects.s3,
+        s4_aspect: aspects.s4,
+        s5_aspect: aspects.s5,
+        s6_aspect: aspects.s6,
+        next_signal_aspect: nextSig.aspect,
+        violation_list: vList,
+        spad_count: GameState.spadCount,
+        overspeed_at_restriction_count: GameState.overspeedAtRestrictionCount,
+        section_index: GameState.sectionIndex,
+        gradient: gradObj.name,
+        gradient_value: gradObj.value,
+        satisfaction: sat,
+        dwell_countdown: dwellCd,
+        longitudinal_acceleration: longAccel,
+        energy: eng,
+        switch_state: GameState.switchState,
+        thrown_inside_zone: GameState.thrownInsideZone,
+        wrong_route_count: GameState.wrongRouteCount,
+        in_tsr_zone: inTsr,
+        tsr_violation_count: GameState.tsrViolationCount,
+        direction: GameState.direction,
+        run_direction: GameState.direction,
+        turnback_phase: GameState.turnbackPhase,
+        per_station_deviations: [...GameState.perStationDeviations],
+        on_time_count: GameState.onTimeCount,
+        stop_accuracy: GameState.avgStopError,
+        average_stop_error: GameState.avgStopError,
+        total_violations: GameState.totalViolations,
+        grade_score: GameState.gradeScore,
+        duty_grade: GameState.dutyGrade,
+        buffer_hit_count: GameState.bufferHitCount,
+
+        // camelCase keys
+        throttleNotch: GameState.throttleNotch,
+        brakeNotch: GameState.brakeNotch,
+        currentLimit: GameState.currentLimit,
+        overspeedCount: GameState.overspeedCount,
+        stopError: err,
+        serviceClockSeconds: clockSecs,
+        scheduleDeviation: schedDev,
+        scheduleDeviationAtStop: schedDev,
+        serviceClock: clockStr,
+        punctualityVerdict: GameState.punctualityVerdict,
+        s1Aspect: aspects.s1,
+        s2Aspect: aspects.s2,
+        s3Aspect: aspects.s3,
+        s4Aspect: aspects.s4,
+        s5Aspect: aspects.s5,
+        s6Aspect: aspects.s6,
+        nextSignalAspect: nextSig.aspect,
+        violationList: vList,
+        spadCount: GameState.spadCount,
+        overspeedAtRestrictionCount: GameState.overspeedAtRestrictionCount,
+        sectionIndex: GameState.sectionIndex,
+        dwellCountdown: dwellCd,
+        longitudinalAcceleration: longAccel,
+        switchState: GameState.switchState,
+        thrownInsideZone: GameState.thrownInsideZone,
+        wrongRouteCount: GameState.wrongRouteCount,
+        inTsrZone: inTsr,
+        tsrViolationCount: GameState.tsrViolationCount,
+        runDirection: GameState.direction,
+        turnbackPhase: GameState.turnbackPhase,
+        perStationDeviations: [...GameState.perStationDeviations],
+        onTimeCount: GameState.onTimeCount,
+        stopAccuracy: GameState.avgStopError,
+        averageStopError: GameState.avgStopError,
+        totalViolations: GameState.totalViolations,
+        gradeScore: GameState.gradeScore,
+        dutyGrade: GameState.dutyGrade,
+        bufferHitCount: GameState.bufferHitCount
+      };
+    }
+    // Initialize immediately
+    exportArenaState();
+    class MetroAudio {
+      constructor() {
+        this.ctx = null;
+        this.motorOsc = null;
+        this.motorGain = null;
+        this.clatterGain = null;
+        this.clatterTimer = 0;
+        this.initialized = false;
+      }
+      init() {
+        if (this.initialized) return;
+        try {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContext) return;
+          this.ctx = new AudioContext();
+          
+          // Motor inverter hum
+          this.motorOsc = this.ctx.createOscillator();
+          this.motorOsc.type = 'sawtooth';
+          this.motorOsc.frequency.setValueAtTime(30, this.ctx.currentTime);
+          
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(180, this.ctx.currentTime);
+
+          this.motorGain = this.ctx.createGain();
+          this.motorGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
+
+          this.motorOsc.connect(filter);
+          filter.connect(this.motorGain);
+          this.motorGain.connect(this.ctx.destination);
+          this.motorOsc.start();
+
+          // Rail clatter / noise
+          this.clatterGain = this.ctx.createGain();
+          this.clatterGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
+          this.clatterGain.connect(this.ctx.destination);
+
+          this.initialized = true;
+        } catch (e) {
+          console.warn('Audio initialization deferred:', e);
+        }
+      }
+      update(speedMs, throttleNotch, brakeNotch) {
+        if (!this.initialized || !this.ctx) return;
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+        const now = this.ctx.currentTime;
+        const speedRatio = Math.min(speedMs / 20.0, 1.2);
+        
+        // Motor pitch and gain
+        const baseFreq = 40 + speedRatio * 140 + (throttleNotch > 0 ? throttleNotch * 18 : 0);
+        this.motorOsc.frequency.setTargetAtTime(baseFreq, now, 0.1);
+        const targetVol = (speedRatio * 0.08) + (throttleNotch > 0 ? 0.04 : 0.01);
+        this.motorGain.gain.setTargetAtTime(targetVol, now, 0.1);
+
+        // Clatter pulse at speed
+        if (speedMs > 1.0) {
+          const interval = Math.max(0.2, 1.2 - speedRatio * 0.9);
+          if (now - this.clatterTimer > interval) {
+            this.clatterTimer = now;
+            this.playClatterTick(speedRatio);
+          }
+        }
+      }
+      playClatterTick(intensity) {
+        if (!this.initialized || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(90, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + 0.06);
+        gain.gain.setValueAtTime(intensity * 0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.06);
+      }
+      playBrakeHiss() {
+        if (!this.initialized || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        // White noise burst for air brake
+        const bufferSize = this.ctx.sampleRate * 0.25;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (deterministicRandom() * 2 - 1) * 0.06;
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1400, now);
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start(now);
+      }
+      playBeep() {
+        if (!this.initialized || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, now);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.15);
+      }
+      playDoorChime() {
+        if (!this.initialized || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const freqs = [587.33, 880, 659.25];
+        freqs.forEach((f, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(f, now + idx * 0.14);
+          gain.gain.setValueAtTime(0, now);
+          gain.gain.setValueAtTime(0.15, now + idx * 0.14);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.14 + 0.25);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + idx * 0.14);
+          osc.stop(now + idx * 0.14 + 0.25);
+        });
+      }
+    }
+    const audio = new MetroAudio();
+
+    /* =========================================================================
+       TRACK GEOMETRY & CURVE MATHEMATICS (0m to 800m)
+       - 0 to 500m: Straight line along +Z axis
+       - 500m to 800m: Smooth curve to the right into Parkside station
+       ========================================================================= */
+    // Total angle subtended = CURVE_LENGTH / CURVE_RADIUS
+    const CURVE_ANGLE_TOTAL = CURVE_LENGTH / CURVE_RADIUS; // ~0.789 radians (~45 degrees)
+
+    function getTrackPoint(dist) {
+      const d = Math.max(0, dist);
+      if (d <= STRAIGHT_LENGTH) {
+        return {
+          x: 0,
+          y: 0,
+          z: d,
+          yaw: 0,
+          tangentX: 0,
+          tangentZ: 1
+        };
+      } else {
+        const cd = d - STRAIGHT_LENGTH;
+        const angle = cd / CURVE_RADIUS;
+        // Curving to the right (positive X):
+        // X = R * (1 - cos(angle))
+        // Z = 500 + R * sin(angle)
+        // Tangent yaw = angle
+        const x = CURVE_RADIUS * (1.0 - Math.cos(angle));
+        const z = STRAIGHT_LENGTH + CURVE_RADIUS * Math.sin(angle);
+        const yaw = angle;
+        return {
+          x: x,
+          y: 0,
+          z: z,
+          yaw: yaw,
+          tangentX: Math.sin(angle),
+          tangentZ: Math.cos(angle)
+        };
+      }
+    }
+
+    /* =========================================================================
+       THREE.JS SCENE SETUP
+       ========================================================================= */
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x040711);
+    scene.fog = new THREE.FogExp2(0x050814, 0.007);
+
+    const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 800);
+    let renderer = null;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
+      container.appendChild(renderer.domElement);
+    } catch (e) {
+      console.warn('WebGL context unavailable in headless mode, continuing with logical simulation:', e);
+    }
+
+    // Ambient night moonlight
+    const ambientLight = new THREE.AmbientLight(0x18243b, 0.85);
+    scene.add(ambientLight);
+
+    // Directional city glow
+    const moonDir = new THREE.DirectionalLight(0x4070a0, 0.7);
+    moonDir.position.set(100, 200, 100);
+    scene.add(moonDir);
+
+    /* =========================================================================
+       TRAIN CAB HIERARCHY & 3D INTERIOR (Driver's Seat Console)
+       ========================================================================= */
+    const trainRoot = new THREE.Group();
+    scene.add(trainRoot);
+
+    // Cab base frame (parented to trainRoot, with subtle dynamic sway)
+    const cabInterior = new THREE.Group();
+    trainRoot.add(cabInterior);
+
+    // Materials for cab
+    const cabMetalMat = new THREE.MeshStandardMaterial({
+      color: 0x111622,
+      roughness: 0.65,
+      metalness: 0.7
+    });
+    const cabDeskMat = new THREE.MeshStandardMaterial({
+      color: 0x0c121d,
+      roughness: 0.5,
+      metalness: 0.4
+    });
+    const darkTrimMat = new THREE.MeshStandardMaterial({
+      color: 0x070a12,
+      roughness: 0.8,
+      metalness: 0.2
+    });
+    const chromeMat = new THREE.MeshStandardMaterial({
+      color: 0xa0b4c8,
+      roughness: 0.25,
+      metalness: 0.9
+    });
+    const leverHandleMat = new THREE.MeshStandardMaterial({
+      color: 0x00f0ff,
+      roughness: 0.3,
+      metalness: 0.6,
+      emissive: 0x004050,
+      emissiveIntensity: 0.4
+    });
+    const brakeHandleMat = new THREE.MeshStandardMaterial({
+      color: 0xff6622,
+      roughness: 0.3,
+      metalness: 0.6,
+      emissive: 0x662000,
+      emissiveIntensity: 0.4
+    });
+
+    // Console Desk
+    const deskGeo = new THREE.BoxGeometry(2.4, 0.45, 1.1);
+    const deskMesh = new THREE.Mesh(deskGeo, cabDeskMat);
+    deskMesh.position.set(0, 1.1, 1.35);
+    cabInterior.add(deskMesh);
+
+    // Slanted instrument panel
+    const panelGeo = new THREE.BoxGeometry(2.3, 0.35, 0.5);
+    const panelMesh = new THREE.Mesh(panelGeo, darkTrimMat);
+    panelMesh.position.set(0, 1.38, 1.55);
+    panelMesh.rotation.x = -0.45;
+    cabInterior.add(panelMesh);
+
+    // Windshield Pillars and Frame
+    const pillarMat = darkTrimMat;
+    // Left A-pillar
+    const pillarL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.5, 0.15), pillarMat);
+    pillarL.position.set(-1.15, 1.85, 1.8);
+    pillarL.rotation.z = -0.08;
+    cabInterior.add(pillarL);
+    // Right A-pillar
+    const pillarR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.5, 0.15), pillarMat);
+    pillarR.position.set(1.15, 1.85, 1.8);
+    pillarR.rotation.z = 0.08;
+    cabInterior.add(pillarR);
+    // Center divider pillar
+    const pillarC = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.5, 0.1), pillarMat);
+    pillarC.position.set(0, 1.85, 1.85);
+    cabInterior.add(pillarC);
+    // Top roof visor
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.25, 1.2), darkTrimMat);
+    visor.position.set(0, 2.5, 1.4);
+    cabInterior.add(visor);
+
+    // Cab Left & Right interior walls
+    const wallL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.8, 2.2), cabMetalMat);
+    wallL.position.set(-1.25, 1.5, 0.6);
+    cabInterior.add(wallL);
+    const wallR = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.8, 2.2), cabMetalMat);
+    wallR.position.set(1.25, 1.5, 0.6);
+    cabInterior.add(wallR);
+
+    // Route destination illuminated sign (Top center visor)
+    const routeSignGeo = new THREE.BoxGeometry(0.85, 0.14, 0.04);
+    const routeSignMat = new THREE.MeshStandardMaterial({
+      color: 0x00f0ff,
+      emissive: 0x00d0e8,
+      emissiveIntensity: 0.9,
+      roughness: 0.2
+    });
+    const routeSign = new THREE.Mesh(routeSignGeo, routeSignMat);
+    routeSign.position.set(0, 2.36, 1.78);
+    cabInterior.add(routeSign);
+
+    /* 3D SPEEDOMETER DIAL & NEEDLE */
+    const speedoHousingGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.06, 32);
+    speedoHousingGeo.rotateX(Math.PI / 2);
+    const speedoHousingMat = new THREE.MeshStandardMaterial({ color: 0x050a14, roughness: 0.4, metalness: 0.8 });
+    const speedoHousing = new THREE.Mesh(speedoHousingGeo, speedoHousingMat);
+    speedoHousing.position.set(0, 1.43, 1.5);
+    speedoHousing.rotation.x = -0.45;
+    cabInterior.add(speedoHousing);
+
+    // Speedometer dial face
+    const speedoFaceGeo = new THREE.CircleGeometry(0.16, 32);
+    const speedoFaceMat = new THREE.MeshBasicMaterial({ color: 0x081326 });
+    const speedoFace = new THREE.Mesh(speedoFaceGeo, speedoFaceMat);
+    speedoFace.position.set(0, 0, 0.032);
+    speedoHousing.add(speedoFace);
+
+    // Speedometer ticks
+    for (let i = 0; i <= 10; i++) {
+      const tickAngle = -2.2 + (i / 10) * 4.4;
+      const tickGeo = new THREE.PlaneGeometry(0.008, 0.035);
+      const tickMat = new THREE.MeshBasicMaterial({ color: i > 6 ? 0xff4455 : 0x00f0ff });
+      const tick = new THREE.Mesh(tickGeo, tickMat);
+      tick.position.set(Math.sin(tickAngle) * 0.125, Math.cos(tickAngle) * 0.125, 0.035);
+      tick.rotation.z = -tickAngle;
+      speedoHousing.add(tick);
+    }
+
+    // Speedometer needle
+    const needlePivot = new THREE.Group();
+    needlePivot.position.set(0, 0, 0.038);
+    speedoHousing.add(needlePivot);
+    const needleGeo = new THREE.ConeGeometry(0.012, 0.13, 16);
+    needleGeo.translate(0, 0.06, 0);
+    const needleMat = new THREE.MeshBasicMaterial({ color: 0xff3344 });
+    const needleMesh = new THREE.Mesh(needleGeo, needleMat);
+    needlePivot.add(needleMesh);
+
+    /* 3D THROTTLE LEVER (LEFT CONSOLE) */
+    const throttleLeverGroup = new THREE.Group();
+    throttleLeverGroup.position.set(-0.55, 1.25, 1.35);
+    cabInterior.add(throttleLeverGroup);
+
+    // Lever base slot
+    const slotGeo = new THREE.BoxGeometry(0.12, 0.04, 0.35);
+    const slotMat = new THREE.MeshStandardMaterial({ color: 0x050912, roughness: 0.8 });
+    const slotMesh = new THREE.Mesh(slotGeo, slotMat);
+    throttleLeverGroup.add(slotMesh);
+
+    // Lever shaft pivot
+    const throttlePivot = new THREE.Group();
+    throttlePivot.position.set(0, 0.02, 0);
+    throttleLeverGroup.add(throttlePivot);
+    const leverShaftGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.28, 16);
+    leverShaftGeo.translate(0, 0.14, 0);
+    const leverShaft = new THREE.Mesh(leverShaftGeo, chromeMat);
+    throttlePivot.add(leverShaft);
+    const leverKnobGeo = new THREE.SphereGeometry(0.042, 16, 16);
+    leverKnobGeo.translate(0, 0.28, 0);
+    const leverKnob = new THREE.Mesh(leverKnobGeo, leverHandleMat);
+    throttlePivot.add(leverKnob);
+
+    /* 3D BRAKE LEVER (RIGHT CONSOLE) */
+    const brakeLeverGroup = new THREE.Group();
+    brakeLeverGroup.position.set(0.55, 1.25, 1.35);
+    cabInterior.add(brakeLeverGroup);
+
+    const brakeSlotMesh = new THREE.Mesh(slotGeo, slotMat);
+    brakeLeverGroup.add(brakeSlotMesh);
+
+    const brakePivot = new THREE.Group();
+    brakePivot.position.set(0, 0.02, 0);
+    brakeLeverGroup.add(brakePivot);
+    const brakeShaft = new THREE.Mesh(leverShaftGeo, chromeMat);
+    brakePivot.add(brakeShaft);
+    const brakeKnob = new THREE.Mesh(leverKnobGeo, brakeHandleMat);
+    brakePivot.add(brakeKnob);
+
+    // Digital LED readouts on console
+    const ledCanvas = document.createElement('canvas');
+    ledCanvas.width = 512;
+    ledCanvas.height = 128;
+    const ledCtx = ledCanvas.getContext('2d');
+    const ledTexture = new THREE.CanvasTexture(ledCanvas);
+    const ledPlaneGeo = new THREE.PlaneGeometry(0.55, 0.16);
+    const ledPlaneMat = new THREE.MeshBasicMaterial({ map: ledTexture, transparent: true });
+    const ledDisplay = new THREE.Mesh(ledPlaneGeo, ledPlaneMat);
+    ledDisplay.position.set(-0.45, 1.45, 1.48);
+    ledDisplay.rotation.x = -0.45;
+    cabInterior.add(ledDisplay);
+
+    function updateConsoleLED(kmh, limit, notchT, notchB) {
+      ledCtx.fillStyle = '#060d1a';
+      ledCtx.fillRect(0, 0, 512, 128);
+      ledCtx.strokeStyle = '#00f0ff';
+      ledCtx.lineWidth = 4;
+      ledCtx.strokeRect(4, 4, 504, 120);
+
+      ledCtx.fillStyle = '#00f0ff';
+      ledCtx.font = 'bold 36px monospace';
+      ledCtx.fillText(`SPD: ${kmh.toString().padStart(3, ' ')} KM/H`, 20, 48);
+
+      ledCtx.fillStyle = '#ffaa33';
+      ledCtx.font = 'bold 30px monospace';
+      const tText = notchT === 0 ? 'COAST' : `T-${notchT}`;
+      const bText = notchB === 0 ? 'REL' : `B-${notchB}`;
+      ledCtx.fillText(`${tText}/${bText}`, 20, 96);
+
+      ledCtx.fillStyle = '#38bdf8';
+      ledCtx.font = 'bold 32px monospace';
+      ledCtx.fillText(`LIM: ${limit}`, 350, 48);
+
+      ledCtx.fillStyle = '#a78bfa';
+      ledCtx.font = 'bold 30px monospace';
+      ledCtx.fillText(`${getServiceClockString(GameState.runTime)}`, 240, 96);
+
+      ledTexture.needsUpdate = true;
+    }
+
+    // Cab Cockpit Spotlight & Passing Light sweep
+    const cabDomeLight = new THREE.PointLight(0x00d0ff, 0.6, 3.5);
+    cabDomeLight.position.set(0, 2.3, 0.8);
+    cabInterior.add(cabDomeLight);
+
+    const passingSweepLight = new THREE.PointLight(0xffeedd, 0.0, 10.0);
+    passingSweepLight.position.set(0, 1.8, 1.0);
+    cabInterior.add(passingSweepLight);
+
+    // Train Headlights beam pointing out onto tracks
+    const trainHeadlight = new THREE.SpotLight(0xf0f8ff, 4.5, 90, Math.PI / 6, 0.4, 1.2);
+    trainHeadlight.position.set(0, 1.0, 2.2);
+    trainHeadlight.target.position.set(0, 0.3, 20.0);
+    cabInterior.add(trainHeadlight);
+    cabInterior.add(trainHeadlight.target);
+
+    // Fixed Driver's Camera Position
+    camera.position.set(0.25, 1.76, 0.65);
+    camera.rotation.set(-0.02, 0, 0);
+    cabInterior.add(camera);
+
+    /* =========================================================================
+       WORLD ENVIRONMENT GENERATION (Tracks, City, Lights, Station)
+       Deterministic placement - Absolutely ZERO Math.random()
+       ========================================================================= */
+    resetDeterministicRNG(42891);
+
+    // 1. TRACK & RAILS
+    const railMat = new THREE.MeshStandardMaterial({
+      color: 0x99aabf,
+      roughness: 0.3,
+      metalness: 0.9
+    });
+    const sleeperMat = new THREE.MeshStandardMaterial({
+      color: 0x221a14,
+      roughness: 0.9,
+      metalness: 0.1
+    });
+    const ballastMat = new THREE.MeshStandardMaterial({
+      color: 0x090d16,
+      roughness: 0.95,
+      metalness: 0.15
+    });
+
+    // Generate rails along track curve with discrete segments
+    const trackStep = 2.0;
+    const trackSegmentsCount = Math.floor(TRACK_TOTAL_LENGTH / trackStep) + 20;
+
+    // Track ballast bed (thick dark wet base)
+    const ballastGeo = new THREE.PlaneGeometry(5.0, trackStep + 0.2);
+    ballastGeo.rotateX(-Math.PI / 2);
+
+    const railLeftGeo = new THREE.BoxGeometry(0.12, 0.18, trackStep + 0.1);
+    const railRightGeo = new THREE.BoxGeometry(0.12, 0.18, trackStep + 0.1);
+    const sleeperGeo = new THREE.BoxGeometry(3.0, 0.14, 0.4);
+
+    const trackGroup = new THREE.Group();
+    scene.add(trackGroup);
+
+    for (let i = 0; i < trackSegmentsCount; i++) {
+      const dist = i * trackStep;
+      const pt = getTrackPoint(dist);
+      const nextPt = getTrackPoint(dist + trackStep);
+
+      // Ballast segment
+      const ballast = new THREE.Mesh(ballastGeo, ballastMat);
+      ballast.position.set(pt.x, -0.05, pt.z + trackStep * 0.5 * pt.tangentZ);
+      ballast.rotation.y = pt.yaw;
+      trackGroup.add(ballast);
+
+      // Sleeper every 1 segment
+      const sleeper = new THREE.Mesh(sleeperGeo, sleeperMat);
+      sleeper.position.set(pt.x, 0.05, pt.z);
+      sleeper.rotation.y = pt.yaw;
+      trackGroup.add(sleeper);
+
+      // Rails Left (-0.75m) and Right (+0.75m)
+      const cosY = Math.cos(pt.yaw);
+      const sinY = Math.sin(pt.yaw);
+
+      const rL = new THREE.Mesh(railLeftGeo, railMat);
+      rL.position.set(pt.x - 0.75 * cosY, 0.18, pt.z + 0.75 * sinY + trackStep * 0.5 * pt.tangentZ);
+      rL.rotation.y = pt.yaw;
+      trackGroup.add(rL);
+
+      const rR = new THREE.Mesh(railRightGeo, railMat);
+      rR.position.set(pt.x + 0.75 * cosY, 0.18, pt.z - 0.75 * sinY + trackStep * 0.5 * pt.tangentZ);
+      rR.rotation.y = pt.yaw;
+      trackGroup.add(rR);
+    }
+
+    // 2. OVERHEAD CATENARY PYLONS & PASSING LIGHTS
+    const pylonMat = new THREE.MeshStandardMaterial({ color: 0x1a2638, roughness: 0.7, metalness: 0.6 });
+    const pylonGeo = new THREE.CylinderGeometry(0.12, 0.14, 6.0, 8);
+    const pylonArmGeo = new THREE.BoxGeometry(4.2, 0.16, 0.16);
+    const streetLightGeo = new THREE.SphereGeometry(0.14, 8, 8);
+    const streetLightMat = new THREE.MeshBasicMaterial({ color: 0xffe6a3 });
+
+    const trackLights = []; // To compute passing light sweep in cab
+
+    for (let d = 20; d <= 820; d += 35) {
+      const pt = getTrackPoint(d);
+      const cosY = Math.cos(pt.yaw);
+      const sinY = Math.sin(pt.yaw);
+
+      const pylonGroup = new THREE.Group();
+      pylonGroup.position.set(pt.x - 2.8 * cosY, 3.0, pt.z + 2.8 * sinY);
+      pylonGroup.rotation.y = pt.yaw;
+
+      const pole = new THREE.Mesh(pylonGeo, pylonMat);
+      pylonGroup.add(pole);
+
+      const arm = new THREE.Mesh(pylonArmGeo, pylonMat);
+      arm.position.set(1.5, 2.7, 0);
+      pylonGroup.add(arm);
+
+      // Light fixture hanging above track
+      const lamp = new THREE.Mesh(streetLightGeo, streetLightMat);
+      lamp.position.set(2.8, 2.5, 0);
+      pylonGroup.add(lamp);
+
+      scene.add(pylonGroup);
+
+      // World position of lamp
+      trackLights.push({
+        x: pt.x,
+        y: 5.5,
+        z: pt.z,
+        dist: d
+      });
+    }
+
+    // 3. SPEED LIMIT BOARDS & SIGNALS
+    function createLimitBoard(text, limitNum) {
+      const boardGroup = new THREE.Group();
+      // Post
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.5, 12), pylonMat);
+      post.position.y = 1.75;
+      boardGroup.add(post);
+
+      // Circular sign plate
+      const plateGeo = new THREE.CylinderGeometry(0.55, 0.55, 0.06, 32);
+      plateGeo.rotateX(Math.PI / 2);
+      const plateMat = new THREE.MeshStandardMaterial({
+        color: 0xf1f5f9,
+        roughness: 0.4
+      });
+      const plate = new THREE.Mesh(plateGeo, plateMat);
+      plate.position.set(0, 2.8, 0.04);
+      boardGroup.add(plate);
+
+      // Sign face canvas
+      const sCanvas = document.createElement('canvas');
+      sCanvas.width = 256;
+      sCanvas.height = 256;
+      const sCtx = sCanvas.getContext('2d');
+      sCtx.fillStyle = '#ffffff';
+      sCtx.beginPath();
+      sCtx.arc(128, 128, 120, 0, Math.PI * 2);
+      sCtx.fill();
+      sCtx.lineWidth = 24;
+      sCtx.strokeStyle = '#dc2626';
+      sCtx.stroke();
+      sCtx.fillStyle = '#0f172a';
+      sCtx.font = 'bold 110px sans-serif';
+      sCtx.textAlign = 'center';
+      sCtx.textBaseline = 'middle';
+      sCtx.fillText(text, 128, 134);
+
+      const sTex = new THREE.CanvasTexture(sCanvas);
+      const sFaceGeo = new THREE.PlaneGeometry(1.0, 1.0);
+      const sFaceMat = new THREE.MeshBasicMaterial({ map: sTex, transparent: true });
+      const sFace = new THREE.Mesh(sFaceGeo, sFaceMat);
+      sFace.position.set(0, 2.8, 0.08);
+      boardGroup.add(sFace);
+
+      return boardGroup;
+    }
+
+    // Sign at Start: "54"
+    const sign60 = createLimitBoard("54", 54);
+    const ptStartSign = getTrackPoint(10.0);
+    sign60.position.set(ptStartSign.x + 2.5, 0, ptStartSign.z);
+    scene.add(sign60);
+
+    // Advance warning sign at 460m: "36"
+    const sign40Advance = createLimitBoard("36", 36);
+    const ptAdvSign = getTrackPoint(460.0);
+    sign40Advance.position.set(ptAdvSign.x + 2.6, 0, ptAdvSign.z);
+    scene.add(sign40Advance);
+
+    // Sign at Curve Entry (500m): "36"
+    const sign40 = createLimitBoard("36", 36);
+    const pt500 = getTrackPoint(500.0);
+    sign40.position.set(pt500.x + 2.8 * Math.cos(pt500.yaw), 0, pt500.z - 2.8 * Math.sin(pt500.yaw));
+    sign40.rotation.y = pt500.yaw;
+    scene.add(sign40);
+
+    // 3B. THREE-ASPECT SIGNALS S1 (300m) & S2 (620m)
+    function create3AspectSignal(name, dist) {
+      const group = new THREE.Group();
+      const pt = getTrackPoint(dist);
+      const cosY = Math.cos(pt.yaw);
+      const sinY = Math.sin(pt.yaw);
+
+      // Mast positioned on right side of track (offset +2.6m)
+      group.position.set(pt.x + 2.6 * cosY, 0, pt.z - 2.6 * sinY);
+      group.rotation.y = pt.yaw;
+
+      // Mast pole
+      const mastGeo = new THREE.CylinderGeometry(0.1, 0.12, 4.4, 12);
+      const mastMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7, metalness: 0.6 });
+      const mast = new THREE.Mesh(mastGeo, mastMat);
+      mast.position.y = 2.2;
+      group.add(mast);
+
+      // Backing target plate
+      const plateGeo = new THREE.BoxGeometry(0.65, 1.6, 0.08);
+      const plateMat = new THREE.MeshStandardMaterial({ color: 0x05070d, roughness: 0.9 });
+      const plate = new THREE.Mesh(plateGeo, plateMat);
+      plate.position.set(0, 3.4, 0.05);
+      group.add(plate);
+
+      // White outline border
+      const borderGeo = new THREE.BoxGeometry(0.69, 1.64, 0.04);
+      const borderMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc });
+      const border = new THREE.Mesh(borderGeo, borderMat);
+      border.position.set(0, 3.4, 0.02);
+      group.add(border);
+
+      // 3 Aspect Lamps: Red (top), Yellow (middle), Green (bottom)
+      const lampGeo = new THREE.SphereGeometry(0.14, 16, 16);
+      
+      const redMat = new THREE.MeshStandardMaterial({ color: 0x220505, roughness: 0.3 });
+      const redLamp = new THREE.Mesh(lampGeo, redMat);
+      redLamp.position.set(0, 3.9, 0.1);
+      group.add(redLamp);
+
+      const yellowMat = new THREE.MeshStandardMaterial({ color: 0x221a05, roughness: 0.3 });
+      const yellowLamp = new THREE.Mesh(lampGeo, yellowMat);
+      yellowLamp.position.set(0, 3.4, 0.1);
+      group.add(yellowLamp);
+
+      const greenMat = new THREE.MeshStandardMaterial({ color: 0x05220d, roughness: 0.3 });
+      const greenLamp = new THREE.Mesh(lampGeo, greenMat);
+      greenLamp.position.set(0, 2.9, 0.1);
+      group.add(greenLamp);
+
+      // Signal aspect glow light
+      const signalLight = new THREE.PointLight(0x00ff55, 1.2, 16.0);
+      signalLight.position.set(0, 3.4, 0.5);
+      group.add(signalLight);
+
+      // Identification nameplate on mast
+      const npCanvas = document.createElement('canvas');
+      npCanvas.width = 128;
+      npCanvas.height = 64;
+      const npCtx = npCanvas.getContext('2d');
+      npCtx.fillStyle = '#f8fafc';
+      npCtx.fillRect(0, 0, 128, 64);
+      npCtx.fillStyle = '#020617';
+      npCtx.font = 'bold 38px sans-serif';
+      npCtx.textAlign = 'center';
+      npCtx.textBaseline = 'middle';
+      npCtx.fillText(name, 64, 32);
+
+      const npTex = new THREE.CanvasTexture(npCanvas);
+      const nameplate = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.28), new THREE.MeshBasicMaterial({ map: npTex }));
+      nameplate.position.set(0, 2.0, 0.12);
+      group.add(nameplate);
+
+      scene.add(group);
+
+      return {
+        group,
+        setAspect(aspect) {
+          if (aspect === 'RED') {
+            redMat.color.setHex(0xff3344);
+            redMat.emissive.setHex(0xff0022);
+            redMat.emissiveIntensity = 1.4;
+
+            yellowMat.color.setHex(0x221a05);
+            yellowMat.emissive.setHex(0x000000);
+            yellowMat.emissiveIntensity = 0;
+
+            greenMat.color.setHex(0x05220d);
+            greenMat.emissive.setHex(0x000000);
+            greenMat.emissiveIntensity = 0;
+
+            signalLight.color.setHex(0xff2233);
+            signalLight.intensity = 1.4;
+          } else if (aspect === 'YELLOW') {
+            redMat.color.setHex(0x220505);
+            redMat.emissive.setHex(0x000000);
+            redMat.emissiveIntensity = 0;
+
+            yellowMat.color.setHex(0xffcc00);
+            yellowMat.emissive.setHex(0xffaa00);
+            yellowMat.emissiveIntensity = 1.4;
+
+            greenMat.color.setHex(0x05220d);
+            greenMat.emissive.setHex(0x000000);
+            greenMat.emissiveIntensity = 0;
+
+            signalLight.color.setHex(0xffcc00);
+            signalLight.intensity = 1.4;
+          } else { // GREEN
+            redMat.color.setHex(0x220505);
+            redMat.emissive.setHex(0x000000);
+            redMat.emissiveIntensity = 0;
+
+            yellowMat.color.setHex(0x221a05);
+            yellowMat.emissive.setHex(0x000000);
+            yellowMat.emissiveIntensity = 0;
+
+            greenMat.color.setHex(0x22ff66);
+            greenMat.emissive.setHex(0x00ee44);
+            greenMat.emissiveIntensity = 1.4;
+
+            signalLight.color.setHex(0x22ff66);
+            signalLight.intensity = 1.4;
+          }
+        }
+      };
+    }
+
+    const signalS1 = create3AspectSignal("S1", 300.0);
+    const signalS2 = create3AspectSignal("S2", 620.0);
+
+    // 3C. TEMPORARY SPEED RESTRICTION (TSR) BOARDS & SWITCH LANTERN
+    function createTSRBoard(text, dist, bgColor = '#facc15', textColor = '#000000') {
+      const group = new THREE.Group();
+      const pt = getTrackPoint(dist);
+      const cosY = Math.cos(pt.yaw);
+      const sinY = Math.sin(pt.yaw);
+      group.position.set(pt.x + 2.7 * cosY, 0, pt.z - 2.7 * sinY);
+      group.rotation.y = pt.yaw;
+
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.2, 12), pylonMat);
+      post.position.y = 1.6;
+      group.add(post);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 160;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, 256, 160);
+      ctx.lineWidth = 10;
+      ctx.strokeStyle = textColor;
+      ctx.strokeRect(6, 6, 244, 148);
+      ctx.fillStyle = textColor;
+      ctx.font = 'bold 32px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 128, 80);
+
+      const tex = new THREE.CanvasTexture(canvas);
+      const board = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.75), new THREE.MeshBasicMaterial({ map: tex }));
+      board.position.set(0, 2.6, 0.06);
+      group.add(board);
+
+      scene.add(group);
+      return group;
+    }
+
+    // TSR A-board ("TSR AHEAD 30") at 100m
+    const tsrABoard = createTSRBoard("TSR AHEAD 30", 100.0, '#facc15', '#000000');
+    // TSR W-board ("TSR 30") at 200m
+    const tsrWBoard = createTSRBoard("TSR 30", 200.0, '#facc15', '#000000');
+    // TSR B-board ("RESUME") at 500m
+    const tsrBBoard = createTSRBoard("RESUME", 500.0, '#f8fafc', '#000000');
+
+    // Switch indicator lantern at 818m on Section 1
+    const switchLanternCanvas = document.createElement('canvas');
+    switchLanternCanvas.width = 128;
+    switchLanternCanvas.height = 128;
+    const slCtx = switchLanternCanvas.getContext('2d');
+    const slTex = new THREE.CanvasTexture(switchLanternCanvas);
+    const switchLanternMat = new THREE.MeshBasicMaterial({ map: slTex });
+    const switchLanternMesh = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), switchLanternMat);
+    const ptSwitch = getTrackPoint(818.0);
+    switchLanternMesh.position.set(ptSwitch.x + 2.2 * Math.cos(ptSwitch.yaw), 1.2, ptSwitch.z - 2.2 * Math.sin(ptSwitch.yaw));
+    scene.add(switchLanternMesh);
+
+    function updateSwitchLantern(st) {
+      slCtx.fillStyle = st === 'SIDE' ? '#d97706' : '#15803d';
+      slCtx.fillRect(0, 0, 128, 128);
+      slCtx.fillStyle = '#ffffff';
+      slCtx.font = 'bold 36px sans-serif';
+      slCtx.textAlign = 'center';
+      slCtx.textBaseline = 'middle';
+      slCtx.fillText(st, 64, 64);
+      slTex.needsUpdate = true;
+    }
+    updateSwitchLantern('MAIN');
+
+    // 4. TUNNEL SECTION WITH ILLUMINATED RINGS (480m to 620m)
+    const tunnelGroup = new THREE.Group();
+    scene.add(tunnelGroup);
+    const ringMat = new THREE.MeshStandardMaterial({
+      color: 0x00f0ff,
+      emissive: 0x00b4d8,
+      emissiveIntensity: 0.8,
+      roughness: 0.3
+    });
+    const tunnelArchGeo = new THREE.TorusGeometry(3.6, 0.16, 12, 32, Math.PI);
+    tunnelArchGeo.rotateZ(Math.PI);
+
+    for (let td = 490; td <= 620; td += 15) {
+      const ptT = getTrackPoint(td);
+      const arch = new THREE.Mesh(tunnelArchGeo, ringMat);
+      arch.position.set(ptT.x, 0.2, ptT.z);
+      arch.rotation.y = ptT.yaw;
+      tunnelGroup.add(arch);
+    }
+
+    // 5. PARKSIDE STATION PLATFORM & STOP MARKER (730m to 820m)
+    const stationGroup = new THREE.Group();
+    scene.add(stationGroup);
+
+    const platformMat = new THREE.MeshStandardMaterial({
+      color: 0x334155,
+      roughness: 0.85,
+      metalness: 0.2
+    });
+    const yellowLineMat = new THREE.MeshStandardMaterial({
+      color: 0xfacc15,
+      roughness: 0.4,
+      emissive: 0xca8a04,
+      emissiveIntensity: 0.2
+    });
+    const stationCanopyMat = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      roughness: 0.6,
+      metalness: 0.5
+    });
+
+    // Generate curved platform segments along right side of track (730m - 820m)
+    const platStep = 2.0;
+    const platStart = 730;
+    const platEnd = 816;
+    for (let pd = platStart; pd <= platEnd; pd += platStep) {
+      const pt = getTrackPoint(pd);
+      const cosY = Math.cos(pt.yaw);
+      const sinY = Math.sin(pt.yaw);
+
+      // Platform concrete slab (width ~ 3.5m, right side of rail at offset +2.6m)
+      const slabGeo = new THREE.BoxGeometry(3.5, 0.85, platStep + 0.1);
+      const slab = new THREE.Mesh(slabGeo, platformMat);
+      slab.position.set(pt.x + 3.0 * cosY, 0.45, pt.z - 3.0 * sinY + platStep * 0.5 * pt.tangentZ);
+      slab.rotation.y = pt.yaw;
+      stationGroup.add(slab);
+
+      // Yellow tactile safety edge
+      const yLineGeo = new THREE.BoxGeometry(0.18, 0.05, platStep + 0.1);
+      const yLine = new THREE.Mesh(yLineGeo, yellowLineMat);
+      yLine.position.set(pt.x + 1.35 * cosY, 0.9, pt.z - 1.35 * sinY + platStep * 0.5 * pt.tangentZ);
+      yLine.rotation.y = pt.yaw;
+      stationGroup.add(yLine);
+    }
+
+    // Platform canopy pillars and roof
+    for (let cd = platStart + 10; cd <= platEnd - 5; cd += 20) {
+      const pt = getTrackPoint(cd);
+      const cosY = Math.cos(pt.yaw);
+      const sinY = Math.sin(pt.yaw);
+
+      const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 4.5, 12), pylonMat);
+      pillar.position.set(pt.x + 3.6 * cosY, 2.25, pt.z - 3.6 * sinY);
+      stationGroup.add(pillar);
+
+      // Warm station light under canopy
+      const sLight = new THREE.PointLight(0xffddaa, 1.2, 14.0);
+      sLight.position.set(pt.x + 3.0 * cosY, 3.8, pt.z - 3.0 * sinY);
+      stationGroup.add(sLight);
+
+      // Station name sign
+      const nameSignCanvas = document.createElement('canvas');
+      nameSignCanvas.width = 512;
+      nameSignCanvas.height = 128;
+      const nCtx = nameSignCanvas.getContext('2d');
+      nCtx.fillStyle = '#0284c7';
+      nCtx.fillRect(0, 0, 512, 128);
+      nCtx.fillStyle = '#ffffff';
+      nCtx.font = 'bold 64px sans-serif';
+      nCtx.textAlign = 'center';
+      nCtx.textBaseline = 'middle';
+      nCtx.fillText('PARKSIDE', 256, 64);
+
+      const nTex = new THREE.CanvasTexture(nameSignCanvas);
+      const nSign = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.6), new THREE.MeshBasicMaterial({ map: nTex }));
+      nSign.position.set(pt.x + 2.8 * cosY, 3.2, pt.z - 2.8 * sinY);
+      nSign.rotation.y = pt.yaw - Math.PI / 2;
+      stationGroup.add(nSign);
+    }
+
+    // FIXED STOP MARKER AT EXACTLY 800.0 METERS
+    const ptStopMarker = getTrackPoint(800.0);
+    const stopCos = Math.cos(ptStopMarker.yaw);
+    const stopSin = Math.sin(ptStopMarker.yaw);
+
+    const stopMarkerGroup = new THREE.Group();
+    stopMarkerGroup.position.set(ptStopMarker.x + 1.8 * stopCos, 0, ptStopMarker.z - 1.8 * stopSin);
+    stopMarkerGroup.rotation.y = ptStopMarker.yaw;
+
+    // Pole
+    const stopPole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.2, 16), chromeMat);
+    stopPole.position.y = 1.6;
+    stopMarkerGroup.add(stopPole);
+
+    // Stop Diamond / Board with "STOP"
+    const stopCanvas = document.createElement('canvas');
+    stopCanvas.width = 256;
+    stopCanvas.height = 256;
+    const stopCtx = stopCanvas.getContext('2d');
+    stopCtx.fillStyle = '#dc2626';
+    stopCtx.fillRect(0, 0, 256, 256);
+    stopCtx.lineWidth = 14;
+    stopCtx.strokeStyle = '#ffffff';
+    stopCtx.strokeRect(10, 10, 236, 236);
+    stopCtx.fillStyle = '#ffffff';
+    stopCtx.font = 'bold 64px sans-serif';
+    stopCtx.textAlign = 'center';
+    stopCtx.textBaseline = 'middle';
+    stopCtx.fillText('STOP', 128, 90);
+    stopCtx.font = 'bold 50px sans-serif';
+    stopCtx.fillText('800M', 128, 170);
+
+    const stopTex = new THREE.CanvasTexture(stopCanvas);
+    const stopBoardGeo = new THREE.BoxGeometry(0.7, 0.7, 0.06);
+    const stopBoardMat = new THREE.MeshStandardMaterial({
+      map: stopTex,
+      emissive: 0x991b1b,
+      emissiveIntensity: 0.6,
+      roughness: 0.3
+    });
+    const stopBoard = new THREE.Mesh(stopBoardGeo, stopBoardMat);
+    stopBoard.position.set(0, 2.4, 0);
+    stopMarkerGroup.add(stopBoard);
+
+    // Flashing marker LED light on top
+    const stopBeacon = new THREE.Mesh(
+      new THREE.SphereGeometry(0.1, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0xff2233 })
+    );
+    stopBeacon.position.set(0, 2.9, 0);
+    stopMarkerGroup.add(stopBeacon);
+
+    scene.add(stopMarkerGroup);
+
+    // PLATFORM-END BUFFER STOP AT 818.0 METERS
+    const ptBuffer = getTrackPoint(GameState.bufferDistance);
+    const bufferGroup = new THREE.Group();
+    bufferGroup.position.set(ptBuffer.x, 0, ptBuffer.z);
+    bufferGroup.rotation.y = ptBuffer.yaw;
+
+    // Heavy concrete block with hazard stripes
+    const bufBlockGeo = new THREE.BoxGeometry(2.6, 1.4, 1.2);
+    const bufCanvas = document.createElement('canvas');
+    bufCanvas.width = 256;
+    bufCanvas.height = 128;
+    const bCtx = bufCanvas.getContext('2d');
+    bCtx.fillStyle = '#eab308';
+    bCtx.fillRect(0, 0, 256, 128);
+    bCtx.fillStyle = '#0f172a';
+    for (let s = -128; s < 384; s += 48) {
+      bCtx.beginPath();
+      bCtx.moveTo(s, 0);
+      bCtx.lineTo(s + 32, 0);
+      bCtx.lineTo(s + 32 - 64, 128);
+      bCtx.lineTo(s - 64, 128);
+      bCtx.fill();
+    }
+    const bufTex = new THREE.CanvasTexture(bufCanvas);
+    const bufMat = new THREE.MeshStandardMaterial({ map: bufTex, roughness: 0.6 });
+    const bufBlock = new THREE.Mesh(bufBlockGeo, bufMat);
+    bufBlock.position.set(0, 0.7, 0);
+    bufferGroup.add(bufBlock);
+
+    // Buffer red stop lamps
+    const bufLampGeo = new THREE.SphereGeometry(0.12, 16, 16);
+    const bufLampMat = new THREE.MeshBasicMaterial({ color: 0xff1122 });
+    const bLamp1 = new THREE.Mesh(bufLampGeo, bufLampMat);
+    bLamp1.position.set(-0.75, 1.1, -0.62);
+    bufferGroup.add(bLamp1);
+    const bLamp2 = new THREE.Mesh(bufLampGeo, bufLampMat);
+    bLamp2.position.set(0.75, 1.1, -0.62);
+    bufferGroup.add(bLamp2);
+
+    scene.add(bufferGroup);
+
+    // 6. SURROUNDING CITYSCAPE (Dark apartment blocks with scattered neon lit windows)
+    const buildingMat = new THREE.MeshStandardMaterial({
+      color: 0x0a101a,
+      roughness: 0.9,
+      metalness: 0.3
+    });
+
+    // Create a reusable window texture canvas deterministically
+    const winCanvas = document.createElement('canvas');
+    winCanvas.width = 256;
+    winCanvas.height = 256;
+    const wCtx = winCanvas.getContext('2d');
+    wCtx.fillStyle = '#0b121e';
+    wCtx.fillRect(0, 0, 256, 256);
+    // Draw grid of windows with deterministic lit states
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const val = deterministicRandom();
+        if (val > 0.65) {
+          // Lit window: warm amber or cyan or white
+          if (val > 0.9) wCtx.fillStyle = '#00f0ff';
+          else if (val > 0.78) wCtx.fillStyle = '#fed7aa';
+          else wCtx.fillStyle = '#fef08a';
+        } else {
+          wCtx.fillStyle = '#111b2b';
+        }
+        wCtx.fillRect(c * 32 + 8, r * 32 + 8, 16, 20);
+      }
+    }
+    const winTexture = new THREE.CanvasTexture(winCanvas);
+    winTexture.wrapS = THREE.RepeatWrapping;
+    winTexture.wrapT = THREE.RepeatWrapping;
+
+    const buildingWinMat = new THREE.MeshBasicMaterial({
+      map: winTexture
+    });
+
+    const cityGroup = new THREE.Group();
+    scene.add(cityGroup);
+
+    // Place buildings along track distance 0m to 850m on both sides
+    for (let dist = -40; dist <= 860; dist += 28) {
+      const pt = getTrackPoint(dist);
+      const cosY = Math.cos(pt.yaw);
+      const sinY = Math.sin(pt.yaw);
+
+      // Left building
+      const hL = 25 + deterministicRandom() * 45;
+      const wL = 16 + deterministicRandom() * 12;
+      const dL = 20 + deterministicRandom() * 10;
+      const bGeoL = new THREE.BoxGeometry(wL, hL, dL);
+      const bMeshL = new THREE.Mesh(bGeoL, buildingMat);
+      const offsetDistL = -(14 + deterministicRandom() * 18);
+      bMeshL.position.set(pt.x + offsetDistL * cosY, hL * 0.5 - 2, pt.z - offsetDistL * sinY);
+      bMeshL.rotation.y = pt.yaw;
+      cityGroup.add(bMeshL);
+
+      // Window façade overlay for Left
+      const facadeGeoL = new THREE.PlaneGeometry(wL - 1, hL - 2);
+      const facadeL = new THREE.Mesh(facadeGeoL, buildingWinMat);
+      facadeL.position.set(pt.x + (offsetDistL + wL * 0.5 + 0.05) * cosY, hL * 0.5 - 1, pt.z - (offsetDistL + wL * 0.5 + 0.05) * sinY);
+      facadeL.rotation.y = pt.yaw + Math.PI / 2;
+      cityGroup.add(facadeL);
+
+      // Right building (skip if in station platform zone)
+      if (dist < 720 || dist > 830) {
+        const hR = 25 + deterministicRandom() * 45;
+        const wR = 16 + deterministicRandom() * 12;
+        const dR = 20 + deterministicRandom() * 10;
+        const bGeoR = new THREE.BoxGeometry(wR, hR, dR);
+        const bMeshR = new THREE.Mesh(bGeoR, buildingMat);
+        const offsetDistR = 16 + deterministicRandom() * 18;
+        bMeshR.position.set(pt.x + offsetDistR * cosY, hR * 0.5 - 2, pt.z - offsetDistR * sinY);
+        bMeshR.rotation.y = pt.yaw;
+        cityGroup.add(bMeshR);
+
+        const facadeGeoR = new THREE.PlaneGeometry(wR - 1, hR - 2);
+        const facadeR = new THREE.Mesh(facadeGeoR, buildingWinMat);
+        facadeR.position.set(pt.x + (offsetDistR - wR * 0.5 - 0.05) * cosY, hR * 0.5 - 1, pt.z - (offsetDistR - wR * 0.5 - 0.05) * sinY);
+        facadeR.rotation.y = pt.yaw - Math.PI / 2;
+        cityGroup.add(facadeR);
+      }
+    }
+
+    // 7. RAIN PARTICLES
+    const rainCount = 1200;
+    const rainGeo = new THREE.BufferGeometry();
+    const rainPos = new Float32Array(rainCount * 3);
+    for (let i = 0; i < rainCount; i++) {
+      rainPos[i * 3 + 0] = (deterministicRandom() - 0.5) * 35;
+      rainPos[i * 3 + 1] = deterministicRandom() * 20;
+      rainPos[i * 3 + 2] = (deterministicRandom() - 0.5) * 45;
+    }
+    rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+    const rainMat = new THREE.PointsMaterial({
+      color: 0x64748b,
+      size: 0.12,
+      transparent: true,
+      opacity: 0.65
+    });
+    const rainParticles = new THREE.Points(rainGeo, rainMat);
+    trainRoot.add(rainParticles);
+
+    /* =========================================================================
+       DOM HUD ELEMENTS & CONTROLS BINDING
+       ========================================================================= */
+    const hudSpeed = document.getElementById('hud-speed');
+    const hudLimit = document.getElementById('hud-limit');
+    const hudOdo = document.getElementById('hud-odo');
+    const hudDist = document.getElementById('hud-dist');
+    const hudClock = document.getElementById('hud-clock');
+    const hudSchedDev = document.getElementById('hud-sched-dev');
+    const hudNextSignal = document.getElementById('hud-next-signal');
+    const hudSignalLabel = document.getElementById('hud-signal-label');
+    const hudThrottle = document.getElementById('hud-throttle');
+    const hudBrake = document.getElementById('hud-brake');
+    const hudViolations = document.getElementById('hud-violations');
+    const overspeedWarning = document.getElementById('overspeed-warning');
+    const emergencyWarning = document.getElementById('emergency-warning');
+
+    const readyScreen = document.getElementById('ready-screen');
+    const reportScreen = document.getElementById('report-screen');
+    const startBtn = document.getElementById('start-btn');
+    const restartBtn = document.getElementById('restart-btn');
+
+    const repVerdict = document.getElementById('report-verdict');
+    const repPunctuality = document.getElementById('report-punctuality');
+    const repClock = document.getElementById('rep-clock');
+    const repSchedDev = document.getElementById('rep-sched-dev');
+    const repTime = document.getElementById('rep-time');
+    const repError = document.getElementById('rep-error');
+    const repOverspeed = document.getElementById('rep-overspeed');
+    const repSpad = document.getElementById('rep-spad');
+    const repRestriction = document.getElementById('rep-restriction');
+    const repOdo = document.getElementById('rep-odo');
+
+    function handleSPAD(sigName) {
+      GameState.spadCount++;
+      GameState.violationList.push('SPAD');
+      GameState.emergencyBrakeActive = true;
+      GameState.emergencyBrakeStandstillTimer = 0.0;
+      GameState.throttleNotch = 0;
+      GameState.brakeNotch = 3;
+      audio.playBrakeHiss();
+      audio.playBeep();
+    }
+
+    function handleOverspeedAtRestriction(sigName) {
+      GameState.overspeedAtRestrictionCount++;
+      GameState.violationList.push('OVERSPEED AT RESTRICTION');
+      audio.playBeep();
+    }
+
+    function startRun() {
+      if (GameState.phase !== 'READY') return;
+      audio.init();
+      GameState.phase = 'DRIVING';
+      readyScreen.classList.add('hidden');
+    }
+
+    function resetToReady() {
+      GameState.phase = 'READY';
+      GameState.sectionIndex = 0;
+      GameState.speed = 0.0;
+      GameState.odometer = 0.0;
+      GameState.throttleNotch = 0;
+      GameState.brakeNotch = 0;
+      GameState.currentLimit = 54;
+      GameState.currentGradient = 'FLAT';
+      GameState.gradientValue = 0.0;
+      GameState.overspeedCount = 0;
+      GameState.overspeedTimer = 0.0;
+      GameState.isOverspeeding = false;
+      GameState.stopError = 0.0;
+      GameState.runTime = 0.0;
+      GameState.scheduleDeviation = 0.0;
+      GameState.punctualityVerdict = 'ON TIME';
+      GameState.verdict = '';
+
+      // Reset signals and station records
+      GameState.passedSignal0 = false;
+      GameState.passedSignal1 = false;
+      GameState.spadCount = 0;
+      GameState.overspeedAtRestrictionCount = 0;
+      GameState.violationList = [];
+      GameState.emergencyBrakeActive = false;
+      GameState.emergencyBrakeStandstillTimer = 0.0;
+      GameState.stationArrivals = [];
+      GameState.targetStopDistance = 800.0;
+      GameState.bufferDistance = 818.0;
+
+      // Reset satisfaction and dwell
+      GameState.satisfaction = 100.0;
+      GameState.dwellActive = false;
+      GameState.dwellCountdown = 0.0;
+      GameState.passengerNote = 'DEPOT: ready for departure';
+      GameState.longitudinalAccel = 0.0;
+
+      // Reset energy
+      GameState.energy = 100.0;
+
+      // Reset switch & TSR
+      GameState.switchState = 'MAIN';
+      GameState.thrownInsideZone = false;
+      GameState.wrongRouteCount = 0;
+      GameState.inTsrZone = false;
+      GameState.enteredTsr = false;
+      GameState.tsrViolationCount = 0;
+      SECTIONS[1].targetStop = 900.0;
+      SECTIONS[1].bufferDist = 918.0;
+      SECTIONS[1].platformStart = 820.0;
+      SECTIONS[1].platformEnd = 916.0;
+
+      // Reset turnback & direction
+      GameState.direction = 'OUTBOUND';
+      GameState.turnbackPhase = 'NONE';
+      GameState.cabChangeTimer = 0.0;
+      GameState.outboundArrivals = [];
+      GameState.returnArrivals = [];
+      GameState.perStationDeviations = [];
+      GameState.bufferHitCount = 0;
+      GameState.dutyGrade = '';
+      GameState.gradeScore = 0.0;
+      GameState.onTimeCount = 0;
+      GameState.avgStopError = 0.0;
+      GameState.totalViolations = 0;
+
+      readyScreen.classList.remove('hidden');
+      if (stationScreen) stationScreen.classList.add('hidden');
+      if (turnbackScreen) turnbackScreen.classList.add('hidden');
+      if (cabChangeOverlay) cabChangeOverlay.classList.add('hidden');
+      reportScreen.classList.add('hidden');
+      overspeedWarning.style.display = 'none';
+      if (emergencyWarning) emergencyWarning.style.display = 'none';
+      const tzBanner = document.getElementById('throw-zone-banner');
+      if (tzBanner) tzBanner.style.display = 'none';
+      hudSpeed.classList.remove('overspeed-flash');
+
+      updateHUD();
+      updateCab3DVisuals(0);
+      exportArenaState();
+    }
+
+    // Key handlers supporting standard browser keyboard events
+    window.addEventListener('keydown', (e) => {
+      const k = (e.key || '').toLowerCase();
+      const code = e.code || '';
+
+      const isEnter = k === 'enter' || code === 'Enter';
+      const isSpace = k === ' ' || k === 'space' || code === 'Space';
+      const isW = k === 'w' || code === 'KeyW';
+      const isS = k === 's' || code === 'KeyS';
+      const isX = k === 'x' || code === 'KeyX';
+      const isR = k === 'r' || code === 'KeyR';
+      const isF = k === 'f' || code === 'KeyF';
+      const isE = k === 'e' || code === 'KeyE';
+      
+      if (GameState.phase === 'READY') {
+        if (isEnter || isSpace) {
+          startRun();
+        }
+        return;
+      }
+
+      if (GameState.phase === 'STATION_STOP') {
+        if (isEnter || isSpace) {
+          advanceToNextSection();
+        }
+        return;
+      }
+
+      if (GameState.phase === 'TURNBACK') {
+        if (isE) {
+          if (GameState.turnbackPhase === 'WAITING_CHANGE_ENDS') {
+            triggerChangeEnds();
+          }
+        }
+        return;
+      }
+
+      if (GameState.phase === 'REPORT' || GameState.phase === 'BUFFER_HIT') {
+        if (isR) {
+          resetToReady();
+        }
+        return;
+      }
+
+      if (GameState.phase === 'DRIVING' || GameState.phase === 'STOPPED') {
+        // Switch throw: F (only in Section 1 throw zone: 790-820m)
+        if (isF) {
+          if (GameState.sectionIndex === 1 && GameState.odometer >= 790.0 && GameState.odometer <= 820.0) {
+            GameState.switchState = (GameState.switchState === 'MAIN') ? 'SIDE' : 'MAIN';
+            GameState.thrownInsideZone = true;
+            audio.playClatterTick(1.0);
+            if (GameState.switchState === 'SIDE') {
+              SECTIONS[1].targetStop = 940.0;
+              SECTIONS[1].bufferDist = 958.0;
+              SECTIONS[1].platformStart = 860.0;
+              SECTIONS[1].platformEnd = 956.0;
+              GameState.targetStopDistance = 940.0;
+              GameState.bufferDistance = 958.0;
+            } else {
+              SECTIONS[1].targetStop = 900.0;
+              SECTIONS[1].bufferDist = 918.0;
+              SECTIONS[1].platformStart = 820.0;
+              SECTIONS[1].platformEnd = 916.0;
+              GameState.targetStopDistance = 900.0;
+              GameState.bufferDistance = 918.0;
+            }
+            updateHUD();
+            exportArenaState();
+          }
+        }
+        // Throttle notch UP: W
+        else if (isW) {
+          // Locked during forced emergency brake or station dwell or when out of energy
+          if (GameState.emergencyBrakeActive || GameState.dwellActive) return;
+          if (GameState.energy <= 0.0) return; // Out of energy: throttle has no effect
+          if (GameState.throttleNotch < 4) {
+            GameState.throttleNotch++;
+          }
+          // Engaging throttle clears brake notch
+          if (GameState.brakeNotch > 0) {
+            GameState.brakeNotch = 0;
+          }
+          audio.init();
+        }
+        // Brake notch UP: S
+        else if (isS) {
+          if (GameState.brakeNotch < 3) {
+            GameState.brakeNotch++;
+          }
+          // Engaging brake clears throttle notch
+          if (GameState.throttleNotch > 0) {
+            GameState.throttleNotch = 0;
+          }
+          audio.playBrakeHiss();
+        }
+        // Coast: X
+        else if (isX) {
+          if (GameState.emergencyBrakeActive) return;
+          GameState.throttleNotch = 0;
+          GameState.brakeNotch = 0;
+        }
+        // Open doors: Space
+        else if (isSpace) {
+          tryOpenDoors();
+        }
+        // Restart during run
+        else if (isR) {
+          resetToReady();
+        }
+      }
+    });
+
+    startBtn.addEventListener('click', startRun);
+    restartBtn.addEventListener('click', resetToReady);
+
+    // Intermediate station departure screen references
+    const stationScreen = document.getElementById('station-screen');
+    const stationTitle = document.getElementById('station-title');
+    const stationSub = document.getElementById('station-sub');
+    const stationStopVerdict = document.getElementById('station-stop-verdict');
+    const stationPuncVerdict = document.getElementById('station-punctuality-verdict');
+    const stationSchedArr = document.getElementById('station-sched-arr');
+    const stationActArr = document.getElementById('station-act-arr');
+    const stationDev = document.getElementById('station-dev');
+    const stationErr = document.getElementById('station-err');
+    const stationNextDep = document.getElementById('station-next-dep');
+    const stationDwellMsg = document.getElementById('station-dwell-msg');
+    const stationPrompt = document.getElementById('station-prompt');
+    const departBtn = document.getElementById('depart-btn');
+    if (departBtn) departBtn.addEventListener('click', advanceToNextSection);
+
+    // Multi-station report table references
+    const repParksideAct = document.getElementById('rep-parkside-act');
+    const repParksideDev = document.getElementById('rep-parkside-dev');
+    const repParksideStop = document.getElementById('rep-parkside-stop');
+    const repRiversideAct = document.getElementById('rep-riverside-act');
+    const repRiversideDev = document.getElementById('rep-riverside-dev');
+    const repRiversideStop = document.getElementById('rep-riverside-stop');
+    const repTerminusAct = document.getElementById('rep-terminus-act');
+    const repTerminusDev = document.getElementById('rep-terminus-dev');
+    const repTerminusStop = document.getElementById('rep-terminus-stop');
+    const repSatisfaction = document.getElementById('rep-satisfaction');
+    const hudGradient = document.getElementById('hud-gradient');
+    const hudRoute = document.querySelector('.hud-route');
+    const hudTimetable = document.getElementById('hud-timetable');
+    const hudPassengerNote = document.getElementById('hud-passenger-note');
+    const hudSatisfaction = document.getElementById('hud-satisfaction');
+    const hudDwellBox = document.getElementById('hud-dwell-box');
+    const hudDwellVal = document.getElementById('hud-dwell-val');
+    const hudEnergy = document.getElementById('hud-energy');
+
+    // Turnback screen references
+    const turnbackScreen = document.getElementById('turnback-screen');
+    const turnbackCountdownMsg = document.getElementById('turnback-countdown-msg');
+    const turnbackPrompt = document.getElementById('turnback-prompt');
+    const changeEndsBtn = document.getElementById('change-ends-btn');
+    const cabChangeOverlay = document.getElementById('cab-change-overlay');
+    if (changeEndsBtn) changeEndsBtn.addEventListener('click', triggerChangeEnds);
+
+    function triggerChangeEnds() {
+      if (GameState.turnbackPhase !== 'WAITING_CHANGE_ENDS') return;
+      GameState.turnbackPhase = 'CHANGING_ENDS';
+      GameState.cabChangeTimer = 2.0;
+      audio.playClatterTick(1.0);
+      if (cabChangeOverlay) cabChangeOverlay.classList.remove('hidden');
+      updateHUD();
+      exportArenaState();
+    }
+
+    function tryOpenDoors() {
+      // Must be fully stopped (speed <= 0.01 m/s)
+      if (GameState.speed > 0.01) return;
+      GameState.speed = 0.0;
+
+      const curSec = getCurrentSection();
+      // Check platform area for current section
+      if (GameState.odometer >= curSec.platformStart && GameState.odometer <= curSec.platformEnd) {
+        audio.playDoorChime();
+        concludeStationStop();
+      }
+    }
+
+    function concludeStationStop(bufferHit = false) {
+      const curSec = getCurrentSection();
+      GameState.stopError = GameState.odometer - curSec.targetStop;
+      const absErr = Math.abs(GameState.stopError);
+
+      GameState.scheduleDeviation = parseFloat((GameState.runTime - curSec.scheduledArrive).toFixed(2));
+      GameState.punctualityVerdict = getPunctualityVerdict(GameState.scheduleDeviation);
+
+      let stopVerd = 'ON TARGET';
+      if (bufferHit) {
+        stopVerd = 'BUFFER HIT';
+      } else if (absErr <= 2.0) {
+        stopVerd = 'ON TARGET';
+      } else if (absErr <= 5.0) {
+        stopVerd = 'LATE';
+      } else {
+        stopVerd = 'MISSED STOP';
+      }
+      GameState.verdict = stopVerd;
+
+      // Store arrival record
+      const arrivalRec = {
+        direction: GameState.direction,
+        sectionIndex: GameState.sectionIndex,
+        station: curSec.stationTo,
+        time: GameState.runTime,
+        clockStr: getServiceClockString(GameState.runTime),
+        deviation: GameState.scheduleDeviation,
+        punctuality: GameState.punctualityVerdict,
+        stopError: GameState.stopError,
+        stopVerdict: stopVerd
+      };
+
+      if (GameState.direction === 'OUTBOUND') {
+        GameState.outboundArrivals[GameState.sectionIndex] = arrivalRec;
+      } else {
+        GameState.returnArrivals[GameState.sectionIndex] = arrivalRec;
+      }
+      GameState.stationArrivals.push(arrivalRec);
+      GameState.perStationDeviations = GameState.stationArrivals.map(a => a.deviation);
+
+      // Check WRONG ROUTE violation at Riverside (Section 1 outbound)
+      // Tonight's order is RIVERSIDE PLATFORM 2; arriving routed MAIN logs WRONG ROUTE
+      // The route order does not apply on the return run
+      if (GameState.direction === 'OUTBOUND' && GameState.sectionIndex === 1 && GameState.switchState === 'MAIN') {
+        GameState.wrongRouteCount++;
+        GameState.violationList.push('WRONG ROUTE');
+        audio.playBeep();
+      }
+
+      // If buffer hit: immediate final report
+      if (bufferHit) {
+        GameState.bufferHitCount++;
+        GameState.violationList.push('BUFFER HIT');
+        GameState.phase = 'BUFFER_HIT';
+        showFinalReport(true);
+        return;
+      }
+
+      if (GameState.direction === 'OUTBOUND') {
+        if (GameState.sectionIndex < 2) {
+          // Parkside or Riverside outbound intermediate stop - silent collection for Full Duty
+          GameState.phase = 'STATION_STOP';
+          GameState.dwellActive = true;
+          GameState.dwellCountdown = 6.0;
+          GameState.passengerNote = `${curSec.stationTo}: doors open • dwell 6.0s`;
+
+          if (stationScreen) stationScreen.classList.add('hidden');
+          updateHUD();
+          exportArenaState();
+        } else {
+          // Terminus arrival on outbound: enter TURNBACK!
+          // Passengers alight for 8s, then press E to change ends
+          GameState.phase = 'TURNBACK';
+          GameState.turnbackPhase = 'ALIGHTING';
+          GameState.dwellActive = true;
+          GameState.dwellCountdown = 8.0;
+          GameState.turnbackStartClock = GameState.runTime;
+          GameState.turnbackTargetClock = 600.0;
+          GameState.passengerNote = 'TERMINUS: passengers alighting';
+
+          if (turnbackScreen) turnbackScreen.classList.remove('hidden');
+          if (turnbackCountdownMsg) turnbackCountdownMsg.innerText = 'PASSENGERS ALIGHTING • DWELL: 8.0s';
+          if (turnbackPrompt) turnbackPrompt.innerText = 'PASSENGERS ALIGHTING';
+          if (changeEndsBtn) {
+            changeEndsBtn.disabled = true;
+            changeEndsBtn.innerText = 'WAITING FOR ALIGHTING (8.0s)';
+          }
+
+          updateHUD();
+          exportArenaState();
+        }
+      } else {
+        // Return run (TERMINUS → RIVERSIDE → PARKSIDE → DEPOT)
+        if (GameState.sectionIndex < 2) {
+          // Return intermediate stop (Riverside or Parkside) - silent collection for Full Duty
+          GameState.phase = 'STATION_STOP';
+          GameState.dwellActive = true;
+          GameState.dwellCountdown = 6.0;
+          GameState.passengerNote = `${curSec.stationTo}: doors open • dwell 6.0s`;
+
+          if (stationScreen) stationScreen.classList.add('hidden');
+          updateHUD();
+          exportArenaState();
+        } else {
+          // Arrived at Depot on return run! Complete service finished!
+          GameState.phase = 'REPORT';
+          GameState.dwellActive = false;
+          GameState.dwellCountdown = 0.0;
+          GameState.passengerNote = 'DEPOT: full duty complete';
+          updateHUD();
+          showFinalReport(false);
+        }
+      }
+    }
+
+    function advanceToNextSection() {
+      // Departing before dwell countdown ends is impossible
+      if (GameState.dwellCountdown > 0.05) return;
+      if (GameState.sectionIndex >= 2) return;
+
+      GameState.sectionIndex++;
+      const nextSec = getCurrentSection();
+      GameState.odometer = 0.0;
+      GameState.speed = 0.0;
+      GameState.throttleNotch = 0;
+      GameState.brakeNotch = 0;
+      GameState.targetStopDistance = nextSec.targetStop;
+      GameState.bufferDistance = nextSec.bufferDist;
+      GameState.passedSignal0 = false;
+      GameState.passedSignal1 = false;
+      GameState.dwellActive = false;
+      GameState.dwellCountdown = 0.0;
+      GameState.enteredTsr = false;
+      GameState.inTsrZone = false;
+      GameState.passengerNote = `${nextSec.stationFrom} → ${nextSec.stationTo}: in transit`;
+      GameState.phase = 'DRIVING';
+
+      if (stationScreen) stationScreen.classList.add('hidden');
+      updateHUD();
+      updateCab3DVisuals(0);
+      exportArenaState();
+    }
+
+    function showFinalReport(bufferHit = false) {
+      const allArrivals = [
+        GameState.outboundArrivals[0],
+        GameState.outboundArrivals[1],
+        GameState.outboundArrivals[2],
+        GameState.returnArrivals[0],
+        GameState.returnArrivals[1],
+        GameState.returnArrivals[2]
+      ].filter(Boolean);
+
+      GameState.perStationDeviations = allArrivals.map(a => a.deviation);
+
+      let onTimeCount = 0;
+      let sumAbsStopError = 0;
+      for (const arr of allArrivals) {
+        if (arr.punctuality === 'ON TIME') onTimeCount++;
+        sumAbsStopError += Math.abs(arr.stopError);
+      }
+      const count = allArrivals.length || 1;
+      const avgStopError = parseFloat((sumAbsStopError / count).toFixed(2));
+      GameState.onTimeCount = onTimeCount;
+      GameState.avgStopError = avgStopError;
+
+      const totalViolations = GameState.overspeedCount + GameState.spadCount + GameState.tsrViolationCount + GameState.wrongRouteCount + GameState.bufferHitCount;
+      GameState.totalViolations = totalViolations;
+
+      // Grade Formula:
+      // GRADE SCORE = 20 × ON TIME COUNT − 5 × (total violations) − 10 × (average stop error in meters) + floor(SATISFACTION / 10) + floor(ENERGY REMAINING / 20)
+      const score = 20 * onTimeCount - 5 * totalViolations - 10 * avgStopError + Math.floor(GameState.satisfaction / 10) + Math.floor(GameState.energy / 20);
+      let grade = 'NIGHT SHIFT';
+      if (score >= 110) {
+        grade = 'GOLD CONDUCTOR';
+      } else if (score >= 90) {
+        grade = 'SILVER';
+      } else if (score >= 60) {
+        grade = 'BRONZE';
+      } else {
+        grade = 'NIGHT SHIFT';
+      }
+      GameState.gradeScore = parseFloat(score.toFixed(2));
+      GameState.dutyGrade = grade;
+
+      // Populate 6 arrival rows
+      const arrRowDefs = [
+        { rec: GameState.outboundArrivals[0], act: 'rep-parkside-act', dev: 'rep-parkside-dev', stop: 'rep-parkside-stop' },
+        { rec: GameState.outboundArrivals[1], act: 'rep-riverside-act', dev: 'rep-riverside-dev', stop: 'rep-riverside-stop' },
+        { rec: GameState.outboundArrivals[2], act: 'rep-terminus-act', dev: 'rep-terminus-dev', stop: 'rep-terminus-stop' },
+        { rec: GameState.returnArrivals[0], act: 'rep-ret-riverside-act', dev: 'rep-ret-riverside-dev', stop: 'rep-ret-riverside-stop' },
+        { rec: GameState.returnArrivals[1], act: 'rep-ret-parkside-act', dev: 'rep-ret-parkside-dev', stop: 'rep-ret-parkside-stop' },
+        { rec: GameState.returnArrivals[2], act: 'rep-ret-depot-act', dev: 'rep-ret-depot-dev', stop: 'rep-ret-depot-stop' }
+      ];
+
+      for (const def of arrRowDefs) {
+        const r = def.rec;
+        const actEl = document.getElementById(def.act);
+        const devEl = document.getElementById(def.dev);
+        const stopEl = document.getElementById(def.stop);
+        if (r) {
+          if (actEl) actEl.innerText = r.clockStr;
+          if (devEl) devEl.innerText = `${r.deviation >= 0 ? '+' : ''}${r.deviation.toFixed(2)}s`;
+          if (stopEl) {
+            stopEl.innerText = r.punctuality;
+            stopEl.style.color = r.punctuality === 'ON TIME' ? '#4ade80' : (r.punctuality === 'EARLY' || r.punctuality === 'LATE' ? '#facc15' : '#f87171');
+          }
+        }
+      }
+
+      // Populate labeled rows
+      const repOnTime = document.getElementById('rep-ontime-count');
+      const repStopAcc = document.getElementById('rep-stop-accuracy');
+      const repSat = document.getElementById('rep-satisfaction');
+      const repEng = document.getElementById('rep-energy');
+      const repViolations = document.getElementById('rep-violations-row');
+      const repGrade = document.getElementById('rep-duty-grade');
+      const repGradeBadge = document.getElementById('rep-duty-grade-badge');
+      const repScore = document.getElementById('rep-duty-score');
+
+      if (repOnTime) repOnTime.innerText = `${onTimeCount} / 6`;
+      if (repStopAcc) repStopAcc.innerText = `${avgStopError.toFixed(2)} m`;
+      if (repSat) {
+        const satVal = Math.round(GameState.satisfaction);
+        repSat.innerText = `${satVal}%`;
+        repSat.style.color = satVal >= 90 ? '#4ade80' : (satVal >= 70 ? '#facc15' : '#f87171');
+      }
+      if (repEng) repEng.innerText = `${GameState.energy.toFixed(1)} / 100`;
+      if (repViolations) {
+        repViolations.innerText = `Overspeeds: ${GameState.overspeedCount} • SPADs: ${GameState.spadCount} • TSR: ${GameState.tsrViolationCount} • Wrong Route: ${GameState.wrongRouteCount} • Buffer Hits: ${GameState.bufferHitCount}`;
+      }
+      if (repGrade) {
+        repGrade.innerText = `${grade} (Score: ${GameState.gradeScore.toFixed(2)})`;
+        repGrade.style.color = grade === 'GOLD CONDUCTOR' ? '#fbbf24' : (grade === 'SILVER' ? '#cbd5e1' : (grade === 'BRONZE' ? '#f97316' : '#94a3b8'));
+      }
+      if (repGradeBadge) {
+        repGradeBadge.innerText = grade;
+        repGradeBadge.className = `verdict-badge ${grade === 'GOLD CONDUCTOR' ? 'verdict-on-target' : (grade === 'SILVER' ? 'verdict-on-target' : (grade === 'BRONZE' ? 'verdict-late' : 'verdict-missed'))}`;
+      }
+      if (repScore) {
+        repScore.innerText = `GRADE SCORE: ${GameState.gradeScore.toFixed(2)}`;
+      }
+
+      if (stationScreen) stationScreen.classList.add('hidden');
+      if (turnbackScreen) turnbackScreen.classList.add('hidden');
+      reportScreen.classList.remove('hidden');
+      exportArenaState();
+    }
+
+    /* =========================================================================
+       PHYSICS UPDATE LOOP
+       Fixed timestep determinism
+       ========================================================================= */
+    function updatePhysics(dt) {
+      if (GameState.phase !== 'DRIVING' && GameState.phase !== 'STOPPED' && GameState.phase !== 'STATION_STOP' && GameState.phase !== 'TURNBACK') return;
+
+      // Turnback handling at Terminus (8s alighting dwell + 2s cab change freeze)
+      // Service clock continues running during turnback toward 23:10:00 (600.0s)
+      if (GameState.phase === 'TURNBACK') {
+        GameState.speed = 0.0;
+        GameState.throttleNotch = 0;
+        GameState.brakeNotch = 3;
+
+        const clockSpan = Math.max(0, (GameState.turnbackTargetClock || 600.0) - (GameState.turnbackStartClock || GameState.runTime));
+        const advanceRate = Math.max(1.0, clockSpan / 10.0);
+
+        if (GameState.turnbackPhase === 'ALIGHTING') {
+          GameState.dwellCountdown -= dt;
+          GameState.runTime += advanceRate * dt;
+
+          if (GameState.dwellCountdown <= 0.0) {
+            GameState.dwellCountdown = 0.0;
+            GameState.dwellActive = false;
+            audio.playDoorChime();
+            GameState.turnbackPhase = 'WAITING_CHANGE_ENDS';
+            GameState.passengerNote = 'TERMINUS: turnback ready — press E to change ends';
+            if (turnbackCountdownMsg) turnbackCountdownMsg.innerText = 'ALIGHTING COMPLETE • READY TO CHANGE ENDS';
+            if (turnbackPrompt) turnbackPrompt.innerText = 'PRESS [E] TO CHANGE ENDS';
+            if (changeEndsBtn) {
+              changeEndsBtn.disabled = false;
+              changeEndsBtn.innerText = 'PRESS [E] TO CHANGE ENDS';
+            }
+            updateHUD();
+          } else {
+            GameState.passengerNote = 'TERMINUS: passengers alighting';
+            if (turnbackCountdownMsg) turnbackCountdownMsg.innerText = `PASSENGERS ALIGHTING • DWELL: ${GameState.dwellCountdown.toFixed(1)}s`;
+            updateHUD();
+          }
+        } else if (GameState.turnbackPhase === 'WAITING_CHANGE_ENDS') {
+          GameState.runTime += dt;
+          updateHUD();
+        } else if (GameState.turnbackPhase === 'CHANGING_ENDS') {
+          GameState.cabChangeTimer -= dt;
+          GameState.runTime += advanceRate * dt;
+
+          if (GameState.cabChangeTimer <= 0.0) {
+            GameState.cabChangeTimer = 0.0;
+            GameState.turnbackPhase = 'NONE';
+            GameState.direction = 'RETURN';
+            GameState.sectionIndex = 0; // Return section 0: TERMINUS -> RIVERSIDE
+            GameState.odometer = 0.0;
+            GameState.speed = 0.0;
+            GameState.throttleNotch = 0;
+            GameState.brakeNotch = 0;
+            GameState.runTime = Math.max(600.0, GameState.runTime);
+            const nextSec = SECTIONS_RETURN[0];
+            GameState.targetStopDistance = nextSec.targetStop;
+            GameState.bufferDistance = nextSec.bufferDist;
+            GameState.passedSignal0 = false;
+            GameState.passedSignal1 = false;
+            GameState.phase = 'DRIVING';
+            GameState.passengerNote = 'TERMINUS → RIVERSIDE: return service underway';
+
+            if (turnbackScreen) turnbackScreen.classList.add('hidden');
+            if (cabChangeOverlay) cabChangeOverlay.classList.add('hidden');
+            audio.playDoorChime();
+            updateHUD();
+          }
+        }
+        exportArenaState();
+        return;
+      }
+
+      GameState.runTime += dt;
+
+      const curSec = getCurrentSection();
+      const gradObj = curSec.getGradient(GameState.odometer);
+      GameState.currentLimit = curSec.getLimit(GameState.odometer);
+      GameState.currentGradient = gradObj.name;
+      GameState.gradientValue = gradObj.value;
+
+      // Energy drain: holding any throttle notch drains 1 unit/sec per notch (T4 drains 4/s)
+      // At 0 energy, throttle has no effect (train can only coast and brake)
+      if (GameState.phase === 'DRIVING' && GameState.throttleNotch > 0) {
+        GameState.energy = Math.max(0.0, GameState.energy - GameState.throttleNotch * 1.0 * dt);
+        if (GameState.energy <= 0.0) {
+          GameState.energy = 0.0;
+          GameState.throttleNotch = 0;
+        }
+      }
+
+      // Check section signals crossings
+      const sigs = curSec.signals;
+      if (!GameState.passedSignal0 && GameState.odometer >= sigs[0].dist) {
+        GameState.passedSignal0 = true;
+        const aspect0 = getSignalAspects(GameState.runTime)[sigs[0].name.toLowerCase()] || 'GREEN';
+        if (aspect0 === 'RED') {
+          handleSPAD(sigs[0].name);
+        } else if (aspect0 === 'YELLOW' && GameState.speed * 3.6 > 25.0) {
+          handleOverspeedAtRestriction(sigs[0].name);
+        }
+      }
+
+      if (!GameState.passedSignal1 && GameState.odometer >= sigs[1].dist) {
+        GameState.passedSignal1 = true;
+        const aspect1 = getSignalAspects(GameState.runTime)[sigs[1].name.toLowerCase()] || 'GREEN';
+        if (aspect1 === 'RED') {
+          handleSPAD(sigs[1].name);
+        } else if (aspect1 === 'YELLOW' && GameState.speed * 3.6 > 25.0) {
+          handleOverspeedAtRestriction(sigs[1].name);
+        }
+      }
+
+      // Emergency Brake Enforcement (full stop on SPAD, releases after 5s at standstill)
+      if (GameState.emergencyBrakeActive) {
+        GameState.throttleNotch = 0;
+        GameState.brakeNotch = 3;
+        GameState.speed -= 2.5 * dt;
+        if (GameState.speed <= 0.0001) {
+          GameState.speed = 0.0;
+          GameState.emergencyBrakeStandstillTimer += dt;
+          if (GameState.emergencyBrakeStandstillTimer >= 5.0) {
+            GameState.emergencyBrakeActive = false;
+            GameState.emergencyBrakeStandstillTimer = 0.0;
+          }
+        }
+      }
+
+      // Driving force & decelerations
+      const a_throttle = THROTTLE_ACCELS[GameState.throttleNotch];
+      const d_brake = BRAKE_DECELS[GameState.brakeNotch];
+      const drag = DRAG_C1 * GameState.speed + DRAG_C2 * GameState.speed * GameState.speed;
+
+      // Gradients modify effective acceleration:
+      // +2% climb loses 0.2 m/s² (accelMod = -0.2)
+      // −2% drop gains 0.2 m/s² (accelMod = +0.2)
+      const netAccel = a_throttle - d_brake - drag + gradObj.accelMod;
+      GameState.speed += netAccel * dt;
+
+      // Ride Comfort: Sample actual longitudinal acceleration
+      // Whenever |netAccel| > 1.5 m/s², satisfaction drops at 2 points/sec
+      GameState.longitudinalAccel = parseFloat(netAccel.toFixed(3));
+      const absAccel = Math.abs(netAccel);
+      if (absAccel > 1.5) {
+        GameState.satisfaction = Math.max(0, GameState.satisfaction - 2.0 * dt);
+      }
+
+      if (GameState.speed < 0.0001) {
+        GameState.speed = 0.0;
+      }
+
+      // Advance distance
+      GameState.odometer += GameState.speed * dt;
+
+      // Round 8: TSR Zone entry speed check (on Section 2 outbound at 200m)
+      // Entering the zone above 30 km/h logs one TSR VIOLATION; applies outbound only
+      if (GameState.direction === 'OUTBOUND' && GameState.sectionIndex === 2) {
+        if (!GameState.enteredTsr && GameState.odometer >= 200.0) {
+          GameState.enteredTsr = true;
+          if (GameState.speed * 3.6 > 30.0) {
+            GameState.tsrViolationCount++;
+            GameState.violationList.push('TSR VIOLATION');
+            audio.playBeep();
+          }
+        }
+      }
+
+      // Dwell countdown at intermediate stations (Parkside, Riverside)
+      if (GameState.dwellActive) {
+        GameState.speed = 0.0;
+        GameState.throttleNotch = 0;
+        GameState.brakeNotch = 3;
+        GameState.dwellCountdown -= dt;
+        if (GameState.dwellCountdown <= 0.0) {
+          GameState.dwellCountdown = 0.0;
+          GameState.dwellActive = false;
+          audio.playDoorChime();
+          advanceToNextSection();
+        } else {
+          GameState.passengerNote = `${curSec.stationTo}: doors open • dwell ${GameState.dwellCountdown.toFixed(1)}s`;
+          updateHUD();
+        }
+      }
+
+      // Check Buffer collision
+      if (GameState.odometer >= curSec.bufferDist) {
+        GameState.odometer = curSec.bufferDist;
+        GameState.speed = 0.0;
+        audio.playBrakeHiss();
+        concludeStationStop(true);
+        return;
+      }
+
+      // Section limits & Overspeed logic:
+      // Exceeding section limit for more than 2 continuous seconds logs 1 overspeed violation
+      const speedKmh = GameState.speed * 3.6;
+      if (speedKmh > GameState.currentLimit) {
+        GameState.overspeedTimer += dt;
+        if (GameState.overspeedTimer >= 2.0 && !GameState.isOverspeeding) {
+          GameState.overspeedCount++;
+          GameState.violationList.push('OVERSPEED');
+          GameState.isOverspeeding = true;
+          audio.playBeep();
+        }
+      } else {
+        GameState.overspeedTimer = 0.0;
+        GameState.isOverspeeding = false;
+      }
+
+      // Status of train stopped
+      if (GameState.speed === 0.0 && GameState.odometer > 5.0) {
+        if (GameState.phase === 'DRIVING') {
+          GameState.phase = 'STOPPED';
+        }
+      } else if (GameState.speed > 0.0 && GameState.phase === 'STOPPED') {
+        GameState.phase = 'DRIVING';
+      }
+
+      updateHUD();
+      exportArenaState();
+    }
+
+    /* =========================================================================
+       CAB 3D VISUALS & ANIMATION UPDATE
+       ========================================================================= */
+    function updateCab3DVisuals(time) {
+      // Update 3D trackside signals S1 and S2
+      const currentAspects = getSignalAspects(GameState.runTime);
+      if (signalS1) signalS1.setAspect(currentAspects.s1);
+      if (signalS2) signalS2.setAspect(currentAspects.s2);
+
+      // Update 3D switch lantern
+      if (typeof updateSwitchLantern === 'function') {
+        updateSwitchLantern(GameState.switchState);
+      }
+
+      // 1. Train placement along track
+      const pt = getTrackPoint(GameState.odometer);
+      trainRoot.position.set(pt.x, pt.y, pt.z);
+      trainRoot.rotation.y = pt.yaw;
+
+      // 2. Cab subtle secondary motion (sway & vibration with speed)
+      const speedRatio = Math.min(GameState.speed / 20.0, 1.2);
+      const swayRoll = Math.sin(time * 3.2 + GameState.odometer * 0.1) * 0.012 * speedRatio;
+      const swayPitch = Math.sin(time * 4.8) * 0.006 * speedRatio;
+      const swayY = Math.sin(time * 6.5) * 0.008 * speedRatio;
+      cabInterior.rotation.z = swayRoll;
+      cabInterior.rotation.x = swayPitch;
+      cabInterior.position.y = swayY;
+
+      // 3. Passing light sweep across cab
+      let minLightDist = 999;
+      for (let i = 0; i < trackLights.length; i++) {
+        const dDiff = trackLights[i].dist - GameState.odometer;
+        if (dDiff >= -5 && dDiff < minLightDist) {
+          minLightDist = dDiff;
+        }
+      }
+      if (minLightDist < 20) {
+        const sweepFactor = 1.0 - Math.abs(minLightDist - 6) / 14;
+        passingSweepLight.intensity = Math.max(0, sweepFactor * 2.2);
+        passingSweepLight.position.x = (minLightDist - 6) * 0.2;
+      } else {
+        passingSweepLight.intensity = 0;
+      }
+
+      // 4. Speedometer Needle rotation (-2.2 rad to +2.2 rad for 0 to 80 km/h)
+      const spdKmh = GameState.speed * 3.6;
+      const needleAngle = -2.2 + Math.min(spdKmh / 80.0, 1.1) * 4.4;
+      needlePivot.rotation.z = -needleAngle;
+
+      // 5. Lever physical notches rotation
+      // Throttle lever: rotates forward as notch increases (0..4)
+      const targetThrottleAngle = -GameState.throttleNotch * 0.18;
+      throttlePivot.rotation.x += (targetThrottleAngle - throttlePivot.rotation.x) * 0.25;
+
+      // Brake lever: rotates backward as brake notch increases (0..3)
+      const targetBrakeAngle = GameState.brakeNotch * 0.22;
+      brakePivot.rotation.x += (targetBrakeAngle - brakePivot.rotation.x) * 0.25;
+
+      // 6. LED digital gauge on desk
+      updateConsoleLED(Math.round(spdKmh), GameState.currentLimit, GameState.throttleNotch, GameState.brakeNotch);
+
+      // 7. Update rain loop around train
+      const rainPositions = rainParticles.geometry.attributes.position.array;
+      for (let i = 0; i < rainCount; i++) {
+        rainPositions[i * 3 + 1] -= (0.45 + speedRatio * 0.3);
+        if (rainPositions[i * 3 + 1] < -0.5) {
+          rainPositions[i * 3 + 1] = 18;
+        }
+      }
+      rainParticles.geometry.attributes.position.needsUpdate = true;
+    }
+
+    /* =========================================================================
+       HUD RENDERING
+       ========================================================================= */
+    function updateHUD() {
+      const curSec = getCurrentSection();
+      const gradObj = curSec.getGradient(GameState.odometer);
+
+      const spdKmh = Math.round(GameState.speed * 3.6);
+      hudSpeed.innerText = spdKmh.toString();
+      hudLimit.innerText = curSec.getLimit(GameState.odometer).toString();
+      hudOdo.innerText = GameState.odometer.toFixed(1);
+
+      const distToStop = Math.max(0, curSec.targetStop - GameState.odometer);
+      hudDist.innerText = distToStop.toFixed(1);
+
+      // Route and section timetable display
+      if (hudRoute) hudRoute.innerText = `${curSec.name} [${GameState.direction}]`;
+      if (hudTimetable) {
+        hudTimetable.innerText = `${curSec.stationFrom} ${getServiceClockString(curSec.scheduledDepart)} → ${curSec.stationTo} ${getServiceClockString(curSec.scheduledArrive)}`;
+      }
+
+      // Service Clock (advances second by second in real time from 23:00:00)
+      hudClock.innerText = getServiceClockString(GameState.runTime);
+
+      // Passenger Satisfaction Comfort Readout
+      if (hudSatisfaction) {
+        const satScore = Math.round(GameState.satisfaction);
+        hudSatisfaction.innerText = `${satScore}%`;
+        hudSatisfaction.style.color = satScore >= 90 ? '#4ade80' : (satScore >= 70 ? '#facc15' : '#f87171');
+      }
+
+      // Passenger Note on HUD
+      if (hudPassengerNote) {
+        hudPassengerNote.innerText = GameState.passengerNote;
+      }
+
+      // Dwell Countdown HUD indicator
+      if (hudDwellBox) {
+        if (GameState.dwellActive) {
+          hudDwellBox.style.display = 'block';
+          if (hudDwellVal) hudDwellVal.innerText = `${GameState.dwellCountdown.toFixed(1)}s`;
+        } else {
+          hudDwellBox.style.display = 'none';
+        }
+      }
+
+      // Current gradient display (FLAT / +2% / −2%)
+      if (hudGradient) {
+        hudGradient.innerText = gradObj.name;
+        if (gradObj.name === '+2%') {
+          hudGradient.style.color = '#fb923c';
+        } else if (gradObj.name === '-2%') {
+          hudGradient.style.color = '#38bdf8';
+        } else {
+          hudGradient.style.color = '#94a3b8';
+        }
+      }
+
+      // Schedule Deviation Arrival Projection:
+      // scheduled arrival time minus (clock + remaining distance ÷ current speed)
+      // displayed as live +/- seconds value whenever train is moving; reads '--' at standstill
+      if (GameState.speed > 0.05) {
+        const remDist = Math.max(0, curSec.targetStop - GameState.odometer);
+        const projectedArrival = GameState.runTime + remDist / GameState.speed;
+        const liveDev = curSec.scheduledArrive - projectedArrival;
+        const sign = liveDev >= 0 ? '+' : '';
+        hudSchedDev.innerText = `${sign}${liveDev.toFixed(1)}s`;
+        if (Math.abs(liveDev) <= 3.0) {
+          hudSchedDev.style.color = '#4ade80';
+        } else if (Math.abs(liveDev) <= 15.0) {
+          hudSchedDev.style.color = '#facc15';
+        } else {
+          hudSchedDev.style.color = '#f87171';
+        }
+      } else {
+        hudSchedDev.innerText = '--';
+        hudSchedDev.style.color = '#94a3b8';
+      }
+
+      // Next Signal Aspect display (NEXT SIGNAL: GREEN/YELLOW/RED)
+      const nextSig = getNextSignalInfo();
+      hudNextSignal.innerText = nextSig.aspect;
+      hudSignalLabel.innerText = nextSig.name === 'CLEAR' ? 'ALL SIGNALS PASSED' : `NEXT SIGNAL: ${nextSig.name}`;
+      if (nextSig.aspect === 'GREEN') {
+        hudNextSignal.style.color = '#4ade80';
+      } else if (nextSig.aspect === 'YELLOW') {
+        hudNextSignal.style.color = '#facc15';
+      } else if (nextSig.aspect === 'RED') {
+        hudNextSignal.style.color = '#f87171';
+      } else {
+        hudNextSignal.style.color = '#94a3b8';
+      }
+
+      // Notch texts
+      hudThrottle.innerText = GameState.throttleNotch === 0 ? 'COAST' : `T${GameState.throttleNotch}`;
+      hudBrake.innerText = GameState.brakeNotch === 0 ? 'RELEASE' : `B${GameState.brakeNotch}`;
+      hudViolations.innerText = (GameState.overspeedCount + GameState.spadCount + GameState.overspeedAtRestrictionCount + GameState.wrongRouteCount + GameState.tsrViolationCount + GameState.bufferHitCount).toString();
+
+      // Switch State & Throw Zone banner
+      const hudSwitchState = document.getElementById('hud-switch-state');
+      const throwZoneBanner = document.getElementById('throw-zone-banner');
+      if (hudSwitchState) {
+        hudSwitchState.innerText = GameState.switchState;
+        hudSwitchState.style.color = GameState.switchState === 'SIDE' ? '#f59e0b' : '#38bdf8';
+      }
+      const inThrowZone = (GameState.sectionIndex === 1 && GameState.odometer >= 790.0 && GameState.odometer <= 820.0);
+      if (throwZoneBanner) {
+        throwZoneBanner.style.display = inThrowZone ? 'block' : 'none';
+      }
+
+      // Energy readout
+      if (hudEnergy) {
+        hudEnergy.innerText = GameState.energy.toFixed(1);
+        hudEnergy.style.color = GameState.energy > 30 ? '#38bdf8' : (GameState.energy > 10 ? '#facc15' : '#f87171');
+      }
+
+      // Overspeed flashing warning
+      const overspeedActive = (GameState.speed * 3.6) > GameState.currentLimit;
+      if (overspeedActive) {
+        hudSpeed.classList.add('overspeed-flash');
+        overspeedWarning.style.display = 'block';
+      } else {
+        hudSpeed.classList.remove('overspeed-flash');
+        overspeedWarning.style.display = 'none';
+      }
+
+      // Emergency Brake SPAD banner
+      if (emergencyWarning) {
+        if (GameState.emergencyBrakeActive) {
+          emergencyWarning.style.display = 'block';
+          if (GameState.speed === 0.0) {
+            const remHold = Math.max(0, 5.0 - GameState.emergencyBrakeStandstillTimer).toFixed(1);
+            emergencyWarning.innerHTML = `EMERGENCY BRAKE &mdash; SPAD VIOLATION (HOLDING ${remHold}S)`;
+          } else {
+            emergencyWarning.innerHTML = `EMERGENCY BRAKE &mdash; SPAD VIOLATION (BRAKING)`;
+          }
+        } else {
+          emergencyWarning.style.display = 'none';
+        }
+      }
+    }
+
+    /* =========================================================================
+       MAIN RENDER & ANIMATION LOOP
+       ========================================================================= */
+    let lastTime = performance.now();
+
+    function animate(currentTime) {
+      requestAnimationFrame(animate);
+
+      const dt = Math.min((currentTime - lastTime) / 1000.0, 0.1);
+      lastTime = currentTime;
+
+      updatePhysics(dt);
+      updateCab3DVisuals(currentTime * 0.001);
+      updateHUD();
+      audio.update(GameState.speed, GameState.throttleNotch, GameState.brakeNotch);
+      exportArenaState();
+
+      if (renderer) {
+        renderer.render(scene, camera);
+      }
+    }
+
+    // Window resize handler
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      if (renderer) {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+    });
+
+    // Initialize state export & kick off animation
+    resetToReady();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

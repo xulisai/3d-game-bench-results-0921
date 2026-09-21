@@ -1,0 +1,3882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Titan Wrecker - Heavy Machinery Demolition</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body, html { width: 100%; height: 100%; overflow: hidden; background: #0c0f14; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #fff; }
+    #canvas-container { width: 100%; height: 100%; position: absolute; left: 0; top: 0; z-index: 1; }
+    
+    /* HUD Overlay */
+    #hud {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 10; display: flex; flex-direction: column;
+      justify-content: space-between; padding: 22px;
+    }
+    .hud-header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    }
+    .hud-card {
+      background: rgba(18, 22, 28, 0.88); border: 1px solid #ffaa0044;
+      border-left: 4px solid #ff9900; padding: 12px 20px; border-radius: 4px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+    }
+    .job-badge {
+      display: inline-block; background: #ff9900; color: #111; font-weight: 900;
+      font-size: 11px; padding: 2px 8px; border-radius: 2px; text-transform: uppercase;
+      letter-spacing: 1px; margin-bottom: 4px;
+    }
+    .job-title { font-size: 20px; font-weight: 800; letter-spacing: 0.5px; color: #f5f5f5; }
+    .hud-stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px; margin-top: 8px; }
+    .hud-stat { display: flex; flex-direction: column; }
+    .stat-label { font-size: 10px; color: #aaa; text-transform: uppercase; letter-spacing: 0.8px; }
+    .stat-value { font-size: 17px; font-weight: 700; font-family: 'Courier New', monospace; color: #ffcc00; }
+    
+    .hud-center-top {
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+    }
+    .timer-card {
+      background: rgba(18, 22, 28, 0.9); border: 1px solid #444; border-top: 3px solid #ff4444;
+      padding: 8px 24px; border-radius: 4px; text-align: center;
+    }
+    .timer-val { font-size: 32px; font-weight: 900; font-family: 'Courier New', monospace; color: #fff; letter-spacing: 2px; }
+    
+    .telemetry-card {
+      background: rgba(18, 22, 28, 0.88); border: 1px solid #333;
+      padding: 12px 18px; border-radius: 4px; font-family: 'Courier New', monospace;
+      font-size: 12px; line-height: 1.6; min-width: 240px;
+    }
+    .telemetry-row { display: flex; justify-content: space-between; }
+    .telemetry-row span:last-child { font-weight: bold; color: #55eeaa; }
+    
+    /* Subtitles & Alerts */
+    #alert-banner {
+      position: absolute; top: 115px; left: 50%; transform: translateX(-50%);
+      background: rgba(220, 20, 20, 0.92); color: #fff; font-size: 20px; font-weight: 900;
+      padding: 10px 28px; border-radius: 4px; letter-spacing: 2px; text-transform: uppercase;
+      box-shadow: 0 0 25px rgba(255, 30, 30, 0.8); border: 2px solid #fff;
+      display: none; animation: pulseAlert 0.4s infinite alternate; z-index: 20;
+    }
+    #info-banner {
+      position: absolute; top: 115px; left: 50%; transform: translateX(-50%);
+      background: rgba(35, 134, 54, 0.95); color: #fff; font-size: 20px; font-weight: 900;
+      padding: 10px 28px; border-radius: 4px; letter-spacing: 2px; text-transform: uppercase;
+      box-shadow: 0 0 25px rgba(46, 200, 80, 0.8); border: 2px solid #fff;
+      display: none; animation: pulseAlert 0.4s infinite alternate; z-index: 20;
+    }
+    @keyframes pulseAlert {
+      from { transform: translateX(-50%) scale(1); }
+      to { transform: translateX(-50%) scale(1.04); }
+    }
+    
+    #rerig-indicator {
+      display: inline-block; padding: 2px 6px; border-radius: 2px; font-size: 10px;
+      font-weight: bold; background: #ffaa00; color: #000; margin-left: 6px; display: none;
+    }
+
+    #preset-badge {
+      display: inline-block; padding: 2px 6px; border-radius: 2px; font-size: 10px;
+      font-weight: bold; background: #00bbff; color: #000; margin-left: 4px;
+    }
+
+    /* Overlay Screens */
+    .screen-overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(10, 13, 18, 0.88); backdrop-filter: blur(8px);
+      z-index: 50; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; pointer-events: auto; padding: 30px;
+    }
+    .screen-panel {
+      max-width: 680px; width: 100%; background: #161a22; border: 2px solid #30363d;
+      border-radius: 8px; padding: 32px; box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+      text-align: center;
+    }
+    .screen-title { font-size: 38px; font-weight: 900; letter-spacing: 2px; margin-bottom: 8px; text-transform: uppercase; }
+    .screen-subtitle { font-size: 15px; color: #8b949e; margin-bottom: 24px; line-height: 1.5; }
+    
+    .keys-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 18px;
+      text-align: left; background: #0d1117; padding: 16px; border-radius: 6px;
+      margin-bottom: 22px; font-size: 12.5px; border: 1px solid #21262d;
+    }
+    .key-bind { display: flex; align-items: center; justify-content: space-between; }
+    .kbd {
+      background: #21262d; border: 1px solid #30363d; border-radius: 4px;
+      padding: 2px 7px; font-family: monospace; font-size: 11px; font-weight: bold;
+      color: #ff9900; box-shadow: 0 2px 0 #161b22;
+    }
+    
+    .ledger-container {
+      margin: 16px 0; max-height: 135px; overflow-y: auto; text-align: left;
+      background: #0d1117; border: 1px solid #30363d; border-radius: 4px;
+      padding: 10px 14px; font-family: 'Courier New', monospace; font-size: 11px;
+    }
+    .ledger-title { font-size: 11px; font-weight: bold; color: #ff7b72; margin-bottom: 6px; text-transform: uppercase; }
+    .ledger-item { padding: 3px 0; border-bottom: 1px dashed #21262d; color: #c9d1d9; }
+    .ledger-item.protected { color: #ff7b72; font-weight: bold; }
+    .ledger-item.breach { color: #f0883e; font-weight: bold; }
+    .ledger-empty { color: #484f58; font-style: italic; }
+
+    .btn-action {
+      display: inline-block; background: #238636; color: #fff; font-weight: 800;
+      font-size: 15px; padding: 12px 30px; border-radius: 6px; text-transform: uppercase;
+      letter-spacing: 1px; border: none; cursor: pointer; transition: background 0.2s;
+      margin: 6px;
+    }
+    .btn-action:hover { background: #2ea043; }
+    .btn-secondary { background: #30363d; }
+    .btn-secondary:hover { background: #3c444d; }
+    
+    .job-complete-color { color: #3fb950; }
+    .job-failed-color { color: #f85149; }
+    .contract-complete-color { color: #e3b341; }
+    .demolition-master-color { color: #f59e0b; text-shadow: 0 0 16px rgba(245, 158, 11, 0.6); }
+    .perfect-custodian-seal {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 6px 14px;
+      background: rgba(46, 204, 113, 0.18);
+      border: 2px solid #2ecc71;
+      border-radius: 6px;
+      color: #2ecc71;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      font-size: 14px;
+      text-transform: uppercase;
+      box-shadow: 0 0 12px rgba(46, 204, 113, 0.4);
+    }
+    .career-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin: 16px 0;
+      text-align: left;
+    }
+    .career-stat {
+      background: #11161d;
+      border: 1px solid #30363d;
+      padding: 8px 12px;
+      border-radius: 6px;
+    }
+    .career-label { font-size: 11px; color: #8b949e; text-transform: uppercase; font-weight: 600; }
+    .career-val { font-size: 17px; color: #f0f6fc; font-weight: bold; margin-top: 2px; }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  
+  <div id="hud">
+    <div class="hud-header">
+      <div class="hud-card">
+        <span class="job-badge" id="hud-job-badge">JOB 1 OF 5</span>
+        <div class="job-title" id="hud-job-title">Warehouse Demolition</div>
+        <div class="hud-stat-grid">
+          <div class="hud-stat" id="stat-box-target">
+            <span class="stat-label" id="hud-target-label">Demolition</span>
+            <span class="stat-value" id="hud-completion">0.0%</span>
+          </div>
+          <div class="hud-stat">
+            <span class="stat-label">Active Rig</span>
+            <span class="stat-value" id="hud-rig-name" style="color:#55eeaa;">BALL <span id="rerig-indicator">RE-RIGGING</span></span>
+          </div>
+          <div class="hud-stat">
+            <span class="stat-label">Boundary / Safety</span>
+            <span class="stat-value" id="hud-violations" style="color:#ff7b72;">0</span>
+          </div>
+          <div class="hud-stat">
+            <span class="stat-label">Protected Damage</span>
+            <span class="stat-value" id="hud-protected" style="color:#f85149;">0</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="hud-center-top">
+        <div class="timer-card">
+          <span class="stat-label">CONTRACT TIME REMAINING</span>
+          <div class="timer-val" id="hud-timer">04:00</div>
+        </div>
+      </div>
+      
+      <div class="telemetry-card">
+        <div class="telemetry-row"><span>CRANE SLEW:</span><span id="tele-slew">0.0°</span></div>
+        <div class="telemetry-row"><span>BOOM LUFF:</span><span id="tele-boom">50.0°</span></div>
+        <div class="telemetry-row"><span>CABLE WINCH:</span><span id="hud-cable">12.0m</span></div>
+        <div class="telemetry-row"><span>SWING SPEED:</span><span id="tele-speed">0.0 u/s</span></div>
+        <div class="telemetry-row"><span>HARBOR WIND:</span><span id="tele-wind" style="color:#ffcc00;">CALM</span></div>
+        <div class="telemetry-row"><span>TRACK DRIVE:</span><span id="tele-tracks" style="color:#55eeaa;">ONLINE</span></div>
+        <div class="telemetry-row"><span>CAMERA:</span><span id="tele-cam">CHASE</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="alert-banner">BOUNDARY STRIKE!</div>
+  <div id="info-banner">SEQUENCE OK</div>
+
+  <!-- Ready Overlay Screen -->
+  <div id="screen-ready" class="screen-overlay">
+    <div class="screen-panel">
+      <span class="job-badge" id="ready-badge">CONTRACT JOB 1 OF 5</span>
+      <h1 class="screen-title" id="ready-title" style="color:#ff9900;">TITAN WRECKER</h1>
+      <p class="screen-subtitle" id="ready-desc">
+        Demolish the condemned warehouse to 95% completion.<br>
+        <strong style="color:#ff7b72;">CRITICAL:</strong> Do NOT damage the adjacent Post Office (3m gap)!
+      </p>
+      
+      <div class="keys-grid">
+        <div class="key-bind"><span>Drive Tracks</span><span><span class="kbd">↑</span> <span class="kbd">↓</span> <span class="kbd">←</span> <span class="kbd">→</span></span></div>
+        <div class="key-bind"><span>Cab Slew</span><span><span class="kbd">A</span> / <span class="kbd">D</span></span></div>
+        <div class="key-bind"><span>Boom Angle</span><span><span class="kbd">W</span> / <span class="kbd">S</span></span></div>
+        <div class="key-bind"><span>Winch Hook (Manual)</span><span><span class="kbd">Q</span> / <span class="kbd">E</span> (3 u/s)</span></div>
+        <div class="key-bind"><span>Cable Stops (Presets)</span><span><span class="kbd">1</span> (8m) / <span class="kbd">2</span> (13m) / <span class="kbd">3</span> (18m)</span></div>
+        <div class="key-bind"><span>Rig Rack / Release Beam</span><span><span class="kbd">F</span></span></div>
+        <div class="key-bind"><span>Toggle Camera</span><span><span class="kbd">C</span></span></div>
+        <div class="key-bind"><span>Reset Current Job</span><span><span class="kbd">R</span></span></div>
+      </div>
+      
+      <button class="btn-action" onclick="startGame()">Press ENTER to Start</button>
+    </div>
+  </div>
+
+  <!-- End Game Overlay Screen -->
+  <div id="screen-end" class="screen-overlay" style="display:none;">
+    <div class="screen-panel">
+      <h1 class="screen-title" id="end-title">JOB COMPLETE</h1>
+      <p class="screen-subtitle" id="end-desc">Operations outcome and site ledger assessment.</p>
+      
+      <div class="ledger-container">
+        <div class="ledger-title">Site Incidents & Violations Ledger</div>
+        <div id="ledger-list"></div>
+      </div>
+
+      <div style="margin-top: 18px;">
+        <button class="btn-action btn-secondary" onclick="resetJob()">[R] Restart Job</button>
+        <button class="btn-action" id="btn-next-job" onclick="nextJob()">[TAB] Next Job</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Career Reckoning Panel (Demolition Master) -->
+  <div id="screen-career" class="screen-overlay" style="display:none;">
+    <div class="screen-panel" style="max-width: 680px;">
+      <span class="job-badge" style="background:#f59e0b;color:#111;">FULL CONTRACT ASSESSMENT</span>
+      <h1 class="screen-title demolition-master-color">DEMOLITION MASTER</h1>
+      <p class="screen-subtitle" id="career-desc">Lifetime operational reckoning across all five demolition jobs.</p>
+
+      <div class="career-grid">
+        <div class="career-stat">
+          <div class="career-label">Total Clock Time</div>
+          <div class="career-val" id="stat-career-time">00:00</div>
+        </div>
+        <div class="career-stat">
+          <div class="career-label">Total Blocks Felled</div>
+          <div class="career-val" id="stat-career-felled">0</div>
+        </div>
+        <div class="career-stat">
+          <div class="career-label">Beams Delivered</div>
+          <div class="career-val" id="stat-career-beams">0 / 3</div>
+        </div>
+        <div class="career-stat">
+          <div class="career-label">Silo Sequence</div>
+          <div class="career-val" id="stat-career-silos">CLEAN</div>
+        </div>
+        <div class="career-stat">
+          <div class="career-label">Section Retries</div>
+          <div class="career-val" id="stat-career-retries">0</div>
+        </div>
+        <div class="career-stat">
+          <div class="career-label">Bell Chimes Rung</div>
+          <div class="career-val" id="stat-career-bells">0</div>
+        </div>
+        <div class="career-stat">
+          <div class="career-label">Total Boundary Violations</div>
+          <div class="career-val" id="stat-career-violations" style="color:#ff7b72;">0</div>
+        </div>
+        <div class="career-stat">
+          <div class="career-label">Protected Structure Damage</div>
+          <div class="career-val" id="stat-career-protected" style="color:#ff7b72;">0</div>
+        </div>
+      </div>
+
+      <div id="career-custodian-seal-wrap"></div>
+
+      <div class="ledger-container" style="max-height: 140px; margin-top: 14px;">
+        <div class="ledger-title">Cumulative Contract Ledger</div>
+        <div id="career-ledger-list"></div>
+      </div>
+
+      <div style="margin-top: 20px;">
+        <button class="btn-action" onclick="resetFullCareer()">[R] Reset Career & Restart Contract</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Classic Three.js Runtime -->
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+
+  <script>
+    /* =========================================================================
+       TITAN WRECKER C6: DETERMINISTIC SIMULATION AND ENGINE
+       ========================================================================= */
+
+    // Deterministic Seeded PRNG
+    let _prngSeed = 82129;
+    function deterministicRandom() {
+      _prngSeed = (_prngSeed * 1664525 + 1013904223) % 4294967296;
+      return _prngSeed / 4294967296;
+    }
+
+    // Audio synthesizer for mechanical sound effects and alarms
+    class DemolitionAudio {
+      constructor() {
+        this.ctx = null;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) this.ctx = new AudioContext();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+      playImpact(intensity = 1.0) {
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(90, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(25, this.ctx.currentTime + 0.25);
+          gain.gain.setValueAtTime(Math.min(1.0, 0.4 * intensity), this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.3);
+        } catch(e) {}
+      }
+      playKlaxon() {
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(750, this.ctx.currentTime);
+          osc.frequency.setValueAtTime(580, this.ctx.currentTime + 0.15);
+          gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+          gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.35);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.35);
+        } catch(e) {}
+      }
+      playTimber() {
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(140, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 1.2);
+          gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 1.2);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 1.2);
+        } catch(e) {}
+      }
+      playChime() {
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(523.25, this.ctx.currentTime);
+          osc.frequency.setValueAtTime(659.25, this.ctx.currentTime + 0.1);
+          gain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.4);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.4);
+        } catch(e) {}
+      }
+      playDeepBell() {
+        if (!this.ctx) return;
+        try {
+          const osc1 = this.ctx.createOscillator();
+          const osc2 = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc1.type = 'sine';
+          osc2.type = 'triangle';
+          osc1.frequency.setValueAtTime(220, this.ctx.currentTime);
+          osc1.frequency.exponentialRampToValueAtTime(110, this.ctx.currentTime + 1.8);
+          osc2.frequency.setValueAtTime(440, this.ctx.currentTime);
+          osc2.frequency.exponentialRampToValueAtTime(220, this.ctx.currentTime + 1.2);
+          gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 2.0);
+          osc1.connect(gain);
+          osc2.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc1.start(); osc2.start();
+          osc1.stop(this.ctx.currentTime + 2.0);
+          osc2.stop(this.ctx.currentTime + 2.0);
+        } catch(e) {}
+      }
+    }
+    const audio = new DemolitionAudio();
+
+    // Scene & Renderer Setup
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1528);
+    scene.fog = new THREE.FogExp2(0x2d1f30, 0.009);
+
+    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.5, 600);
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+    } catch(err) {
+      console.warn('WebGL initialization failed, using headless fallback renderer:', err);
+      renderer = {
+        render: () => {},
+        setSize: () => {},
+        domElement: document.createElement('canvas')
+      };
+      container.appendChild(renderer.domElement);
+    }
+
+    // Warm Sunset Dusk Lighting
+    const hemiLight = new THREE.HemisphereLight(0xffaa77, 0x1f2438, 0.65);
+    scene.add(hemiLight);
+
+    const sunLight = new THREE.DirectionalLight(0xff7733, 1.35);
+    sunLight.position.set(65, 45, -70);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.camera.near = 10;
+    sunLight.shadow.camera.far = 280;
+    const shadowD = 55;
+    sunLight.shadow.camera.left = -shadowD;
+    sunLight.shadow.camera.right = shadowD;
+    sunLight.shadow.camera.top = shadowD;
+    sunLight.shadow.camera.bottom = -shadowD;
+    scene.add(sunLight);
+
+    const fillLight = new THREE.DirectionalLight(0x4466aa, 0.45);
+    fillLight.position.set(-50, 30, 50);
+    scene.add(fillLight);
+
+    /* =========================================================================
+       HARBOR ENVIRONMENT & SCENERY
+       ========================================================================= */
+
+    // Harbor Ground (Dockside work yard)
+    const groundGeo = new THREE.PlaneGeometry(240, 240, 32, 32);
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: 0x3a3a38,
+      roughness: 0.9,
+      metalness: 0.1
+    });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.set(0, 0, 0);
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // Quay Wall along Z = 45 and glittering evening sea
+    const quayGeo = new THREE.BoxGeometry(240, 6, 4);
+    const quayMat = new THREE.MeshStandardMaterial({ color: 0x2b2d30, roughness: 0.9 });
+    const quay = new THREE.Mesh(quayGeo, quayMat);
+    quay.position.set(0, -3, 44);
+    quay.receiveShadow = true;
+    scene.add(quay);
+
+    const seaGeo = new THREE.PlaneGeometry(300, 160);
+    const seaMat = new THREE.MeshStandardMaterial({
+      color: 0x0f2b46,
+      roughness: 0.25,
+      metalness: 0.85
+    });
+    const sea = new THREE.Mesh(seaGeo, seaMat);
+    sea.rotation.x = -Math.PI / 2;
+    sea.position.set(0, -5.8, 120);
+    scene.add(sea);
+
+    // Work lot boundary lines & striped barriers
+    const LOT_X_MIN = -36, LOT_X_MAX = 36;
+    const LOT_Z_MIN = -38, LOT_Z_MAX = 40;
+    const boundaryBarriers = [];
+
+    function createBoundarySegment(x1, z1, x2, z2) {
+      const dx = x2 - x1, dz = z2 - z1;
+      const len = Math.hypot(dx, dz);
+      const angle = Math.atan2(dx, dz);
+      
+      const barrierGroup = new THREE.Group();
+      barrierGroup.position.set((x1 + x2) / 2, 0.6, (z1 + z2) / 2);
+      barrierGroup.rotation.y = angle;
+
+      const barGeo = new THREE.BoxGeometry(0.5, 0.9, len);
+      const stripeCanvas = document.createElement('canvas');
+      stripeCanvas.width = 64; stripeCanvas.height = 16;
+      const ctx = stripeCanvas.getContext('2d');
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 64, 16);
+      ctx.fillStyle = '#d32f2f';
+      for(let i = -16; i < 80; i += 16) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0); ctx.lineTo(i + 12, 16); ctx.lineTo(i + 4, 16); ctx.lineTo(i - 8, 0);
+        ctx.fill();
+      }
+      const stripeTex = new THREE.CanvasTexture(stripeCanvas);
+      stripeTex.wrapS = THREE.RepeatWrapping;
+      stripeTex.repeat.set(len / 3, 1);
+      
+      const barMat = new THREE.MeshStandardMaterial({ map: stripeTex, roughness: 0.6 });
+      const barMesh = new THREE.Mesh(barGeo, barMat);
+      barMesh.castShadow = true;
+      barMesh.receiveShadow = true;
+      barrierGroup.add(barMesh);
+
+      const footGeo = new THREE.BoxGeometry(0.9, 0.4, 0.6);
+      const footMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.9 });
+      for (let offset of [-len / 2 + 0.5, 0, len / 2 - 0.5]) {
+        const foot = new THREE.Mesh(footGeo, footMat);
+        foot.position.set(0, -0.35, offset);
+        barrierGroup.add(foot);
+      }
+
+      scene.add(barrierGroup);
+
+      boundaryBarriers.push({
+        minX: Math.min(x1, x2) - 0.6, maxX: Math.max(x1, x2) + 0.6,
+        minZ: Math.min(z1, z2) - 0.6, maxZ: Math.max(z1, z2) + 0.6
+      });
+    }
+
+    createBoundarySegment(LOT_X_MIN, LOT_Z_MIN, LOT_X_MAX, LOT_Z_MIN);
+    createBoundarySegment(LOT_X_MAX, LOT_Z_MIN, LOT_X_MAX, LOT_Z_MAX);
+    createBoundarySegment(LOT_X_MAX, LOT_Z_MAX, LOT_X_MIN, LOT_Z_MAX);
+    createBoundarySegment(LOT_X_MIN, LOT_Z_MAX, LOT_X_MIN, LOT_Z_MIN);
+
+    // Decorative harbor props: Mooring bollards & tires
+    for (let bx = -32; bx <= 32; bx += 8) {
+      const bollard = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.35, 0.45, 0.9, 12),
+        new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.7, roughness: 0.3 })
+      );
+      bollard.position.set(bx, 0.45, 42.5);
+      bollard.castShadow = true;
+      scene.add(bollard);
+
+      const tire = new THREE.Mesh(
+        new THREE.TorusGeometry(0.45, 0.18, 8, 16),
+        new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.95 })
+      );
+      tire.rotation.x = Math.PI / 2;
+      tire.position.set(bx + 3.5, 0.18, 43.2);
+      scene.add(tire);
+    }
+
+    // Shipping containers
+    function createContainer(x, y, z, ry, color) {
+      const group = new THREE.Group();
+      group.position.set(x, y, z);
+      group.rotation.y = ry;
+      const box = new THREE.Mesh(
+        new THREE.BoxGeometry(6, 2.6, 2.4),
+        new THREE.MeshStandardMaterial({ color: color, roughness: 0.7, metalness: 0.2 })
+      );
+      box.castShadow = true;
+      box.receiveShadow = true;
+      group.add(box);
+      scene.add(group);
+    }
+    createContainer(-26, 1.3, -25, 0.2, 0xb73229);
+    createContainer(-25, 3.9, -25.5, 0.15, 0x205493);
+    createContainer(-20, 1.3, -27, -0.1, 0xd47500);
+    createContainer(28, 1.3, -24, -0.3, 0x1b5e20);
+    createContainer(27, 3.9, -24.5, -0.28, 0x37474f);
+
+    // Distant Tall Gantry Crane
+    const gantry = new THREE.Group();
+    gantry.position.set(48, 0, 15);
+    const gantryLegMat = new THREE.MeshStandardMaterial({ color: 0xe65100, metalness: 0.5, roughness: 0.4 });
+    for (let gx of [-6, 6]) {
+      for (let gz of [-4, 4]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.8, 30, 0.8), gantryLegMat);
+        leg.position.set(gx, 15, gz);
+        gantry.add(leg);
+      }
+    }
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(22, 1.6, 9), gantryLegMat);
+    beam.position.set(0, 30, 0);
+    gantry.add(beam);
+    scene.add(gantry);
+
+    // 5 Looping Seagulls with Flapping Wings
+    const seagulls = [];
+    const gullMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 });
+    for (let i = 0; i < 5; i++) {
+      const gull = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.8, 5), gullMat);
+      body.rotation.x = Math.PI / 2;
+      gull.add(body);
+
+      const leftWing = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.04, 0.25), gullMat);
+      leftWing.position.set(-0.35, 0.05, 0);
+      gull.add(leftWing);
+
+      const rightWing = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.04, 0.25), gullMat);
+      rightWing.position.set(0.35, 0.05, 0);
+      gull.add(rightWing);
+
+      gull.position.set(Math.sin(i * 1.3) * 35, 18 + i * 2.2, Math.cos(i * 1.3) * 35);
+      scene.add(gull);
+      seagulls.push({
+        group: gull, leftWing, rightWing,
+        radius: 22 + i * 4,
+        speed: 0.4 + i * 0.08,
+        height: 18 + i * 2.2,
+        offset: i * 1.256
+      });
+    }
+
+    /* =========================================================================
+       HARBOR WIND TIMETABLE & WIND SOCK ON QUAY
+       ========================================================================= */
+
+    // Wind Sock on a Pole by the Quay (at X = 0, Z = 42)
+    const windSockGroup = new THREE.Group();
+    windSockGroup.position.set(0, 0, 42);
+
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8, roughness: 0.3 });
+    const sockPole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 7.0, 8), poleMat);
+    sockPole.position.y = 3.5;
+    sockPole.castShadow = true;
+    windSockGroup.add(sockPole);
+
+    // Wind sock cone assembly
+    const sockConeGroup = new THREE.Group();
+    sockConeGroup.position.y = 6.8;
+
+    const sockMat = new THREE.MeshStandardMaterial({ color: 0xff3b00, roughness: 0.6, side: THREE.DoubleSide });
+    const sockCone = new THREE.Mesh(new THREE.ConeGeometry(0.35, 1.8, 12, 1, true), sockMat);
+    sockCone.rotation.x = Math.PI / 2;
+    sockCone.position.z = -0.9;
+    sockConeGroup.add(sockCone);
+
+    windSockGroup.add(sockConeGroup);
+    scene.add(windSockGroup);
+
+    // Wind state
+    let windVector = new THREE.Vector3(0, 0, 0); // Horizontal acceleration force
+    let windStrength = 0; // Degrees deflection: 0, 5, or 10
+    let windDirectionTag = 'CALM';
+    let windCountdown = 30; // Seconds until next gust or remaining in current gust
+
+    function getWindAtTime(elapsedTime) {
+      // 180s repeating cycle:
+      // t = 30s to 45s: 5 deg gust Sea-to-Land (towards negative Z)
+      // t = 90s to 100s: 10 deg gust Land-to-Sea (towards positive Z)
+      // t = 150s to 160s: 10 deg gust Sea-to-Land (towards negative Z)
+      const t = ((elapsedTime % 180) + 180) % 180;
+      let forceZ = 0;
+      let deg = 0;
+      let tag = 'CALM';
+      let countdown = 0;
+
+      // Deflection: tan(theta) * g
+      const g = 9.81;
+      const f5 = Math.tan(THREE.MathUtils.degToRad(5)) * g;   // ~0.858 m/s^2
+      const f10 = Math.tan(THREE.MathUtils.degToRad(10)) * g; // ~1.729 m/s^2
+
+      if (t >= 30 && t < 45) {
+        forceZ = -f5;
+        deg = 5;
+        tag = '5° INLAND (SEA ➔ LAND)';
+        countdown = 45 - t;
+      } else if (t >= 90 && t < 100) {
+        forceZ = f10;
+        deg = 10;
+        tag = '10° SEAWARD (LAND ➔ SEA)';
+        countdown = 100 - t;
+      } else if (t >= 150 && t < 160) {
+        forceZ = -f10;
+        deg = 10;
+        tag = '10° INLAND (SEA ➔ LAND)';
+        countdown = 160 - t;
+      } else {
+        tag = 'CALM';
+        deg = 0;
+        forceZ = 0;
+        if (t < 30) countdown = 30 - t;
+        else if (t < 90) countdown = 90 - t;
+        else if (t < 150) countdown = 150 - t;
+        else countdown = 180 - t + 30;
+      }
+
+      return {
+        vector: new THREE.Vector3(0, 0, forceZ),
+        deg,
+        tag,
+        countdown: Math.max(0, countdown)
+      };
+    }
+
+    /* =========================================================================
+       SAFETY WALKWAYS & 3 PATROLLING WORKERS
+       ========================================================================= */
+
+    const walkwayMat = new THREE.MeshStandardMaterial({ color: 0x485058, roughness: 0.8 });
+    function createWalkwaySegment(x1, z1, x2, z2, width = 2.4) {
+      const dx = x2 - x1, dz = z2 - z1;
+      const len = Math.hypot(dx, dz);
+      const angle = Math.atan2(dx, dz);
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, len), walkwayMat);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.rotation.z = -angle;
+      mesh.position.set((x1 + x2) / 2, 0.02, (z1 + z2) / 2);
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+
+      const edgeCanvas = document.createElement('canvas');
+      edgeCanvas.width = 32; edgeCanvas.height = 128;
+      const ectx = edgeCanvas.getContext('2d');
+      ectx.fillStyle = '#ffaa00';
+      ectx.fillRect(0, 0, 6, 128); ectx.fillRect(26, 0, 6, 128);
+      const edgeTex = new THREE.CanvasTexture(edgeCanvas);
+      edgeTex.wrapS = edgeTex.wrapT = THREE.RepeatWrapping;
+      edgeTex.repeat.set(1, len / 4);
+      const borderMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(width, len),
+        new THREE.MeshBasicMaterial({ map: edgeTex, transparent: true })
+      );
+      borderMesh.rotation.x = -Math.PI / 2;
+      borderMesh.rotation.z = -angle;
+      borderMesh.position.set((x1 + x2) / 2, 0.03, (z1 + z2) / 2);
+      scene.add(borderMesh);
+    }
+
+    createWalkwaySegment(-22, 36, -22, -32);
+    createWalkwaySegment(-22, -32, 22, -32);
+    createWalkwaySegment(22, -32, 22, 36);
+    createWalkwaySegment(22, 36, -22, 36);
+
+    const workers = [];
+    const EXCLUSION_RADIUS = 2.0;
+
+    function buildWorkerModel(color = 0xff6600) {
+      const group = new THREE.Group();
+
+      const vestMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.6 });
+      const pantsMat = new THREE.MeshStandardMaterial({ color: 0x223355, roughness: 0.8 });
+      const skinMat = new THREE.MeshStandardMaterial({ color: 0xffcc88 });
+      const helmetMat = new THREE.MeshStandardMaterial({ color: 0xffd700, roughness: 0.4 });
+
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.65, 0.3), vestMat);
+      torso.position.y = 1.05;
+      torso.castShadow = true;
+      group.add(torso);
+
+      const stripe = new THREE.Mesh(
+        new THREE.BoxGeometry(0.52, 0.1, 0.32),
+        new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.8 })
+      );
+      stripe.position.y = 1.05;
+      group.add(stripe);
+
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), skinMat);
+      head.position.y = 1.55;
+      const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.26, 0.14, 8), helmetMat);
+      hat.position.y = 1.68;
+      group.add(head, hat);
+
+      const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.55, 0.14), vestMat);
+      leftArm.position.set(-0.35, 1.0, 0);
+      const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.55, 0.14), vestMat);
+      rightArm.position.set(0.35, 1.0, 0);
+      group.add(leftArm, rightArm);
+
+      const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.7, 0.18), pantsMat);
+      leftLeg.position.set(-0.16, 0.35, 0);
+      const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.7, 0.18), pantsMat);
+      rightLeg.position.set(0.16, 0.35, 0);
+      group.add(leftLeg, rightLeg);
+
+      const ringGeo = new THREE.RingGeometry(EXCLUSION_RADIUS - 0.08, EXCLUSION_RADIUS, 32);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0xff4444, side: THREE.DoubleSide, transparent: true, opacity: 0.45 });
+      const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+      ringMesh.rotation.x = -Math.PI / 2;
+      ringMesh.position.y = 0.04;
+      group.add(ringMesh);
+
+      return { group, leftArm, rightArm, leftLeg, rightLeg, ringMesh, torso };
+    }
+
+    const workerWaypoints = [
+      [ { x: -22, z: 36 }, { x: -22, z: -32 }, { x: 22, z: -32 }, { x: 22, z: 36 } ],
+      [ { x: -20, z: -32 }, { x: 20, z: -32 }, { x: -20, z: -32 } ],
+      [ { x: 22, z: 36 }, { x: 22, z: -32 }, { x: -22, z: -32 }, { x: -22, z: 36 } ]
+    ];
+
+    for (let i = 0; i < 3; i++) {
+      const wModel = buildWorkerModel(i === 1 ? 0xffaa00 : (i === 2 ? 0x00cc66 : 0xff5500));
+      scene.add(wModel.group);
+      workers.push({
+        ...wModel,
+        id: i,
+        waypoints: workerWaypoints[i],
+        wpIndex: 0,
+        x: workerWaypoints[i][0].x,
+        z: workerWaypoints[i][0].z,
+        speed: 3.0,
+        stridePhase: i * 2.0,
+        stoppedByCrane: false,
+        flinching: 0,
+        lastBreachTime: -100.0
+      });
+    }
+
+    /* =========================================================================
+       THE RIG RACK (ON THE QUAY) & BARGE RIG RACK (ON DECK)
+       ========================================================================= */
+
+    const RIG_RACK_POS = { x: -12.0, y: 0, z: 38.0 };
+    const rigRackGroup = new THREE.Group();
+    rigRackGroup.position.set(RIG_RACK_POS.x, 0, RIG_RACK_POS.z);
+
+    {
+      const steelMat = new THREE.MeshStandardMaterial({ color: 0x4a5568, metalness: 0.8, roughness: 0.3 });
+      const yellowPaint = new THREE.MeshStandardMaterial({ color: 0xffaa00, roughness: 0.5 });
+
+      for (let rx of [-1.8, 1.8]) {
+        for (let rz of [-1.0, 1.0]) {
+          const post = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3.2, 0.3), steelMat);
+          post.position.set(rx, 1.6, rz);
+          post.castShadow = true;
+          rigRackGroup.add(post);
+        }
+      }
+      const beamX = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.3, 0.3), steelMat);
+      beamX.position.set(0, 3.2, 0);
+      rigRackGroup.add(beamX);
+
+      const signCanvas = document.createElement('canvas');
+      signCanvas.width = 256; signCanvas.height = 64;
+      const sctx = signCanvas.getContext('2d');
+      sctx.fillStyle = '#ffaa00'; sctx.fillRect(0, 0, 256, 64);
+      sctx.fillStyle = '#111'; sctx.font = 'bold 26px Arial';
+      sctx.textAlign = 'center'; sctx.textBaseline = 'middle';
+      sctx.fillText('RIG RACK [F]', 128, 34);
+      const signTex = new THREE.CanvasTexture(signCanvas);
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshBasicMaterial({ map: signTex }));
+      sign.position.set(0, 3.8, 0);
+      rigRackGroup.add(sign);
+
+      const cradle = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.9, 0.4, 8), yellowPaint);
+      cradle.position.set(0, 0.3, 0);
+      rigRackGroup.add(cradle);
+
+      scene.add(rigRackGroup);
+    }
+
+    // Barge Rig Rack (bolted to the work barge deck)
+    const BARGE_POS = { x: 44.0, y: -0.2, z: 12.0 };
+    const BARGE_RIG_RACK_LOCAL = { x: -2.8, y: 1.0, z: 1.5 };
+    const BARGE_RIG_RACK_POS = {
+      x: BARGE_POS.x + BARGE_RIG_RACK_LOCAL.x,
+      y: BARGE_POS.y + BARGE_RIG_RACK_LOCAL.y,
+      z: BARGE_POS.z + BARGE_RIG_RACK_LOCAL.z
+    };
+    const bargeGroup = new THREE.Group();
+    bargeGroup.position.set(BARGE_POS.x, BARGE_POS.y, BARGE_POS.z);
+
+    {
+      // Industrial Steel Work Barge Hull
+      const hullGeo = new THREE.BoxGeometry(16.0, 2.2, 12.0);
+      const hullMat = new THREE.MeshStandardMaterial({ color: 0x272c33, roughness: 0.8, metalness: 0.5 });
+      const hull = new THREE.Mesh(hullGeo, hullMat);
+      hull.position.y = 0;
+      hull.castShadow = true;
+      hull.receiveShadow = true;
+      bargeGroup.add(hull);
+
+      // Deck with perimeter safety stripes
+      const deckGeo = new THREE.BoxGeometry(15.6, 0.1, 11.6);
+      const deckMat = new THREE.MeshStandardMaterial({ color: 0x3d444d, roughness: 0.9 });
+      const deck = new THREE.Mesh(deckGeo, deckMat);
+      deck.position.y = 1.15;
+      deck.receiveShadow = true;
+      bargeGroup.add(deck);
+
+      // Crane Pad outline
+      const padGeo = new THREE.PlaneGeometry(7.0, 7.5);
+      const padCanvas = document.createElement('canvas');
+      padCanvas.width = 128; padCanvas.height = 128;
+      const pctx = padCanvas.getContext('2d');
+      pctx.fillStyle = '#ffaa00'; pctx.fillRect(0, 0, 128, 128);
+      pctx.fillStyle = '#111111';
+      for (let i = -128; i < 256; i += 32) {
+        pctx.beginPath();
+        pctx.moveTo(i, 0); pctx.lineTo(i + 24, 128); pctx.lineTo(i + 8, 128); pctx.lineTo(i - 16, 0);
+        pctx.fill();
+      }
+      pctx.strokeStyle = '#ffffff'; pctx.lineWidth = 8; pctx.strokeRect(4, 4, 120, 120);
+      const padTex = new THREE.CanvasTexture(padCanvas);
+      const padMesh = new THREE.Mesh(padGeo, new THREE.MeshStandardMaterial({ map: padTex, roughness: 0.7 }));
+      padMesh.rotation.x = -Math.PI / 2;
+      padMesh.position.set(0, 1.21, 0);
+      padMesh.receiveShadow = true;
+      bargeGroup.add(padMesh);
+
+      // Bollards on barge corners
+      const bollardMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.8, roughness: 0.3 });
+      for (let bx of [-7.2, 7.2]) {
+        for (let bz of [-5.2, 5.2]) {
+          const bollard = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 0.8, 8), bollardMat);
+          bollard.position.set(bx, 1.5, bz);
+          bargeGroup.add(bollard);
+        }
+      }
+
+      // Bolted Barge Rig Rack on Deck
+      const bargeRackGroup = new THREE.Group();
+      bargeRackGroup.position.set(BARGE_RIG_RACK_LOCAL.x, BARGE_RIG_RACK_LOCAL.y, BARGE_RIG_RACK_LOCAL.z);
+      const bSteelMat = new THREE.MeshStandardMaterial({ color: 0x4a5568, metalness: 0.8, roughness: 0.3 });
+      const bYellowPaint = new THREE.MeshStandardMaterial({ color: 0xffaa00, roughness: 0.5 });
+      for (let rx of [-1.5, 1.5]) {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.25, 2.6, 0.25), bSteelMat);
+        post.position.set(rx, 1.3, 0);
+        bargeRackGroup.add(post);
+      }
+      const bBar = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.25, 0.25), bSteelMat);
+      bBar.position.set(0, 2.6, 0);
+      bargeRackGroup.add(bBar);
+
+      const bSignCanvas = document.createElement('canvas');
+      bSignCanvas.width = 256; bSignCanvas.height = 64;
+      const bsctx = bSignCanvas.getContext('2d');
+      bsctx.fillStyle = '#ffaa00'; bsctx.fillRect(0, 0, 256, 64);
+      bsctx.fillStyle = '#111'; bsctx.font = 'bold 22px Arial';
+      bsctx.textAlign = 'center'; bsctx.textBaseline = 'middle';
+      bsctx.fillText('BARGE RACK [F]', 128, 34);
+      const bSignTex = new THREE.CanvasTexture(bSignCanvas);
+      const bSign = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 0.7), new THREE.MeshBasicMaterial({ map: bSignTex }));
+      bSign.position.set(0, 3.1, 0);
+      bargeRackGroup.add(bSign);
+
+      const bCradle = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.8, 0.35, 8), bYellowPaint);
+      bCradle.position.set(0, 0.2, 0);
+      bargeRackGroup.add(bCradle);
+
+      bargeGroup.add(bargeRackGroup);
+      scene.add(bargeGroup);
+
+      // Canal water plane along eastern yard border
+      const canalWater = new THREE.Mesh(
+        new THREE.PlaneGeometry(36, 90),
+        new THREE.MeshStandardMaterial({ color: 0x0e3550, roughness: 0.2, metalness: 0.85 })
+      );
+      canalWater.rotation.x = -Math.PI / 2;
+      canalWater.position.set(48, -1.15, 6);
+      scene.add(canalWater);
+
+      // Canal retaining quay walls
+      const cWallNear = new THREE.Mesh(
+        new THREE.BoxGeometry(1.6, 4.0, 90),
+        new THREE.MeshStandardMaterial({ color: 0x33373d, roughness: 0.9 })
+      );
+      cWallNear.position.set(35.5, -0.8, 6);
+      scene.add(cWallNear);
+
+      const cWallFar = new THREE.Mesh(
+        new THREE.BoxGeometry(1.6, 4.0, 90),
+        new THREE.MeshStandardMaterial({ color: 0x33373d, roughness: 0.9 })
+      );
+      cWallFar.position.set(60.5, -0.8, 6);
+      scene.add(cWallFar);
+
+      // Far canal bank wharf where Customs House stands
+      const farWharf = new THREE.Mesh(
+        new THREE.BoxGeometry(26, 2.0, 24),
+        new THREE.MeshStandardMaterial({ color: 0x42464d, roughness: 0.85 })
+      );
+      farWharf.position.set(48, -0.2, -10);
+      scene.add(farWharf);
+    }
+
+    let activeRig = 'BALL';
+    let isRerigging = false;
+    let rerigTimer = 0;
+    const RERIG_DURATION = 2.0;
+
+    let isSpikeEmbedded = false;
+    let embeddedBlockId = null;
+    let embeddedNormal = new THREE.Vector3(0, 0, 1);
+    let embeddedCabAngle = 0;
+
+    /* =========================================================================
+       THE CRAWLER CRANE, WINCH RETUNING & PRESET STOPS
+       ========================================================================= */
+
+    // Winch parameters retuned for C4:
+    // Winch speed: 3 units per second
+    // Cable range: clamped between 5.0 and 20.0 units
+    // Preset stops: 1 -> 8m, 2 -> 13m, 3 -> 18m
+    const WINCH_SPEED = 3.0;
+    const CABLE_MIN = 5.0;
+    const CABLE_MAX = 20.0;
+    let activePresetTarget = null; // null or 8.0, 13.0, 18.0
+
+    const crane = {
+      x: 0, z: 18,
+      heading: Math.PI,
+      speed: 0,
+      turnSpeed: 0,
+      cabSlew: 0,
+      boomAngle: THREE.MathUtils.degToRad(50),
+      cableLength: 12.0,
+      treadRoll: 0,
+      pulleySpin: 0,
+      group: new THREE.Group(),
+      cabGroup: new THREE.Group(),
+      boomGroup: new THREE.Group(),
+      pulleyMesh: null
+    };
+
+    function buildCraneModel() {
+      const baseGroup = new THREE.Group();
+      const chassisMat = new THREE.MeshStandardMaterial({ color: 0x22252a, roughness: 0.8, metalness: 0.4 });
+      const chassis = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.8, 5.0), chassisMat);
+      chassis.position.y = 0.9;
+      chassis.castShadow = true;
+      baseGroup.add(chassis);
+
+      const trackMat = new THREE.MeshStandardMaterial({ color: 0x18181a, roughness: 0.9, metalness: 0.2 });
+      for (let side of [-1, 1]) {
+        const track = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.1, 5.8), trackMat);
+        track.position.set(side * 2.1, 0.6, 0);
+        track.castShadow = true;
+        baseGroup.add(track);
+
+        for (let spz of [-2.4, -1.2, 0, 1.2, 2.4]) {
+          const wheel = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.42, 0.42, 0.95, 12),
+            new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.6 })
+          );
+          wheel.rotation.z = Math.PI / 2;
+          wheel.position.set(side * 2.1, 0.55, spz);
+          baseGroup.add(wheel);
+        }
+      }
+      crane.group.add(baseGroup);
+
+      crane.cabGroup.position.set(0, 1.4, 0);
+      
+      const cabMat = new THREE.MeshStandardMaterial({ color: 0xdc7604, roughness: 0.5, metalness: 0.3 });
+      const cabBody = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.4, 4.0), cabMat);
+      cabBody.position.set(0, 1.2, -0.2);
+      cabBody.castShadow = true;
+      crane.cabGroup.add(cabBody);
+
+      const cw = new THREE.Mesh(
+        new THREE.BoxGeometry(3.0, 1.8, 1.4),
+        new THREE.MeshStandardMaterial({ color: 0x1f2428, roughness: 0.9, metalness: 0.1 })
+      );
+      cw.position.set(0, 1.0, 1.8);
+      cw.castShadow = true;
+      crane.cabGroup.add(cw);
+
+      const glassMat = new THREE.MeshStandardMaterial({
+        color: 0x66aacc, roughness: 0.1, metalness: 0.9, transparent: true, opacity: 0.65
+      });
+      const glass = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 1.8), glassMat);
+      glass.position.set(0.85, 1.5, -1.2);
+      crane.cabGroup.add(glass);
+
+      const opGroup = new THREE.Group();
+      opGroup.position.set(0.85, 1.2, -1.2);
+      const opBody = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, 0.3), new THREE.MeshStandardMaterial({ color: 0x0055aa }));
+      const opHead = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 8), new THREE.MeshStandardMaterial({ color: 0xffcc88 }));
+      opHead.position.y = 0.35;
+      const opHat = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.1, 8), new THREE.MeshStandardMaterial({ color: 0xffd700 }));
+      opHat.position.y = 0.45;
+      opGroup.add(opBody, opHead, opHat);
+      crane.cabGroup.add(opGroup);
+
+      crane.boomGroup.position.set(-0.6, 1.5, -1.6);
+      const boomLength = 18.0;
+      const boomMat = new THREE.MeshStandardMaterial({ color: 0xdc7604, roughness: 0.6, metalness: 0.3 });
+      
+      const chordGeo = new THREE.CylinderGeometry(0.06, 0.06, boomLength, 6);
+      chordGeo.translate(0, boomLength / 2, 0);
+      const chordOffsets = [
+        [-0.45, -0.45], [0.45, -0.45],
+        [-0.3, 0.45], [0.3, 0.45]
+      ];
+      chordOffsets.forEach(([cx, cz]) => {
+        const c = new THREE.Mesh(chordGeo, boomMat);
+        c.position.set(cx, 0, cz);
+        crane.boomGroup.add(c);
+      });
+
+      const braceGeo = new THREE.CylinderGeometry(0.03, 0.03, 1.0, 4);
+      for (let by = 1.5; by < boomLength - 1.0; by += 1.5) {
+        const b1 = new THREE.Mesh(braceGeo, boomMat);
+        b1.position.set(0, by, 0);
+        b1.rotation.z = 0.7;
+        crane.boomGroup.add(b1);
+        const b2 = new THREE.Mesh(braceGeo, boomMat);
+        b2.position.set(0, by, 0);
+        b2.rotation.z = -0.7;
+        crane.boomGroup.add(b2);
+      }
+
+      const tipSheaveGroup = new THREE.Group();
+      tipSheaveGroup.position.set(0, boomLength, 0);
+      const pulleyGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.25, 14);
+      pulleyGeo.rotateZ(Math.PI / 2);
+      crane.pulleyMesh = new THREE.Mesh(
+        pulleyGeo,
+        new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.2 })
+      );
+      tipSheaveGroup.add(crane.pulleyMesh);
+      crane.boomGroup.add(tipSheaveGroup);
+
+      crane.cabGroup.add(crane.boomGroup);
+      crane.group.add(crane.cabGroup);
+      scene.add(crane.group);
+    }
+    buildCraneModel();
+
+    // 8-Link Hanging Chain
+    const NUM_LINKS = 8;
+    const chainLinks = [];
+    const chainLinkMeshes = [];
+
+    const linkGeo = new THREE.TorusGeometry(0.24, 0.08, 6, 12);
+    const linkMat = new THREE.MeshStandardMaterial({ color: 0x42464d, metalness: 0.7, roughness: 0.4 });
+    for (let i = 0; i < NUM_LINKS; i++) {
+      const lm = new THREE.Mesh(linkGeo, linkMat);
+      lm.castShadow = true;
+      scene.add(lm);
+      chainLinkMeshes.push(lm);
+      chainLinks.push({ x: 0, y: 10 - i * 1.2, z: 0, vx: 0, vy: 0, vz: 0 });
+    }
+
+    // Rig 1: Wrecking Ball Mesh
+    const ballMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.85, 20, 20),
+      new THREE.MeshStandardMaterial({ color: 0x26292e, metalness: 0.85, roughness: 0.25 })
+    );
+    ballMesh.castShadow = true;
+    scene.add(ballMesh);
+
+    // Rig 2: Breaker Spike Mesh
+    const spikeGroup = new THREE.Group();
+    {
+      const spikeMat = new THREE.MeshStandardMaterial({ color: 0x606670, metalness: 0.9, roughness: 0.2 });
+      const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.4, 8), spikeMat);
+      collar.position.y = 0.7;
+      spikeGroup.add(collar);
+      const wedge = new THREE.Mesh(new THREE.ConeGeometry(0.38, 1.4, 4), spikeMat);
+      wedge.rotation.y = Math.PI / 4;
+      wedge.rotation.x = Math.PI;
+      wedge.position.y = -0.2;
+      wedge.castShadow = true;
+      spikeGroup.add(wedge);
+    }
+    spikeGroup.visible = false;
+    scene.add(spikeGroup);
+
+    const hookRig = {
+      x: 0, y: 3.5, z: 0,
+      vx: 0, vy: 0, vz: 0,
+      radius: 0.85,
+      mass: 80.0
+    };
+
+    function getBoomTipWorldPosition() {
+      const tipLocal = new THREE.Vector3(0, 18.0, 0);
+      crane.boomGroup.localToWorld(tipLocal);
+      return tipLocal;
+    }
+
+    /* =========================================================================
+       BLOCKS, BUILDINGS, WATER TOWER & SILO ROW
+       ========================================================================= */
+
+    const BLOCK_SIZE = 1.2;
+    const allBlocks = [];
+    const debrisList = [];
+    const activeLedger = [];
+    let boundaryViolations = 0;
+    let protectedDamageCount = 0;
+
+    let activeJob = 1;
+    let gamePhase = 'READY';
+    let jobTimer = 240.0;
+    let jobCompleteGoal = 0.95;
+    let totalTargetBlocks = 0;
+    let felledTargetBlocks = 0;
+
+    const brickMat = new THREE.MeshStandardMaterial({ color: 0xa04838, roughness: 0.9 });
+    const postOfficeMat = new THREE.MeshStandardMaterial({ color: 0x3d6e99, roughness: 0.8 });
+    const damagedGlowMat = new THREE.MeshStandardMaterial({
+      color: 0xff2222, emissive: 0xff0000, emissiveIntensity: 0.8, roughness: 0.5
+    });
+    const towerSteelMat = new THREE.MeshStandardMaterial({ color: 0x5a636e, metalness: 0.6, roughness: 0.4 });
+    const siloConcreteMat = new THREE.MeshStandardMaterial({ color: 0xd8d0c5, roughness: 0.7 });
+
+    // Job 2 Water Tower State
+    let towerCommitted = false;
+    let towerTiltAngle = 0.0;
+    let towerTiltDirection = '';
+    let towerZoneFill = 0.0;
+    let towerIsFalling = false;
+    let towerFallVel = { rx: 0, rz: 0 };
+    let towerLegBlocks = [];
+    let towerTankBlocks = [];
+
+    const DROP_ZONE = {
+      minX: 12, maxX: 20,
+      minZ: 14, maxZ: 32
+    };
+
+    const dropZoneMesh = new THREE.Group();
+    {
+      const dzWidth = DROP_ZONE.maxX - DROP_ZONE.minX;
+      const dzLength = DROP_ZONE.maxZ - DROP_ZONE.minZ;
+      const dzPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(dzWidth, dzLength),
+        new THREE.MeshBasicMaterial({ color: 0xffcc00, transparent: true, opacity: 0.35 })
+      );
+      dzPlane.rotation.x = -Math.PI / 2;
+      dzPlane.position.set((DROP_ZONE.minX + DROP_ZONE.maxX) / 2, 0.02, (DROP_ZONE.minZ + DROP_ZONE.maxZ) / 2);
+      dropZoneMesh.add(dzPlane);
+
+      const borderMat = new THREE.MeshBasicMaterial({ color: 0xffd700 });
+      const bTop = new THREE.Mesh(new THREE.BoxGeometry(dzWidth + 0.4, 0.05, 0.4), borderMat);
+      bTop.position.set((DROP_ZONE.minX + DROP_ZONE.maxX) / 2, 0.03, DROP_ZONE.minZ);
+      const bBot = new THREE.Mesh(new THREE.BoxGeometry(dzWidth + 0.4, 0.05, 0.4), borderMat);
+      bBot.position.set((DROP_ZONE.minX + DROP_ZONE.maxX) / 2, 0.03, DROP_ZONE.maxZ);
+      const bLeft = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, dzLength + 0.4), borderMat);
+      bLeft.position.set(DROP_ZONE.minX, 0.03, (DROP_ZONE.minZ + DROP_ZONE.maxZ) / 2);
+      const bRight = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, dzLength + 0.4), borderMat);
+      bRight.position.set(DROP_ZONE.maxX, 0.03, (DROP_ZONE.minZ + DROP_ZONE.maxZ) / 2);
+      dropZoneMesh.add(bTop, bBot, bLeft, bRight);
+
+      dropZoneMesh.visible = false;
+      scene.add(dropZoneMesh);
+    }
+
+    // Job 3 Silo Row State (2 -> 3 -> 1)
+    const SILO_REQUIRED_ORDER = [2, 3, 1];
+    let siloOrderIndex = 0;
+    let siloCleanOrder = true;
+    const siloDamagedCount = { 1: 0, 2: 0, 3: 0 };
+    const siloOutOfSequenceFired = { 1: false, 2: false, 3: false };
+    const siloBlocks = { 1: [], 2: [], 3: [] };
+    const siloInitialCount = { 1: 0, 2: 0, 3: 0 };
+    const siloFelled = { 1: false, 2: false, 3: false };
+
+    // Job 4: The Barge, Customs House, Canal Row Houses & Beam Extraction
+    let bargeHeave = 0.0;
+    let bargeRoll = 0.0;
+    let bargeHeavePhase = 0.0;
+    let bargeRollPhase = 0.0;
+    let phase2SubtitleShown = false;
+    let carriedBeam = null;
+
+    const DEPOSIT_SQUARE = {
+      minX: 29.0, maxX: 35.0,
+      minZ: 7.0, maxZ: 13.0
+    };
+
+    const depositSquareMesh = new THREE.Group();
+    {
+      const dWidth = DEPOSIT_SQUARE.maxX - DEPOSIT_SQUARE.minX;
+      const dLength = DEPOSIT_SQUARE.maxZ - DEPOSIT_SQUARE.minZ;
+      const dPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(dWidth, dLength),
+        new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: 0.35 })
+      );
+      dPlane.rotation.x = -Math.PI / 2;
+      dPlane.position.set((DEPOSIT_SQUARE.minX + DEPOSIT_SQUARE.maxX) / 2, 0.02, (DEPOSIT_SQUARE.minZ + DEPOSIT_SQUARE.maxZ) / 2);
+      depositSquareMesh.add(dPlane);
+
+      const dBorderMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+      const bTop = new THREE.Mesh(new THREE.BoxGeometry(dWidth + 0.4, 0.05, 0.4), dBorderMat);
+      bTop.position.set((DEPOSIT_SQUARE.minX + DEPOSIT_SQUARE.maxX) / 2, 0.03, DEPOSIT_SQUARE.minZ);
+      const bBot = new THREE.Mesh(new THREE.BoxGeometry(dWidth + 0.4, 0.05, 0.4), dBorderMat);
+      bBot.position.set((DEPOSIT_SQUARE.minX + DEPOSIT_SQUARE.maxX) / 2, 0.03, DEPOSIT_SQUARE.maxZ);
+      const bLeft = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, dLength + 0.4), dBorderMat);
+      bLeft.position.set(DEPOSIT_SQUARE.minX, 0.03, (DEPOSIT_SQUARE.minZ + DEPOSIT_SQUARE.maxZ) / 2);
+      const bRight = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, dLength + 0.4), dBorderMat);
+      bRight.position.set(DEPOSIT_SQUARE.maxX, 0.03, (DEPOSIT_SQUARE.minZ + DEPOSIT_SQUARE.maxZ) / 2);
+      depositSquareMesh.add(bTop, bBot, bLeft, bRight);
+
+      const dCanvas = document.createElement('canvas');
+      dCanvas.width = 256; dCanvas.height = 64;
+      const dctx = dCanvas.getContext('2d');
+      dctx.fillStyle = '#ffaa00'; dctx.fillRect(0, 0, 256, 64);
+      dctx.fillStyle = '#111'; dctx.font = 'bold 22px Arial';
+      dctx.textAlign = 'center'; dctx.textBaseline = 'middle';
+      dctx.fillText('BEAM DEPOSIT ZONE', 128, 34);
+      const dTex = new THREE.CanvasTexture(dCanvas);
+      const dSign = new THREE.Mesh(new THREE.PlaneGeometry(4.0, 1.0), new THREE.MeshBasicMaterial({ map: dTex }));
+      dSign.rotation.x = -Math.PI / 2;
+      dSign.position.set((DEPOSIT_SQUARE.minX + DEPOSIT_SQUARE.maxX) / 2, 0.035, (DEPOSIT_SQUARE.minZ + DEPOSIT_SQUARE.maxZ) / 2);
+      depositSquareMesh.add(dSign);
+
+      depositSquareMesh.visible = false;
+      scene.add(depositSquareMesh);
+    }
+
+    const beamOrangeMat = new THREE.MeshStandardMaterial({ color: 0xff5500, metalness: 0.6, roughness: 0.3 });
+    const beamLockedGreenMat = new THREE.MeshStandardMaterial({ color: 0x2ecc71, emissive: 0x145a32, metalness: 0.4, roughness: 0.4 });
+    const rowHouseMat = new THREE.MeshStandardMaterial({ color: 0x824b35, roughness: 0.75 });
+
+    const beams = [
+      { id: 0, x: 44.0, y: 3.8, z: -1.8, rx: 0, rz: 0, vy: 0, grabOffset: 0, carried: false, locked: false, mesh: null },
+      { id: 1, x: 44.0, y: 3.8, z: -0.5, rx: 0, rz: 0, vy: 0, grabOffset: 0, carried: false, locked: false, mesh: null },
+      { id: 2, x: 44.0, y: 3.8, z: 0.8, rx: 0, rz: 0, vy: 0, grabOffset: 0, carried: false, locked: false, mesh: null }
+    ];
+
+    let customsHouseDecorations = [];
+    function buildCustomsHouse() {
+      for (let d of customsHouseDecorations) scene.remove(d);
+      customsHouseDecorations = [];
+
+      for (let cx = -2.7; cx <= 2.7; cx += 1.35) {
+        for (let cz = -2.0; cz <= 2.0; cz += 1.35) {
+          for (let cy = 0.6; cy <= 5.2; cy += 1.1) {
+            if (cy >= 3.6 && cy <= 4.4 && Math.abs(cx) < 2.0) {
+              continue;
+            }
+            createSingleBlock(44.0 + cx, cy, -0.5 + cz, 'CUSTOMS_HOUSE');
+          }
+        }
+      }
+
+      const chCanvas = document.createElement('canvas');
+      chCanvas.width = 256; chCanvas.height = 64;
+      const chctx = chCanvas.getContext('2d');
+      chctx.fillStyle = '#2c3e50'; chctx.fillRect(0, 0, 256, 64);
+      chctx.strokeStyle = '#e74c3c'; chctx.lineWidth = 6; chctx.strokeRect(4, 4, 248, 56);
+      chctx.fillStyle = '#ffffff'; chctx.font = 'bold 22px Arial';
+      chctx.textAlign = 'center'; chctx.textBaseline = 'middle';
+      chctx.fillText('CUSTOMS HOUSE [CONDEMNED]', 128, 34);
+      const chTex = new THREE.CanvasTexture(chCanvas);
+      const chSign = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 1.0), new THREE.MeshBasicMaterial({ map: chTex }));
+      chSign.position.set(44.0, 5.6, 1.6);
+      scene.add(chSign);
+      customsHouseDecorations.push(chSign);
+    }
+
+    let canalRowHouseDecorations = [];
+    function buildCanalRowHouses() {
+      for (let d of canalRowHouseDecorations) scene.remove(d);
+      canalRowHouseDecorations = [];
+
+      // Left Canal Row House (X = 35.6, gap exactly 3.0m to Customs House left wall at 41.3)
+      for (let rx = -2.5; rx <= 2.5; rx += 1.35) {
+        for (let rz = -2.0; rz <= 2.0; rz += 1.35) {
+          for (let ry = 0.6; ry <= 5.2; ry += 1.1) {
+            createSingleBlock(35.6 + rx, ry, -0.5 + rz, 'ROW_HOUSE');
+          }
+        }
+      }
+
+      // Right Canal Row House (X = 52.4, gap exactly 3.0m to Customs House right wall at 46.7)
+      for (let rx = -2.5; rx <= 2.5; rx += 1.35) {
+        for (let rz = -2.0; rz <= 2.0; rz += 1.35) {
+          for (let ry = 0.6; ry <= 5.2; ry += 1.1) {
+            createSingleBlock(52.4 + rx, ry, -0.5 + rz, 'ROW_HOUSE');
+          }
+        }
+      }
+
+      for (let [side, posX, name] of [[-1, 35.6, 'CANAL ROW WEST'], [1, 52.4, 'CANAL ROW EAST']]) {
+        const rCanvas = document.createElement('canvas');
+        rCanvas.width = 256; rCanvas.height = 64;
+        const rctx = rCanvas.getContext('2d');
+        rctx.fillStyle = '#78281f'; rctx.fillRect(0, 0, 256, 64);
+        rctx.strokeStyle = '#f4d03f'; rctx.lineWidth = 5; rctx.strokeRect(4, 4, 248, 56);
+        rctx.fillStyle = '#ffffff'; rctx.font = 'bold 24px Arial';
+        rctx.textAlign = 'center'; rctx.textBaseline = 'middle';
+        rctx.fillText(name, 128, 34);
+        const rTex = new THREE.CanvasTexture(rCanvas);
+        const rSign = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.9), new THREE.MeshBasicMaterial({ map: rTex }));
+        rSign.position.set(posX, 5.6, 1.6);
+        scene.add(rSign);
+        canalRowHouseDecorations.push(rSign);
+
+        const awning = new THREE.Mesh(
+          new THREE.BoxGeometry(4.2, 0.2, 1.5),
+          new THREE.MeshStandardMaterial({ color: 0x1b4f72, roughness: 0.6 })
+        );
+        awning.position.set(posX, 4.2, 1.9);
+        awning.rotation.x = 0.25;
+        scene.add(awning);
+        canalRowHouseDecorations.push(awning);
+      }
+    }
+
+    function buildSteelBeams() {
+      for (let b of beams) {
+        if (b.mesh) scene.remove(b.mesh);
+        b.carried = false;
+        b.locked = false;
+        b.grabOffset = 0;
+        b.rx = 0; b.rz = 0; b.vy = 0;
+      }
+      beams[0].x = 44.0; beams[0].y = 3.8; beams[0].z = -1.8;
+      beams[1].x = 44.0; beams[1].y = 3.8; beams[1].z = -0.5;
+      beams[2].x = 44.0; beams[2].y = 3.8; beams[2].z = 0.8;
+      carriedBeam = null;
+      phase2SubtitleShown = false;
+
+      for (let b of beams) {
+        const bGroup = new THREE.Group();
+        const web = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.35, 0.08), beamOrangeMat);
+        const topFlange = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.06, 0.35), beamOrangeMat);
+        topFlange.position.y = 0.175;
+        const botFlange = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.06, 0.35), beamOrangeMat);
+        botFlange.position.y = -0.175;
+        bGroup.add(web, topFlange, botFlange);
+        bGroup.position.set(b.x, b.y, b.z);
+        scene.add(bGroup);
+        b.mesh = bGroup;
+      }
+    }
+
+    /* =========================================================================
+       JOB 5: THE CLOCK TOWER & CAREER RECKONING STATE
+       ========================================================================= */
+
+    const CLOCK_TOWER_POS = { x: 4.0, z: -16.0 };
+    const CHURCH_POS = { x: -6.0, z: -16.0 };
+
+    const churchStoneMat = new THREE.MeshStandardMaterial({ color: 0x6e7681, roughness: 0.9 });
+    const surveyBandMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4 });
+    const bellBronzeMat = new THREE.MeshStandardMaterial({ color: 0xcd7f32, metalness: 0.85, roughness: 0.25 });
+
+    let liveSection = 'CROWN'; // 'CROWN' -> 'WAIST' -> 'BASE' -> 'COMPLETE'
+    let sectionRetries = 0;
+    let bellChimeCount = 0;
+    let lastBellRingTime = -10;
+    let bellSwing = 0.0;
+    let bellSwingPhase = 0.0;
+
+    let sectionResetTimer = 0.0;
+    let sectionPendingReset = null;
+
+    const sectionBlocks = { CROWN: [], WAIST: [], BASE: [] };
+    const sectionInitialCount = { CROWN: 0, WAIST: 0, BASE: 0 };
+    const sectionDamagedCount = { CROWN: 0, WAIST: 0, BASE: 0 };
+    const sectionOutOfSequenceFired = { CROWN: false, WAIST: false, BASE: false };
+    const sectionCommitted = { CROWN: false, WAIST: false, BASE: false };
+    const sectionFalling = { CROWN: false, WAIST: false, BASE: false };
+    const sectionFelled = { CROWN: false, WAIST: false, BASE: false };
+    const sectionTiltAngle = { CROWN: 0.0, WAIST: 0.0, BASE: 0.0 };
+    const sectionTiltDirection = { CROWN: '', WAIST: '', BASE: '' };
+    const sectionZoneFill = { CROWN: 0.0, WAIST: 0.0, BASE: 0.0 };
+    const sectionFallVel = {
+      CROWN: { rx: 0, rz: 0 },
+      WAIST: { rx: 0, rz: 0 },
+      BASE:  { rx: 0, rz: 0 }
+    };
+
+    // Three fanned drop zones on the side away from the church (away from church means X > 6.0)
+    const SECTION_DROP_ZONES = {
+      CROWN: { minX: 14.0, maxX: 24.0, minZ: -28.0, maxZ: -19.0 },
+      WAIST: { minX: 14.0, maxX: 24.0, minZ: -18.0, maxZ: -9.0 },
+      BASE:  { minX: 14.0, maxX: 24.0, minZ: -8.0,  maxZ: 1.0 }
+    };
+
+    const clockDropZonesGroup = new THREE.Group();
+    {
+      const zColors = { CROWN: 0xf59e0b, WAIST: 0x3b82f6, BASE: 0x10b981 };
+      for (const [secName, zone] of Object.entries(SECTION_DROP_ZONES)) {
+        const zw = zone.maxX - zone.minX;
+        const zl = zone.maxZ - zone.minZ;
+        const zcx = (zone.minX + zone.maxX) / 2;
+        const zcz = (zone.minZ + zone.maxZ) / 2;
+
+        const plane = new THREE.Mesh(
+          new THREE.PlaneGeometry(zw, zl),
+          new THREE.MeshBasicMaterial({ color: zColors[secName], transparent: true, opacity: 0.3 })
+        );
+        plane.rotation.x = -Math.PI / 2;
+        plane.position.set(zcx, 0.02, zcz);
+        clockDropZonesGroup.add(plane);
+
+        const borderMat = new THREE.MeshBasicMaterial({ color: zColors[secName] });
+        const bTop = new THREE.Mesh(new THREE.BoxGeometry(zw + 0.4, 0.05, 0.4), borderMat);
+        bTop.position.set(zcx, 0.03, zone.minZ);
+        const bBot = new THREE.Mesh(new THREE.BoxGeometry(zw + 0.4, 0.05, 0.4), borderMat);
+        bBot.position.set(zcx, 0.03, zone.maxZ);
+        const bLeft = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, zl + 0.4), borderMat);
+        bLeft.position.set(zone.minX, 0.03, zcz);
+        const bRight = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, zl + 0.4), borderMat);
+        bRight.position.set(zone.maxX, 0.03, zcz);
+        clockDropZonesGroup.add(bTop, bBot, bLeft, bRight);
+
+        const sCanvas = document.createElement('canvas');
+        sCanvas.width = 256; sCanvas.height = 64;
+        const sctx = sCanvas.getContext('2d');
+        sctx.fillStyle = '#111'; sctx.fillRect(0, 0, 256, 64);
+        sctx.strokeStyle = '#fff'; sctx.lineWidth = 4; sctx.strokeRect(2, 2, 252, 60);
+        sctx.fillStyle = '#f5f5f5'; sctx.font = 'bold 24px Arial';
+        sctx.textAlign = 'center'; sctx.textBaseline = 'middle';
+        sctx.fillText(`${secName} ZONE`, 128, 34);
+        const sTex = new THREE.CanvasTexture(sCanvas);
+        const sSign = new THREE.Mesh(new THREE.PlaneGeometry(4.0, 1.0), new THREE.MeshBasicMaterial({ map: sTex }));
+        sSign.rotation.x = -Math.PI / 2;
+        sSign.position.set(zcx, 0.035, zcz);
+        clockDropZonesGroup.add(sSign);
+      }
+      clockDropZonesGroup.visible = false;
+      scene.add(clockDropZonesGroup);
+    }
+
+    // Cumulative tallies across full career
+    let cumulativeClockTime = 0.0;
+    let cumulativeBlocksFelled = 0;
+    let cumulativeBeamsDelivered = 0;
+    let careerSiloClean = true;
+    let cumulativeSectionRetries = 0;
+    let cumulativeBellChimes = 0;
+    let cumulativeBoundaryViolations = 0;
+    let cumulativeProtectedHits = 0;
+
+    let clockTowerDecorations = [];
+    let churchDecorations = [];
+    let bellGroup = null;
+    let bellMesh = null;
+
+    function buildClockTowerSection(sec) {
+      const tx = CLOCK_TOWER_POS.x, tz = CLOCK_TOWER_POS.z;
+
+      if (sec === 'BASE') {
+        sectionBlocks.BASE = [];
+        sectionDamagedCount.BASE = 0;
+        sectionOutOfSequenceFired.BASE = false;
+        sectionCommitted.BASE = false;
+        sectionFalling.BASE = false;
+        sectionFelled.BASE = false;
+        sectionTiltAngle.BASE = 0;
+        for (let bx = -1.8; bx <= 1.8; bx += 1.2) {
+          for (let bz = -1.8; bz <= 1.8; bz += 1.2) {
+            for (let by = 0.6; by <= 7.8; by += 1.1) {
+              const b = createSingleBlock(tx + bx, by, tz + bz, 'TOWER_BASE');
+              sectionBlocks.BASE.push(b);
+            }
+          }
+        }
+        sectionInitialCount.BASE = sectionBlocks.BASE.length;
+      } else if (sec === 'WAIST') {
+        sectionBlocks.WAIST = [];
+        sectionDamagedCount.WAIST = 0;
+        sectionOutOfSequenceFired.WAIST = false;
+        sectionCommitted.WAIST = false;
+        sectionFalling.WAIST = false;
+        sectionFelled.WAIST = false;
+        sectionTiltAngle.WAIST = 0;
+        for (let bx = -1.8; bx <= 1.8; bx += 1.2) {
+          for (let bz = -1.8; bz <= 1.8; bz += 1.2) {
+            for (let by = 8.4; by <= 15.6; by += 1.1) {
+              const b = createSingleBlock(tx + bx, by, tz + bz, 'TOWER_WAIST');
+              sectionBlocks.WAIST.push(b);
+            }
+          }
+        }
+        sectionInitialCount.WAIST = sectionBlocks.WAIST.length;
+      } else if (sec === 'CROWN') {
+        sectionBlocks.CROWN = [];
+        sectionDamagedCount.CROWN = 0;
+        sectionOutOfSequenceFired.CROWN = false;
+        sectionCommitted.CROWN = false;
+        sectionFalling.CROWN = false;
+        sectionFelled.CROWN = false;
+        sectionTiltAngle.CROWN = 0;
+        for (let bx = -1.8; bx <= 1.8; bx += 1.2) {
+          for (let bz = -1.8; bz <= 1.8; bz += 1.2) {
+            for (let by = 16.4; by <= 23.6; by += 1.1) {
+              if (by >= 20.5 && by <= 23.0 && Math.abs(bx) < 1.0 && Math.abs(bz) < 1.0) {
+                continue;
+              }
+              const b = createSingleBlock(tx + bx, by, tz + bz, 'TOWER_CROWN');
+              sectionBlocks.CROWN.push(b);
+            }
+          }
+        }
+        sectionInitialCount.CROWN = sectionBlocks.CROWN.length;
+      }
+    }
+
+    function buildClockTower() {
+      for (let d of clockTowerDecorations) scene.remove(d);
+      clockTowerDecorations = [];
+
+      buildClockTowerSection('BASE');
+      buildClockTowerSection('WAIST');
+      buildClockTowerSection('CROWN');
+
+      const tx = CLOCK_TOWER_POS.x, tz = CLOCK_TOWER_POS.z;
+
+      // Survey Band 1 (Hazard black/yellow ring separating Base from Waist at Y = 8.0)
+      const b1 = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.4, 4.4), surveyBandMat);
+      b1.position.set(tx, 8.0, tz);
+      scene.add(b1);
+      clockTowerDecorations.push(b1);
+
+      // Survey Band 2 (Hazard black/yellow ring separating Waist from Crown at Y = 16.0)
+      const b2 = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.4, 4.4), surveyBandMat);
+      b2.position.set(tx, 16.0, tz);
+      scene.add(b2);
+      clockTowerDecorations.push(b2);
+
+      // 4-faced clock at Y = 18.5
+      const clockCanvas = document.createElement('canvas');
+      clockCanvas.width = 128; clockCanvas.height = 128;
+      const cctx = clockCanvas.getContext('2d');
+      cctx.fillStyle = '#f8f9fa'; cctx.fillRect(0, 0, 128, 128);
+      cctx.strokeStyle = '#111111'; cctx.lineWidth = 6;
+      cctx.beginPath(); cctx.arc(64, 64, 56, 0, Math.PI * 2); cctx.stroke();
+      cctx.fillStyle = '#111'; cctx.font = 'bold 20px Arial';
+      cctx.textAlign = 'center'; cctx.textBaseline = 'middle';
+      cctx.fillText('XII', 64, 24); cctx.fillText('VI', 64, 106);
+      cctx.fillText('IX', 24, 64); cctx.fillText('III', 106, 64);
+      cctx.beginPath(); cctx.moveTo(64, 64); cctx.lineTo(64, 32); cctx.stroke();
+      cctx.beginPath(); cctx.moveTo(64, 64); cctx.lineTo(92, 84); cctx.stroke();
+      const clockTex = new THREE.CanvasTexture(clockCanvas);
+
+      const fOffsets = [
+        [0, 18.5, 2.3, 0],
+        [0, 18.5, -2.3, Math.PI],
+        [2.3, 18.5, 0, Math.PI / 2],
+        [-2.3, 18.5, 0, -Math.PI / 2]
+      ];
+      for (const [ox, oy, oz, rotY] of fOffsets) {
+        const cf = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), new THREE.MeshBasicMaterial({ map: clockTex }));
+        cf.position.set(tx + ox, oy, tz + oz);
+        cf.rotation.y = rotY;
+        scene.add(cf);
+        clockTowerDecorations.push(cf);
+      }
+
+      // Belfry Bronze Bell hanging from wooden crossbeam at Y = 21.6
+      bellGroup = new THREE.Group();
+      bellGroup.position.set(tx, 22.2, tz);
+      
+      const beamGeo = new THREE.BoxGeometry(2.4, 0.2, 0.2);
+      const beamMat = new THREE.MeshStandardMaterial({ color: 0x4a2e18, roughness: 0.9 });
+      const bBeam = new THREE.Mesh(beamGeo, beamMat);
+      bellGroup.add(bBeam);
+
+      const bellYoke = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.4), new THREE.MeshStandardMaterial({ color: 0x222 }));
+      bellYoke.position.y = -0.2;
+      bellGroup.add(bellYoke);
+
+      bellMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.65, 0.85, 12), bellBronzeMat);
+      bellMesh.position.y = -0.65;
+      bellMesh.castShadow = true;
+      bellGroup.add(bellMesh);
+
+      scene.add(bellGroup);
+      clockTowerDecorations.push(bellGroup);
+
+      // Pyramidal belfry roof
+      const roofGeo = new THREE.ConeGeometry(3.2, 2.0, 4);
+      const roofMat = new THREE.MeshStandardMaterial({ color: 0x2d4a43, metalness: 0.6, roughness: 0.4 });
+      const roof = new THREE.Mesh(roofGeo, roofMat);
+      roof.position.set(tx, 24.6, tz);
+      roof.rotation.y = Math.PI / 4;
+      scene.add(roof);
+      clockTowerDecorations.push(roof);
+    }
+
+    function buildChurch() {
+      for (let d of churchDecorations) scene.remove(d);
+      churchDecorations = [];
+
+      const cx = CHURCH_POS.x, cz = CHURCH_POS.z;
+
+      // Protected Church masonry blocks
+      for (let wx = -5.0; wx <= 5.0; wx += 1.35) {
+        for (let wz = -6.5; wz <= 6.5; wz += 1.35) {
+          for (let wy = 0.6; wy <= 8.5; wy += 1.1) {
+            if (wy >= 1.5 && Math.abs(wx) < 3.5 && Math.abs(wz) < 5.0) continue;
+            createSingleBlock(cx + wx, wy, cz + wz, 'CHURCH');
+          }
+        }
+      }
+
+      // Stone Steeple with Pointed Spire reaching Y = 20.0
+      const stTower = new THREE.Mesh(
+        new THREE.BoxGeometry(4.0, 10.0, 4.0),
+        new THREE.MeshStandardMaterial({ color: 0x5a626a, roughness: 0.85 })
+      );
+      stTower.position.set(cx, 13.0, cz + 4.5);
+      scene.add(stTower);
+      churchDecorations.push(stTower);
+
+      const spire = new THREE.Mesh(
+        new THREE.ConeGeometry(2.4, 7.0, 4),
+        new THREE.MeshStandardMaterial({ color: 0x3d444d, roughness: 0.7 })
+      );
+      spire.position.set(cx, 20.5, cz + 4.5);
+      spire.rotation.y = Math.PI / 4;
+      scene.add(spire);
+      churchDecorations.push(spire);
+
+      // Rose Window on South facade facing the square
+      const roseCanvas = document.createElement('canvas');
+      roseCanvas.width = 128; roseCanvas.height = 128;
+      const rctx = roseCanvas.getContext('2d');
+      rctx.fillStyle = '#1b2838'; rctx.fillRect(0, 0, 128, 128);
+      rctx.strokeStyle = '#d4af37'; rctx.lineWidth = 5;
+      rctx.beginPath(); rctx.arc(64, 64, 54, 0, Math.PI * 2); rctx.stroke();
+      for (let a = 0; a < 8; a++) {
+        const ang = a * Math.PI / 4;
+        rctx.beginPath();
+        rctx.moveTo(64, 64);
+        rctx.lineTo(64 + Math.cos(ang) * 54, 64 + Math.sin(ang) * 54);
+        rctx.stroke();
+      }
+      const roseTex = new THREE.CanvasTexture(roseCanvas);
+      const roseWindow = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 3.4), new THREE.MeshBasicMaterial({ map: roseTex }));
+      roseWindow.position.set(cx, 6.2, cz + 6.6);
+      scene.add(roseWindow);
+      churchDecorations.push(roseWindow);
+
+      // Arched Doorway with stone steps
+      const doorGeo = new THREE.PlaneGeometry(2.4, 3.6);
+      const doorMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.8 });
+      const door = new THREE.Mesh(doorGeo, doorMat);
+      door.position.set(cx, 2.0, cz + 6.6);
+      scene.add(door);
+      churchDecorations.push(door);
+
+      // Church sign
+      const chSignCanvas = document.createElement('canvas');
+      chSignCanvas.width = 256; chSignCanvas.height = 64;
+      const csctx = chSignCanvas.getContext('2d');
+      csctx.fillStyle = '#21262d'; csctx.fillRect(0, 0, 256, 64);
+      csctx.strokeStyle = '#d4af37'; csctx.lineWidth = 4; csctx.strokeRect(2, 2, 252, 60);
+      csctx.fillStyle = '#ffffff'; csctx.font = 'bold 20px Arial';
+      csctx.textAlign = 'center'; csctx.textBaseline = 'middle';
+      csctx.fillText('ST. JUDE CHURCH [PROTECTED]', 128, 34);
+      const chSignTex = new THREE.CanvasTexture(chSignCanvas);
+      const chSign = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 1.0), new THREE.MeshBasicMaterial({ map: chSignTex }));
+      chSign.position.set(cx, 4.4, cz + 6.62);
+      scene.add(chSign);
+      churchDecorations.push(chSign);
+    }
+
+    function addLedgerIncident(type, description) {
+      const maxT = (activeJob === 1 ? 240.0 : (activeJob === 2 ? 180.0 : (activeJob === 3 ? 300.0 : (activeJob === 4 ? 240.0 : 420.0))));
+      const elapsed = maxT - jobTimer;
+      const timeStr = elapsed.toFixed(1).padStart(5, '0');
+      const item = {
+        job: activeJob,
+        time: `${timeStr}s`,
+        type: type,
+        desc: description
+      };
+      activeLedger.push(item);
+      if (type.includes('PROTECTED')) {
+        cumulativeProtectedHits++;
+      } else {
+        cumulativeBoundaryViolations++;
+      }
+      exportArenaState();
+    }
+
+    function triggerViolation(title, desc) {
+      audio.playKlaxon();
+      const banner = document.getElementById('alert-banner');
+      banner.innerText = title;
+      banner.style.display = 'block';
+      setTimeout(() => { banner.style.display = 'none'; }, 2400);
+      addLedgerIncident(title, desc);
+    }
+
+    function triggerInfo(title) {
+      audio.playChime();
+      const banner = document.getElementById('info-banner');
+      banner.innerText = title;
+      banner.style.display = 'block';
+      setTimeout(() => { banner.style.display = 'none'; }, 2200);
+    }
+
+    function clearWorldBlocks() {
+      for (let b of allBlocks) scene.remove(b.mesh);
+      allBlocks.length = 0;
+      for (let d of debrisList) scene.remove(d.mesh);
+      debrisList.length = 0;
+      totalTargetBlocks = 0;
+      felledTargetBlocks = 0;
+      isSpikeEmbedded = false;
+      embeddedBlockId = null;
+      activePresetTarget = null;
+      carriedBeam = null;
+      phase2SubtitleShown = false;
+      for (let b of beams) {
+        if (b.mesh) scene.remove(b.mesh);
+        b.mesh = null;
+        b.carried = false;
+        b.locked = false;
+        b.grabOffset = 0;
+      }
+      for (let d of customsHouseDecorations) scene.remove(d);
+      customsHouseDecorations = [];
+      for (let d of canalRowHouseDecorations) scene.remove(d);
+      canalRowHouseDecorations = [];
+      for (let d of clockTowerDecorations) scene.remove(d);
+      clockTowerDecorations = [];
+      for (let d of churchDecorations) scene.remove(d);
+      churchDecorations = [];
+      bellGroup = null;
+      bellMesh = null;
+      sectionResetTimer = 0.0;
+      sectionPendingReset = null;
+      sectionBlocks.CROWN = [];
+      sectionBlocks.WAIST = [];
+      sectionBlocks.BASE = [];
+    }
+
+    function createSingleBlock(x, y, z, role = 'WAREHOUSE', siloId = 0) {
+      const geo = new THREE.BoxGeometry(BLOCK_SIZE, BLOCK_SIZE * 0.8, BLOCK_SIZE);
+      let mat = brickMat;
+      if (role === 'POST_OFFICE') mat = postOfficeMat;
+      else if (role === 'ROW_HOUSE') mat = rowHouseMat;
+      else if (role === 'CHURCH') mat = churchStoneMat;
+      else if (role === 'TOWER') mat = towerSteelMat;
+      else if (role === 'SILO') mat = siloConcreteMat;
+      else if (role === 'CUSTOMS_HOUSE') mat = brickMat;
+      else if (role === 'TOWER_CROWN' || role === 'TOWER_WAIST' || role === 'TOWER_BASE') mat = brickMat;
+
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x, y, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+
+      const block = {
+        id: allBlocks.length,
+        x, y, z,
+        origY: y,
+        mesh,
+        role,
+        siloId,
+        broken: false,
+        felled: false,
+        vy: 0,
+        damagedReported: false
+      };
+      allBlocks.push(block);
+      if (role === 'WAREHOUSE' || role === 'CUSTOMS_HOUSE' || role.startsWith('TOWER_')) totalTargetBlocks++;
+      if (role === 'SILO' && siloId > 0) {
+        siloBlocks[siloId].push(block);
+      }
+      return block;
+    }
+
+    // Post Office Decor
+    let postOfficeDecorations = [];
+    function buildPostOfficeDecor(baseX, baseZ) {
+      for (let d of postOfficeDecorations) scene.remove(d);
+      postOfficeDecorations = [];
+
+      const mbGroup = new THREE.Group();
+      mbGroup.position.set(baseX, 0, baseZ + 3.8);
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.8), new THREE.MeshStandardMaterial({ color: 0x333 }));
+      post.position.y = 0.4;
+      const box = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.8, 0.6), new THREE.MeshStandardMaterial({ color: 0x1b4f72 }));
+      box.position.y = 1.0;
+      mbGroup.add(post, box);
+      scene.add(mbGroup);
+      postOfficeDecorations.push(mbGroup);
+
+      const awning = new THREE.Mesh(
+        new THREE.BoxGeometry(4.8, 0.2, 1.6),
+        new THREE.MeshStandardMaterial({ color: 0x8b0000, roughness: 0.6 })
+      );
+      awning.position.set(baseX, 4.4, baseZ + 3.0);
+      awning.rotation.x = 0.25;
+      scene.add(awning);
+      postOfficeDecorations.push(awning);
+
+      const signCanvas = document.createElement('canvas');
+      signCanvas.width = 256; signCanvas.height = 64;
+      const sctx = signCanvas.getContext('2d');
+      sctx.fillStyle = '#1b4f72'; sctx.fillRect(0, 0, 256, 64);
+      sctx.strokeStyle = '#f4d03f'; sctx.lineWidth = 6; sctx.strokeRect(4, 4, 248, 56);
+      sctx.fillStyle = '#ffffff'; sctx.font = 'bold 30px Arial';
+      sctx.textAlign = 'center'; sctx.textBaseline = 'middle';
+      sctx.fillText('POST OFFICE', 128, 34);
+      const signTex = new THREE.CanvasTexture(signCanvas);
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.9), new THREE.MeshBasicMaterial({ map: signTex }));
+      sign.position.set(baseX, 5.4, baseZ + 2.5);
+      scene.add(sign);
+      postOfficeDecorations.push(sign);
+    }
+
+    // Water Tower (Job 2)
+    function buildWaterTower() {
+      towerLegBlocks = [];
+      towerTankBlocks = [];
+      towerCommitted = false;
+      towerIsFalling = false;
+      towerTiltAngle = 0;
+      towerZoneFill = 0;
+      towerFallVel = { rx: 0, rz: 0 };
+
+      const tx = 16.0;
+      const tz = 10.0;
+
+      const legOffsets = [
+        [-2.0, -2.0], [2.0, -2.0],
+        [-2.0, 2.0], [2.0, 2.0]
+      ];
+
+      for (let [lx, lz] of legOffsets) {
+        for (let y = 0.6; y < 11.0; y += 1.1) {
+          const b = createSingleBlock(tx + lx, y, tz + lz, 'TOWER');
+          towerLegBlocks.push(b);
+        }
+      }
+
+      for (let bx = -2.6; bx <= 2.6; bx += 1.3) {
+        for (let bz = -2.6; bz <= 2.6; bz += 1.3) {
+          for (let by = 11.5; by <= 15.5; by += 1.3) {
+            const b = createSingleBlock(tx + bx, by, tz + bz, 'TOWER');
+            towerTankBlocks.push(b);
+          }
+        }
+      }
+    }
+
+    // Silo Row (Job 3)
+    let siloSignMeshes = [];
+    function buildSiloRow() {
+      for (let m of siloSignMeshes) scene.remove(m);
+      siloSignMeshes = [];
+
+      siloBlocks[1] = []; siloBlocks[2] = []; siloBlocks[3] = [];
+      siloDamagedCount[1] = 0; siloDamagedCount[2] = 0; siloDamagedCount[3] = 0;
+      siloOutOfSequenceFired[1] = false; siloOutOfSequenceFired[2] = false; siloOutOfSequenceFired[3] = false;
+      siloFelled[1] = false; siloFelled[2] = false; siloFelled[3] = false;
+      siloOrderIndex = 0;
+      siloCleanOrder = true;
+
+      const siloPositions = {
+        1: { x: -26.0, z: -24.0 },
+        2: { x: -26.0, z: -10.0 },
+        3: { x: -26.0, z: 4.0 }
+      };
+
+      for (let sId = 1; sId <= 3; sId++) {
+        const spos = siloPositions[sId];
+        for (let y = 0.6; y <= 11.5; y += 1.1) {
+          for (let a = 0; a < 8; a++) {
+            const ang = (a / 8) * Math.PI * 2;
+            const bx = spos.x + Math.cos(ang) * 2.8;
+            const bz = spos.z + Math.sin(ang) * 2.8;
+            createSingleBlock(bx, y, bz, 'SILO', sId);
+          }
+        }
+
+        siloInitialCount[sId] = siloBlocks[sId].length;
+
+        const signCanvas = document.createElement('canvas');
+        signCanvas.width = 128; signCanvas.height = 128;
+        const sctx = signCanvas.getContext('2d');
+        sctx.fillStyle = '#ffffff'; sctx.fillRect(0, 0, 128, 128);
+        sctx.fillStyle = '#000000'; sctx.font = 'bold 96px Arial';
+        sctx.textAlign = 'center'; sctx.textBaseline = 'middle';
+        sctx.fillText(`${sId}`, 64, 64);
+        const sTex = new THREE.CanvasTexture(signCanvas);
+        const numMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), new THREE.MeshBasicMaterial({ map: sTex }));
+        numMesh.position.set(spos.x + 3.1, 7.5, spos.z);
+        numMesh.rotation.y = Math.PI / 2;
+        scene.add(numMesh);
+        siloSignMeshes.push(numMesh);
+      }
+    }
+
+    // Setup Jobs (1, 2, 3, 4, or 5)
+    function setupJobScene(jobId) {
+      activeJob = jobId;
+      boundaryViolations = 0;
+      protectedDamageCount = 0;
+      activePresetTarget = null;
+      carriedBeam = null;
+      phase2SubtitleShown = false;
+      clearWorldBlocks();
+
+      if (jobId === 5) {
+        // Job 5: The Clock Tower on the paved square at yard's end
+        crane.x = 4.0; crane.z = 2.0;
+        crane.heading = Math.PI; // Facing Clock Tower at (4.0, -16.0)
+        crane.cabSlew = 0;
+        crane.boomAngle = THREE.MathUtils.degToRad(50);
+        crane.cableLength = 12.0;
+        crane.group.position.set(crane.x, 0, crane.z);
+        crane.group.rotation.y = crane.heading;
+        crane.group.rotation.z = 0;
+        crane.cabGroup.rotation.y = crane.cabSlew;
+        crane.boomGroup.rotation.x = -crane.boomAngle;
+
+        const tipPos = getBoomTipWorldPosition();
+        for (let i = 0; i < NUM_LINKS; i++) {
+          chainLinks[i].x = tipPos.x;
+          chainLinks[i].y = tipPos.y - (i + 1) * (crane.cableLength / NUM_LINKS);
+          chainLinks[i].z = tipPos.z;
+          chainLinks[i].vx = 0; chainLinks[i].vy = 0; chainLinks[i].vz = 0;
+        }
+        hookRig.x = tipPos.x;
+        hookRig.y = tipPos.y - crane.cableLength;
+        hookRig.z = tipPos.z;
+        hookRig.vx = 0; hookRig.vy = 0; hookRig.vz = 0;
+        ballMesh.position.set(hookRig.x, hookRig.y, hookRig.z);
+        spikeGroup.position.set(hookRig.x, hookRig.y, hookRig.z);
+
+        // Build Job 5 Structures
+        buildClockTower();
+        buildChurch();
+
+        jobTimer = 420.0;
+        liveSection = 'CROWN';
+        sectionResetTimer = 0.0;
+        sectionPendingReset = null;
+
+        dropZoneMesh.visible = false;
+        depositSquareMesh.visible = false;
+        clockDropZonesGroup.visible = true;
+
+        document.getElementById('hud-job-badge').innerText = 'JOB 5 OF 5';
+        document.getElementById('hud-job-title').innerText = 'The Clock Tower Demolition';
+        document.getElementById('hud-target-label').innerText = 'SECTION / TILT';
+        document.getElementById('ready-badge').innerText = 'CONTRACT JOB 5 OF 5';
+        document.getElementById('ready-title').innerText = 'THE CLOCK TOWER';
+        document.getElementById('ready-desc').innerHTML = 
+          'Fell the 24m historic clock tower top-first: <strong style="color:#f59e0b;">Crown -> Waist -> Base</strong>.<br>' +
+          'Each section must land >= 80% inside its dedicated drop zone. Sections commit at 25° tilt!<br>' +
+          '<strong style="color:#ff7b72;">CRITICAL:</strong> Zero damage allowed to adjacent protected Church (3m gap)!';
+      } else if (jobId === 4) {
+        // Moored on the Barge in the canal
+        crane.x = BARGE_POS.x;
+        crane.z = BARGE_POS.z;
+        crane.heading = Math.PI;
+        crane.cabSlew = 0;
+        crane.boomAngle = THREE.MathUtils.degToRad(50);
+        crane.cableLength = 12.0;
+        crane.group.position.set(crane.x, BARGE_POS.y + 0.4, crane.z);
+        crane.group.rotation.y = crane.heading;
+        crane.group.rotation.z = 0;
+        crane.cabGroup.rotation.y = crane.cabSlew;
+        crane.boomGroup.rotation.x = -crane.boomAngle;
+
+        const tipPos = getBoomTipWorldPosition();
+        for (let i = 0; i < NUM_LINKS; i++) {
+          chainLinks[i].x = tipPos.x;
+          chainLinks[i].y = tipPos.y - (i + 1) * (crane.cableLength / NUM_LINKS);
+          chainLinks[i].z = tipPos.z;
+          chainLinks[i].vx = 0; chainLinks[i].vy = 0; chainLinks[i].vz = 0;
+        }
+        hookRig.x = tipPos.x;
+        hookRig.y = tipPos.y - crane.cableLength;
+        hookRig.z = tipPos.z;
+        hookRig.vx = 0; hookRig.vy = 0; hookRig.vz = 0;
+        ballMesh.position.set(hookRig.x, hookRig.y, hookRig.z);
+        spikeGroup.position.set(hookRig.x, hookRig.y, hookRig.z);
+
+        // Build Job 4 Structures
+        buildCustomsHouse();
+        buildCanalRowHouses();
+        buildSteelBeams();
+
+        jobTimer = 240.0;
+        dropZoneMesh.visible = false;
+        depositSquareMesh.visible = true;
+        clockDropZonesGroup.visible = false;
+
+        document.getElementById('hud-job-badge').innerText = 'JOB 4 OF 5';
+        document.getElementById('hud-job-title').innerText = 'The Barge & Customs House';
+        document.getElementById('hud-target-label').innerText = 'FELL / BEAMS';
+        document.getElementById('ready-badge').innerText = 'CONTRACT JOB 4 OF 5';
+        document.getElementById('ready-title').innerText = 'THE BARGE DEMOLITION';
+        document.getElementById('ready-desc').innerHTML = 
+          'Moored on a work barge in the canal swell. Demolish the customs house to 90%.<br>' +
+          '<strong style="color:#ffaa00;">PHASE 2:</strong> Extract 3 orange steel beams with the <strong style="color:#55eeaa;">BREAKER SPIKE ONLY</strong> and deposit them in the canal bank zone.<br>' +
+          '<strong style="color:#ff7b72;">CRITICAL:</strong> Zero damage allowed on flanking Canal Row Houses! Tracks are <span class="kbd">MOORED</span>.';
+      } else {
+        // Reset Crane for Jobs 1, 2, 3 in Yard
+        crane.x = 0; crane.z = 18;
+        crane.heading = Math.PI;
+        crane.cabSlew = 0;
+        crane.boomAngle = THREE.MathUtils.degToRad(50);
+        crane.cableLength = 12.0;
+        crane.group.position.set(crane.x, 0, crane.z);
+        crane.group.rotation.y = crane.heading;
+        crane.group.rotation.z = 0;
+        crane.cabGroup.rotation.y = crane.cabSlew;
+        crane.boomGroup.rotation.x = -crane.boomAngle;
+
+        const tipPos = getBoomTipWorldPosition();
+        for (let i = 0; i < NUM_LINKS; i++) {
+          chainLinks[i].x = tipPos.x;
+          chainLinks[i].y = tipPos.y - (i + 1) * (crane.cableLength / NUM_LINKS);
+          chainLinks[i].z = tipPos.z;
+          chainLinks[i].vx = 0; chainLinks[i].vy = 0; chainLinks[i].vz = 0;
+        }
+        hookRig.x = tipPos.x;
+        hookRig.y = tipPos.y - crane.cableLength;
+        hookRig.z = tipPos.z;
+        hookRig.vx = 0; hookRig.vy = 0; hookRig.vz = 0;
+        ballMesh.position.set(hookRig.x, hookRig.y, hookRig.z);
+        spikeGroup.position.set(hookRig.x, hookRig.y, hookRig.z);
+
+        // Protected Post Office
+        const PO_X = 5.0, PO_Z = -3.0;
+        for (let px = -3.0; px <= 3.0; px += 1.4) {
+          for (let pz = -3.0; pz <= 3.0; pz += 1.4) {
+            for (let py = 0.6; py <= 4.2; py += 1.0) {
+              createSingleBlock(PO_X + px, py, PO_Z + pz, 'POST_OFFICE');
+            }
+          }
+        }
+        buildPostOfficeDecor(PO_X, PO_Z);
+
+        // Warehouse
+        const WH_X = -8.0, WH_Z = -3.0;
+        for (let wx = -5.5; wx <= 5.5; wx += 1.35) {
+          for (let wz = -4.0; wz <= 4.0; wz += 1.35) {
+            for (let wy = 0.6; wy <= 6.2; wy += 1.1) {
+              createSingleBlock(WH_X + wx, wy, WH_Z + wz, 'WAREHOUSE');
+            }
+          }
+        }
+
+        // Water Tower
+        buildWaterTower();
+
+        // Silo Row
+        buildSiloRow();
+
+        depositSquareMesh.visible = false;
+        clockDropZonesGroup.visible = false;
+
+        // UI and Objectives Setup
+        if (jobId === 1) {
+          jobTimer = 240.0;
+          dropZoneMesh.visible = false;
+          document.getElementById('hud-job-badge').innerText = 'JOB 1 OF 5';
+          document.getElementById('hud-job-title').innerText = 'Warehouse Demolition';
+          document.getElementById('hud-target-label').innerText = 'DEMOLITION';
+          document.getElementById('ready-badge').innerText = 'CONTRACT JOB 1 OF 5';
+          document.getElementById('ready-title').innerText = 'WAREHOUSE DEMOLITION';
+          document.getElementById('ready-desc').innerHTML = 
+            'Demolish the condemned warehouse to 95% completion within 240s.<br>' +
+            '<strong style="color:#ff7b72;">CRITICAL:</strong> Zero damage allowed on the adjacent Post Office (3m gap)!<br>' +
+            'Cable range retuned (5m–20m, 3 u/s). Presets on <span class="kbd">1</span> (8m), <span class="kbd">2</span> (13m), <span class="kbd">3</span> (18m).';
+        } else if (jobId === 2) {
+          jobTimer = 180.0;
+          dropZoneMesh.visible = true;
+          document.getElementById('hud-job-badge').innerText = 'JOB 2 OF 5';
+          document.getElementById('hud-job-title').innerText = 'Fell the Water Tower';
+          document.getElementById('hud-target-label').innerText = 'TOWER TILT / ZONE';
+          document.getElementById('ready-badge').innerText = 'CONTRACT JOB 2 OF 5';
+          document.getElementById('ready-title').innerText = 'FELL THE WATER TOWER';
+          document.getElementById('ready-desc').innerHTML = 
+            'Weaken the tower legs and fell the 16m structure into the yellow seaward drop zone.<br>' +
+            'Must land >= 80% inside seaward drop zone. Tower commits at 25° tilt!';
+        } else {
+          jobTimer = 300.0;
+          dropZoneMesh.visible = false;
+          document.getElementById('hud-job-badge').innerText = 'JOB 3 OF 5';
+          document.getElementById('hud-job-title').innerText = 'The Silo Row';
+          document.getElementById('hud-target-label').innerText = 'SEQUENCE / FELL';
+          document.getElementById('ready-badge').innerText = 'CONTRACT JOB 3 OF 5';
+          document.getElementById('ready-title').innerText = 'THE SILO ROW';
+          document.getElementById('ready-desc').innerHTML = 
+            'Fell all three silos in exact sequence: <strong style="color:#ffaa00;">2 -> 3 -> 1</strong>.<br>' +
+            'Watch out for the scheduled harbor gusts and walking workers on the walkways!';
+        }
+      }
+
+      gamePhase = 'READY';
+      document.getElementById('screen-ready').style.display = 'flex';
+      document.getElementById('screen-end').style.display = 'none';
+      document.getElementById('screen-career').style.display = 'none';
+      updateHUD();
+      exportArenaState();
+    }
+
+    /* =========================================================================
+       INPUT & WINCH PRESET CONTROLS
+       ========================================================================= */
+
+    const keys = {};
+    window.addEventListener('keydown', (e) => {
+      keys[e.code] = true;
+      audio.init();
+
+      if (e.code === 'KeyC') {
+        currentCameraMode = (currentCameraMode === 'CHASE') ? 'CAB' : 'CHASE';
+        document.getElementById('tele-cam').innerText = currentCameraMode;
+      }
+      if (e.code === 'Enter' && gamePhase === 'READY') {
+        startGame();
+      }
+      if (e.code === 'KeyR') {
+        if (gamePhase === 'CAREER_RECKONING') {
+          resetFullCareer();
+        } else {
+          resetJob();
+        }
+      }
+      if (e.code === 'Tab') {
+        if (gamePhase === 'JOB_COMPLETE' || gamePhase === 'JOB_FAILED' || gamePhase === 'CONTRACT_COMPLETE') {
+          e.preventDefault();
+          nextJob();
+        }
+      }
+      if (e.code === 'KeyF' && gamePhase === 'PLAYING') {
+        if (carriedBeam !== null) {
+          carriedBeam.carried = false;
+          carriedBeam = null;
+          audio.playImpact(0.8);
+          triggerInfo('BEAM RELEASED');
+        } else {
+          tryRigSwap();
+        }
+      }
+
+      // Winch Presets: 1 -> 8m, 2 -> 13m, 3 -> 18m
+      if (gamePhase === 'PLAYING') {
+        if (e.code === 'Digit1') {
+          activePresetTarget = 8.0;
+          audio.playChime();
+          exportArenaState();
+        } else if (e.code === 'Digit2') {
+          activePresetTarget = 13.0;
+          audio.playChime();
+          exportArenaState();
+        } else if (e.code === 'Digit3') {
+          activePresetTarget = 18.0;
+          audio.playChime();
+          exportArenaState();
+        }
+      }
+
+      // Any manual Q/E input cancels the active preset immediately
+      if (e.code === 'KeyQ' || e.code === 'KeyE') {
+        if (activePresetTarget !== null) {
+          activePresetTarget = null;
+          exportArenaState();
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      keys[e.code] = false;
+    });
+
+    let currentCameraMode = 'CHASE';
+
+    function tryRigSwap() {
+      if (isRerigging) return;
+      if (carriedBeam !== null) return;
+
+      let nearRack = false;
+      if (activeJob === 4) {
+        const distToBargeRack = Math.hypot(crane.x - BARGE_RIG_RACK_POS.x, crane.z - BARGE_RIG_RACK_POS.z);
+        if (distToBargeRack <= 4.0) nearRack = true;
+      } else {
+        const distToRack = Math.hypot(crane.x - RIG_RACK_POS.x, crane.z - RIG_RACK_POS.z);
+        if (distToRack <= 4.0) nearRack = true;
+      }
+
+      if (nearRack) {
+        isRerigging = true;
+        rerigTimer = RERIG_DURATION;
+        document.getElementById('rerig-indicator').style.display = 'inline-block';
+        ballMesh.visible = false;
+        spikeGroup.visible = false;
+        audio.playChime();
+        exportArenaState();
+      }
+    }
+
+    function startGame() {
+      audio.init();
+      gamePhase = 'PLAYING';
+      document.getElementById('screen-ready').style.display = 'none';
+      document.getElementById('screen-career').style.display = 'none';
+    }
+
+    function resetJob() {
+      setupJobScene(activeJob);
+    }
+
+    function recordJobCompletionStats(jobId, elapsed) {
+      cumulativeClockTime += elapsed;
+      if (jobId === 3) {
+        careerSiloClean = siloCleanOrder;
+      } else if (jobId === 4) {
+        cumulativeBeamsDelivered = beams.filter(b => b.locked).length;
+      }
+    }
+
+    function nextJob() {
+      if (activeJob === 1) {
+        setupJobScene(2);
+      } else if (activeJob === 2) {
+        setupJobScene(3);
+      } else if (activeJob === 3) {
+        setupJobScene(4);
+      } else if (activeJob === 4) {
+        setupJobScene(5);
+      } else {
+        showCareerReckoningPanel();
+      }
+    }
+
+    function showEndScreen(title, titleClass, desc) {
+      gamePhase = title.includes('COMPLETE') ? 'JOB_COMPLETE' : 'JOB_FAILED';
+      const endScreen = document.getElementById('screen-end');
+      const endTitle = document.getElementById('end-title');
+      const endDesc = document.getElementById('end-desc');
+      const ledgerList = document.getElementById('ledger-list');
+
+      const maxT = (activeJob === 1 ? 240.0 : (activeJob === 2 ? 180.0 : (activeJob === 3 ? 300.0 : (activeJob === 4 ? 240.0 : 420.0))));
+      const elapsed = maxT - jobTimer;
+      if (title.includes('COMPLETE')) {
+        recordJobCompletionStats(activeJob, elapsed);
+      }
+
+      endTitle.innerText = title;
+      endTitle.className = 'screen-title ' + titleClass;
+      endDesc.innerText = desc;
+
+      ledgerList.innerHTML = '';
+      if (activeLedger.length === 0) {
+        ledgerList.innerHTML = '<div class="ledger-empty">Clean operations ledger: Zero infractions recorded.</div>';
+      } else {
+        activeLedger.forEach(item => {
+          const div = document.createElement('div');
+          let cls = 'ledger-item';
+          if (item.type.includes('PROTECTED')) cls += ' protected';
+          else if (item.type.includes('SAFETY') || item.type.includes('SEQUENCE')) cls += ' breach';
+          div.className = cls;
+          div.innerText = `[Job ${item.job} - ${item.time}] ${item.type}: ${item.desc}`;
+          ledgerList.appendChild(div);
+        });
+      }
+
+      const nextBtn = document.getElementById('btn-next-job');
+      if (activeJob === 5) {
+        nextBtn.innerText = '[TAB] Demolition Master Career Reckoning';
+        nextBtn.onclick = () => showCareerReckoningPanel();
+      } else {
+        nextBtn.innerText = `[TAB] Proceed to Job ${activeJob + 1}`;
+        nextBtn.onclick = () => nextJob();
+      }
+
+      endScreen.style.display = 'flex';
+      exportArenaState();
+    }
+
+    function showCareerReckoningPanel() {
+      gamePhase = 'CAREER_RECKONING';
+      document.getElementById('screen-end').style.display = 'none';
+      const screenCareer = document.getElementById('screen-career');
+
+      const totalSeconds = Math.floor(cumulativeClockTime);
+      const m = Math.floor(totalSeconds / 60);
+      const s = totalSeconds % 60;
+      document.getElementById('stat-career-time').innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+      document.getElementById('stat-career-felled').innerText = cumulativeBlocksFelled;
+      document.getElementById('stat-career-beams').innerText = `${cumulativeBeamsDelivered} / 3`;
+      document.getElementById('stat-career-silos').innerText = careerSiloClean ? 'CLEAN (2->3->1)' : 'OUT-OF-SEQUENCE';
+      document.getElementById('stat-career-retries').innerText = cumulativeSectionRetries;
+      document.getElementById('stat-career-bells').innerText = cumulativeBellChimes;
+      document.getElementById('stat-career-violations').innerText = cumulativeBoundaryViolations;
+      document.getElementById('stat-career-protected').innerText = cumulativeProtectedHits;
+
+      const sealWrap = document.getElementById('career-custodian-seal-wrap');
+      if (cumulativeProtectedHits === 0) {
+        sealWrap.innerHTML = '<div class="perfect-custodian-seal">★ PERFECT CUSTODIAN ★<br><span style="font-size:11px;font-weight:normal;">Zero Protected Structure Damage Across Full Demolition Career</span></div>';
+      } else {
+        sealWrap.innerHTML = `<div style="color:#ff7b72;margin-top:10px;font-size:13px;font-weight:600;">PERFECT CUSTODIAN WITHHELD (${cumulativeProtectedHits} protected blocks damaged)</div>`;
+      }
+
+      const cLedger = document.getElementById('career-ledger-list');
+      cLedger.innerHTML = '';
+      if (activeLedger.length === 0) {
+        cLedger.innerHTML = '<div class="ledger-empty">Flawless 5-job career: Zero violations recorded.</div>';
+      } else {
+        activeLedger.forEach(item => {
+          const div = document.createElement('div');
+          let cls = 'ledger-item';
+          if (item.type.includes('PROTECTED')) cls += ' protected';
+          else if (item.type.includes('SAFETY') || item.type.includes('SEQUENCE')) cls += ' breach';
+          div.className = cls;
+          div.innerText = `[Job ${item.job} - ${item.time}] ${item.type}: ${item.desc}`;
+          cLedger.appendChild(div);
+        });
+      }
+
+      screenCareer.style.display = 'flex';
+      exportArenaState();
+    }
+
+    function resetFullCareer() {
+      cumulativeClockTime = 0.0;
+      cumulativeBlocksFelled = 0;
+      cumulativeBeamsDelivered = 0;
+      careerSiloClean = true;
+      cumulativeSectionRetries = 0;
+      cumulativeBellChimes = 0;
+      cumulativeBoundaryViolations = 0;
+      cumulativeProtectedHits = 0;
+      activeLedger.length = 0;
+      document.getElementById('screen-career').style.display = 'none';
+      setupJobScene(1);
+    }
+
+    /* =========================================================================
+       PHYSICS LOOP & SIMULATION
+       ========================================================================= */
+
+    const FIXED_DT = 1 / 60;
+    const GRAVITY = 9.81;
+
+    function updateSimulation(dt) {
+      if (gamePhase !== 'PLAYING') return;
+
+      const maxT = (activeJob === 1 ? 240.0 : (activeJob === 2 ? 180.0 : (activeJob === 3 ? 300.0 : 240.0)));
+      const elapsedTime = maxT - jobTimer;
+
+      // Timer Countdown
+      jobTimer -= dt;
+      if (jobTimer <= 0) {
+        jobTimer = 0;
+        showEndScreen('JOB FAILED', 'job-failed-color', 'Shift time expired before completing operational objective.');
+        return;
+      }
+
+      // Swell Physics on the Canal Work Barge during Job 4
+      if (activeJob === 4) {
+        bargeHeavePhase = (elapsedTime % 6.0) / 6.0;
+        bargeRollPhase = (elapsedTime % 9.0) / 9.0;
+        bargeHeave = 0.6 * Math.sin((2 * Math.PI * elapsedTime) / 6.0);
+        bargeRoll = THREE.MathUtils.degToRad(4.0) * Math.sin((2 * Math.PI * elapsedTime) / 9.0);
+
+        bargeGroup.position.set(BARGE_POS.x, BARGE_POS.y + bargeHeave, BARGE_POS.z);
+        bargeGroup.rotation.z = bargeRoll;
+
+        crane.x = BARGE_POS.x;
+        crane.z = BARGE_POS.z;
+      } else {
+        bargeHeave = 0.0;
+        bargeRoll = 0.0;
+        bargeHeavePhase = 0.0;
+        bargeRollPhase = 0.0;
+        bargeGroup.position.set(BARGE_POS.x, BARGE_POS.y, BARGE_POS.z);
+        bargeGroup.rotation.z = 0;
+      }
+
+      // Evaluate Wind Schedule
+      const windInfo = getWindAtTime(elapsedTime);
+      windVector.copy(windInfo.vector);
+      windStrength = windInfo.deg;
+      windDirectionTag = windInfo.tag;
+      windCountdown = windInfo.countdown;
+
+      // Update Wind Sock visual orientation on the quay
+      if (windStrength > 0) {
+        // Points in the direction wind blows
+        sockConeGroup.rotation.x = 0;
+        if (windVector.z < 0) {
+          // Blowing inland (negative Z)
+          sockConeGroup.rotation.y = 0;
+        } else {
+          // Blowing seaward (positive Z)
+          sockConeGroup.rotation.y = Math.PI;
+        }
+      } else {
+        // Calm: hangs limp downward
+        sockConeGroup.rotation.x = Math.PI / 2.5;
+      }
+
+      // Re-rigging animation timer
+      if (isRerigging) {
+        rerigTimer -= dt;
+        if (rerigTimer <= 0) {
+          isRerigging = false;
+          activeRig = (activeRig === 'BALL') ? 'SPIKE' : 'BALL';
+          document.getElementById('rerig-indicator').style.display = 'none';
+        }
+      }
+
+      // Crane Driving & Steering Controls (Tracks: 6 u/s, 45 deg/s = ~0.785 rad/s)
+      // Locked on the barge during Job 4 ("MOORED")
+      let drive = 0;
+      let turn = 0;
+      if (activeJob !== 4) {
+        if (keys['ArrowUp']) drive += 1;
+        if (keys['ArrowDown']) drive -= 1;
+        if (keys['ArrowLeft']) turn += 1;
+        if (keys['ArrowRight']) turn -= 1;
+
+        if (turn !== 0) {
+          crane.heading += turn * 0.785 * dt;
+          crane.treadRoll += turn * dt * 4;
+        }
+        if (drive !== 0) {
+          const moveDist = drive * 6.0 * dt;
+          crane.x += Math.sin(crane.heading) * moveDist;
+          crane.z += Math.cos(crane.heading) * moveDist;
+          crane.treadRoll += drive * dt * 8;
+        }
+
+        // Check Crane Boundary Strike
+        if (crane.x < LOT_X_MIN + 3 || crane.x > LOT_X_MAX - 3 || crane.z < LOT_Z_MIN + 3 || crane.z > LOT_Z_MAX - 3) {
+          boundaryViolations++;
+          triggerViolation('BOUNDARY STRIKE', 'Crawler crane chassis breached perimeter barrier');
+        }
+      }
+
+      // Crane Cab Slew: A / D at 30 deg/s (0.523 rad/s)
+      let slewInput = 0;
+      if (keys['KeyA']) slewInput += 1;
+      if (keys['KeyD']) slewInput -= 1;
+      if (slewInput !== 0) {
+        crane.cabSlew += slewInput * 0.523 * dt;
+        if (isSpikeEmbedded) {
+          const deltaSlew = Math.abs(crane.cabSlew - embeddedCabAngle);
+          if (deltaSlew > 0.349) {
+            isSpikeEmbedded = false;
+            embeddedBlockId = null;
+            audio.playImpact(0.5);
+          }
+        }
+      }
+
+      // Boom Luffing: W / S at 20 deg/s between 25° and 80°
+      const minBoom = THREE.MathUtils.degToRad(25);
+      const maxBoom = THREE.MathUtils.degToRad(80);
+      if (keys['KeyW']) crane.boomAngle = Math.min(maxBoom, crane.boomAngle + 0.349 * dt);
+      if (keys['KeyS']) crane.boomAngle = Math.max(minBoom, crane.boomAngle - 0.349 * dt);
+
+      // Winch Operation (Speed 3 u/s, clamp 5m to 20m)
+      let manualWinch = 0;
+      if (keys['KeyQ']) manualWinch -= 1;
+      if (keys['KeyE']) manualWinch += 1;
+
+      if (manualWinch !== 0) {
+        activePresetTarget = null; // Manual input cancels preset
+        crane.cableLength = THREE.MathUtils.clamp(crane.cableLength + manualWinch * WINCH_SPEED * dt, CABLE_MIN, CABLE_MAX);
+        crane.pulleySpin -= manualWinch * 10.0 * dt;
+
+        if (manualWinch < 0 && isSpikeEmbedded && embeddedBlockId !== null) {
+          executeSpikePullCollapse();
+        }
+      } else if (activePresetTarget !== null) {
+        // Auto-winch toward preset target at the same 3 u/s
+        const diff = activePresetTarget - crane.cableLength;
+        const step = WINCH_SPEED * dt;
+        if (Math.abs(diff) <= step) {
+          crane.cableLength = activePresetTarget;
+          activePresetTarget = null; // Reached exactly
+        } else {
+          const dir = Math.sign(diff);
+          crane.cableLength += dir * step;
+          crane.pulleySpin += dir * 10.0 * dt;
+        }
+        crane.cableLength = THREE.MathUtils.clamp(crane.cableLength, CABLE_MIN, CABLE_MAX);
+      }
+
+      // Update Crane Hierarchy Transforms
+      if (activeJob === 4) {
+        crane.group.position.set(crane.x, BARGE_POS.y + bargeHeave + 0.4, crane.z);
+        crane.group.rotation.y = crane.heading;
+        crane.group.rotation.z = bargeRoll;
+      } else {
+        crane.group.position.set(crane.x, 0, crane.z);
+        crane.group.rotation.y = crane.heading;
+        crane.group.rotation.z = 0;
+      }
+      crane.cabGroup.rotation.y = crane.cabSlew;
+      crane.boomGroup.rotation.x = -crane.boomAngle;
+      if (crane.pulleyMesh) crane.pulleyMesh.rotation.x = crane.pulleySpin;
+
+      const tip = getBoomTipWorldPosition();
+
+      // Hanging Chain Simulation
+      // Natural slow decay only (~half amplitude lost over ~8s -> damping 0.9985 per frame at 60Hz)
+      // Steady-hook assist completely removed: no Space assist input
+      const chainDamping = 0.9985;
+      const linkSegmentLength = crane.cableLength / NUM_LINKS;
+
+      let prevX = tip.x, prevY = tip.y, prevZ = tip.z;
+
+      for (let i = 0; i < NUM_LINKS; i++) {
+        const link = chainLinks[i];
+        // Gravity + Wind Acceleration Force applied to chain links
+        link.vy -= GRAVITY * dt;
+        link.vz += windVector.z * dt;
+
+        link.vx *= chainDamping;
+        link.vy *= chainDamping;
+        link.vz *= chainDamping;
+
+        link.x += link.vx * dt;
+        link.y += link.vy * dt;
+        link.z += link.vz * dt;
+
+        const dx = link.x - prevX, dy = link.y - prevY, dz = link.z - prevZ;
+        const dist = Math.hypot(dx, dy, dz);
+        if (dist > 0.0001) {
+          const diff = (dist - linkSegmentLength) / dist;
+          link.x -= dx * diff * 0.75;
+          link.y -= dy * diff * 0.75;
+          link.z -= dz * diff * 0.75;
+          link.vx -= dx * diff * 2.0;
+          link.vy -= dy * diff * 2.0;
+          link.vz -= dz * diff * 2.0;
+        }
+        prevX = link.x; prevY = link.y; prevZ = link.z;
+      }
+
+      // Hook Rig Physics (when not embedded)
+      if (!isSpikeEmbedded) {
+        hookRig.vy -= GRAVITY * dt;
+        hookRig.vz += windVector.z * dt; // Wind pushes rig
+
+        hookRig.vx *= chainDamping;
+        hookRig.vy *= chainDamping;
+        hookRig.vz *= chainDamping;
+
+        hookRig.x += hookRig.vx * dt;
+        hookRig.y += hookRig.vy * dt;
+        hookRig.z += hookRig.vz * dt;
+
+        const lastLink = chainLinks[NUM_LINKS - 1];
+        const bdx = hookRig.x - lastLink.x;
+        const bdy = hookRig.y - lastLink.y;
+        const bdz = hookRig.z - lastLink.z;
+        const bDist = Math.hypot(bdx, bdy, bdz);
+        if (bDist > 0.0001) {
+          const bDiff = (bDist - 0.7) / bDist;
+          hookRig.x -= bdx * bDiff * 0.85;
+          hookRig.y -= bdy * bDiff * 0.85;
+          hookRig.z -= bdz * bDiff * 0.85;
+          hookRig.vx -= bdx * bDiff * 3.5;
+          hookRig.vy -= bdy * bDiff * 3.5;
+          hookRig.vz -= bdz * bDiff * 3.5;
+        }
+
+        if (hookRig.y < hookRig.radius) {
+          hookRig.y = hookRig.radius;
+          hookRig.vy = -hookRig.vy * 0.3;
+        }
+
+        if (activeJob === 4) {
+          if (hookRig.x < 22 || hookRig.x > 66 || hookRig.z < -16 || hookRig.z > 36) {
+            boundaryViolations++;
+            triggerViolation('BOUNDARY STRIKE', 'Demolition rig collided with perimeter boundary');
+          }
+        } else {
+          if (hookRig.x < LOT_X_MIN || hookRig.x > LOT_X_MAX || hookRig.z < LOT_Z_MIN || hookRig.z > LOT_Z_MAX) {
+            boundaryViolations++;
+            triggerViolation('BOUNDARY STRIKE', 'Demolition rig collided with perimeter boundary');
+          }
+        }
+      }
+
+      // Update Visuals for Rig & Chain
+      let anchorPos = tip;
+      for (let i = 0; i < NUM_LINKS; i++) {
+        const lm = chainLinkMeshes[i];
+        const link = chainLinks[i];
+        lm.position.set(link.x, link.y, link.z);
+        lm.lookAt(anchorPos.x, anchorPos.y, anchorPos.z);
+        anchorPos = link;
+      }
+
+      if (isRerigging) {
+        ballMesh.visible = false;
+        spikeGroup.visible = false;
+      } else if (activeRig === 'BALL') {
+        ballMesh.visible = true;
+        spikeGroup.visible = false;
+        ballMesh.position.set(hookRig.x, hookRig.y, hookRig.z);
+      } else {
+        ballMesh.visible = false;
+        spikeGroup.visible = true;
+        spikeGroup.position.set(hookRig.x, hookRig.y, hookRig.z);
+        if (!isSpikeEmbedded) {
+          spikeGroup.rotation.x = 0;
+          spikeGroup.rotation.z = 0;
+        }
+      }
+
+      // Rig-Block Collisions
+      const rigSpeed = Math.hypot(hookRig.vx, hookRig.vy, hookRig.vz);
+      if (!isRerigging && !isSpikeEmbedded) {
+        checkRigBlockCollisions(rigSpeed);
+      }
+
+      // Debris Physics (Pushed by Wind)
+      updateDebrisPhysics(dt);
+
+      // Honest Structural Support
+      updateStructuralSupport(dt);
+
+      // Job 2 Water Tower
+      if (activeJob === 2) {
+        updateWaterTowerFelling(dt);
+      }
+
+      // Job 3 Silo Row
+      if (activeJob === 3) {
+        updateSiloRowDemolition(dt);
+      }
+
+      // Job 4 Barge & Beam Extraction
+      if (activeJob === 4) {
+        updateBargeBeamExtraction(dt);
+      }
+
+      // Job 5 Clock Tower Demolition
+      if (activeJob === 5) {
+        updateClockTowerFelling(dt);
+      }
+
+      // Workers
+      updateWorkers(dt);
+
+      // Check Completion
+      checkJobCompletionConditions();
+
+      exportArenaState();
+    }
+
+    /* =========================================================================
+       RIG COLLISIONS, EMBEDDING & PULL-COLLAPSE
+       ========================================================================= */
+
+    function checkRigBlockCollisions(speed) {
+      for (let i = 0; i < allBlocks.length; i++) {
+        const b = allBlocks[i];
+        if (b.broken) continue;
+
+        const dx = hookRig.x - b.x;
+        const dy = hookRig.y - b.y;
+        const dz = hookRig.z - b.z;
+        const dist = Math.hypot(dx, dy, dz);
+
+        if (dist < hookRig.radius + BLOCK_SIZE * 0.65) {
+          audio.playImpact(speed / 8.0);
+
+          if (activeRig === 'BALL') {
+            if (speed >= 5.0) {
+              shatterBlock(b, hookRig.vx * 0.6, hookRig.vy * 0.5, hookRig.vz * 0.6);
+              hookRig.vx *= -0.3; hookRig.vz *= -0.3;
+            } else {
+              const pushFactor = (hookRig.radius + BLOCK_SIZE * 0.65 - dist) / (dist || 1);
+              b.x -= dx * pushFactor * 0.4;
+              b.z -= dz * pushFactor * 0.4;
+              b.mesh.position.set(b.x, b.y, b.z);
+            }
+          } else {
+            if (speed >= 5.0) {
+              embedSpike(b, dx, dy, dz);
+              break;
+            } else {
+              const pushFactor = (hookRig.radius + BLOCK_SIZE * 0.65 - dist) / (dist || 1);
+              b.x -= dx * pushFactor * 0.3;
+              b.z -= dz * pushFactor * 0.3;
+              b.mesh.position.set(b.x, b.y, b.z);
+            }
+          }
+        }
+      }
+    }
+
+    function embedSpike(block, dx, dy, dz) {
+      isSpikeEmbedded = true;
+      embeddedBlockId = block.id;
+      embeddedCabAngle = crane.cabSlew;
+      embeddedNormal.set(dx, dy, dz).normalize();
+
+      hookRig.x = block.x + embeddedNormal.x * 0.5;
+      hookRig.y = block.y + embeddedNormal.y * 0.5;
+      hookRig.z = block.z + embeddedNormal.z * 0.5;
+      hookRig.vx = 0; hookRig.vy = 0; hookRig.vz = 0;
+
+      spikeGroup.position.set(hookRig.x, hookRig.y, hookRig.z);
+      spikeGroup.lookAt(block.x, block.y, block.z);
+
+      if (block.role === 'POST_OFFICE') {
+        protectedDamageCount++;
+        block.mesh.material = damagedGlowMat;
+        triggerViolation('PROTECTED STRUCTURE HIT', 'POST OFFICE struck and penetrated by Breaker Spike!');
+      } else if (block.role === 'ROW_HOUSE') {
+        protectedDamageCount++;
+        block.mesh.material = damagedGlowMat;
+        triggerViolation('PROTECTED STRUCTURE HIT', 'CANAL ROW HOUSE struck and penetrated by Breaker Spike!');
+      }
+
+      if (block.role === 'SILO') {
+        recordSiloHit(block.siloId);
+      }
+      exportArenaState();
+    }
+
+    function executeSpikePullCollapse() {
+      if (!isSpikeEmbedded || embeddedBlockId === null) return;
+      const targetBlock = allBlocks.find(b => b.id === embeddedBlockId);
+      isSpikeEmbedded = false;
+      embeddedBlockId = null;
+
+      if (!targetBlock || targetBlock.broken) {
+        exportArenaState();
+        return;
+      }
+
+      audio.playImpact(1.8);
+      const pullDir = embeddedNormal.clone().multiplyScalar(6.0);
+
+      for (let i = 0; i < allBlocks.length; i++) {
+        const b = allBlocks[i];
+        if (b.broken) continue;
+        const d = Math.hypot(b.x - targetBlock.x, b.y - targetBlock.y, b.z - targetBlock.z);
+        if (d <= 1.55) {
+          shatterBlock(b, pullDir.x, pullDir.y + 2.0, pullDir.z);
+        }
+      }
+      exportArenaState();
+    }
+
+    function shatterBlock(b, impulseX, impulseY, impulseZ) {
+      if (b.broken) return;
+      b.broken = true;
+      b.mesh.visible = false;
+      if (!b.felled && (b.role === 'WAREHOUSE' || b.role === 'CUSTOMS_HOUSE')) {
+        b.felled = true;
+        felledTargetBlocks++;
+      }
+
+      if (b.role === 'POST_OFFICE') {
+        protectedDamageCount++;
+        b.mesh.visible = true;
+        b.mesh.material = damagedGlowMat;
+        triggerViolation('PROTECTED STRUCTURE HIT', 'POST OFFICE struck and damaged!');
+      } else if (b.role === 'ROW_HOUSE') {
+        protectedDamageCount++;
+        b.mesh.visible = true;
+        b.mesh.material = damagedGlowMat;
+        triggerViolation('PROTECTED STRUCTURE HIT', 'CANAL ROW HOUSE struck and damaged!');
+      }
+
+      if (b.role === 'SILO') {
+        recordSiloHit(b.siloId);
+      }
+
+      const numFragments = 4;
+      for (let f = 0; f < numFragments; f++) {
+        const fgeo = new THREE.BoxGeometry(BLOCK_SIZE * 0.45, BLOCK_SIZE * 0.4, BLOCK_SIZE * 0.45);
+        let fmat = b.mesh.material;
+        const dMesh = new THREE.Mesh(fgeo, fmat);
+        dMesh.position.set(
+          b.x + (deterministicRandom() - 0.5) * 0.6,
+          b.y + (deterministicRandom() - 0.5) * 0.4,
+          b.z + (deterministicRandom() - 0.5) * 0.6
+        );
+        dMesh.castShadow = true;
+        scene.add(dMesh);
+
+        debrisList.push({
+          mesh: dMesh,
+          x: dMesh.position.x, y: dMesh.position.y, z: dMesh.position.z,
+          vx: impulseX + (deterministicRandom() - 0.5) * 4.0,
+          vy: impulseY + deterministicRandom() * 4.0 + 2.0,
+          vz: impulseZ + (deterministicRandom() - 0.5) * 4.0,
+          rx: deterministicRandom() * 6, ry: deterministicRandom() * 6,
+          life: 12.0
+        });
+      }
+    }
+
+    function recordSiloHit(siloId) {
+      if (!siloId || activeJob !== 3) return;
+      siloDamagedCount[siloId]++;
+      const currentExpectedSilo = SILO_REQUIRED_ORDER[siloOrderIndex];
+
+      if (siloId !== currentExpectedSilo && siloDamagedCount[siloId] >= 10 && !siloOutOfSequenceFired[siloId]) {
+        siloOutOfSequenceFired[siloId] = true;
+        siloCleanOrder = false;
+        boundaryViolations++;
+        triggerViolation('OUT OF SEQUENCE', `Silo ${siloId} damaged out of required sequence (Order: 2 -> 3 -> 1)!`);
+      }
+    }
+
+    function updateDebrisPhysics(dt) {
+      for (let i = debrisList.length - 1; i >= 0; i--) {
+        const d = debrisList[i];
+        d.vy -= GRAVITY * dt;
+        d.vz += windVector.z * dt; // Debris in flight pushed by wind
+
+        d.x += d.vx * dt;
+        d.y += d.vy * dt;
+        d.z += d.vz * dt;
+        d.mesh.rotation.x += d.rx * dt;
+        d.mesh.rotation.y += d.ry * dt;
+
+        if (d.y < 0.25) {
+          d.y = 0.25;
+          d.vy = -d.vy * 0.25;
+          d.vx *= 0.75;
+          d.vz *= 0.75;
+        }
+
+        d.mesh.position.set(d.x, d.y, d.z);
+
+        if (activeJob === 4) {
+          if (d.x < 22 || d.x > 66 || d.z < -16 || d.z > 36) {
+            boundaryViolations++;
+            triggerViolation('BOUNDARY STRIKE', 'Flying masonry debris breached perimeter boundary');
+            scene.remove(d.mesh);
+            debrisList.splice(i, 1);
+            continue;
+          }
+        } else {
+          if (d.x < LOT_X_MIN || d.x > LOT_X_MAX || d.z < LOT_Z_MIN || d.z > LOT_Z_MAX) {
+            boundaryViolations++;
+            triggerViolation('BOUNDARY STRIKE', 'Flying masonry debris breached perimeter boundary');
+            scene.remove(d.mesh);
+            debrisList.splice(i, 1);
+            continue;
+          }
+        }
+
+        const dSpeed = Math.hypot(d.vx, d.vy, d.vz);
+        if (dSpeed >= 5.0) {
+          for (let j = 0; j < allBlocks.length; j++) {
+            const b = allBlocks[j];
+            if (b.broken) continue;
+            const dist = Math.hypot(d.x - b.x, d.y - b.y, d.z - b.z);
+            if (dist < BLOCK_SIZE * 0.7) {
+              shatterBlock(b, d.vx * 0.5, d.vy * 0.5, d.vz * 0.5);
+              d.vx *= 0.2; d.vz *= 0.2;
+              break;
+            }
+          }
+        }
+
+        d.life -= dt;
+        if (d.life <= 0) {
+          scene.remove(d.mesh);
+          debrisList.splice(i, 1);
+        }
+      }
+    }
+
+    function updateStructuralSupport(dt) {
+      for (let i = 0; i < allBlocks.length; i++) {
+        const b = allBlocks[i];
+        if (b.broken) continue;
+
+        if (b.y > 0.6) {
+          let hasSupport = false;
+          for (let j = 0; j < allBlocks.length; j++) {
+            if (i === j) continue;
+            const other = allBlocks[j];
+            if (other.broken) continue;
+            if (Math.abs(other.x - b.x) < BLOCK_SIZE * 0.75 &&
+                Math.abs(other.z - b.z) < BLOCK_SIZE * 0.75 &&
+                b.y - other.y > 0.3 && b.y - other.y < BLOCK_SIZE * 1.1) {
+              hasSupport = true;
+              break;
+            }
+          }
+
+          if (!hasSupport) {
+            b.vy -= GRAVITY * dt;
+            b.y += b.vy * dt;
+            b.mesh.position.y = b.y;
+
+            if (b.y <= 0.6) {
+              b.y = 0.6;
+              b.vy = 0;
+              b.mesh.position.y = b.y;
+              if (Math.abs(b.vy) > 6.0) {
+                shatterBlock(b, 0, 2, 0);
+              }
+            }
+          } else {
+            b.vy = 0;
+          }
+        }
+
+        if (!b.felled && (b.broken || b.y < 1.5)) {
+          b.felled = true;
+          if (b.role === 'WAREHOUSE' || b.role === 'CUSTOMS_HOUSE') felledTargetBlocks++;
+        }
+      }
+    }
+
+    /* =========================================================================
+       JOB 4: BARGE BEAM EXTRACTION PHYSICS
+       ========================================================================= */
+
+    function updateBargeBeamExtraction(dt) {
+      if (activeJob !== 4) return;
+
+      const fellingFraction = felledTargetBlocks / (totalTargetBlocks || 1);
+      if (fellingFraction >= 0.50 && !phase2SubtitleShown) {
+        phase2SubtitleShown = true;
+        audio.playChime();
+        triggerInfo('PHASE 2: EXTRACT ALL THREE BEAMS WITH SPIKE ONLY!');
+      }
+
+      // Check spike magnetic grab on exposed steel beams
+      if (activeRig === 'SPIKE' && carriedBeam === null && !isRerigging) {
+        for (let b of beams) {
+          if (b.locked || b.carried) continue;
+          const clampedX = THREE.MathUtils.clamp(hookRig.x, b.x - 2.0, b.x + 2.0);
+          const dist = Math.hypot(hookRig.x - clampedX, hookRig.y - b.y, hookRig.z - b.z);
+          if (dist < 0.85) {
+            carriedBeam = b;
+            b.carried = true;
+            b.grabOffset = THREE.MathUtils.clamp(hookRig.x - b.x, -1.8, 1.8);
+            audio.playImpact(1.4);
+            const slantDeg = (-Math.atan2(b.grabOffset, 1.2) * 57.2958).toFixed(0);
+            triggerInfo(`BEAM #${b.id + 1} ATTACHED! SLANT: ${slantDeg}°`);
+            break;
+          }
+        }
+      }
+
+      // Update carried beam motion, orientation, and row-house contact checks
+      if (carriedBeam !== null) {
+        const b = carriedBeam;
+        const targetSlant = -Math.atan2(b.grabOffset, 1.2);
+        b.rz += (targetSlant - b.rz) * 0.12;
+
+        b.x = hookRig.x - b.grabOffset * Math.cos(b.rz);
+        b.y = hookRig.y - b.grabOffset * Math.sin(b.rz) - 0.25;
+        b.z = hookRig.z;
+
+        if (b.mesh) {
+          b.mesh.position.set(b.x, b.y, b.z);
+          b.mesh.rotation.z = b.rz;
+        }
+
+        // Check if carried beam or chain touches either flanking row house
+        // Left Row House: X in [32.5, 38.5], Z in [-3.0, 2.0], Y in [0, 5.8]
+        // Right Row House: X in [49.5, 55.5], Z in [-3.0, 2.0], Y in [0, 5.8]
+        const bMinX = b.x - 2.0 * Math.abs(Math.cos(b.rz));
+        const bMaxX = b.x + 2.0 * Math.abs(Math.cos(b.rz));
+        const bMinZ = b.z - 0.35, bMaxZ = b.z + 0.35;
+        const bMinY = b.y - 0.4, bMaxY = b.y + 0.4;
+
+        let rowHit = false;
+        if (bMaxY >= 0.2 && bMinY <= 5.8 && bMaxZ >= -3.0 && bMinZ <= 2.0) {
+          if (bMinX <= 38.5 && bMaxX >= 32.5) rowHit = true;
+          if (bMinX <= 55.5 && bMaxX >= 49.5) rowHit = true;
+        }
+        if (!rowHit) {
+          for (let l of chainLinks) {
+            if (l.y >= 0.2 && l.y <= 5.8 && l.z >= -3.0 && l.z <= 2.0) {
+              if (l.x >= 32.5 && l.x <= 38.5) { rowHit = true; break; }
+              if (l.x >= 49.5 && l.x <= 55.5) { rowHit = true; break; }
+            }
+          }
+        }
+
+        if (rowHit) {
+          protectedDamageCount++;
+          triggerViolation('PROTECTED STRUCTURE HIT', 'Carried beam struck protected Canal Row House! Beam dropped.');
+          b.carried = false;
+          carriedBeam = null;
+          b.vy = -1.2;
+          audio.playImpact(1.2);
+        }
+      }
+
+      // Update free-falling and resting beams
+      for (let b of beams) {
+        if (!b.carried && !b.locked) {
+          if (b.y > 0.3) {
+            b.vy -= GRAVITY * dt;
+            b.y += b.vy * dt;
+            if (b.y <= 0.3) {
+              b.y = 0.3;
+              b.vy = 0;
+            }
+            if (b.mesh) b.mesh.position.set(b.x, b.y, b.z);
+          }
+
+          // Check if resting fully inside the painted deposit square
+          if (b.y <= 0.35) {
+            const inSquare = (
+              b.x - 1.85 >= DEPOSIT_SQUARE.minX &&
+              b.x + 1.85 <= DEPOSIT_SQUARE.maxX &&
+              b.z - 0.4 >= DEPOSIT_SQUARE.minZ &&
+              b.z + 0.4 <= DEPOSIT_SQUARE.maxZ
+            );
+            if (inSquare) {
+              b.locked = true;
+              b.mesh.children.forEach(m => { m.material = beamLockedGreenMat; });
+              audio.playChime();
+              triggerInfo(`BEAM #${b.id + 1} SECURED IN DEPOSIT SQUARE!`);
+              exportArenaState();
+            }
+          }
+        }
+      }
+    }
+
+    /* =========================================================================
+       JOB 5: CLOCK TOWER SECTION FELLING PHYSICS
+       ========================================================================= */
+
+    function recordSectionHit(secName) {
+      if (activeJob !== 5) return;
+      sectionDamagedCount[secName]++;
+      if (secName !== liveSection && sectionDamagedCount[secName] >= 10 && !sectionOutOfSequenceFired[secName]) {
+        sectionOutOfSequenceFired[secName] = true;
+        boundaryViolations++;
+        triggerViolation('OUT OF SEQUENCE', `Section ${secName} damaged out of required sequence (Order: Crown -> Waist -> Base)!`);
+      }
+    }
+
+    function updateClockTowerFelling(dt) {
+      if (activeJob !== 5) return;
+
+      // Handle 5-second section reset timer if active
+      if (sectionResetTimer > 0) {
+        sectionResetTimer -= dt;
+        if (sectionResetTimer <= 0) {
+          sectionResetTimer = 0;
+          if (sectionPendingReset) {
+            rebuildSectionPristine(sectionPendingReset);
+            sectionPendingReset = null;
+          }
+        }
+        return;
+      }
+
+      if (liveSection === 'COMPLETE') return;
+
+      // Bell swinging animation and decay
+      if (bellSwing > 0.01) {
+        bellSwingPhase += dt * 8.0;
+        bellSwing *= 0.985;
+        if (bellMesh) {
+          bellMesh.rotation.z = Math.sin(bellSwingPhase) * bellSwing;
+        }
+      }
+
+      // Check bell ringing collision (hookRig or flying debris)
+      const nowTime = 420.0 - jobTimer;
+      if (nowTime - lastBellRingTime >= 2.0 && bellGroup) {
+        const bellWorldPos = new THREE.Vector3(CLOCK_TOWER_POS.x, 21.6, CLOCK_TOWER_POS.z);
+        const distRig = hookRig ? Math.hypot(hookRig.x - bellWorldPos.x, hookRig.y - bellWorldPos.y, hookRig.z - bellWorldPos.z) : 999;
+        let bellHit = (distRig <= 1.25);
+        if (!bellHit) {
+          for (let d of debrisList) {
+            const dDist = Math.hypot(d.x - bellWorldPos.x, d.y - bellWorldPos.y, d.z - bellWorldPos.z);
+            if (dDist <= 1.0) { bellHit = true; break; }
+          }
+        }
+        if (bellHit) {
+          lastBellRingTime = nowTime;
+          bellChimeCount++;
+          cumulativeBellChimes++;
+          audio.playDeepBell();
+          bellSwing = 0.75;
+          bellSwingPhase = 0;
+          triggerInfo('BRONZE BELFRY BELL RINGS DEEPLY');
+          exportArenaState();
+        }
+      }
+
+      const sec = liveSection;
+      const sBlocks = sectionBlocks[sec];
+      if (!sBlocks || sBlocks.length === 0) return;
+
+      if (!sectionCommitted[sec]) {
+        // Evaluate tilt of standing blocks
+        let westCount = 0, eastCount = 0, northCount = 0, southCount = 0;
+        for (let b of sBlocks) {
+          if (!b.broken) {
+            if (b.x < CLOCK_TOWER_POS.x) westCount++; else eastCount++;
+            if (b.z < CLOCK_TOWER_POS.z) northCount++; else southCount++;
+          }
+        }
+
+        // Leans towards weaker side (away from Church means towards positive X)
+        const tiltX = (westCount - eastCount) * 0.12;
+        const tiltZ = (northCount - southCount) * 0.12;
+        const tiltDeg = Math.hypot(tiltX, tiltZ) * 57.2958;
+        sectionTiltAngle[sec] = tiltDeg;
+        sectionTiltDirection[sec] = (tiltX >= 0) ? 'EAST (DROP ZONE)' : 'WEST (TOWARD CHURCH)';
+        if (tiltZ > 0.05) sectionTiltDirection[sec] += ' / S';
+        else if (tiltZ < -0.05) sectionTiltDirection[sec] += ' / N';
+
+        if (tiltDeg >= 25.0) {
+          sectionCommitted[sec] = true;
+          sectionFalling[sec] = true;
+          audio.playTimber();
+          triggerViolation('TIMBER!', `${sec} section committed to collapse!`);
+
+          // Fall direction: towards positive X (drop zones) or negative X (church)
+          sectionFallVel[sec].rx = (tiltX >= 0) ? 1.0 : -1.0;
+          sectionFallVel[sec].rz = (tiltZ > 0.05) ? 0.35 : (tiltZ < -0.05 ? -0.35 : 0.0);
+
+          if (tiltX < 0) {
+            // Committed wrong way towards the church!
+            setTimeout(() => {
+              handleSectionFellFailed(sec, 'Committed wrong way toward protected church!');
+            }, 1800);
+          }
+        }
+      } else if (sectionFalling[sec]) {
+        const vel = sectionFallVel[sec];
+        for (let b of sBlocks) {
+          b.x += vel.rx * 9.5 * dt;
+          b.z += vel.rz * 9.5 * dt;
+          b.y -= Math.abs(vel.rx) * 7.5 * dt;
+          b.mesh.position.set(b.x, b.y, b.z);
+
+          if (b.y <= 0.6) {
+            b.y = 0.6;
+            b.mesh.position.y = b.y;
+            shatterBlock(b, vel.rx * 4, 3, (deterministicRandom() - 0.5) * 4);
+          }
+        }
+
+        const allLanded = sBlocks.every(b => b.y <= 0.6 || b.broken);
+        if (allLanded) {
+          sectionFalling[sec] = false;
+          evaluateSectionFelling(sec);
+        }
+      }
+    }
+
+    function evaluateSectionFelling(sec) {
+      const zone = SECTION_DROP_ZONES[sec];
+      const sBlocks = sectionBlocks[sec];
+      let insideCount = 0;
+      for (let b of sBlocks) {
+        if (b.x >= zone.minX && b.x <= zone.maxX &&
+            b.z >= zone.minZ && b.z <= zone.maxZ) {
+          insideCount++;
+        }
+      }
+      const fill = insideCount / (sBlocks.length || 1);
+      sectionZoneFill[sec] = fill;
+
+      if (fill >= 0.80) {
+        sectionFelled[sec] = true;
+        audio.playChime();
+        triggerInfo(`${sec} FELLED CLEAN (${(fill * 100).toFixed(1)}% ZONE FILL)!`);
+
+        if (sec === 'CROWN') {
+          liveSection = 'WAIST';
+        } else if (sec === 'WAIST') {
+          liveSection = 'BASE';
+        } else if (sec === 'BASE') {
+          liveSection = 'COMPLETE';
+          checkJobCompletionConditions();
+        }
+      } else {
+        handleSectionFellFailed(sec, `Only ${(fill * 100).toFixed(1)}% landed in ${sec} drop zone (80% required).`);
+      }
+    }
+
+    function handleSectionFellFailed(sec, reason) {
+      if (sectionPendingReset !== null) return;
+      audio.playKlaxon();
+      const banner = document.getElementById('alert-banner');
+      banner.innerText = 'WRONG WAY!';
+      banner.style.display = 'block';
+      setTimeout(() => { banner.style.display = 'none'; }, 2400);
+
+      addLedgerIncident('SECTION RETRY', `${sec} section: ${reason} 5-second survey band reset initiated.`);
+      sectionRetries++;
+      cumulativeSectionRetries++;
+      sectionPendingReset = sec;
+      sectionResetTimer = 5.0;
+    }
+
+    function rebuildSectionPristine(sec) {
+      for (let b of sectionBlocks[sec]) {
+        scene.remove(b.mesh);
+        const idx = allBlocks.indexOf(b);
+        if (idx !== -1) allBlocks.splice(idx, 1);
+      }
+      sectionBlocks[sec] = [];
+      sectionCommitted[sec] = false;
+      sectionFalling[sec] = false;
+      sectionTiltAngle[sec] = 0;
+      sectionDamagedCount[sec] = 0;
+      sectionOutOfSequenceFired[sec] = false;
+
+      buildClockTowerSection(sec);
+      triggerInfo(`${sec} SECTION REBUILT PRISTINE AT SURVEY BAND!`);
+      exportArenaState();
+    }
+
+    /* =========================================================================
+       JOB 2: WATER TOWER FELLING
+       ========================================================================= */
+
+    function updateWaterTowerFelling(dt) {
+      let inlandLegCount = 0, seawardLegCount = 0, westLegCount = 0, eastLegCount = 0;
+      for (let lb of towerLegBlocks) {
+        if (!lb.broken) {
+          if (lb.z < 10.0) inlandLegCount++; else seawardLegCount++;
+          if (lb.x < 16.0) westLegCount++; else eastLegCount++;
+        }
+      }
+
+      let tiltZ = (inlandLegCount - seawardLegCount) * 0.08;
+      let tiltX = (westLegCount - eastLegCount) * 0.08;
+
+      if (!towerCommitted) {
+        towerTiltAngle = Math.hypot(tiltX, tiltZ) * 57.2958;
+        towerTiltDirection = (tiltZ >= 0) ? 'SEAWARD (DROP ZONE)' : 'INLAND (WRONG WAY)';
+        if (tiltX > 0.05) towerTiltDirection += ' / E';
+        else if (tiltX < -0.05) towerTiltDirection += ' / W';
+
+        if (towerTiltAngle >= 25.0) {
+          towerCommitted = true;
+          audio.playTimber();
+          triggerViolation('TIMBER!', 'Water tower committed to collapse trajectory!');
+          towerIsFalling = true;
+          towerFallVel.rz = (tiltZ >= 0) ? 1.0 : -1.0;
+          towerFallVel.rx = (tiltX > 0) ? 0.3 : (tiltX < -0.3 ? -0.3 : 0);
+
+          if (tiltZ < 0) {
+            setTimeout(() => {
+              showEndScreen('WRONG WAY', 'job-failed-color', 'Tower committed away from the drop zone! JOB FAILED.');
+            }, 1800);
+          }
+        }
+      } else if (towerIsFalling) {
+        towerTiltAngle += Math.abs(towerFallVel.rz) * 57.2958 * dt;
+        for (let tb of towerTankBlocks) {
+          tb.z += towerFallVel.rz * 9.5 * dt;
+          tb.x += towerFallVel.rx * 9.5 * dt;
+          tb.y -= Math.abs(towerFallVel.rz) * 7.5 * dt;
+          tb.mesh.position.set(tb.x, tb.y, tb.z);
+
+          if (tb.y <= 0.6) {
+            tb.y = 0.6;
+            tb.mesh.position.y = tb.y;
+            shatterBlock(tb, (deterministicRandom() - 0.5) * 4, 3, towerFallVel.rz * 6);
+          }
+        }
+
+        let allLanded = towerTankBlocks.every(tb => tb.y <= 0.6 || tb.broken);
+        if (allLanded) {
+          towerIsFalling = false;
+          evaluateTowerFelling();
+        }
+      }
+    }
+
+    function evaluateTowerFelling() {
+      let insideCount = 0;
+      for (let tb of towerTankBlocks) {
+        if (tb.x >= DROP_ZONE.minX && tb.x <= DROP_ZONE.maxX &&
+            tb.z >= DROP_ZONE.minZ && tb.z <= DROP_ZONE.maxZ) {
+          insideCount++;
+        }
+      }
+      towerZoneFill = insideCount / (towerTankBlocks.length || 1);
+
+      if (towerZoneFill >= 0.80) {
+        if (protectedDamageCount > 0) {
+          showEndScreen('JOB FAILED', 'job-failed-color', `Post Office was damaged (${protectedDamageCount} blocks)! Zero protected damage required.`);
+        } else {
+          showEndScreen('JOB COMPLETE', 'job-complete-color', `Tower successfully felled into drop zone! Zone Fill: ${(towerZoneFill * 100).toFixed(1)}%`);
+        }
+      } else {
+        showEndScreen('WRONG WAY', 'job-failed-color', `Felled off target! Only ${(towerZoneFill * 100).toFixed(1)}% landed in drop zone (80% required).`);
+      }
+    }
+
+    /* =========================================================================
+       JOB 3: THE SILO ROW DEMOLITION
+       ========================================================================= */
+
+    function getSiloStandingFraction(sId) {
+      const blist = siloBlocks[sId];
+      if (!blist || blist.length === 0) return 0.0;
+      const standing = blist.filter(b => !b.broken && b.y >= 1.5).length;
+      return standing / (siloInitialCount[sId] || 1);
+    }
+
+    function updateSiloRowDemolition(dt) {
+      for (let sId = 1; sId <= 3; sId++) {
+        if (siloFelled[sId]) continue;
+        const frac = getSiloStandingFraction(sId);
+        if (frac < 0.30) {
+          siloFelled[sId] = true;
+          const currentExpected = SILO_REQUIRED_ORDER[siloOrderIndex];
+          if (sId === currentExpected) {
+            triggerInfo('SEQUENCE OK');
+            siloOrderIndex++;
+          } else {
+            siloCleanOrder = false;
+            boundaryViolations++;
+            triggerViolation('OUT OF SEQUENCE', `Silo ${sId} felled out of turn! Expected Silo ${currentExpected}.`);
+          }
+        }
+      }
+    }
+
+    function checkJobCompletionConditions() {
+      if (activeJob === 1) {
+        const fraction = felledTargetBlocks / (totalTargetBlocks || 1);
+        if (fraction >= jobCompleteGoal) {
+          if (protectedDamageCount > 0) {
+            showEndScreen('JOB FAILED', 'job-failed-color', `Warehouse flattened, but Post Office sustained damage (${protectedDamageCount} blocks)! Zero protected damage required.`);
+          } else {
+            showEndScreen('JOB COMPLETE', 'job-complete-color', 'Warehouse successfully flattened to 95% completion with zero protected damage!');
+          }
+        }
+      } else if (activeJob === 3) {
+        const all3Felled = siloFelled[1] && siloFelled[2] && siloFelled[3];
+        if (all3Felled) {
+          if (protectedDamageCount > 0) {
+            showEndScreen('JOB FAILED', 'job-failed-color', `Silos felled, but Post Office sustained damage (${protectedDamageCount} blocks)! Zero protected damage required.`);
+          } else if (siloCleanOrder) {
+            showEndScreen('JOB COMPLETE', 'job-complete-color', 'Silo Row Demolition Complete! Perfect sequence (2 -> 3 -> 1) observed.');
+          } else {
+            showEndScreen('JOB COMPLETE', 'job-complete-color', 'Silo Row Demolition Complete, but OUT-OF-SEQUENCE infractions were recorded.');
+          }
+        }
+      } else if (activeJob === 4) {
+        const comp = felledTargetBlocks / (totalTargetBlocks || 1);
+        const all3BeamsLocked = beams.every(b => b.locked);
+        if (comp >= 0.90 && all3BeamsLocked) {
+          if (protectedDamageCount > 0) {
+            showEndScreen('JOB FAILED', 'job-failed-color', `Customs house demolished and beams extracted, but Canal Row Houses sustained damage (${protectedDamageCount} blocks)! Zero protected damage required.`);
+          } else {
+            showEndScreen('JOB COMPLETE', 'job-complete-color', 'Canal Barge Demolition Complete! Customs house >= 90% felled and all 3 steel beams secured with zero protected damage!');
+          }
+        }
+      } else if (activeJob === 5) {
+        const all3SectionsFelled = sectionFelled.CROWN && sectionFelled.WAIST && sectionFelled.BASE;
+        if (all3SectionsFelled) {
+          if (protectedDamageCount > 0) {
+            showEndScreen('JOB FAILED', 'job-failed-color', `Clock Tower felled, but Church sustained damage (${protectedDamageCount} blocks)! Zero protected damage required.`);
+          } else {
+            showEndScreen('JOB COMPLETE', 'job-complete-color', 'Clock Tower Demolition Complete! All three sections felled into designated drop zones with zero church damage.');
+          }
+        }
+      }
+    }
+
+    /* =========================================================================
+       WORKERS ON WALKWAYS
+       ========================================================================= */
+
+    function updateWorkers(dt) {
+      const maxT = (activeJob === 1 ? 240.0 : (activeJob === 2 ? 180.0 : (activeJob === 3 ? 300.0 : (activeJob === 4 ? 240.0 : 420.0))));
+      const nowTime = maxT - jobTimer;
+
+      for (let w of workers) {
+        const distToCrane = Math.hypot(w.x - crane.x, w.z - crane.z);
+        if (distToCrane <= EXCLUSION_RADIUS + 2.2) {
+          w.stoppedByCrane = true;
+          w.rightArm.rotation.x = -Math.PI / 2;
+          w.leftArm.rotation.x = 0;
+          w.leftLeg.rotation.x = 0;
+          w.rightLeg.rotation.x = 0;
+        } else {
+          w.stoppedByCrane = false;
+        }
+
+        if (!w.stoppedByCrane) {
+          const targetWp = w.waypoints[w.wpIndex];
+          const tdx = targetWp.x - w.x, tdz = targetWp.z - w.z;
+          const distToWp = Math.hypot(tdx, tdz);
+
+          if (distToWp < 0.3) {
+            w.wpIndex = (w.wpIndex + 1) % w.waypoints.length;
+          } else {
+            const moveStep = w.speed * dt;
+            w.x += (tdx / distToWp) * moveStep;
+            w.z += (tdz / distToWp) * moveStep;
+            w.group.rotation.y = Math.atan2(tdx, tdz);
+
+            w.stridePhase += dt * 8.0;
+            const swing = Math.sin(w.stridePhase) * 0.6;
+            w.leftLeg.rotation.x = swing;
+            w.rightLeg.rotation.x = -swing;
+            w.leftArm.rotation.x = -swing;
+            w.rightArm.rotation.x = swing;
+          }
+        }
+
+        if (w.flinching > 0) {
+          w.flinching -= dt;
+          w.torso.rotation.z = Math.sin(w.flinching * 20.0) * 0.2;
+        } else {
+          w.torso.rotation.z = 0;
+        }
+
+        w.group.position.set(w.x, 0, w.z);
+
+        if (nowTime - w.lastBreachTime >= 3.0) {
+          let breach = false;
+
+          if (!isRerigging) {
+            const rigDist = Math.hypot(hookRig.x - w.x, hookRig.z - w.z);
+            if (rigDist <= EXCLUSION_RADIUS && hookRig.y <= 4.0) {
+              breach = true;
+            }
+          }
+
+          if (!breach) {
+            for (let d of debrisList) {
+              const dDist = Math.hypot(d.x - w.x, d.z - w.z);
+              if (dDist <= EXCLUSION_RADIUS && d.y <= 3.5) {
+                breach = true;
+                break;
+              }
+            }
+          }
+
+          if (breach) {
+            w.lastBreachTime = nowTime;
+            w.flinching = 1.2;
+            boundaryViolations++;
+            triggerViolation('SAFETY BREACH', `Hazard breached Worker ${w.id + 1}'s 2m safety exclusion zone!`);
+          }
+        }
+      }
+    }
+
+    /* =========================================================================
+       CAMERA & HUD UPDATES
+       ========================================================================= */
+
+    function updateCamera() {
+      if (currentCameraMode === 'CAB') {
+        const cabCamLocal = new THREE.Vector3(0.85, 2.6, -0.6);
+        crane.cabGroup.localToWorld(cabCamLocal);
+        camera.position.copy(cabCamLocal);
+
+        const lookAtLocal = new THREE.Vector3(0, 10, -18);
+        crane.boomGroup.localToWorld(lookAtLocal);
+        camera.lookAt(lookAtLocal);
+      } else {
+        const chaseOffset = new THREE.Vector3(
+          -Math.sin(crane.heading) * 18,
+          10.5,
+          -Math.cos(crane.heading) * 18
+        );
+        const targetCamPos = new THREE.Vector3(crane.x, 0, crane.z).add(chaseOffset);
+        camera.position.lerp(targetCamPos, 0.1);
+
+        const targetLook = new THREE.Vector3(
+          crane.x + Math.sin(crane.heading) * 6,
+          4.5,
+          crane.z + Math.cos(crane.heading) * 6
+        );
+        camera.lookAt(targetLook);
+      }
+    }
+
+    function updateHUD() {
+      const m = Math.floor(jobTimer / 60);
+      const s = Math.floor(jobTimer % 60);
+      document.getElementById('hud-timer').innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+      if (activeJob === 1) {
+        const comp = (felledTargetBlocks / (totalTargetBlocks || 1)) * 100;
+        document.getElementById('hud-completion').innerText = comp.toFixed(1) + '%';
+      } else if (activeJob === 2) {
+        if (!towerCommitted) {
+          document.getElementById('hud-completion').innerText = `${towerTiltAngle.toFixed(1)}° ${towerTiltDirection}`;
+        } else {
+          document.getElementById('hud-completion').innerText = `FILL: ${(towerZoneFill * 100).toFixed(1)}%`;
+        }
+      } else if (activeJob === 3) {
+        const nextTarget = SILO_REQUIRED_ORDER[siloOrderIndex] || 'DONE';
+        const s1F = (getSiloStandingFraction(1) * 100).toFixed(0);
+        const s2F = (getSiloStandingFraction(2) * 100).toFixed(0);
+        const s3F = (getSiloStandingFraction(3) * 100).toFixed(0);
+        document.getElementById('hud-completion').innerText = `NEXT: #${nextTarget} [S1:${s1F}% S2:${s2F}% S3:${s3F}%]`;
+      } else if (activeJob === 4) {
+        const comp = ((felledTargetBlocks / (totalTargetBlocks || 1)) * 100).toFixed(1);
+        const lockedCount = beams.filter(b => b.locked).length;
+        if (felledTargetBlocks / (totalTargetBlocks || 1) < 0.50) {
+          document.getElementById('hud-completion').innerText = `FELL: ${comp}% / 90%`;
+        } else {
+          document.getElementById('hud-completion').innerText = `BEAMS: ${lockedCount}/3 LOCKED (FELL: ${comp}%)`;
+        }
+      } else {
+        if (sectionPendingReset !== null) {
+          document.getElementById('hud-completion').innerText = `RETRYING ${sectionPendingReset} IN ${sectionResetTimer.toFixed(1)}s`;
+        } else if (liveSection === 'COMPLETE') {
+          document.getElementById('hud-completion').innerText = 'ALL SECTIONS FELLED';
+        } else {
+          const sec = liveSection;
+          const tilt = sectionTiltAngle[sec].toFixed(1);
+          const dir = sectionTiltDirection[sec];
+          const fill = (sectionZoneFill[sec] * 100).toFixed(0);
+          document.getElementById('hud-completion').innerText = `[${sec}] TILT: ${tilt}° ${dir} (FILL: ${fill}%)`;
+        }
+      }
+
+      document.getElementById('hud-rig-name').innerHTML = `${activeRig} ${isSpikeEmbedded ? '<span style="color:#ff4444;">[EMBEDDED]</span>' : ''} <span id="rerig-indicator" style="display:${isRerigging ? 'inline-block' : 'none'};">RE-RIGGING</span>`;
+      
+      let presetText = '';
+      if (activePresetTarget !== null) {
+        presetText = ` <span id="preset-badge">➔ ${activePresetTarget}m</span>`;
+      }
+      document.getElementById('hud-cable').innerHTML = `${crane.cableLength.toFixed(1)}m${presetText}`;
+
+      document.getElementById('hud-violations').innerText = boundaryViolations;
+      document.getElementById('hud-protected').innerText = protectedDamageCount;
+
+      const slewDeg = (THREE.MathUtils.radToDeg(crane.cabSlew) % 360).toFixed(1);
+      document.getElementById('tele-slew').innerText = `${slewDeg}°`;
+      document.getElementById('tele-boom').innerText = `${THREE.MathUtils.radToDeg(crane.boomAngle).toFixed(1)}°`;
+      const rigSpd = Math.hypot(hookRig.vx, hookRig.vy, hookRig.vz).toFixed(1);
+      document.getElementById('tele-speed').innerText = `${rigSpd} u/s`;
+
+      const teleTracks = document.getElementById('tele-tracks');
+      if (teleTracks) {
+        if (activeJob === 4) {
+          teleTracks.innerHTML = '<span style="color:#ffcc00;font-weight:bold;">MOORED</span>';
+        } else {
+          teleTracks.innerHTML = '<span style="color:#55eeaa;">ONLINE</span>';
+        }
+      }
+
+      // Wind readout
+      if (windStrength > 0) {
+        const arrow = (windVector.z < 0) ? '▼ INLAND' : '▲ SEAWARD';
+        document.getElementById('tele-wind').innerHTML = `<span style="color:#ff5555;font-weight:bold;">${windStrength}° ${arrow} (${windCountdown.toFixed(0)}s)</span>`;
+      } else {
+        document.getElementById('tele-wind').innerHTML = `<span style="color:#55eeaa;">CALM (Next: ${windCountdown.toFixed(0)}s)</span>`;
+      }
+    }
+
+    // Export read-only debugging state every frame
+    function exportArenaState() {
+      let compFrac = 0;
+      if (activeJob === 1) compFrac = felledTargetBlocks / (totalTargetBlocks || 1);
+      else if (activeJob === 2) compFrac = towerZoneFill;
+      else if (activeJob === 3) compFrac = ( (siloFelled[1]?1:0) + (siloFelled[2]?1:0) + (siloFelled[3]?1:0) ) / 3.0;
+      else if (activeJob === 4) compFrac = (felledTargetBlocks / (totalTargetBlocks || 1)) * 0.5 + (beams.filter(b => b.locked).length / 3.0) * 0.5;
+      else compFrac = ((sectionFelled.CROWN ? 1 : 0) + (sectionFelled.WAIST ? 1 : 0) + (sectionFelled.BASE ? 1 : 0)) / 3.0;
+
+      window.__arena_state = {
+        phase: gamePhase,
+        activeJob: activeJob,
+        activeJobId: activeJob,
+        currentRig: activeRig,
+        rig: activeRig,
+        isRerigging: isRerigging,
+        embeddedFlag: isSpikeEmbedded,
+        isSpikeEmbedded: isSpikeEmbedded,
+        embeddedBlockId: embeddedBlockId,
+        activePresetTarget: activePresetTarget,
+        activePreset: activePresetTarget,
+        crane: {
+          x: crane.x,
+          y: crane.group.position.y,
+          z: crane.z,
+          heading: crane.heading
+        },
+        cranePosition: { x: crane.x, y: crane.group.position.y, z: crane.z },
+        craneHeading: crane.heading,
+        cabSlew: crane.cabSlew,
+        cabSlewAngle: THREE.MathUtils.radToDeg(crane.cabSlew),
+        boomAngle: THREE.MathUtils.radToDeg(crane.boomAngle),
+        cableLength: crane.cableLength,
+        ball: {
+          x: hookRig.x,
+          y: hookRig.y,
+          z: hookRig.z,
+          vx: hookRig.vx,
+          vy: hookRig.vy,
+          vz: hookRig.vz
+        },
+        ballPosition: { x: hookRig.x, y: hookRig.y, z: hookRig.z },
+        ballVelocity: { x: hookRig.vx, y: hookRig.vy, z: hookRig.vz },
+        completionFraction: compFrac,
+        remainingTime: jobTimer,
+        violationsCount: boundaryViolations,
+        violations: boundaryViolations,
+        protectedDamageCount: protectedDamageCount,
+        protectedDamage: protectedDamageCount,
+        towerTilt: towerTiltAngle,
+        towerTiltAngle: towerTiltAngle,
+        towerCommitted: towerCommitted,
+        towerCommittedFlag: towerCommitted,
+        zoneFillFraction: towerZoneFill,
+        zoneFill: towerZoneFill,
+        windVector: { x: windVector.x, y: windVector.y, z: windVector.z },
+        wind: { x: windVector.x, y: windVector.y, z: windVector.z },
+        windStrength: windStrength,
+        windTag: windDirectionTag,
+        siloStandingFractions: [
+          getSiloStandingFraction(1),
+          getSiloStandingFraction(2),
+          getSiloStandingFraction(3)
+        ],
+        siloSequenceState: {
+          expectedNext: SILO_REQUIRED_ORDER[siloOrderIndex] || null,
+          cleanOrder: siloCleanOrder,
+          silo1Felled: siloFelled[1],
+          silo2Felled: siloFelled[2],
+          silo3Felled: siloFelled[3]
+        },
+        workers: workers.map(w => ({ id: w.id, x: w.x, z: w.z, stopped: w.stoppedByCrane })),
+        workerPositions: workers.map(w => ({ x: w.x, z: w.z })),
+        ledgerLength: activeLedger.length,
+        ledger: activeLedger,
+        bargeHeave: bargeHeave,
+        bargeRoll: bargeRoll,
+        bargeHeavePhase: bargeHeavePhase,
+        bargeRollPhase: bargeRollPhase,
+        beamStates: beams.map(b => ({
+          id: b.id,
+          x: b.x,
+          y: b.y,
+          z: b.z,
+          grabOffset: b.grabOffset,
+          carried: b.carried,
+          locked: b.locked
+        })),
+        beams: beams.map(b => ({
+          id: b.id,
+          x: b.x,
+          y: b.y,
+          z: b.z,
+          grabOffset: b.grabOffset,
+          carried: b.carried,
+          locked: b.locked
+        })),
+        depositLockFlags: beams.map(b => b.locked),
+        depositLocks: beams.map(b => b.locked),
+        moored: (activeJob === 4),
+        liveSection: liveSection,
+        sectionStates: {
+          crown: {
+            committed: sectionCommitted.CROWN,
+            felled: sectionFelled.CROWN,
+            tilt: sectionTiltAngle.CROWN,
+            zoneFill: sectionZoneFill.CROWN
+          },
+          waist: {
+            committed: sectionCommitted.WAIST,
+            felled: sectionFelled.WAIST,
+            tilt: sectionTiltAngle.WAIST,
+            zoneFill: sectionZoneFill.WAIST
+          },
+          base: {
+            committed: sectionCommitted.BASE,
+            felled: sectionFelled.BASE,
+            tilt: sectionTiltAngle.BASE,
+            zoneFill: sectionZoneFill.BASE
+          }
+        },
+        sectionZoneFills: {
+          crown: sectionZoneFill.CROWN,
+          waist: sectionZoneFill.WAIST,
+          base: sectionZoneFill.BASE
+        },
+        retryCount: sectionRetries,
+        sectionRetries: sectionRetries,
+        bellChimeCount: bellChimeCount,
+        bellChimes: bellChimeCount,
+        career: {
+          totalTime: cumulativeClockTime,
+          blocksFelled: cumulativeBlocksFelled,
+          beamsDelivered: cumulativeBeamsDelivered,
+          siloClean: careerSiloClean,
+          retries: cumulativeSectionRetries,
+          bells: cumulativeBellChimes,
+          violations: cumulativeBoundaryViolations,
+          protectedHits: cumulativeProtectedHits,
+          perfectCustodian: (cumulativeProtectedHits === 0)
+        }
+      };
+    }
+
+    /* =========================================================================
+       ANIMATION LOOP & INITIALIZATION
+       ========================================================================= */
+
+    let lastTime = performance.now();
+
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const delta = Math.min((now - lastTime) / 1000, 0.1);
+      lastTime = now;
+
+      // Seagulls flapping flight (crabbing against wind during gusts)
+      seagulls.forEach(g => {
+        const angle = now * 0.001 * g.speed + g.offset;
+        let windDrift = (windStrength > 0) ? (windVector.z * 0.4) : 0;
+        g.group.position.x = Math.sin(angle) * g.radius;
+        g.group.position.z = Math.cos(angle) * g.radius + windDrift;
+        g.group.position.y = g.height + Math.sin(angle * 2.0) * 1.5;
+        g.group.rotation.y = angle + Math.PI / 2 + (windStrength > 0 ? (windVector.z < 0 ? -0.2 : 0.2) : 0);
+        const flap = Math.sin(now * 0.012) * 0.55;
+        g.leftWing.rotation.z = flap;
+        g.rightWing.rotation.z = -flap;
+      });
+
+      updateSimulation(delta);
+      updateCamera();
+      updateHUD();
+      exportArenaState();
+
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Start with Job 1
+    setupJobScene(1);
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

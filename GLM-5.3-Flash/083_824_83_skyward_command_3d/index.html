@@ -1,0 +1,2146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skyward Command</title>
+<style>
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#0b1524; }
+  #app { position:fixed; inset:0; }
+  #app canvas { display:block; }
+  #hud, .scr { font-family:"Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+  #hud { position:fixed; inset:0; pointer-events:none; z-index:5; color:#eaf2fc; user-select:none; }
+  .panel { position:absolute; background:rgba(8,15,29,.74); border:1px solid rgba(217,164,65,.5); border-radius:8px; padding:10px 12px; }
+  #panel { top:14px; left:14px; width:236px; }
+  .prow { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .chip { font-size:12px; font-weight:700; letter-spacing:.08em; color:#f0d9a0; }
+  #killLbl { color:#eaf2fc; }
+  .stat { display:flex; align-items:center; gap:8px; margin:6px 0; }
+  .stat label { width:34px; font-size:11px; font-weight:700; letter-spacing:.1em; color:#9fb4d8; }
+  .track { flex:1; height:9px; background:rgba(255,255,255,.12); border-radius:4px; overflow:hidden; }
+  .fill { height:100%; width:100%; border-radius:4px; }
+  #hpFill { background:#7fd08a; }
+  #thrFill { background:#e8c465; }
+  #baseFill { background:#e0b34c; }
+  #fuelFill { background:#7fc4e8; }
+  .wing .fuel { font-size:11px; font-family:ui-monospace,Consolas,monospace; color:#9fd8e8; min-width:26px; text-align:right; }
+  .wing .fuel.low { color:#ffab6b; }
+  .wing.down .fuel { color:#666; }
+  .num { width:44px; text-align:right; font-family:ui-monospace,"SF Mono",Consolas,monospace; font-size:12px; }
+  .kv { font-size:12px; color:#c8d6ec; }
+  .kv b { color:#fff; font-family:ui-monospace,Consolas,monospace; }
+  #ammoNum.dry { color:#ff6b57; }
+  #wingStrip { left:14px; bottom:14px; display:flex; gap:12px; padding:8px 12px; }
+  .wing { display:flex; align-items:center; gap:6px; padding:2px 7px; margin:-2px -7px; border:1px solid transparent; border-radius:6px; }
+  .wing b { font-size:12px; color:#f0d9a0; letter-spacing:.06em; }
+  .wing .track { width:54px; }
+  .wing .fill { background:#7fd08a; }
+  .wing.down b, .wing.down span { color:#ff6b57; }
+  .wing.down .fill { background:#666; }
+  .wing.sel { background:rgba(217,164,65,.14); border-color:rgba(217,164,65,.65); }
+  .cmd { font-size:11px; font-weight:700; letter-spacing:.06em; min-width:66px; text-align:left; }
+  .cmd.cmd-follow { color:#9fb4d8; }
+  .cmd.cmd-attack { color:#ffab6b; }
+  .cmd.cmd-return { color:#e9c15f; }
+  .ammo { font-size:11px; font-family:ui-monospace,Consolas,monospace; color:#c8d6ec; min-width:28px; text-align:right; }
+  #orderMsg { position:absolute; left:16px; bottom:66px; font-size:13px; font-weight:700; letter-spacing:.14em; color:#ffd27a; text-shadow:0 1px 4px rgba(0,0,0,.65); opacity:0; }
+  .apTitle { font-size:10px; font-weight:700; letter-spacing:.16em; color:#9fb4d8; margin:8px 0 2px; }
+  .apList { font-size:12px; font-family:ui-monospace,Consolas,monospace; color:#ffd24a; min-height:14px; }
+  #waveBanner { position:absolute; top:16%; left:50%; transform:translateX(-50%); font-size:30px; font-weight:700; letter-spacing:.28em; color:#ffab6b; background:rgba(8,15,29,.78); border:1px solid rgba(217,164,65,.65); border-radius:8px; padding:12px 30px; text-shadow:0 2px 8px rgba(0,0,0,.6); white-space:nowrap; }
+  .edgeArrow { position:absolute; width:0; height:0; border-top:9px solid transparent; border-bottom:9px solid transparent; border-left:16px solid #ff5340; margin-left:-8px; margin-top:-9px; filter:drop-shadow(0 0 3px rgba(255,83,64,.8)); }
+  #minimap { position:absolute; top:14px; right:14px; width:160px; height:160px; border:2px solid rgba(217,164,65,.75); border-radius:6px; background:rgba(9,17,33,.55); }
+  #hint { position:absolute; right:16px; bottom:12px; font-size:11px; letter-spacing:.12em; color:rgba(234,242,252,.65); }
+  #hurt { position:absolute; inset:0; box-shadow:inset 0 0 120px 30px rgba(255,60,40,.55); opacity:0; }
+  .scr { position:fixed; inset:0; z-index:8; display:flex; align-items:center; justify-content:center; color:#eaf2fc; text-align:center; }
+  .scr.dim { background:rgba(6,12,24,.55); }
+  .card { background:rgba(8,15,29,.88); border:1px solid rgba(217,164,65,.65); border-radius:14px; padding:34px 46px; max-width:620px; box-shadow:0 20px 60px rgba(0,0,0,.45); }
+  .kicker { font-size:12px; letter-spacing:.34em; color:#9fb4d8; margin-bottom:10px; }
+  h1 { margin:0 0 14px; font-size:46px; letter-spacing:.14em; color:#e9c15f; text-shadow:0 2px 0 #7a5a1c, 0 6px 18px rgba(0,0,0,.5); }
+  .brief { font-size:14px; line-height:1.65; color:#c8d6ec; margin:0 0 18px; }
+  .controls { display:grid; grid-template-columns:1fr 1fr; gap:6px 26px; font-size:13px; color:#c8d6ec; margin-bottom:22px; text-align:left; }
+  .controls b { color:#f0d9a0; font-family:ui-monospace,Consolas,monospace; }
+  .prompt { font-size:16px; font-weight:700; letter-spacing:.22em; color:#fff; }
+  .blink { animation:blink 1.15s steps(1) infinite; }
+  @keyframes blink { 50% { opacity:.25; } }
+  .pausebox h2 { font-size:40px; letter-spacing:.3em; margin:0 0 8px; color:#e9c15f; }
+  .pausebox div { font-size:13px; letter-spacing:.18em; color:#c8d6ec; }
+  #endTitle.red { color:#ff6b57; text-shadow:0 2px 0 #6e1c12, 0 6px 18px rgba(0,0,0,.5); }
+  #endStats { font-size:15px; letter-spacing:.12em; color:#eaf2fc; margin-bottom:20px; font-family:ui-monospace,Consolas,monospace; }
+  .debrief { display:inline-grid; grid-template-columns:auto auto; gap:4px 20px; margin:4px 0 12px; font-size:14px; }
+  .debrief .dl { color:#9fb4d8; letter-spacing:.1em; text-align:right; }
+  .debrief .dv { color:#fff; font-family:ui-monospace,Consolas,monospace; text-align:left; }
+  .ratingCaption { font-size:11px; letter-spacing:.34em; color:#9fb4d8; margin-bottom:0; }
+  .rating { font-size:84px; line-height:1.05; color:#e9c15f; text-shadow:0 3px 0 #7a5a1c, 0 8px 24px rgba(0,0,0,.5); margin-bottom:8px; }
+  .hidden { display:none !important; }
+  #fatal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; background:#12203a; z-index:99; font:14px/1.6 sans-serif; padding:40px; text-align:center; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="hud">
+  <div id="panel" class="panel">
+    <div class="prow">
+      <span id="waveLbl" class="chip">WAVE 1 INBOUND</span>
+      <span id="killLbl" class="chip">KILLS 0</span>
+    </div>
+    <div class="prow">
+      <span id="formLbl" class="chip">FORMATION WEDGE</span>
+      <span class="chip" style="color:#9fb4d8;">X CYCLES</span>
+    </div>
+    <div class="prow">
+      <span id="roeLbl" class="chip">ROE FREE FIRE</span>
+      <span class="chip" style="color:#9fb4d8;">O CYCLES</span>
+    </div>
+    <div class="stat"><label>HP</label><div class="track"><div id="hpFill" class="fill"></div></div><span id="hpNum" class="num">100</span></div>
+    <div class="stat"><label>THR</label><div class="track"><div id="thrFill" class="fill"></div></div><span id="thrNum" class="num">60</span></div>
+    <div class="stat"><label>BASE S</label><div class="track"><div id="baseSFill" class="fill"></div></div><span id="baseSNum" class="num">100</span></div>
+    <div class="stat"><label>BASE E</label><div class="track"><div id="baseEFill" class="fill"></div></div><span id="baseENum" class="num">100</span></div>
+    <div class="stat"><label>FUEL</label><div class="track"><div id="fuelFill" class="fill"></div></div><span id="fuelNum" class="num">120</span></div>
+    <div class="prow" style="margin-top:8px; margin-bottom:0;">
+      <span class="kv">SPD <b id="spdNum">66</b></span>
+      <span class="kv">AMMO <b id="ammoNum">240</b></span>
+      <span class="kv">T+<b id="clockNum">0.0</b></span>
+    </div>
+    <div id="lowFuelLbl" class="chip blink hidden" style="color:#ff6b57; margin-top:6px;">LOW FUEL</div>
+  </div>
+  <div id="wingStrip" class="panel">
+    <div class="wing" id="wg0"><b id="wgs0">W1</b><div class="track"><div class="fill" id="wgf0"></div></div><span class="num" id="wgn0">60</span><span class="cmd" id="wgc0">FOLLOW</span><span class="ammo" id="wga0">240</span><span class="fuel" id="wgu0">120</span></div>
+    <div class="wing" id="wg1"><b id="wgs1">W2</b><div class="track"><div class="fill" id="wgf1"></div></div><span class="num" id="wgn1">60</span><span class="cmd" id="wgc1">FOLLOW</span><span class="ammo" id="wga1">240</span><span class="fuel" id="wgu1">120</span></div>
+    <div class="wing" id="wg2"><b id="wgs2">W3</b><div class="track"><div class="fill" id="wgf2"></div></div><span class="num" id="wgn2">60</span><span class="cmd" id="wgc2">FOLLOW</span><span class="ammo" id="wga2">240</span><span class="fuel" id="wgu2">120</span></div>
+  </div>
+  <div id="orderMsg"></div>
+  <div id="waveBanner" class="hidden"></div>
+  <canvas id="minimap" width="160" height="160"></canvas>
+  <div id="hint">TAB&middot;1-3 SELECT &middot; F/T/H ORDERS &middot; O ROE &middot; X FORM &middot; P PAUSE &middot; R RESET</div>
+  <div id="hurt"></div>
+</div>
+
+<div id="scrReady" class="scr">
+  <div class="card">
+    <div class="kicker">CLOUD SEA SECTOR 7 &mdash; TACTICAL AIR PATROL</div>
+    <h1>SKYWARD COMMAND</h1>
+    <p class="brief">Six waves of hostiles are inbound against both bases: hunters, flankers, and
+    heavy bombers. Intercept the bombers before they reach either platform &mdash; each hit costs
+    that base 40 of its 100 integrity, and losing either base loses the mission. Wave 4 and 5
+    bombers fly with escorting fighters: strike them and they retaliate for five seconds before
+    falling back in. Fuel burns one unit per second &mdash; dip into the glowing resupply ring
+    west of the sector or the home rings around the bases to refuel and rearm before the gauge
+    runs dry. Watch the inbound banner and the red edge arrows &mdash; hostiles can come from
+    anywhere.</p>
+    <div class="controls">
+      <span><b>A / D</b> &mdash; Turn left / right</span>
+      <span><b>W / S</b> &mdash; Throttle up / down</span>
+      <span><b>SPACE</b> &mdash; Fire cannon (hold)</span>
+      <span><b>TAB / 1 2 3</b> &mdash; Select wingman</span>
+      <span><b>F / T / H</b> &mdash; Follow / Attack / Return</span>
+      <span><b>X</b> &mdash; Cycle formation</span>
+      <span><b>O</b> &mdash; Rules of engagement</span>
+      <span><b>P</b> &mdash; Pause / resume</span>
+      <span><b>R</b> &mdash; Reset to ready</span>
+      <span><b>ENTER</b> &mdash; Launch</span>
+    </div>
+    <div class="prompt blink">PRESS ENTER TO LAUNCH</div>
+  </div>
+</div>
+
+<div id="scrPause" class="scr dim hidden">
+  <div class="pausebox">
+    <h2>PAUSED</h2>
+    <div>PRESS P TO RESUME</div>
+  </div>
+</div>
+
+<div id="scrEnd" class="scr dim hidden">
+  <div class="card">
+    <h1 id="endTitle">AIRSPACE SECURED</h1>
+    <p class="brief" id="endSub"></p>
+    <div id="endDebrief" class="debrief hidden"></div>
+    <div id="endRatingBox" class="hidden">
+      <div class="ratingCaption">COMMAND RATING</div>
+      <div id="endRating" class="rating">B</div>
+    </div>
+    <div id="endStats"></div>
+    <div class="prompt blink">PRESS R TO RETURN TO READY</div>
+  </div>
+</div>
+
+<script src="./assets/_shared/three/build/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  var booted = false;
+  function showFatal(msg) {
+    var d = document.createElement('div');
+    d.id = 'fatal';
+    d.textContent = 'Skyward Command could not start: ' + msg;
+    document.body.appendChild(d);
+  }
+  function start() {
+    if (booted || !window.THREE) return;
+    booted = true;
+    try { boot(); }
+    catch (e) { showFatal(e && e.message ? e.message : String(e)); }
+  }
+  window.addEventListener('three-ready', start);
+  if (window.THREE) { start(); }
+  else {
+    var s = document.createElement('script');
+    s.type = 'module';
+    s.textContent = "import * as T from './vendor/three/three.module.min.js';\nwindow.THREE = T;\nwindow.dispatchEvent(new Event('three-ready'));";
+    document.head.appendChild(s);
+    setTimeout(function () { if (!window.THREE) showFatal('Three.js runtime failed to load.'); }, 5000);
+  }
+
+  function boot() {
+  var TAU = Math.PI * 2;
+  var DEG = Math.PI / 180;
+  var ARENA = 950;
+  var ALT = 55;
+  var SIM_DT = 1 / 120;
+  var LEAD_TURN_R = 70, WING_TURN_R = 70, ENEMY_TURN_R = 80;
+  var WING_MAX_SPD = 99, ENEMY_SPD = 60;
+  var WING_FIRE_RANGE = 220, WING_FIRE_COS = Math.cos(8 * DEG), WING_FIRE_HOLD = 0.3;
+  var BOMBER_SPD = 35, BOMBER_HP = 120, BOMBER_DMG = 40, BOMBER_HIT_R = 20, BASE_LEAK_R = 50, BASE_MAX_HP = 100;
+  var ROES = ['FREE FIRE', 'WEAPONS TIGHT', 'WEAPONS HOLD'];
+  var HOME_X = 0, HOME_Y = -800, ORBIT_R = 80, ORBIT_SPD = 60;
+  var FUEL_MAX = 120, FUEL_BURN = 1.0, FUEL_RATE = 10, AMMO_RATE = 24, FUEL_LOW = 30;
+  var LOW_TURN_MULT = 0.6, LOW_SPD_MULT = 0.85;
+  var BASE_S = { x: HOME_X, y: HOME_Y };
+  var BASE_E = { x: 800, y: 0 };
+  var BASES = [BASE_S, BASE_E];
+  var RESUPPLY = [{ x: -600, y: 0, r: 70 }, { x: BASE_S.x, y: BASE_S.y, r: 90 }, { x: BASE_E.x, y: BASE_E.y, r: 90 }];
+  var GUN_RATE = 0.125, BULLET_SPD = 400, BULLET_LIFE = 0.625, BULLET_DMG = 10, AMMO_MAX = 240;
+  var EBULLET_SPD = 350, EBULLET_LIFE = 0.8, EBULLET_DMG = 10, ENEMY_FIRE_INTERVAL = 0.5;
+  var ENEMY_FIRE_RANGE = 200, ENEMY_FIRE_COS = Math.cos(10 * DEG);
+  var LEAD_HP = 100, WING_HP = 60, ENEMY_HP = 30, HIT_R2 = 13 * 13;
+  var WAVE1_AT = 5.0, WAVE_GAP = 3.0;
+  var FORMATIONS = [
+    { name: 'WEDGE', offs: [{ ox: -55, oy: -55 }, { ox: 55, oy: -55 }, { ox: 0, oy: -95 }] },
+    { name: 'LINE', offs: [{ ox: -85, oy: 0 }, { ox: 85, oy: 0 }, { ox: 170, oy: 0 }] },
+    { name: 'COLUMN', offs: [{ ox: 0, oy: -70 }, { ox: 0, oy: -140 }, { ox: 0, oy: -210 }] }
+  ];
+  var WAVES = [
+    { dir: 'NORTH', enemies: [
+      { id: 'E1', b: 'hunter', x: -100, y: 940, ex: -100, ey: 300 },
+      { id: 'E2', b: 'hunter', x: 100, y: 940, ex: 100, ey: 300 }
+    ] },
+    { dir: 'EAST', enemies: [
+      { id: 'E3', b: 'hunter', x: 940, y: -150, ex: 300, ey: -150 },
+      { id: 'E4', b: 'hunter', x: 940, y: 0, ex: 300, ey: 0 },
+      { id: 'E5', b: 'hunter', x: 940, y: 150, ex: 300, ey: 150 }
+    ] },
+    { dir: 'WEST', enemies: [
+      { id: 'E6', b: 'flanker', x: -940, y: -150, ex: -300, ey: -150 },
+      { id: 'E7', b: 'flanker', x: -940, y: 0, ex: -300, ey: 0 },
+      { id: 'E8', b: 'hunter', x: -940, y: 150, ex: -300, ey: 150 }
+    ] },
+    { dir: 'NORTH', enemies: [
+      { id: 'E9', b: 'bomber', x: -150, y: 940, tb: 0 },
+      { id: 'E10', b: 'bomber', x: 150, y: 940, tb: 0 },
+      { id: 'E11', b: 'escort', x: -150, y: 940, escortOf: 'E9', side: -1 },
+      { id: 'E12', b: 'escort', x: 150, y: 940, escortOf: 'E10', side: 1 },
+      { id: 'E13', b: 'hunter', x: 0, y: 940, ex: 0, ey: 300 }
+    ] },
+    { dir: 'WEST', enemies: [
+      { id: 'E14', b: 'bomber', x: -940, y: -150, tb: 1 },
+      { id: 'E15', b: 'bomber', x: -940, y: 150, tb: 1 },
+      { id: 'E16', b: 'escort', x: -940, y: -150, escortOf: 'E14', side: 1 },
+      { id: 'E17', b: 'escort', x: -940, y: 150, escortOf: 'E15', side: -1 },
+      { id: 'E18', b: 'hunter', x: -940, y: 0, ex: -300, ey: 0 }
+    ] },
+    { dir: 'NORTH + WEST', enemies: [
+      { id: 'E19', b: 'bomber', x: -150, y: 940, tb: 0 },
+      { id: 'E20', b: 'bomber', x: 150, y: 940, tb: 0 },
+      { id: 'E21', b: 'escort', x: -150, y: 940, escortOf: 'E19', side: -1 },
+      { id: 'E22', b: 'escort', x: 150, y: 940, escortOf: 'E20', side: 1 },
+      { id: 'E23', b: 'bomber', x: -940, y: 0, tb: 1 },
+      { id: 'E24', b: 'escort', x: -940, y: 0, escortOf: 'E23', side: -1 },
+      { id: 'E25', b: 'hunter', x: -940, y: -260, ex: -300, ey: -260 },
+      { id: 'E26', b: 'hunter', x: -940, y: 260, ex: -300, ey: 260 }
+    ] }
+  ];
+  var BANKS = [[400, 180, 150], [-380, 320, 160], [560, -280, 150], [-560, -120, 150], [260, 620, 140], [-260, -640, 150]];
+
+  function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+  function wrapAngle(a) { a = a % TAU; if (a > Math.PI) a -= TAU; else if (a < -Math.PI) a += TAU; return a; }
+  function easeOut(t) { return 1 - (1 - t) * (1 - t); }
+  function lcg(seed) {
+    var st = seed >>> 0;
+    return function () {
+      st = (Math.imul(st, 1664525) + 1013904223) >>> 0;
+      return st / 4294967296;
+    };
+  }
+  function segDist2(px, py, qx, qy, cx, cy) {
+    var dx = qx - px, dy = qy - py;
+    var l2 = dx * dx + dy * dy;
+    var t = l2 > 0 ? ((cx - px) * dx + (cy - py) * dy) / l2 : 0;
+    t = clamp(t, 0, 1);
+    var ex = px + dx * t - cx, ey = py + dy * t - cy;
+    return ex * ex + ey * ey;
+  }
+  function clampArena(o) {
+    if (o.x > ARENA) o.x = ARENA; else if (o.x < -ARENA) o.x = -ARENA;
+    if (o.y > ARENA) o.y = ARENA; else if (o.y < -ARENA) o.y = -ARENA;
+  }
+
+  var $ = function (id) { return document.getElementById(id); };
+  var els = {
+    waveLbl: $('waveLbl'), killLbl: $('killLbl'), hpFill: $('hpFill'), hpNum: $('hpNum'),
+    thrFill: $('thrFill'), thrNum: $('thrNum'), spdNum: $('spdNum'), ammoNum: $('ammoNum'),
+    clockNum: $('clockNum'), hurt: $('hurt'), minimap: $('minimap'),
+    scrReady: $('scrReady'), scrPause: $('scrPause'), scrEnd: $('scrEnd'),
+    endTitle: $('endTitle'), endSub: $('endSub'), endStats: $('endStats'),
+    wg: [$('wg0'), $('wg1'), $('wg2')], wgf: [$('wgf0'), $('wgf1'), $('wgf2')], wgn: [$('wgn0'), $('wgn1'), $('wgn2')],
+    wgs: [$('wgs0'), $('wgs1'), $('wgs2')], wgc: [$('wgc0'), $('wgc1'), $('wgc2')], wga: [$('wga0'), $('wga1'), $('wga2')],
+    orderMsg: $('orderMsg'), formLbl: $('formLbl'), roeLbl: $('roeLbl'), waveBanner: $('waveBanner'), baseSFill: $('baseSFill'), baseSNum: $('baseSNum'), baseEFill: $('baseEFill'), baseENum: $('baseENum'), fuelFill: $('fuelFill'), fuelNum: $('fuelNum'), lowFuelLbl: $('lowFuelLbl'), wgu: [$('wgu0'), $('wgu1'), $('wgu2')], endDebrief: $('endDebrief'), endRating: $('endRating'), endRatingBox: $('endRatingBox'), endStats: $('endStats')
+  };
+  var mmCtx = els.minimap.getContext('2d');
+
+  var renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+  } catch (e) {
+    showFatal('WebGL is not available in this browser.');
+    return;
+  }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  if ('outputColorSpace' in renderer && THREE.SRGBColorSpace !== undefined) {
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+  } else if ('outputEncoding' in renderer && THREE.sRGBEncoding !== undefined) {
+    renderer.outputEncoding = THREE.sRGBEncoding;
+  }
+  $('app').appendChild(renderer.domElement);
+
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xa9d3f2);
+  scene.fog = new THREE.Fog(0xc7e3f7, 850, 2300);
+
+  var camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 2, 4000);
+  camera.up.set(0, 0, -1);
+  camera.position.set(0, ALT + 550, 800 + 120);
+  camera.lookAt(0, ALT, 800);
+
+  scene.add(new THREE.HemisphereLight(0xdfeeff, 0xf0f6ff, 1.5));
+  scene.add(new THREE.AmbientLight(0x9db8d9, 0.55));
+  var sun = new THREE.DirectionalLight(0xfff1d6, 2.1);
+  sun.position.set(300, 500, 200);
+  scene.add(sun);
+
+  function colorizeTexture(tex) {
+    if (THREE.SRGBColorSpace !== undefined && 'colorSpace' in tex) tex.colorSpace = THREE.SRGBColorSpace;
+    else if (THREE.sRGBEncoding !== undefined && 'encoding' in tex) tex.encoding = THREE.sRGBEncoding;
+    return tex;
+  }
+
+  function makeFloorTexture() {
+    var c = document.createElement('canvas');
+    c.width = c.height = 1024;
+    var ctx = c.getContext('2d');
+    ctx.fillStyle = '#d6eaf9';
+    ctx.fillRect(0, 0, 1024, 1024);
+    var rng = lcg(20240911);
+    var i, x, y, r, g;
+    for (i = 0; i < 70; i++) {
+      x = rng() * 1024; y = rng() * 1024; r = 120 + rng() * 240;
+      g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, 'rgba(160,190,215,0.09)');
+      g.addColorStop(1, 'rgba(160,190,215,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+    }
+    for (i = 0; i < 240; i++) {
+      x = rng() * 1024; y = rng() * 1024; r = 30 + rng() * 110;
+      g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, 'rgba(255,255,255,0.30)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+    }
+    for (i = 0; i < 150; i++) {
+      x = rng() * 1024; y = rng() * 1024; r = 18 + rng() * 60;
+      g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, 'rgba(255,255,255,0.42)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+    }
+    var tex = new THREE.CanvasTexture(c);
+    colorizeTexture(tex);
+    if ('anisotropy' in tex && renderer.capabilities && renderer.capabilities.getMaxAnisotropy) {
+      tex.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+    }
+    return tex;
+  }
+
+  var floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(5200, 5200),
+    new THREE.MeshLambertMaterial({ map: makeFloorTexture() })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  scene.add(floor);
+
+  var puffGeo = new THREE.IcosahedronGeometry(1, 1);
+  var cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  var cloudPositions = [];
+  function addPuff(x, y, z, rx, ry, rz) {
+    cloudPositions.push([x, y, z, rx, ry, rz]);
+  }
+  (function buildClouds() {
+    var rng = lcg(9172);
+    var edge, i, t, x, z, j, n, tanx, tanz;
+    for (edge = 0; edge < 4; edge++) {
+      for (i = 0; i < 44; i++) {
+        t = -950 + (i + 0.5) * (1900 / 44);
+        n = 1 + Math.floor(rng() * 2);
+        for (j = 0; j <= n; j++) {
+          var jx = (rng() - 0.5) * 28, jz = (rng() - 0.5) * 28;
+          var ry = 70 + rng() * 130;
+          var rr = 16 + rng() * 16;
+          var side = (j - 1) * (12 + rng() * 22);
+          var out = rr + rng() * 14;
+          if (edge === 0) { x = t + jx; z = -950 - out; tanx = 1; tanz = 0; }
+          else if (edge === 1) { x = t + jx; z = 950 + out; tanx = 1; tanz = 0; }
+          else if (edge === 2) { x = -950 - out; z = t + jz; tanx = 0; tanz = 1; }
+          else { x = 950 + out; z = t + jz; tanx = 0; tanz = 1; }
+          addPuff(x + tanx * side, ry * 0.8, z + tanz * side, rr, ry, rr * (0.8 + rng() * 0.5));
+        }
+      }
+    }
+    var corners = [[-950, -950], [-950, 950], [950, -950], [950, 950]];
+    for (i = 0; i < corners.length; i++) {
+      for (j = 0; j < 3; j++) {
+        var ry2 = 90 + rng() * 120, rr2 = 20 + rng() * 18;
+        addPuff(corners[i][0] + (corners[i][0] < 0 ? -rr2 : rr2), ry2 * 0.8,
+          corners[i][1] + (corners[i][1] < 0 ? -rr2 : rr2), rr2, ry2, rr2);
+      }
+    }
+    for (i = 0; i < BANKS.length; i++) {
+      var bx = BANKS[i][0], bz = -BANKS[i][1], br = BANKS[i][2];
+      var count = 10 + Math.floor(rng() * 4);
+      for (j = 0; j < count; j++) {
+        var ang = rng() * TAU, rad = rng() * br * 0.85;
+        var ry3 = 16 + rng() * 26, rr3 = 24 + rng() * 30;
+        addPuff(bx + Math.cos(ang) * rad, ry3 * 0.9, bz + Math.sin(ang) * rad, rr3, ry3, rr3);
+      }
+    }
+    for (i = 0; i < 22; i++) {
+      var fx = (rng() - 0.5) * 1760, fz = (rng() - 0.5) * 1760;
+      var ry4 = 4 + rng() * 5, rr4 = 14 + rng() * 16;
+      addPuff(fx, ry4 * 0.9, fz, rr4, ry4, rr4);
+    }
+    var inst = new THREE.InstancedMesh(puffGeo, cloudMat, cloudPositions.length);
+    var m4 = new THREE.Matrix4();
+    var q = new THREE.Quaternion();
+    var vp = new THREE.Vector3(), vs = new THREE.Vector3();
+    var col = new THREE.Color();
+    for (i = 0; i < cloudPositions.length; i++) {
+      var p = cloudPositions[i];
+      vp.set(p[0], p[1], p[2]);
+      vs.set(p[3], p[4], p[5]);
+      m4.compose(vp, q, vs);
+      inst.setMatrixAt(i, m4);
+      var v = 0.93 + rng() * 0.07;
+      col.setRGB(v, v, Math.min(1, v * 1.01));
+      if (typeof inst.setColorAt === 'function') inst.setColorAt(i, col);
+    }
+    if (inst.instanceMatrix) inst.instanceMatrix.needsUpdate = true;
+    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+    scene.add(inst);
+  })();
+
+  var brassMat = new THREE.MeshPhongMaterial({ color: 0xc9a24b, specular: 0xffe9a8, shininess: 70 });
+  var brassDarkMat = new THREE.MeshPhongMaterial({ color: 0xa8863a, specular: 0xd8bc74, shininess: 55 });
+  var navyDeckMat = new THREE.MeshLambertMaterial({ color: 0x2c3e5f });
+  var navyTopMat = new THREE.MeshLambertMaterial({ color: 0x35496e });
+  var whiteMat = new THREE.MeshLambertMaterial({ color: 0xe8eef6 });
+
+  function buildPlatform(px, pz) {
+    var g = new THREE.Group();
+    var deck = new THREE.Mesh(new THREE.CylinderGeometry(88, 94, 7, 48), navyDeckMat);
+    deck.position.y = 6.5;
+    g.add(deck);
+    var top = new THREE.Mesh(new THREE.CircleGeometry(84, 48), navyTopMat);
+    top.rotation.x = -Math.PI / 2;
+    top.position.y = 10.05;
+    g.add(top);
+    var rim = new THREE.Mesh(new THREE.TorusGeometry(90, 2.6, 8, 64), brassMat);
+    rim.rotation.x = -Math.PI / 2;
+    rim.position.y = 9.6;
+    g.add(rim);
+    var inner = new THREE.Mesh(new THREE.TorusGeometry(56, 1.2, 6, 48), brassDarkMat);
+    inner.rotation.x = -Math.PI / 2;
+    inner.position.y = 10.25;
+    g.add(inner);
+    var h1 = new THREE.Mesh(new THREE.BoxGeometry(6, 0.4, 36), whiteMat);
+    h1.position.set(-11, 10.35, 0);
+    g.add(h1);
+    var h2 = new THREE.Mesh(new THREE.BoxGeometry(6, 0.4, 36), whiteMat);
+    h2.position.set(11, 10.35, 0);
+    g.add(h2);
+    var h3 = new THREE.Mesh(new THREE.BoxGeometry(16, 0.4, 6), whiteMat);
+    h3.position.set(0, 10.35, 0);
+    g.add(h3);
+    var i2;
+    for (i2 = 0; i2 < 6; i2++) {
+      var strut = new THREE.Mesh(new THREE.CylinderGeometry(3, 3.6, 7, 8), brassDarkMat);
+      strut.position.set(Math.cos(i2 * TAU / 6) * 76, 1.5, Math.sin(i2 * TAU / 6) * 76);
+      g.add(strut);
+    }
+    var mast = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.1, 16, 8), brassDarkMat);
+    mast.position.set(0, 17, 80);
+    g.add(mast);
+    var flag = new THREE.Mesh(new THREE.PlaneGeometry(11, 6.5),
+      new THREE.MeshLambertMaterial({ color: 0x31517f, side: THREE.DoubleSide }));
+    flag.position.set(6, 21.5, 80);
+    g.add(flag);
+    var beacon = new THREE.Mesh(new THREE.SphereGeometry(1.6, 8, 6),
+      new THREE.MeshLambertMaterial({ color: 0xffd27a, emissive: 0xffb347, emissiveIntensity: 0.8 }));
+    beacon.position.set(0, 25.6, 80);
+    g.add(beacon);
+    g.position.set(px, 0, pz);
+    scene.add(g);
+  }
+  buildPlatform(0, 800);
+  buildPlatform(800, 0);
+
+  var buoyBeaconMat = new THREE.MeshLambertMaterial({ color: 0xff6a55, emissive: 0xff3b22, emissiveIntensity: 0.8 });
+  (function buildBuoyTower() {
+    var g = new THREE.Group();
+    var skirt = new THREE.Mesh(new THREE.CylinderGeometry(30, 36, 7, 20), brassDarkMat);
+    skirt.position.y = 3.5;
+    g.add(skirt);
+    var i, rTop = 24, rBot, h = 24, y = 7;
+    for (i = 0; i < 6; i++) {
+      rBot = rTop;
+      rTop = 24 - (i + 1) * 2;
+      var seg = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, h, 18),
+        i % 2 === 0 ? whiteMat : new THREE.MeshLambertMaterial({ color: 0xd8503f }));
+      seg.position.y = y + h / 2;
+      y += h;
+      g.add(seg);
+    }
+    var plat = new THREE.Mesh(new THREE.CylinderGeometry(21, 21, 3.4, 20), brassMat);
+    plat.position.y = y + 1.7;
+    g.add(plat);
+    var rail = new THREE.Mesh(new THREE.TorusGeometry(19.5, 0.8, 6, 26), brassDarkMat);
+    rail.rotation.x = -Math.PI / 2;
+    rail.position.y = y + 6;
+    g.add(rail);
+    var beacon = new THREE.Mesh(new THREE.SphereGeometry(3.4, 10, 8), buoyBeaconMat);
+    beacon.position.y = y + 11;
+    g.add(beacon);
+    var ant = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 8, 6), brassDarkMat);
+    ant.position.y = y + 17;
+    g.add(ant);
+    g.position.set(500, 0, -500);
+    scene.add(g);
+  })();
+
+  (function buildWreck() {
+    var hullMat = new THREE.MeshLambertMaterial({ color: 0x46525f });
+    var hullDark = new THREE.MeshLambertMaterial({ color: 0x39434f });
+    var g = new THREE.Group();
+    var bow = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), hullMat);
+    bow.scale.set(20, 20, 50);
+    bow.position.set(-450, -8, -255);
+    bow.rotation.z = 0.09;
+    bow.rotation.x = -0.1;
+    g.add(bow);
+    var stern = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), hullDark);
+    stern.scale.set(20, 19, 50);
+    stern.position.set(-450, -12, -375);
+    stern.rotation.z = -0.12;
+    stern.rotation.x = 0.16;
+    g.add(stern);
+    var rib1 = new THREE.Mesh(new THREE.TorusGeometry(17.5, 1.5, 8, 20, Math.PI), brassDarkMat);
+    rib1.position.set(-450, -8, -303);
+    rib1.rotation.y = Math.PI / 2;
+    g.add(rib1);
+    var rib2 = new THREE.Mesh(new THREE.TorusGeometry(16.5, 1.4, 8, 20, Math.PI), brassDarkMat);
+    rib2.position.set(-450, -12, -327);
+    rib2.rotation.y = Math.PI / 2;
+    rib2.rotation.z = Math.PI;
+    g.add(rib2);
+    var fin;
+    var finAngles = [0, Math.PI / 3, -Math.PI / 3];
+    for (var i = 0; i < 3; i++) {
+      fin = new THREE.Mesh(new THREE.BoxGeometry(1.6, 12, 9), hullDark);
+      fin.position.set(-450 + Math.sin(finAngles[i]) * 17, -12 + Math.cos(finAngles[i]) * 17, -412);
+      fin.rotation.z = -finAngles[i];
+      g.add(fin);
+    }
+    var debris;
+    var dpos = [[-410, 2, -220, 0.4], [-495, 2, -260, 1.2], [-470, 2, -180, 2.1]];
+    for (i = 0; i < dpos.length; i++) {
+      debris = new THREE.Mesh(new THREE.BoxGeometry(8, 4, 6), hullDark);
+      debris.position.set(dpos[i][0], dpos[i][1], dpos[i][2]);
+      debris.rotation.y = dpos[i][3];
+      g.add(debris);
+    }
+    scene.add(g);
+  })();
+
+  function extrudePlanform(pts, depth) {
+    var sh = new THREE.Shape();
+    sh.moveTo(pts[0][0], pts[0][1]);
+    for (var i = 1; i < pts.length; i++) sh.lineTo(pts[i][0], pts[i][1]);
+    sh.closePath();
+    return new THREE.ExtrudeGeometry(sh, { depth: depth, bevelEnabled: true, bevelThickness: 0.08, bevelSize: 0.08, bevelSegments: 1, steps: 1 });
+  }
+
+  function makeFighter(opt) {
+    var g = new THREE.Group();
+    var roll = new THREE.Group();
+    g.add(roll);
+    var bodyMat = new THREE.MeshLambertMaterial({ color: opt.body });
+    var wingMat = new THREE.MeshLambertMaterial({ color: opt.wing, side: THREE.DoubleSide });
+    var accMat = new THREE.MeshLambertMaterial({ color: opt.accent });
+    var darkMat = new THREE.MeshLambertMaterial({ color: opt.prop });
+    var glassMat = new THREE.MeshLambertMaterial({ color: opt.canopy, emissive: 0x18324a });
+    var front = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.7, 7, 10), bodyMat);
+    front.rotation.x = -Math.PI / 2;
+    front.position.z = -6.4;
+    roll.add(front);
+    var rear = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 0.75, 8, 10), bodyMat);
+    rear.rotation.x = -Math.PI / 2;
+    rear.position.z = 1.1;
+    roll.add(rear);
+    var nose = new THREE.Mesh(new THREE.ConeGeometry(1.15, 2.8, 10), accMat);
+    nose.rotation.x = -Math.PI / 2;
+    nose.position.z = -11.5;
+    roll.add(nose);
+    var can = new THREE.Mesh(new THREE.SphereGeometry(1.05, 10, 8), glassMat);
+    can.scale.set(0.95, 0.8, 2.1);
+    can.position.set(0, 1.25, -3.6);
+    roll.add(can);
+    var wing = new THREE.Mesh(extrudePlanform(
+      [[-9.4, 0.7], [-2.2, 2.5], [2.2, 2.5], [9.4, 0.7], [9.4, -1.5], [2.2, -2.6], [-2.2, -2.6], [-9.4, -1.5]], 0.32), wingMat);
+    wing.rotation.x = -Math.PI / 2;
+    wing.position.set(0, -0.35, -1.1);
+    roll.add(wing);
+    var tipL = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.38, 1.6), accMat);
+    tipL.position.set(-8.85, -0.15, -0.7);
+    roll.add(tipL);
+    var tipR = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.38, 1.6), accMat);
+    tipR.position.set(8.85, -0.15, -0.7);
+    roll.add(tipR);
+    var tail = new THREE.Mesh(extrudePlanform(
+      [[-3.3, 0.35], [-0.8, 1.05], [0.8, 1.05], [3.3, 0.35], [3.3, -0.55], [0.8, -0.95], [-0.8, -0.95], [-3.3, -0.55]], 0.24), wingMat);
+    tail.rotation.x = -Math.PI / 2;
+    tail.position.set(0, 0.75, 4.6);
+    roll.add(tail);
+    var fin = new THREE.Mesh(extrudePlanform(
+      [[0, 0], [3.4, 0], [3.4, 2.0], [2.3, 2.7], [1.3, 2.7]], 0.24), accMat);
+    fin.geometry.rotateY(-Math.PI / 2);
+    fin.geometry.translate(0.12, 0, 0);
+    fin.position.set(0, 0.55, 2.0);
+    roll.add(fin);
+    var prop = new THREE.Group();
+    prop.position.z = -12.9;
+    roll.add(prop);
+    var spinner = new THREE.Mesh(new THREE.ConeGeometry(0.72, 1.7, 8), accMat);
+    spinner.rotation.x = -Math.PI / 2;
+    spinner.position.z = -0.9;
+    prop.add(spinner);
+    for (var i = 0; i < 3; i++) {
+      var hold = new THREE.Group();
+      hold.rotation.z = i * TAU / 3;
+      var bl = new THREE.Mesh(new THREE.BoxGeometry(0.34, 5.4, 0.14), darkMat);
+      bl.rotation.y = 0.5;
+      hold.add(bl);
+      prop.add(hold);
+    }
+    var blur = new THREE.Mesh(new THREE.CircleGeometry(2.9, 20),
+      new THREE.MeshBasicMaterial({ color: 0xdfe8f2, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide }));
+    blur.position.z = -0.2;
+    prop.add(blur);
+    var shadowTex = makeShadowTexture();
+    var shadow = new THREE.Mesh(new THREE.CircleGeometry(8, 18),
+      new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.y = 12;
+    scene.add(shadow);
+    var trailL = new Trail(friendTrailMat), trailR = new Trail(friendTrailMat);
+    scene.add(g);
+    return { group: g, roll: roll, prop: prop, blur: blur, shadow: shadow, trailL: trailL, trailR: trailR, tipSpan: 9.2 };
+  }
+
+  function makeBomber() {
+    var g = new THREE.Group();
+    var roll = new THREE.Group();
+    g.add(roll);
+    var bodyMat = new THREE.MeshLambertMaterial({ color: 0x6b3131 });
+    var wingMat = new THREE.MeshLambertMaterial({ color: 0x5c2a2a, side: THREE.DoubleSide });
+    var darkMat = new THREE.MeshLambertMaterial({ color: 0x1c1c20 });
+    var glassMat = new THREE.MeshLambertMaterial({ color: 0xd88a7a, emissive: 0x2a1210 });
+    var fus = new THREE.Mesh(new THREE.CylinderGeometry(1.9, 2.3, 20, 10), bodyMat);
+    fus.rotation.x = -Math.PI / 2;
+    fus.position.z = -1;
+    roll.add(fus);
+    var nose = new THREE.Mesh(new THREE.SphereGeometry(1.95, 10, 8), glassMat);
+    nose.scale.set(1, 0.85, 1.9);
+    nose.position.z = -11.4;
+    roll.add(nose);
+    var canopy = new THREE.Mesh(new THREE.SphereGeometry(1.3, 10, 8), glassMat);
+    canopy.scale.set(0.9, 0.75, 2.2);
+    canopy.position.set(0, 1.7, -5.5);
+    roll.add(canopy);
+    var wing = new THREE.Mesh(extrudePlanform(
+      [[-16, 1.5], [-3, 4.5], [3, 4.5], [16, 1.5], [16, -1.5], [3, -4.5], [-3, -4.5], [-16, -1.5]], 0.5), wingMat);
+    wing.rotation.x = -Math.PI / 2;
+    wing.position.set(0, -0.6, -2.5);
+    roll.add(wing);
+    var props = [], blurs = [];
+    for (var ni = 0; ni < 2; ni++) {
+      var nx = ni === 0 ? -7.5 : 7.5;
+      var nac = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.05, 7, 8), bodyMat);
+      nac.rotation.x = -Math.PI / 2;
+      nac.position.set(nx, -0.9, -3.5);
+      roll.add(nac);
+      var prop = new THREE.Group();
+      prop.position.set(nx, -0.9, -7.4);
+      roll.add(prop);
+      for (var bl2 = 0; bl2 < 3; bl2++) {
+        var hold = new THREE.Group();
+        hold.rotation.z = bl2 * TAU / 3;
+        var blade = new THREE.Mesh(new THREE.BoxGeometry(0.3, 4.6, 0.12), darkMat);
+        blade.rotation.y = 0.5;
+        hold.add(blade);
+        prop.add(hold);
+      }
+      var blur = new THREE.Mesh(new THREE.CircleGeometry(2.4, 18),
+        new THREE.MeshBasicMaterial({ color: 0xdfe8f2, transparent: true, opacity: 0.15, depthWrite: false, side: THREE.DoubleSide }));
+      blur.position.z = -0.2;
+      prop.add(blur);
+      props.push(prop);
+      blurs.push(blur);
+    }
+    var tail = new THREE.Mesh(extrudePlanform(
+      [[-6, 0.8], [-1.2, 2.4], [1.2, 2.4], [6, 0.8], [6, -0.8], [1.2, -1.6], [-1.2, -1.6], [-6, -0.8]], 0.32), wingMat);
+    tail.rotation.x = -Math.PI / 2;
+    tail.position.set(0, 0.6, 7.6);
+    roll.add(tail);
+    var fin = new THREE.Mesh(extrudePlanform(
+      [[0, 0], [3.0, 0], [3.0, 3.2], [1.9, 4.2], [0.9, 4.2]], 0.28), new THREE.MeshLambertMaterial({ color: 0x4a2222 }));
+    fin.geometry.rotateY(-Math.PI / 2);
+    fin.geometry.translate(0.14, 0, 0);
+    fin.position.set(0, 1.4, 6.4);
+    roll.add(fin);
+    var waist = new THREE.Mesh(new THREE.SphereGeometry(1.0, 8, 6), darkMat);
+    waist.scale.set(0.8, 0.7, 1.8);
+    waist.position.set(0, -0.6, 4);
+    roll.add(waist);
+    var shadow = new THREE.Mesh(new THREE.CircleGeometry(11, 18),
+      new THREE.MeshBasicMaterial({ map: makeShadowTexture(), transparent: true, depthWrite: false }));
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.y = 12;
+    scene.add(shadow);
+    var trailL = new Trail(enemyTrailMat), trailR = new Trail(enemyTrailMat);
+    scene.add(g);
+    return { group: g, roll: roll, props: props, blurs: blurs, shadow: shadow, trailL: trailL, trailR: trailR, tipSpan: 15.5 };
+  }
+
+  function makeShadowTexture() {
+    if (makeShadowTexture.tex) return makeShadowTexture.tex;
+    var c = document.createElement('canvas');
+    c.width = c.height = 128;
+    var ctx = c.getContext('2d');
+    var g = ctx.createRadialGradient(64, 64, 4, 64, 64, 62);
+    g.addColorStop(0, 'rgba(25,45,75,0.5)');
+    g.addColorStop(1, 'rgba(25,45,75,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 128, 128);
+    makeShadowTexture.tex = colorizeTexture(new THREE.CanvasTexture(c));
+    return makeShadowTexture.tex;
+  }
+
+  function Trail(mat) {
+    this.n = 72;
+    this.pts = new Float32Array(this.n * 2);
+    this.head = 0;
+    this.count = 0;
+    this.fill = true;
+    var n = this.n;
+    var pos = new Float32Array(n * 2 * 3);
+    var alpha = new Float32Array(n * 2);
+    var idx = [];
+    for (var i = 0; i < n - 1; i++) {
+      var a = i * 2, b = i * 2 + 1, c2 = (i + 1) * 2, d = (i + 1) * 2 + 1;
+      idx.push(a, b, c2, b, d, c2);
+    }
+    this.geo = new THREE.BufferGeometry();
+    this.geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    this.geo.setAttribute('aAlpha', new THREE.BufferAttribute(alpha, 1));
+    this.geo.setIndex(idx);
+    this.mesh = new THREE.Mesh(this.geo, mat);
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 6;
+    scene.add(this.mesh);
+  }
+  Trail.prototype.clear = function () { this.count = 0; this.fill = true; };
+  Trail.prototype.push = function (x, y) {
+    var n = this.n;
+    if (this.fill) {
+      for (var i = 0; i < n; i++) { this.pts[i * 2] = x; this.pts[i * 2 + 1] = y; }
+      this.fill = false;
+      this.count = n;
+    }
+    this.head = (this.head + 1) % n;
+    this.pts[this.head * 2] = x;
+    this.pts[this.head * 2 + 1] = y;
+  };
+  Trail.prototype.update = function () {
+    var n = this.n;
+    var pos = this.geo.attributes.position.array;
+    var al = this.geo.attributes.aAlpha.array;
+    var last = Math.max(this.count - 1, 0);
+    for (var i = 0; i < n; i++) {
+      var e0 = Math.min(i, last);
+      var e1 = Math.min(i + 1, last);
+      var s0 = (this.head - e0 + n) % n;
+      var s1 = (this.head - e1 + n) % n;
+      var x = this.pts[s0 * 2], y = this.pts[s0 * 2 + 1];
+      var dx = x - this.pts[s1 * 2], dy = y - this.pts[s1 * 2 + 1];
+      var l = Math.hypot(dx, dy);
+      if (l < 0.0001) { dx = 0; dy = 0; } else { dx /= l; dy /= l; }
+      var t = i / (n - 1);
+      var w = 1.5 * (1 - t) + 0.15;
+      var a = 0.55 * Math.pow(1 - t, 1.7);
+      var wx = x, wz = -y;
+      var ox = -dy, oz = dx;
+      var o = i * 6;
+      pos[o] = wx + ox * w * 0.5; pos[o + 1] = ALT; pos[o + 2] = wz - oz * w * 0.5;
+      pos[o + 3] = wx - ox * w * 0.5; pos[o + 4] = ALT; pos[o + 5] = wz + oz * w * 0.5;
+      al[i * 2] = a;
+      al[i * 2 + 1] = a;
+    }
+    this.geo.attributes.position.needsUpdate = true;
+    this.geo.attributes.aAlpha.needsUpdate = true;
+  };
+
+  var friendTrailMat = new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: new THREE.Color(0xe9f3ff) }, uOpacity: { value: 0.85 } },
+    vertexShader: 'attribute float aAlpha; varying float vA;\n' +
+      'void main(){ vA = aAlpha; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'uniform vec3 uColor; uniform float uOpacity; varying float vA;\n' +
+      'void main(){ gl_FragColor = vec4(uColor, vA * uOpacity); }',
+    transparent: true, depthWrite: false, side: THREE.DoubleSide
+  });
+  var enemyTrailMat = new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: new THREE.Color(0xf4e0d8) }, uOpacity: { value: 0.7 } },
+    vertexShader: friendTrailMat.vertexShader,
+    fragmentShader: friendTrailMat.fragmentShader,
+    transparent: true, depthWrite: false, side: THREE.DoubleSide
+  });
+
+  function rigFor(e) {
+    return e.type === 'bomber' ? bomberRigs[e.rigIdx % bomberRigs.length] : enemyRigs[e.rigIdx % enemyRigs.length];
+  }
+
+  var resupplyRigs = [];
+  (function initResupplyRings() {
+    for (var i = 0; i < RESUPPLY.length; i++) {
+      var rc = RESUPPLY[i];
+      var g = new THREE.Group();
+      var ring = new THREE.Mesh(new THREE.TorusGeometry(rc.r, 1.1, 8, 56),
+        new THREE.MeshBasicMaterial({ color: 0x69d8ff, transparent: true, opacity: 0.5 }));
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 3;
+      g.add(ring);
+      var glow = new THREE.Mesh(new THREE.CircleGeometry(rc.r, 48),
+        new THREE.MeshBasicMaterial({ color: 0x69d8ff, transparent: true, opacity: 0.07, depthWrite: false }));
+      glow.rotation.x = -Math.PI / 2;
+      glow.position.y = 2;
+      g.add(glow);
+      g.position.set(rc.x, 0, -rc.y);
+      scene.add(g);
+      resupplyRigs.push({ group: g, ring: ring });
+    }
+  })();
+
+  var leadRig = makeFighter({ body: 0x31517f, wing: 0x2a466f, accent: 0xd9a441, prop: 0x2a3138, canopy: 0xbfe3ff });
+  var wingRigs = [
+    makeFighter({ body: 0x31517f, wing: 0x2a466f, accent: 0xe0b34c, prop: 0x2a3138, canopy: 0xbfe3ff }),
+    makeFighter({ body: 0x31517f, wing: 0x2a466f, accent: 0xe8ecef, prop: 0x2a3138, canopy: 0xbfe3ff }),
+    makeFighter({ body: 0x31517f, wing: 0x2a466f, accent: 0x77c07a, prop: 0x2a3138, canopy: 0xbfe3ff })
+  ];
+  var enemyRigs = [
+    makeFighter({ body: 0x8a2626, wing: 0x722020, accent: 0x27242a, prop: 0x1c1c20, canopy: 0xd88a7a }),
+    makeFighter({ body: 0x8a2626, wing: 0x722020, accent: 0x27242a, prop: 0x1c1c20, canopy: 0xd88a7a }),
+    makeFighter({ body: 0x8a2626, wing: 0x722020, accent: 0x27242a, prop: 0x1c1c20, canopy: 0xd88a7a })
+  ];
+  for (var eri = 0; eri < enemyRigs.length; eri++) {
+    enemyRigs[eri].trailL.material = enemyTrailMat;
+    enemyRigs[eri].trailR.material = enemyTrailMat;
+  }
+  var bomberRigs = [
+    makeBomber(),
+    makeBomber()
+  ];
+
+  var bulletGeo = new THREE.SphereGeometry(0.7, 6, 4);
+  bulletGeo.scale(1, 1, 3.6);
+  var bulletMatP = new THREE.MeshBasicMaterial({ color: 0xffd861 });
+  var bulletMatE = new THREE.MeshBasicMaterial({ color: 0xff6a4d });
+  var bullets = [];
+  for (var bi = 0; bi < 40; bi++) {
+    var bm = new THREE.Mesh(bulletGeo, bulletMatP);
+    bm.visible = false;
+    scene.add(bm);
+    bullets.push({ active: false, x: 0, y: 0, vx: 0, vy: 0, life: 0, hostile: false, owner: null, mesh: bm });
+  }
+  function spawnBullet(x, y, vx, vy, life, hostile, owner) {
+    for (var i = 0; i < bullets.length; i++) {
+      var b = bullets[i];
+      if (!b.active) {
+        b.active = true; b.x = x; b.y = y; b.vx = vx; b.vy = vy; b.life = life; b.hostile = hostile; b.owner = owner || null;
+        b.mesh.material = hostile ? bulletMatE : bulletMatP;
+        b.mesh.visible = true;
+        return;
+      }
+    }
+  }
+  function killBullet(b) { b.active = false; b.mesh.visible = false; }
+
+  var fxPool = [];
+  var explosionCounter = 0;
+  (function buildFx() {
+    var i, j;
+    for (i = 0; i < 10; i++) {
+      var g = new THREE.Group();
+      var fire = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 9),
+        new THREE.MeshBasicMaterial({ color: 0xffc46a, transparent: true, opacity: 1, depthWrite: false }));
+      var flash = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8),
+        new THREE.MeshBasicMaterial({ color: 0xfff6dc, transparent: true, opacity: 1, depthWrite: false }));
+      var ring = new THREE.Mesh(new THREE.RingGeometry(0.55, 1, 28),
+        new THREE.MeshBasicMaterial({ color: 0xffdf9e, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }));
+      ring.rotation.x = -Math.PI / 2;
+      g.add(fire); g.add(flash); g.add(ring);
+      var debris = [], smoke = [];
+      for (j = 0; j < 8; j++) {
+        var dm = new THREE.Mesh(new THREE.TetrahedronGeometry(1.1),
+          new THREE.MeshBasicMaterial({ color: 0x3a2a20, transparent: true, opacity: 1, depthWrite: false }));
+        g.add(dm);
+        debris.push(dm);
+      }
+      for (j = 0; j < 6; j++) {
+        var sm = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6),
+          new THREE.MeshBasicMaterial({ color: 0x5d6b78, transparent: true, opacity: 0, depthWrite: false }));
+        g.add(sm);
+        smoke.push(sm);
+      }
+      g.visible = false;
+      scene.add(g);
+      fxPool.push({ g: g, fire: fire, flash: flash, ring: ring, debris: debris, smoke: smoke,
+        active: false, t0: 0, dur: 1.8, x: 0, y: 0, scale: 1,
+        dDir: new Float32Array(8), dSpd: new Float32Array(8), dUp: new Float32Array(8), dSpin: new Float32Array(8),
+        sDir: new Float32Array(6), sSpd: new Float32Array(6) });
+    }
+  })();
+  function spawnExplosion(x, y, scale) {
+    var rig = null;
+    for (var i = 0; i < fxPool.length; i++) if (!fxPool[i].active) { rig = fxPool[i]; break; }
+    if (!rig) rig = fxPool[0];
+    var rng = lcg(((++explosionCounter) * 2654435761) >>> 0 || 1);
+    rig.active = true;
+    rig.t0 = fxT;
+    rig.dur = scale < 0.5 ? 0.6 : 1.8;
+    rig.x = x; rig.y = y; rig.scale = scale || 1;
+    rig.g.position.set(x, ALT, -y);
+    rig.g.visible = true;
+    for (var j = 0; j < 8; j++) {
+      rig.dDir[j] = j * TAU / 8 + (rng() - 0.5) * 0.9;
+      rig.dSpd[j] = 16 + rng() * 16;
+      rig.dUp[j] = 10 + rng() * 16;
+      rig.dSpin[j] = rng() * 6 - 3;
+    }
+    for (j = 0; j < 6; j++) {
+      rig.sDir[j] = rng() * TAU;
+      rig.sSpd[j] = 4 + rng() * 8;
+    }
+  }
+  function updateExplosions() {
+    for (var i = 0; i < fxPool.length; i++) {
+      var rig = fxPool[i];
+      if (!rig.active) continue;
+      var age = fxT - rig.t0;
+      var s = rig.scale;
+      if (age >= rig.dur) { rig.active = false; rig.g.visible = false; continue; }
+      var k1 = clamp(age / (rig.dur * 0.32), 0, 1);
+      rig.fire.scale.setScalar((2 + 11 * easeOut(k1)) * s);
+      rig.fire.material.opacity = 1 - k1;
+      var k2 = clamp(age / 0.14, 0, 1);
+      rig.flash.scale.setScalar((3 + 5 * k2) * s);
+      rig.flash.material.opacity = 1 - k2;
+      var k3 = clamp(age / (rig.dur * 0.42), 0, 1);
+      rig.ring.scale.setScalar((4 + 30 * easeOut(k3)) * s);
+      rig.ring.material.opacity = 0.85 * (1 - k3);
+      var j;
+      for (j = 0; j < rig.debris.length; j++) {
+        var dm = rig.debris[j];
+        var ka = clamp(age / 1.1, 0, 1);
+        var d = rig.dSpd[j] * age;
+        dm.position.set(rig.x + Math.cos(rig.dDir[j]) * d, ALT + rig.dUp[j] * age - 22 * age * age, -rig.y - Math.sin(rig.dDir[j]) * d);
+        dm.rotation.set(rig.dSpin[j] * age, rig.dSpin[j] * age * 0.7, 0);
+        dm.scale.setScalar(s * (1.1 - 0.6 * ka));
+        dm.material.opacity = 1 - ka;
+      }
+      for (j = 0; j < rig.smoke.length; j++) {
+        var sm = rig.smoke[j];
+        var ks = clamp(age / rig.dur, 0, 1);
+        var d2 = rig.sSpd[j] * age;
+        sm.position.set(rig.x + Math.cos(rig.sDir[j]) * d2, ALT + 14 * age, -rig.y - Math.sin(rig.sDir[j]) * d2);
+        sm.scale.setScalar((2.5 + 7 * ks) * s);
+        sm.material.opacity = 0.42 * (1 - ks);
+      }
+    }
+  }
+
+  var S = {
+    phase: 'ready', missionTime: 0, waveNum: 1, waveState: 'PENDING', nextWaveAt: WAVE1_AT, kills: 0,
+    dryT: 0, hurtT: 0, sampleT: 0, selected: 0, orderMsg: '', orderMsgT: 0, formation: 0, roe: 0, defeatKind: 'lead', rating: null,
+    bases: [{ hp: BASE_MAX_HP }, { hp: BASE_MAX_HP }],
+    lead: { x: 0, y: -800, h: 0, throttle: 60, speed: 66, hp: LEAD_HP, ammo: AMMO_MAX, fuel: FUEL_MAX, alive: true, bank: 0, bankT: 0, propA: 0, fireT: 0 },
+    wingmen: [], enemies: []
+  };
+  var fxT = 0;
+  var camX = 0, camZ = 800;
+
+  function makeWingman(slot) {
+    var st = stationPos(slot);
+    return { id: 'W' + (slot + 1), slot: slot, x: st.x, y: st.y, h: 0, speed: 66, hp: WING_HP, alive: true,
+      bank: 0, bankT: 0, propA: 0, command: 'follow', targetId: null, ammo: 240, fireT: 0, orbitDir: 1, aimHold: 0, fuel: FUEL_MAX };
+  }
+  function resetGame() {
+    S.phase = 'ready';
+    S.missionTime = 0;
+    S.waveNum = 1;
+    S.waveState = 'PENDING';
+    S.nextWaveAt = WAVE1_AT;
+    S.kills = 0;
+    S.dryT = 0; S.hurtT = 0; S.sampleT = 0;
+    S.selected = 0; S.orderMsg = ''; S.orderMsgT = 0;
+    S.formation = 0;
+    S.roe = 0;
+    S.defeatKind = 'lead';
+    S.rating = null;
+    S.bases[0].hp = BASE_MAX_HP;
+    S.bases[1].hp = BASE_MAX_HP;
+    var L = S.lead;
+    L.x = 0; L.y = -800; L.h = 0; L.throttle = 60; L.speed = 66;
+    L.hp = LEAD_HP; L.ammo = AMMO_MAX; L.fuel = FUEL_MAX; L.alive = true; L.bank = 0; L.bankT = 0; L.propA = 0; L.fireT = 0;
+    S.wingmen = [makeWingman(0), makeWingman(1), makeWingman(2)];
+    S.enemies.length = 0;
+    for (var i = 0; i < bullets.length; i++) killBullet(bullets[i]);
+    for (i = 0; i < fxPool.length; i++) { fxPool[i].active = false; fxPool[i].g.visible = false; }
+    explosionCounter = 0;
+    fxT = 0;
+    camX = 0; camZ = 800;
+    camera.position.set(camX, ALT + 550, camZ + 120);
+    camera.lookAt(camX, ALT, camZ);
+    syncVisuals(0);
+    setOverlays();
+    updateHUD();
+  }
+
+  function stationPos(slot) {
+    var L = S.lead, c = FORMATIONS[S.formation].offs[slot];
+    var s = Math.sin(L.h), co = Math.cos(L.h);
+    return { x: L.x + c.ox * co + c.oy * s, y: L.y - c.ox * s + c.oy * co };
+  }
+
+  var input = { a: false, d: false, w: false, s: false, space: false };
+  window.addEventListener('keydown', function (e) {
+    switch (e.code) {
+      case 'KeyA': case 'ArrowLeft': input.a = true; e.preventDefault(); return;
+      case 'KeyD': case 'ArrowRight': input.d = true; e.preventDefault(); return;
+      case 'KeyW': case 'ArrowUp': input.w = true; e.preventDefault(); return;
+      case 'KeyS': case 'ArrowDown': input.s = true; e.preventDefault(); return;
+      case 'Space': input.space = true; e.preventDefault(); return;
+      case 'Tab':
+        e.preventDefault();
+        if (!e.repeat && S.phase === 'running') S.selected = (S.selected + 1) % 3;
+        return;
+      case 'Digit1': case 'Numpad1':
+        e.preventDefault();
+        if (S.phase === 'running') S.selected = 0;
+        return;
+      case 'Digit2': case 'Numpad2':
+        e.preventDefault();
+        if (S.phase === 'running') S.selected = 1;
+        return;
+      case 'Digit3': case 'Numpad3':
+        e.preventDefault();
+        if (S.phase === 'running') S.selected = 2;
+        return;
+      case 'KeyF':
+        e.preventDefault();
+        if (!e.repeat && S.phase === 'running') orderFollow();
+        return;
+      case 'KeyT':
+        e.preventDefault();
+        if (!e.repeat && S.phase === 'running') orderAttack();
+        return;
+      case 'KeyH':
+        e.preventDefault();
+        if (!e.repeat && S.phase === 'running') orderReturn();
+        return;
+      case 'KeyX':
+        e.preventDefault();
+        if (!e.repeat && S.phase === 'running') {
+          S.formation = (S.formation + 1) % 3;
+          setOrderMsg('FORMATION: ' + FORMATIONS[S.formation].name);
+        }
+        return;
+      case 'KeyO':
+        e.preventDefault();
+        if (!e.repeat && S.phase === 'running') {
+          S.roe = (S.roe + 1) % 3;
+          setOrderMsg('ROE: ' + ROES[S.roe]);
+        }
+        return;
+      case 'Enter':
+        e.preventDefault();
+        if (!e.repeat && S.phase === 'ready') { S.phase = 'running'; setOverlays(); }
+        return;
+      case 'KeyP':
+        e.preventDefault();
+        if (!e.repeat) {
+          if (S.phase === 'running') { S.phase = 'paused'; setOverlays(); }
+          else if (S.phase === 'paused') { S.phase = 'running'; setOverlays(); }
+        }
+        return;
+      case 'KeyR':
+        e.preventDefault();
+        if (!e.repeat) resetGame();
+        return;
+    }
+  });
+  window.addEventListener('keyup', function (e) {
+    switch (e.code) {
+      case 'KeyA': case 'ArrowLeft': input.a = false; return;
+      case 'KeyD': case 'ArrowRight': input.d = false; return;
+      case 'KeyW': case 'ArrowUp': input.w = false; return;
+      case 'KeyS': case 'ArrowDown': input.s = false; return;
+      case 'Space': input.space = false; return;
+    }
+  });
+  window.addEventListener('blur', function () {
+    input.a = input.d = input.w = input.s = input.space = false;
+  });
+
+  function spawnEnemy(d, sx, sy, h, rigIdx, fireT) {
+    var isBomber = d.b === 'bomber';
+    S.enemies.push({
+      id: d.id, x: sx, y: sy, h: h, mode: isBomber ? 'pursue' : (d.b === 'escort' ? 'pursue' : 'entry'),
+      entryX: d.ex, entryY: d.ey, behavior: d.b, type: isBomber ? 'bomber' : 'fighter', tb: d.tb || 0,
+      spd: isBomber ? BOMBER_SPD : ENEMY_SPD, curspd: isBomber ? BOMBER_SPD : ENEMY_SPD,
+      escortOf: d.escortOf || null, side: d.side || 0, retTarget: null, retaliationUntil: null,
+      hp: isBomber ? BOMBER_HP : ENEMY_HP, alive: true, dead: false, bank: 0, bankT: 0, propA: 0,
+      fireT: fireT, rigIdx: rigIdx, tgt: null, pickT: 0
+    });
+  }
+  function spawnWave() {
+    var def = WAVES[S.waveNum - 1];
+    var bh = {};
+    for (var i = 0; i < def.enemies.length; i++) {
+      var d0 = def.enemies[i];
+      if (d0.b === 'bomber') bh[d0.id] = Math.atan2(BASES[d0.tb].x - d0.x, BASES[d0.tb].y - d0.y);
+    }
+    for (i = 0; i < def.enemies.length; i++) {
+      var d = def.enemies[i];
+      var sx = d.x, sy = d.y, h;
+      if (d.b === 'bomber') {
+        h = bh[d.id];
+      } else if (d.b === 'escort') {
+        var hb = bh[d.escortOf];
+        h = hb;
+        sx = d.x + (d.side < 0 ? -Math.cos(hb) : Math.cos(hb)) * 40;
+        sy = d.y + (d.side < 0 ? Math.sin(hb) : -Math.sin(hb)) * 40;
+      } else {
+        h = Math.atan2(d.ex - d.x, d.ey - d.y);
+      }
+      spawnEnemy(d, sx, sy, h, i, 0.4 + i * 0.25);
+    }
+    S.waveState = 'ACTIVE';
+    S.nextWaveAt = null;
+  }
+
+  function stepSim(dt) {
+    S.missionTime += dt;
+    S.dryT = Math.max(0, S.dryT - dt);
+    S.hurtT = Math.max(0, S.hurtT - dt);
+    S.orderMsgT = Math.max(0, S.orderMsgT - dt);
+    var L = S.lead;
+
+    if (L.alive) {
+      var turnIn = (input.a ? -1 : 0) + (input.d ? 1 : 0);
+      var lowL = L.fuel < FUEL_LOW;
+      L.throttle = clamp(L.throttle + ((input.w ? 1 : 0) - (input.s ? 1 : 0)) * 40 * dt, 0, 100);
+      L.speed = (30 + 0.6 * L.throttle) * (lowL ? LOW_SPD_MULT : 1);
+      var rate = L.speed / LEAD_TURN_R * (lowL ? LOW_TURN_MULT : 1);
+      L.h = wrapAngle(L.h + turnIn * rate * dt);
+      L.bankT = clamp(-turnIn * rate * 1.05, -0.9, 0.9);
+      L.x += Math.sin(L.h) * L.speed * dt;
+      L.y += Math.cos(L.h) * L.speed * dt;
+      clampArena(L);
+      L.bank += clamp(L.bankT - L.bank, -3.2 * dt, 3.2 * dt);
+      L.propA += (5 + 50 * (L.throttle / 100)) * TAU * dt;
+      L.fireT -= dt;
+      if (input.space) {
+        if (L.ammo > 0) {
+          while (L.fireT <= 0 && L.ammo > 0) {
+            L.fireT += GUN_RATE;
+            var f0x = Math.sin(L.h), f0y = Math.cos(L.h);
+            spawnBullet(L.x + f0x * 15, L.y + f0y * 15, f0x * BULLET_SPD, f0y * BULLET_SPD, BULLET_LIFE, false, L);
+            L.ammo--;
+          }
+        } else {
+          S.dryT = 0.3;
+          if (L.fireT < 0) L.fireT = 0;
+        }
+      } else if (L.fireT < 0) {
+        L.fireT = 0;
+      }
+    }
+
+    for (var w = 0; w < S.wingmen.length; w++) {
+      var wm = S.wingmen[w];
+      if (wm.alive) stepWingman(wm, dt);
+    }
+
+    stepFuel(dt);
+
+    if ((S.waveState === 'PENDING' || S.waveState === 'CLEARED') && S.missionTime >= S.nextWaveAt) {
+      if (S.waveState === 'CLEARED') S.waveNum++;
+      spawnWave();
+    }
+
+    for (var e = S.enemies.length - 1; e >= 0; e--) stepEnemy(S.enemies[e], dt);
+
+    stepBullets(dt);
+
+    S.sampleT += dt;
+    if (S.sampleT >= 0.045) {
+      S.sampleT -= 0.045;
+      sampleTrails();
+    }
+  }
+
+  function findEnemy(id) {
+    if (!id) return null;
+    for (var i = 0; i < S.enemies.length; i++) if (S.enemies[i].id === id) return S.enemies[i];
+    return null;
+  }
+
+  function stepWingman(wm, dt) {
+    if (wm.command === 'attack') {
+      var tgt = findEnemy(wm.targetId);
+      if (!tgt) {
+        wm.command = 'follow';
+        wm.targetId = null;
+      } else {
+        stepWingmanAttack(wm, dt, tgt);
+        return;
+      }
+    }
+    if (wm.command === 'return') {
+      stepWingmanReturn(wm, dt);
+      return;
+    }
+    stepWingmanFollow(wm, dt);
+  }
+
+  function stepWingmanAttack(wm, dt, tgt) {
+    var dx = tgt.x - wm.x, dy = tgt.y - wm.y;
+    var dist = Math.hypot(dx, dy) || 0.0001;
+    var tspd = tgt.spd || ENEMY_SPD;
+    var tvx = Math.sin(tgt.h) * tspd, tvy = Math.cos(tgt.h) * tspd;
+    var tp = Math.min(dist / 99, 2);
+    var desired = Math.atan2(dx + tvx * tp, dy + tvy * tp);
+    var aErr = wrapAngle(desired - wm.h);
+    var lowF = wm.fuel < FUEL_LOW;
+    wm.speed += clamp(WING_MAX_SPD * (lowF ? LOW_SPD_MULT : 1) - wm.speed, -60 * dt, 60 * dt);
+    var maxTurn = (wm.speed / WING_TURN_R) * (lowF ? LOW_TURN_MULT : 1) * dt;
+    var dh = clamp(aErr, -maxTurn, maxTurn);
+    if (Math.abs(aErr) < 0.004) dh = 0;
+    wm.h = wrapAngle(wm.h + dh);
+    wm.bankT = clamp(-(dh / dt) * 1.05, -0.9, 0.9);
+    wm.x += Math.sin(wm.h) * wm.speed * dt;
+    wm.y += Math.cos(wm.h) * wm.speed * dt;
+    clampArena(wm);
+    wm.bank += clamp(wm.bankT - wm.bank, -3.2 * dt, 3.2 * dt);
+    wm.propA += (5 + 50 * (wm.speed / WING_MAX_SPD)) * TAU * dt;
+    var d2 = Math.hypot(tgt.x - wm.x, tgt.y - wm.y);
+    var inWin = d2 <= WING_FIRE_RANGE && d2 > 1;
+    if (inWin) {
+      var cosang = ((tgt.x - wm.x) / d2) * Math.sin(wm.h) + ((tgt.y - wm.y) / d2) * Math.cos(wm.h);
+      inWin = cosang >= WING_FIRE_COS;
+    }
+    if (inWin) wm.aimHold += dt; else wm.aimHold = 0;
+    var mayFire = wm.ammo > 0 && wm.aimHold >= WING_FIRE_HOLD;
+    if (S.roe !== 0) mayFire = false;
+    wm.fireT -= dt;
+    if (mayFire && wm.fireT <= 0) {
+      var tI = d2 / BULLET_SPD;
+      var ix = tgt.x + tvx * tI, iy = tgt.y + tvy * tI;
+      var vx = ix - wm.x, vy = iy - wm.y;
+      var vl = Math.hypot(vx, vy) || 1;
+      vx = vx / vl * BULLET_SPD;
+      vy = vy / vl * BULLET_SPD;
+      spawnBullet(wm.x + vx / BULLET_SPD * 15, wm.y + vy / BULLET_SPD * 15, vx, vy, BULLET_LIFE, false, wm);
+      wm.ammo--;
+      wm.fireT = GUN_RATE;
+    }
+    if (wm.fireT < 0) wm.fireT = 0;
+  }
+
+  function stepWingmanReturn(wm, dt) {
+    var relx = wm.x - HOME_X, rely = wm.y - HOME_Y;
+    var dist = Math.hypot(relx, rely) || 0.0001;
+    var th = Math.atan2(relx, rely);
+    var corr = clamp((dist - ORBIT_R) * 0.03, -0.7, 0.7);
+    var desired = th + wm.orbitDir * (Math.PI / 2 + corr);
+    var aErr = wrapAngle(desired - wm.h);
+    wm.speed += clamp(ORBIT_SPD * (wm.fuel < FUEL_LOW ? LOW_SPD_MULT : 1) - wm.speed, -60 * dt, 60 * dt);
+    var maxTurn = (wm.speed / WING_TURN_R) * (wm.fuel < FUEL_LOW ? LOW_TURN_MULT : 1) * dt;
+    var dh = clamp(aErr, -maxTurn, maxTurn);
+    if (Math.abs(aErr) < 0.004) dh = 0;
+    wm.h = wrapAngle(wm.h + dh);
+    wm.bankT = clamp(-(dh / dt) * 1.05, -0.9, 0.9);
+    wm.x += Math.sin(wm.h) * wm.speed * dt;
+    wm.y += Math.cos(wm.h) * wm.speed * dt;
+    clampArena(wm);
+    wm.bank += clamp(wm.bankT - wm.bank, -3.2 * dt, 3.2 * dt);
+    wm.propA += (5 + 50 * (wm.speed / WING_MAX_SPD)) * TAU * dt;
+  }
+
+  function setOrderMsg(text) {
+    S.orderMsg = text;
+    S.orderMsgT = 1.5;
+  }
+
+  function orderFollow() {
+    var wm = S.wingmen[S.selected];
+    if (!wm || !wm.alive) return;
+    wm.command = 'follow';
+    wm.targetId = null;
+    setOrderMsg(wm.id + ': FOLLOW');
+  }
+
+  function orderAttack() {
+    var wm = S.wingmen[S.selected];
+    if (!wm || !wm.alive) return;
+    var best = null, bd = Infinity;
+    for (var i = 0; i < S.enemies.length; i++) {
+      var e = S.enemies[i];
+      var d = Math.hypot(e.x - wm.x, e.y - wm.y);
+      if (d < bd) { bd = d; best = e; }
+    }
+    if (!best) {
+      S.orderMsg = 'NO TARGET';
+      S.orderMsgT = 1.5;
+      return;
+    }
+    wm.command = 'attack';
+    wm.targetId = best.id;
+    setOrderMsg(wm.id + ': ATTACK ' + best.id);
+  }
+
+  function orderReturn() {
+    var wm = S.wingmen[S.selected];
+    if (!wm || !wm.alive) return;
+    var relx = wm.x - HOME_X, rely = wm.y - HOME_Y;
+    var th = Math.atan2(relx, rely);
+    var errP = Math.abs(wrapAngle(th + Math.PI / 2 - wm.h));
+    var errN = Math.abs(wrapAngle(th - Math.PI / 2 - wm.h));
+    wm.orbitDir = errP <= errN ? 1 : -1;
+    wm.command = 'return';
+    wm.targetId = null;
+    setOrderMsg(wm.id + ': RETURN');
+  }
+
+  function stepWingmanFollow(wm, dt) {
+    var L = S.lead;
+    var st = stationPos(wm.slot);
+    var dx = st.x - wm.x, dy = st.y - wm.y;
+    var dist = Math.hypot(dx, dy) || 0.0001;
+    var tvx = Math.sin(L.h) * L.speed, tvy = Math.cos(L.h) * L.speed;
+    var sigma = Math.sqrt(2 * 60 * dist);
+    var mvx = Math.sin(wm.h) * wm.speed, mvy = Math.cos(wm.h) * wm.speed;
+    var px = -dy / dist, py = dx / dist;
+    var vPerp = (mvx - tvx) * px + (mvy - tvy) * py;
+    var dvx = tvx + (dx / dist) * sigma - px * 0.6 * vPerp;
+    var dvy = tvy + (dy / dist) * sigma - py * 0.6 * vPerp;
+    var dvm = Math.hypot(dvx, dvy) || 0.0001;
+    var target = clamp(dvm, 25, WING_MAX_SPD * (wm.fuel < FUEL_LOW ? LOW_SPD_MULT : 1));
+    var desired = Math.atan2(dvx, dvy);
+    var aErr = wrapAngle(desired - wm.h);
+    wm.speed += clamp(target - wm.speed, -80 * dt, 80 * dt);
+    var maxTurn = (wm.speed / WING_TURN_R) * (wm.fuel < FUEL_LOW ? LOW_TURN_MULT : 1) * dt;
+    var dh = clamp(aErr, -maxTurn, maxTurn);
+    if (Math.abs(aErr) < 0.004) dh = 0;
+    wm.h = wrapAngle(wm.h + dh);
+    wm.bankT = clamp(-(dh / dt) * 1.05, -0.9, 0.9);
+    wm.x += Math.sin(wm.h) * wm.speed * dt;
+    wm.y += Math.cos(wm.h) * wm.speed * dt;
+    clampArena(wm);
+    wm.bank += clamp(wm.bankT - wm.bank, -3.2 * dt, 3.2 * dt);
+    wm.propA += (5 + 50 * (wm.speed / WING_MAX_SPD)) * TAU * dt;
+  }
+
+  function pickFriendly(e) {
+    var best = S.lead.alive ? S.lead : null;
+    var bd = best ? Math.hypot(best.x - e.x, best.y - e.y) : Infinity;
+    for (var i = 0; i < S.wingmen.length; i++) {
+      var w = S.wingmen[i];
+      if (!w.alive) continue;
+      var d = Math.hypot(w.x - e.x, w.y - e.y);
+      if (d < bd) { bd = d; best = w; }
+    }
+    return best;
+  }
+
+  function stepEnemy(e, dt) {
+    var L = S.lead;
+    if (e.behavior === 'escort') {
+      var bom = findEnemy(e.escortOf);
+      if (!bom) {
+        e.behavior = 'hunter';
+        e.escortOf = null;
+        e.retTarget = null;
+        e.retaliationUntil = null;
+      } else {
+        var retT = e.retTarget;
+        var retAlive = retT && (retT === L ? L.alive : retT.alive);
+        var retActive = !!retT && !!retAlive && S.missionTime < e.retaliationUntil;
+        if (!retActive) { e.retTarget = null; e.retaliationUntil = null; }
+        if (retActive) {
+          var rdx = retT.x - e.x, rdy = retT.y - e.y;
+          var rdist = Math.hypot(rdx, rdy) || 0.0001;
+          var rtp = Math.min(rdist / ENEMY_SPD, 3);
+          var rtvx = Math.sin(retT.h) * retT.speed, rtvy = Math.cos(retT.h) * retT.speed;
+          var desired = Math.atan2(rdx + rtvx * rtp, rdy + rtvy * rtp);
+          var aErr = wrapAngle(desired - e.h);
+          var maxTurn = (ENEMY_SPD / ENEMY_TURN_R) * dt;
+          var dh = clamp(aErr, -maxTurn, maxTurn);
+          e.h = wrapAngle(e.h + dh);
+          e.bankT = clamp(-(dh / dt) * 0.9, -0.85, 0.85);
+          e.curspd = ENEMY_SPD;
+          e.x += Math.sin(e.h) * ENEMY_SPD * dt;
+          e.y += Math.cos(e.h) * ENEMY_SPD * dt;
+        } else {
+          var bfx = Math.sin(bom.h), bfy = Math.cos(bom.h);
+          var stx = bom.x - 60 * bfx + 40 * e.side * Math.cos(bom.h);
+          var sty = bom.y - 60 * bfy - 40 * e.side * Math.sin(bom.h);
+          var dx = stx - e.x, dy = sty - e.y;
+          var dist = Math.hypot(dx, dy) || 0.0001;
+          var alongB = dx * bfx + dy * bfy;
+          var bvx = bfx * bom.spd, bvy = bfy * bom.spd;
+          var tgtSpd, desired2;
+          if (alongB < 0) {
+            tgtSpd = 20;
+            desired2 = e.h;
+          } else {
+            var sigma = Math.sqrt(2 * 60 * dist);
+            var mvx = Math.sin(e.h) * e.curspd, mvy = Math.cos(e.h) * e.curspd;
+            var px2 = -dy / dist, py2 = dx / dist;
+            var vPerp = (mvx - bvx) * px2 + (mvy - bvy) * py2;
+            var dvx = bvx + (dx / dist) * sigma - px2 * 0.6 * vPerp;
+            var dvy = bvy + (dy / dist) * sigma - py2 * 0.6 * vPerp;
+            var dvm = Math.hypot(dvx, dvy) || 0.0001;
+            tgtSpd = clamp(dvm, 20, ENEMY_SPD);
+            desired2 = Math.atan2(dvx, dvy);
+            if (dvm < 20) { tgtSpd = 20; desired2 = e.h; }
+          }
+          var aErr2 = wrapAngle(desired2 - e.h);
+          var maxTurn2 = (ENEMY_SPD / ENEMY_TURN_R) * dt;
+          var dh2 = clamp(aErr2, -maxTurn2, maxTurn2);
+          if (Math.abs(aErr2) < 0.004) dh2 = 0;
+          e.h = wrapAngle(e.h + dh2);
+          e.bankT = clamp(-(dh2 / dt) * 0.9, -0.85, 0.85);
+          e.curspd += clamp(tgtSpd - e.curspd, -40 * dt, 40 * dt);
+          e.x += Math.sin(e.h) * e.curspd * dt;
+          e.y += Math.cos(e.h) * e.curspd * dt;
+        }
+        clampArena(e);
+        e.bank += clamp(e.bankT - e.bank, -3.2 * dt, 3.2 * dt);
+        e.propA += (5 + 50 * 0.6) * TAU * dt;
+        e.fireT -= dt;
+        var gt = (e.retTarget && S.missionTime < e.retaliationUntil && (e.retTarget === L ? L.alive : e.retTarget.alive)) ? e.retTarget : null;
+        if (e.fireT <= 0 && gt) {
+          var gdx = gt.x - e.x, gdy = gt.y - e.y;
+          var gd = Math.hypot(gdx, gdy);
+          if (gd <= ENEMY_FIRE_RANGE && gd > 1) {
+            var gcos = (gdx / gd) * Math.sin(e.h) + (gdy / gd) * Math.cos(e.h);
+            if (gcos >= ENEMY_FIRE_COS) {
+              var gtI = gd / EBULLET_SPD;
+              var gix = gt.x + Math.sin(gt.h) * gt.speed * gtI;
+              var giy = gt.y + Math.cos(gt.h) * gt.speed * gtI;
+              var gvx = gix - e.x, gvy = giy - e.y;
+              var gvl = Math.hypot(gvx, gvy) || 1;
+              gvx = gvx / gvl * EBULLET_SPD;
+              gvy = gvy / gvl * EBULLET_SPD;
+              spawnBullet(e.x + gvx / EBULLET_SPD * 15, e.y + gvy / EBULLET_SPD * 15, gvx, gvy, EBULLET_LIFE, true, null);
+              e.fireT = ENEMY_FIRE_INTERVAL;
+            }
+          }
+        }
+        return;
+      }
+    }
+    if (e.behavior === 'bomber') {
+      e.x += Math.sin(e.h) * BOMBER_SPD * dt;
+      e.y += Math.cos(e.h) * BOMBER_SPD * dt;
+      e.bankT = 0;
+      e.propA += 23 * TAU * dt;
+      if (Math.hypot(e.x - BASES[e.tb].x, e.y - BASES[e.tb].y) <= BASE_LEAK_R) { baseHit(e); return; }
+      clampArena(e);
+      e.bank += clamp(e.bankT - e.bank, -3.2 * dt, 3.2 * dt);
+      return;
+    }
+    if (e.mode === 'entry') {
+      var rdx = e.entryX - e.x, rdy = e.entryY - e.y;
+      var rd = Math.hypot(rdx, rdy);
+      if (rd <= ENEMY_SPD * dt) {
+        e.x = e.entryX;
+        e.y = e.entryY;
+        e.mode = 'pursue';
+        e.pickT = 0;
+      } else {
+        e.x += Math.sin(e.h) * ENEMY_SPD * dt;
+        e.y += Math.cos(e.h) * ENEMY_SPD * dt;
+      }
+      e.bankT = 0;
+    } else {
+      var tgt;
+      if (e.behavior === 'flanker') {
+        e.pickT -= dt;
+        var tgtDead = e.tgt && e.tgt !== L && !e.tgt.alive;
+        var leadDead = e.tgt === L && !L.alive;
+        if (e.pickT <= 0 || !e.tgt || tgtDead || leadDead) {
+          e.tgt = pickFriendly(e) || L;
+          e.pickT = 0.5;
+        }
+        tgt = e.tgt;
+      } else {
+        tgt = L;
+      }
+      var dx = tgt.x - e.x, dy = tgt.y - e.y;
+      var dist = Math.hypot(dx, dy) || 0.0001;
+      var tp = Math.min(dist / ENEMY_SPD, 3);
+      var pvx = Math.sin(tgt.h) * tgt.speed;
+      var pvy = Math.cos(tgt.h) * tgt.speed;
+      var desired = Math.atan2(dx + pvx * tp, dy + pvy * tp);
+      var aErr = wrapAngle(desired - e.h);
+      var maxTurn = (ENEMY_SPD / ENEMY_TURN_R) * dt;
+      var dh = clamp(aErr, -maxTurn, maxTurn);
+      e.h = wrapAngle(e.h + dh);
+      e.bankT = clamp(-(dh / dt) * 0.9, -0.85, 0.85);
+      e.x += Math.sin(e.h) * ENEMY_SPD * dt;
+      e.y += Math.cos(e.h) * ENEMY_SPD * dt;
+    }
+    clampArena(e);
+    e.bank += clamp(e.bankT - e.bank, -3.2 * dt, 3.2 * dt);
+    e.propA += (5 + 50 * 0.6) * TAU * dt;
+
+    e.fireT -= dt;
+    var gt = null;
+    if (e.behavior === 'flanker') {
+      if (e.mode === 'pursue') gt = e.tgt;
+    } else {
+      gt = L;
+    }
+    var gtAlive = gt && (gt === L ? L.alive : gt.alive);
+    if (e.fireT <= 0 && gtAlive) {
+      var ddx = gt.x - e.x, ddy = gt.y - e.y;
+      var d = Math.hypot(ddx, ddy);
+      if (d <= ENEMY_FIRE_RANGE && d > 1) {
+        var cosang = (ddx / d) * Math.sin(e.h) + (ddy / d) * Math.cos(e.h);
+        if (cosang >= ENEMY_FIRE_COS) {
+          var tI = d / EBULLET_SPD;
+          var ix = gt.x + Math.sin(gt.h) * gt.speed * tI;
+          var iy = gt.y + Math.cos(gt.h) * gt.speed * tI;
+          var vx = ix - e.x, vy = iy - e.y;
+          var vl = Math.hypot(vx, vy) || 1;
+          vx = vx / vl * EBULLET_SPD;
+          vy = vy / vl * EBULLET_SPD;
+          spawnBullet(e.x + vx / EBULLET_SPD * 15, e.y + vy / EBULLET_SPD * 15, vx, vy, EBULLET_LIFE, true, null);
+          e.fireT = ENEMY_FIRE_INTERVAL;
+        }
+      }
+    }
+  }
+
+  function inResupply(x, y) {
+    for (var i = 0; i < RESUPPLY.length; i++) {
+      var r = RESUPPLY[i];
+      if (Math.hypot(x - r.x, y - r.y) <= r.r) return true;
+    }
+    return false;
+  }
+
+  function stepFuel(dt) {
+    var L = S.lead;
+    if (L.alive) {
+      L.fuel = Math.max(0, L.fuel - FUEL_BURN * dt);
+      if (inResupply(L.x, L.y)) {
+        L.fuel = Math.min(FUEL_MAX, L.fuel + FUEL_RATE * dt);
+        L.ammo = Math.min(AMMO_MAX, L.ammo + AMMO_RATE * dt);
+      }
+      if (L.fuel <= 0) doFuelDefeat();
+    }
+    for (var i = 0; i < S.wingmen.length; i++) {
+      var wm = S.wingmen[i];
+      if (!wm.alive) continue;
+      wm.fuel = Math.max(0, wm.fuel - FUEL_BURN * dt);
+      if (inResupply(wm.x, wm.y)) {
+        wm.fuel = Math.min(FUEL_MAX, wm.fuel + FUEL_RATE * dt);
+        wm.ammo = Math.min(AMMO_MAX, wm.ammo + AMMO_RATE * dt);
+      }
+      if (wm.fuel <= 0) wingDown(wm);
+    }
+  }
+
+  function doFuelDefeat() {
+    if (S.phase !== 'running') return;
+    S.phase = 'defeat';
+    S.defeatKind = 'fuel';
+    setOverlays();
+  }
+
+  function stepBullets(dt) {
+    var L = S.lead;
+    for (var i = 0; i < bullets.length; i++) {
+      var b = bullets[i];
+      if (!b.active) continue;
+      var px = b.x, py = b.y;
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.life -= dt;
+      if (b.life <= 0) { killBullet(b); continue; }
+      var hit = false;
+      if (b.hostile) {
+        if (L.alive && segDist2(px, py, b.x, b.y, L.x, L.y) <= HIT_R2) {
+          damageFriendly(L, b);
+          hit = true;
+        }
+        if (!hit) {
+          for (var w = 0; w < S.wingmen.length; w++) {
+            var wm = S.wingmen[w];
+            if (wm.alive && segDist2(px, py, b.x, b.y, wm.x, wm.y) <= HIT_R2) {
+              damageFriendly(wm, b);
+              hit = true;
+              break;
+            }
+          }
+        }
+      } else {
+        for (var e = 0; e < S.enemies.length; e++) {
+          var en = S.enemies[e];
+          var hr = en.type === 'bomber' ? BOMBER_HIT_R : 13;
+          if (segDist2(px, py, b.x, b.y, en.x, en.y) <= hr * hr) {
+            hit = true;
+            en.hp -= BULLET_DMG;
+            spawnExplosion(b.x, b.y, 0.32);
+            if (en.behavior === 'escort') {
+              en.retTarget = b.owner || S.lead;
+              en.retaliationUntil = S.missionTime + 5.0;
+            }
+            if (en.hp <= 0) destroyEnemy(en);
+            break;
+          }
+        }
+      }
+      if (hit) killBullet(b);
+    }
+    for (i = S.enemies.length - 1; i >= 0; i--) {
+      if (S.enemies[i].dead) S.enemies.splice(i, 1);
+    }
+    if (S.waveState === 'ACTIVE' && S.enemies.length === 0) {
+      if (S.waveNum >= 6) {
+        S.waveState = 'DONE';
+        S.nextWaveAt = null;
+        if (L.alive && S.phase === 'running') {
+          S.phase = 'victory';
+          setOverlays();
+        }
+      } else {
+        S.waveState = 'CLEARED';
+        S.nextWaveAt = S.missionTime + WAVE_GAP;
+      }
+    }
+  }
+
+  function damageFriendly(t, b) {
+    t.hp -= EBULLET_DMG;
+    spawnExplosion(b.x, b.y, 0.32);
+    if (t === S.lead) S.hurtT = 0.4;
+    if (t.hp <= 0) {
+      t.hp = 0;
+      if (t === S.lead) doDefeat();
+      else wingDown(t);
+    }
+  }
+
+  function cleanupEnemy(e) {
+    for (var i = 0; i < S.wingmen.length; i++) {
+      var wm = S.wingmen[i];
+      if (wm.command === 'attack' && wm.targetId === e.id) {
+        wm.command = 'follow';
+        wm.targetId = null;
+        setOrderMsg(wm.id + ': TARGET DOWN \u2014 FOLLOW');
+      }
+    }
+    var rig = rigFor(e);
+    rig.trailL.clear();
+    rig.trailR.clear();
+  }
+
+  function destroyEnemy(e) {
+    e.dead = true;
+    S.kills++;
+    spawnExplosion(e.x, e.y, 1);
+    cleanupEnemy(e);
+  }
+
+  function baseHit(e) {
+    e.dead = true;
+    spawnExplosion(e.x, e.y, 1.7);
+    cleanupEnemy(e);
+    S.bases[e.tb].hp = Math.max(0, S.bases[e.tb].hp - BOMBER_DMG);
+    if (S.bases[e.tb].hp <= 0) doBaseDefeat();
+  }
+
+  function wingDown(wm) {
+    wm.alive = false;
+    wm.aimHold = 0;
+    spawnExplosion(wm.x, wm.y, 0.9);
+    var rig = wingRigs[wm.slot];
+    rig.trailL.clear();
+    rig.trailR.clear();
+  }
+
+  function doDefeat() {
+    if (S.phase !== 'running') return;
+    S.phase = 'defeat';
+    S.defeatKind = 'lead';
+    S.lead.alive = false;
+    spawnExplosion(S.lead.x, S.lead.y, 1.15);
+    leadRig.trailL.clear();
+    leadRig.trailR.clear();
+    setOverlays();
+  }
+
+  function doBaseDefeat() {
+    if (S.phase !== 'running') return;
+    S.phase = 'defeat';
+    S.defeatKind = 'base';
+    setOverlays();
+  }
+
+  function sampleTrails() {
+    var L = S.lead;
+    if (L.alive) pushAircraftTrail(leadRig, L);
+    for (var i = 0; i < S.wingmen.length; i++) {
+      var wm = S.wingmen[i];
+      if (wm.alive) pushAircraftTrail(wingRigs[wm.slot], wm);
+    }
+    for (var e = 0; e < S.enemies.length; e++) {
+      pushAircraftTrail(rigFor(S.enemies[e]), S.enemies[e]);
+    }
+  }
+  function pushAircraftTrail(rig, a) {
+    var co = Math.cos(a.h), si = Math.sin(a.h);
+    var bx = a.x - si * 1.5, by = a.y - co * 1.5;
+    var ts = rig.tipSpan || 9.2;
+    rig.trailL.push(bx - co * ts, by + si * ts);
+    rig.trailR.push(bx + co * ts, by - si * ts);
+  }
+
+  function syncAircraft(rig, a) {
+    rig.group.visible = true;
+    rig.shadow.visible = true;
+    rig.group.position.set(a.x, ALT, -a.y);
+    rig.group.rotation.y = -a.h;
+    rig.roll.rotation.z = a.bank;
+    var props = rig.props || [rig.prop];
+    for (var pi = 0; pi < props.length; pi++) props[pi].rotation.z = -a.propA;
+    rig.shadow.position.set(a.x, 12, -a.y);
+  }
+  function syncVisuals(dt) {
+    if (S.phase === 'running') {
+      var k = Math.min(1, 4.2 * dt);
+      camX += (S.lead.x - camX) * k;
+      camZ += (-S.lead.y - camZ) * k;
+      camera.position.set(camX, ALT + 550, camZ + 120);
+      camera.lookAt(camX, ALT, camZ);
+    }
+    var L = S.lead;
+    leadRig.group.visible = L.alive;
+    leadRig.shadow.visible = L.alive;
+    if (L.alive) {
+      syncAircraft(leadRig, L);
+      leadRig.blur.material.opacity = 0.1 + 0.28 * (L.throttle / 100);
+    }
+    for (var i = 0; i < S.wingmen.length; i++) {
+      var wm = S.wingmen[i];
+      var rig = wingRigs[wm.slot];
+      rig.group.visible = wm.alive;
+      rig.shadow.visible = wm.alive;
+      if (wm.alive) {
+        syncAircraft(rig, wm);
+        rig.blur.material.opacity = 0.1 + 0.28 * (wm.speed / WING_MAX_SPD);
+      }
+    }
+    var ri2;
+    for (ri2 = 0; ri2 < enemyRigs.length; ri2++) {
+      enemyRigs[ri2].group.visible = false;
+      enemyRigs[ri2].shadow.visible = false;
+    }
+    for (ri2 = 0; ri2 < bomberRigs.length; ri2++) {
+      bomberRigs[ri2].group.visible = false;
+      bomberRigs[ri2].shadow.visible = false;
+    }
+    for (i = 0; i < S.enemies.length; i++) {
+      var en = S.enemies[i];
+      var erig = rigFor(en);
+      syncAircraft(erig, en);
+      var eblurs = erig.blurs || [erig.blur];
+      for (ri2 = 0; ri2 < eblurs.length; ri2++) eblurs[ri2].material.opacity = 0.24;
+    }
+    for (i = 0; i < bullets.length; i++) {
+      var b = bullets[i];
+      if (b.active) {
+        b.mesh.position.set(b.x, ALT - 0.8, -b.y);
+        b.mesh.rotation.y = Math.atan2(b.vx, -b.vy);
+      }
+    }
+    leadRig.trailL.update(); leadRig.trailR.update();
+    for (i = 0; i < wingRigs.length; i++) {
+      wingRigs[i].trailL.update();
+      wingRigs[i].trailR.update();
+    }
+    for (i = 0; i < enemyRigs.length; i++) {
+      enemyRigs[i].trailL.update();
+      enemyRigs[i].trailR.update();
+    }
+    updateExplosions();
+    for (var rr2 = 0; rr2 < resupplyRigs.length; rr2++) {
+      resupplyRigs[rr2].ring.material.opacity = 0.38 + 0.2 * Math.sin(fxT * 2 + rr2 * 1.3);
+    }
+    buoyBeaconMat.emissiveIntensity = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(fxT * 2.4));
+  }
+
+  function setOverlays() {
+    els.scrReady.classList.toggle('hidden', S.phase !== 'ready');
+    els.scrPause.classList.toggle('hidden', S.phase !== 'paused');
+    els.scrEnd.classList.toggle('hidden', S.phase !== 'defeat' && S.phase !== 'victory');
+    if (S.phase === 'defeat' || S.phase === 'victory') {
+      els.endStats.classList.toggle('hidden', S.phase === 'victory');
+      els.endDebrief.classList.toggle('hidden', S.phase !== 'victory');
+      els.endRatingBox.classList.toggle('hidden', S.phase !== 'victory');
+      if (S.phase === 'defeat') {
+        els.endTitle.classList.add('red');
+        els.endTitle.textContent = 'MISSION FAILED';
+        if (S.defeatKind === 'base') {
+          els.endSub.textContent = 'A base has been destroyed. The cloud sea cannot be held.';
+        } else if (S.defeatKind === 'fuel') {
+          els.endSub.textContent = 'The tanks ran dry over the cloud sea. The flight glides down together.';
+        } else {
+          els.endSub.textContent = 'Your fighter was shot down. The squadron presses on without you.';
+        }
+        els.endStats.textContent = 'MISSION TIME ' + S.missionTime.toFixed(1) + 's \u00b7 KILLS ' + S.kills;
+      } else {
+        var wmAlive = 0;
+        for (var wi3 = 0; wi3 < S.wingmen.length; wi3++) if (S.wingmen[wi3].alive) wmAlive++;
+        var minBase = Math.min(S.bases[0].hp, S.bases[1].hp);
+        var rating = 'B';
+        if (minBase >= 80 && wmAlive === 3) rating = 'S';
+        else if (minBase >= 40 && wmAlive >= 2) rating = 'A';
+        S.rating = rating;
+        els.endTitle.classList.remove('red');
+        els.endTitle.textContent = 'CAMPAIGN COMPLETE';
+        els.endSub.textContent = 'All six waves are splashed and both bases still stand. The sector is yours, Commander.';
+        els.endDebrief.innerHTML =
+          '<div class="dl">TOTAL KILLS</div><div class="dv">' + S.kills + '</div>' +
+          '<div class="dl">BASE SOUTH</div><div class="dv">' + S.bases[0].hp + ' / 100</div>' +
+          '<div class="dl">BASE EAST</div><div class="dv">' + S.bases[1].hp + ' / 100</div>' +
+          '<div class="dl">WINGMEN SURVIVED</div><div class="dv">' + wmAlive + ' / 3</div>' +
+          '<div class="dl">MISSION TIME</div><div class="dv">' + S.missionTime.toFixed(1) + 's</div>';
+        els.endRating.textContent = rating;
+      }
+    }
+  }
+
+  function updateHUD() {
+    var L = S.lead;
+    var t = S.missionTime;
+    els.formLbl.textContent = 'FORMATION ' + FORMATIONS[S.formation].name;
+    els.roeLbl.textContent = 'ROE ' + ROES[S.roe];
+    if (S.waveState === 'PENDING') {
+      els.waveLbl.textContent = 'WAVE ' + S.waveNum + '/6 INBOUND T-' + Math.max(0, S.nextWaveAt - t).toFixed(1);
+    } else if (S.waveState === 'CLEARED') {
+      els.waveLbl.textContent = 'WAVE ' + S.waveNum + '/6 CLEARED';
+    } else if (S.waveState === 'DONE') {
+      els.waveLbl.textContent = 'WAVE 6/6 CLEARED';
+    } else {
+      var n = S.enemies.length;
+      els.waveLbl.textContent = 'WAVE ' + S.waveNum + '/6 \u00b7 ' + n + ' HOSTILE' + (n === 1 ? '' : 'S');
+    }
+    var banner = (S.waveState === 'PENDING' || S.waveState === 'CLEARED') && S.nextWaveAt !== null &&
+      t >= S.nextWaveAt - 3.0 && t <= S.nextWaveAt - 1.0;
+    els.waveBanner.classList.toggle('hidden', !banner);
+    if (banner) {
+      var inc = S.waveNum + (S.waveState === 'CLEARED' ? 1 : 0);
+      els.waveBanner.textContent = 'WAVE ' + inc + ' INBOUND \u2014 ' + WAVES[inc - 1].dir;
+    }
+    els.killLbl.textContent = 'KILLS ' + S.kills;
+    var hp = Math.max(0, Math.round(L.hp));
+    els.hpFill.style.width = clamp(hp, 0, 100) + '%';
+    els.hpNum.textContent = hp;
+    els.thrFill.style.width = clamp(L.throttle, 0, 100) + '%';
+    els.thrNum.textContent = Math.round(L.throttle);
+    els.baseSFill.style.width = clamp(S.bases[0].hp, 0, 100) + '%';
+    els.baseSNum.textContent = Math.max(0, Math.round(S.bases[0].hp));
+    els.baseEFill.style.width = clamp(S.bases[1].hp, 0, 100) + '%';
+    els.baseENum.textContent = Math.max(0, Math.round(S.bases[1].hp));
+    els.fuelFill.style.width = clamp(L.fuel / FUEL_MAX * 100, 0, 100) + '%';
+    els.fuelNum.textContent = Math.round(L.fuel);
+    els.lowFuelLbl.classList.toggle('hidden', !(L.alive && L.fuel < FUEL_LOW));
+    els.spdNum.textContent = Math.round(L.speed);
+    els.ammoNum.textContent = L.ammo;
+    els.ammoNum.classList.toggle('dry', S.dryT > 0 || L.ammo <= 0);
+    els.clockNum.textContent = t.toFixed(1);
+    els.hurt.style.opacity = S.hurtT > 0 ? Math.min(0.75, S.hurtT * 2.2) : 0;
+    for (var i = 0; i < S.wingmen.length; i++) {
+      var wm = S.wingmen[i];
+      var cell = els.wg[i];
+      cell.classList.toggle('sel', i === S.selected);
+      els.wgs[i].textContent = (i === S.selected ? '\u25B8 ' : '') + wm.id;
+      if (wm.alive) {
+        cell.classList.remove('down');
+        els.wgn[i].textContent = Math.max(0, Math.round(wm.hp));
+        els.wgf[i].style.width = clamp(wm.hp / WING_HP * 100, 0, 100) + '%';
+        els.wgc[i].textContent = wm.command.toUpperCase() + (wm.command === 'attack' && wm.targetId ? ' \u2192 ' + wm.targetId : '');
+        els.wgc[i].className = 'cmd cmd-' + wm.command;
+        els.wga[i].textContent = wm.ammo;
+        els.wgu[i].textContent = Math.round(wm.fuel);
+        els.wgu[i].classList.toggle('low', wm.fuel < FUEL_LOW);
+      } else {
+        cell.classList.add('down');
+        els.wgn[i].textContent = 'LOST';
+        els.wgf[i].style.width = '0%';
+        els.wgc[i].textContent = '\u2014';
+        els.wgc[i].className = 'cmd';
+        els.wga[i].textContent = wm.ammo;
+        els.wgu[i].textContent = '\u2014';
+        els.wgu[i].classList.remove('low');
+      }
+    }
+    els.orderMsg.textContent = S.orderMsg;
+    els.orderMsg.style.opacity = S.orderMsgT > 0 ? Math.min(1, S.orderMsgT * 3) : 0;
+  }
+
+  var MAP_SCALE = 160 / 2000;
+  function mapX(x) { return (x + 1000) * MAP_SCALE; }
+  function mapY(y) { return (1000 - y) * MAP_SCALE; }
+  function drawMinimap() {
+    var ctx = mmCtx;
+    ctx.clearRect(0, 0, 160, 160);
+    ctx.fillStyle = 'rgba(9,17,33,0.55)';
+    ctx.fillRect(0, 0, 160, 160);
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    for (var i = 0; i < BANKS.length; i++) {
+      ctx.beginPath();
+      ctx.arc(mapX(BANKS[i][0]), mapY(BANKS[i][1]), BANKS[i][2] * MAP_SCALE, 0, TAU);
+      ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(105,216,255,0.45)';
+    ctx.lineWidth = 1;
+    for (i = 0; i < RESUPPLY.length; i++) {
+      ctx.beginPath();
+      ctx.arc(mapX(RESUPPLY[i].x), mapY(RESUPPLY[i].y), RESUPPLY[i].r * MAP_SCALE, 0, TAU);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(217,164,65,0.9)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(mapX(-950), mapY(950), 1900 * MAP_SCALE, 1900 * MAP_SCALE);
+    for (i = 0; i < BASES.length; i++) {
+      ctx.fillStyle = 'rgba(217,164,65,0.95)';
+      ctx.fillRect(mapX(BASES[i].x) - 2, mapY(BASES[i].y) - 2, 4, 4);
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(mapX(BASES[i].x), mapY(BASES[i].y), 6, 0, TAU); ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(224,123,79,0.9)';
+    ctx.beginPath(); ctx.arc(mapX(500), mapY(500), 2, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(143,160,176,0.9)';
+    ctx.fillRect(mapX(-450) - 3, mapY(-300) - 1, 6, 2);
+    for (i = 0; i < S.wingmen.length; i++) {
+      var wm = S.wingmen[i];
+      if (!wm.alive) continue;
+      ctx.fillStyle = '#58a6ff';
+      ctx.beginPath(); ctx.arc(mapX(wm.x), mapY(wm.y), 3, 0, TAU); ctx.fill();
+      if (i === S.selected) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(mapX(wm.x), mapY(wm.y), 5.5, 0, TAU); ctx.stroke();
+      }
+    }
+    if (S.lead.alive) {
+      ctx.fillStyle = '#9ccaff';
+      ctx.beginPath(); ctx.arc(mapX(S.lead.x), mapY(S.lead.y), 4, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(mapX(S.lead.x), mapY(S.lead.y), 5.5, 0, TAU); ctx.stroke();
+    }
+    ctx.fillStyle = '#ff5340';
+    for (i = 0; i < S.enemies.length; i++) {
+      var en = S.enemies[i];
+      if (en.type === 'bomber') {
+        ctx.save();
+        ctx.translate(mapX(en.x), mapY(en.y));
+        ctx.rotate(Math.PI / 4);
+        ctx.fillRect(-3.5, -3.5, 7, 7);
+        ctx.restore();
+      } else {
+        ctx.beginPath(); ctx.arc(mapX(en.x), mapY(en.y), 3.5, 0, TAU); ctx.fill();
+      }
+    }
+    ctx.fillStyle = 'rgba(234,242,252,0.8)';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('N', 80, 13);
+  }
+
+  function publishState() {
+    function r2(v) { return Math.round(v * 100) / 100; }
+    function r4(v) { return Math.round(v * 10000) / 10000; }
+    var L = S.lead;
+    var st = null;
+    window.__arena_state = Object.freeze({
+      phase: S.phase,
+      time: Math.round(S.missionTime * 1000) / 1000,
+      wave: 1,
+      kills: S.kills,
+      selectedWingman: S.wingmen[S.selected] ? S.wingmen[S.selected].id : null,
+      formation: FORMATIONS[S.formation].name,
+      roe: ROES[S.roe],
+      bases: Object.freeze(BASES.map(function (b, bi2) { return Object.freeze({ pos: Object.freeze({ x: b.x, y: b.y }), hp: S.bases[bi2].hp }); })),
+      resupply: Object.freeze(RESUPPLY.map(function (r) { return Object.freeze({ x: r.x, y: r.y, r: r.r }); })),
+      rating: S.rating,
+      wave: S.waveNum,
+      waveState: S.waveState,
+      nextWaveAt: S.nextWaveAt === null ? null : Math.round(S.nextWaveAt * 1000) / 1000,
+      lead: Object.freeze({
+        pos: Object.freeze({ x: r2(L.x), y: r2(L.y) }),
+        heading: r4(L.h), speed: r2(L.speed), throttle: r2(L.throttle),
+        hp: Math.max(0, Math.round(L.hp)), ammo: L.ammo, fuel: r2(L.fuel)
+      }),
+      wingmen: Object.freeze(S.wingmen.map(function (w) {
+        st = stationPos(w.slot);
+        return Object.freeze({
+          id: w.id,
+          pos: Object.freeze({ x: r2(w.x), y: r2(w.y) }),
+          heading: r4(w.h),
+          hp: Math.max(0, Math.round(w.hp)),
+          stationError: r2(w.alive ? Math.hypot(st.x - w.x, st.y - w.y) : 0),
+          station: Object.freeze({ x: r2(st.x), y: r2(st.y) }),
+          command: w.command.toUpperCase(),
+          targetId: w.targetId,
+          ammo: w.ammo,
+          aimHold: r2(w.aimHold),
+          fuel: r2(w.fuel)
+        });
+      })),
+      enemies: Object.freeze(S.enemies.map(function (e) {
+        return Object.freeze({
+          id: e.id,
+          hp: Math.max(0, Math.round(e.hp)),
+          pos: Object.freeze({ x: r2(e.x), y: r2(e.y) }),
+          behavior: e.behavior,
+          type: e.type,
+          escortOf: e.escortOf || null,
+          retaliationUntil: e.retaliationUntil === null || e.retaliationUntil === undefined ? null : Math.round(e.retaliationUntil * 1000) / 1000
+        });
+      }))
+    });
+  }
+
+  var edgeArrows = [];
+  (function initEdgeArrows() {
+    var hud = document.getElementById('hud');
+    for (var i = 0; i < 4; i++) {
+      var d = document.createElement('div');
+      d.className = 'edgeArrow';
+      d.style.display = 'none';
+      hud.appendChild(d);
+      edgeArrows.push(d);
+    }
+  })();
+  var _projView = new THREE.Vector3();
+  var _projNdc = new THREE.Vector3();
+  function updateEdgeIndicators() {
+    var count = 0;
+    for (var i = 0; i < S.enemies.length && count < edgeArrows.length; i++) {
+      var e = S.enemies[i];
+      _projView.set(e.x, ALT, -e.y).applyMatrix4(camera.matrixWorldInverse);
+      var behind = _projView.z > 0;
+      _projNdc.copy(_projView).applyMatrix4(camera.projectionMatrix);
+      var nx = _projNdc.x, ny = _projNdc.y;
+      if (behind) { nx = -nx; ny = -ny; }
+      if (!behind && Math.abs(nx) <= 1 && Math.abs(ny) <= 1) continue;
+      var l = Math.hypot(nx, ny) || 0.0001;
+      var dx = nx / l, dy = ny / l;
+      var sc = 0.9 / Math.max(Math.abs(dx), Math.abs(dy));
+      var pxX = (dx * sc + 1) / 2 * window.innerWidth;
+      var pxY = (1 - dy * sc) / 2 * window.innerHeight;
+      var a = edgeArrows[count++];
+      a.style.display = 'block';
+      a.style.left = pxX + 'px';
+      a.style.top = pxY + 'px';
+      a.style.transform = 'rotate(' + Math.atan2(-dy, dx) + 'rad)';
+    }
+    for (i = count; i < edgeArrows.length; i++) edgeArrows[i].style.display = 'none';
+  }
+
+  window.addEventListener('resize', function () {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  var lastT = 0, acc = 0;
+  function loop(t) {
+    requestAnimationFrame(loop);
+    var dt = Math.min(0.1, (t - lastT) / 1000 || 0);
+    lastT = t;
+    if (S.phase === 'running') {
+      acc += dt;
+      var steps = 0;
+      while (acc >= SIM_DT && steps < 240) {
+        stepSim(SIM_DT);
+        acc -= SIM_DT;
+        steps++;
+        if (S.phase !== 'running') { acc = 0; break; }
+      }
+    }
+    if (S.phase === 'running' || S.phase === 'defeat' || S.phase === 'victory') fxT += dt;
+    syncVisuals(dt);
+    updateHUD();
+    drawMinimap();
+    publishState();
+    renderer.render(scene, camera);
+    updateEdgeIndicators();
+  }
+  resetGame();
+  requestAnimationFrame(loop);
+  }
+})();
+</script>
+</body>
+</html>

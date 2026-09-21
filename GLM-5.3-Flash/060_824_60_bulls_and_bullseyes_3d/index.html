@@ -1,0 +1,2226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Bulls &amp; Bullseyes — 3D Pub Darts</title>
+<style>
+  :root{
+    --panel: rgba(26,15,8,0.78);
+    --line: rgba(255,187,105,0.28);
+    --amber:#ffcf8a;
+    --cream:#fff3d9;
+    --font-ui:"Trebuchet MS","Segoe UI",Verdana,sans-serif;
+    --font-chalk:"Comic Sans MS","Chalkboard SE","Segoe Print",cursive;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#120a06;}
+  body{font-family:var(--font-ui);color:var(--cream);}
+  #gl{position:fixed;inset:0;display:block;z-index:0;}
+  #vignette{position:fixed;inset:0;z-index:5;pointer-events:none;
+    background:radial-gradient(ellipse at 50% 42%, rgba(0,0,0,0) 52%, rgba(16,7,3,0.55) 100%);}
+  .hud{position:fixed;z-index:10;pointer-events:none;}
+  .hidden{display:none !important;}
+
+  #topbar{top:14px;left:0;right:0;display:flex;justify-content:center;gap:14px;}
+  .panel{background:var(--panel);border:2px solid var(--line);border-radius:14px;
+    padding:8px 18px;text-align:center;min-width:132px;box-shadow:0 4px 14px rgba(0,0,0,0.4);}
+  .panel .lbl{font-size:11px;letter-spacing:2px;color:var(--amber);text-transform:uppercase;}
+  .panel .val{font-size:26px;font-weight:bold;line-height:1.15;}
+  .panel .sub{font-size:12px;color:#e8c896;letter-spacing:1px;margin-top:2px;}
+
+  #meterWrap{bottom:42px;left:50%;transform:translateX(-50%);width:380px;text-align:center;
+    opacity:0;transition:opacity .15s;}
+  #meterWrap.visible{opacity:1;}
+  .meterLabel{font-size:13px;letter-spacing:2px;color:var(--amber);margin-bottom:5px;}
+  .meterLabel b{color:var(--cream);font-size:16px;}
+  #meterBar{height:20px;background:rgba(0,0,0,0.6);border:2px solid var(--line);
+    border-radius:10px;overflow:hidden;}
+  #meterFill{height:100%;width:0%;
+    background:linear-gradient(90deg,#7ec850 0%,#ffd166 55%,#e5484d 100%);}
+  #scatterVal{font-size:13px;color:var(--amber);letter-spacing:1px;margin-top:6px;
+    text-shadow:0 1px 2px rgba(0,0,0,0.8);}
+
+  #popup{top:17%;left:50%;transform:translateX(-50%) scale(0.7);opacity:0;
+    font-family:var(--font-chalk);font-size:46px;font-weight:bold;color:var(--cream);
+    text-shadow:0 3px 0 rgba(60,20,0,0.85),0 0 22px rgba(255,170,80,0.5);
+    transition:opacity .18s,transform .18s;white-space:nowrap;}
+  #popup.visible{opacity:1;transform:translateX(-50%) scale(1);}
+  #popup.zero{color:#b8b0a4;}
+
+  #banner{top:40%;left:50%;transform:translate(-50%,-50%);background:var(--panel);
+    border:3px solid var(--line);border-radius:18px;padding:22px 44px;text-align:center;
+    font-size:34px;font-weight:bold;color:var(--cream);box-shadow:0 8px 30px rgba(0,0,0,0.6);
+    text-shadow:0 2px 0 rgba(60,20,0,0.8);}
+  #banner small{display:block;font-size:14px;font-weight:normal;color:var(--amber);
+    letter-spacing:2px;margin-top:8px;}
+  #banner.bust{border-color:rgba(255,90,60,0.65);color:#ff6a55;
+    animation:bustFlash 0.42s ease-in-out infinite;}
+  @keyframes bustFlash{0%,100%{opacity:1;}50%{opacity:0.4;}}
+  #banner.gameshot{border-color:rgba(255,215,120,0.85);color:#ffe9a8;
+    box-shadow:0 0 44px rgba(255,180,70,0.35),0 8px 30px rgba(0,0,0,0.6);}
+  #banner.tier180{border-color:rgba(255,215,110,0.9);color:#ffe9a8;
+    box-shadow:0 0 46px rgba(255,190,70,0.5),0 8px 30px rgba(0,0,0,0.6);
+    text-shadow:0 2px 0 rgba(90,45,0,0.85),0 0 26px rgba(255,200,90,0.55);}
+  #banner.tier140{border-color:rgba(255,200,130,0.55);color:#ffd98f;}
+  #banner.tier100{border-color:rgba(255,200,130,0.35);color:#f3e3c2;}
+
+  .panel-big .val{font-size:42px;line-height:1.05;color:#ffd98f;
+    text-shadow:0 0 20px rgba(255,170,60,0.5);}
+  .panel-big .val.busted{color:#ff5a45;text-shadow:0 0 18px rgba(255,60,30,0.6);}
+
+  #scoreboard{left:14px;top:14px;width:640px;background:var(--panel);
+    border:2px solid var(--line);border-radius:14px;padding:10px 14px 12px;}
+  .sbCols{display:flex;}
+  .sbCol{flex:1;min-width:0;}
+  .sbCol + .sbCol{border-left:1px solid var(--line);padding-left:14px;}
+  .sbTitle{font-size:11px;letter-spacing:2px;color:var(--amber);
+    text-transform:uppercase;margin-bottom:6px;}
+  .sbRow{display:flex;gap:8px;font-size:13px;line-height:1.8;color:#f3e3c2;
+    font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .sbRow span:first-child{width:40px;color:var(--amber);}
+  .sbRow .sbD{flex:1;overflow:hidden;}
+  .sbRow span:nth-child(3){width:46px;text-align:right;}
+  .sbRow span:nth-child(4){width:52px;text-align:right;font-weight:bold;color:#ffe9bf;}
+  .sbHead{font-size:10px;letter-spacing:1px;color:var(--amber);opacity:0.9;}
+  .sbHead span{font-weight:normal;}
+  .sbLive{color:#ffcf8a;font-style:italic;}
+  .sbBust span:nth-child(3){color:#ff5a45;font-weight:bold;}
+  .sbWin span:nth-child(4){color:#8fe28a;}
+  .void{text-decoration:line-through;opacity:0.55;}
+
+  #hint{bottom:10px;right:16px;font-size:11px;letter-spacing:1px;color:rgba(255,220,170,0.55);}
+  #breathLine{bottom:10px;left:16px;font-size:12px;letter-spacing:2px;color:var(--amber);
+    text-shadow:0 1px 2px rgba(0,0,0,0.8);font-variant-numeric:tabular-nums;}
+  #breathLine.held{color:#9fe89a;}
+  #breathLine.cool{color:rgba(255,220,170,0.55);}
+  #throwerBar{top:112px;left:50%;transform:translateX(-50%);font-size:15px;letter-spacing:4px;
+    color:var(--amber);text-shadow:0 1px 3px rgba(0,0,0,0.85);}
+  #throwerBar.rob{color:#ff9a7a;}
+  #matchEnd,#leagueEnd,#settlement{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;
+    background:radial-gradient(ellipse at 50% 40%, rgba(14,7,3,0.7) 0%, rgba(10,5,2,0.93) 100%);}
+  #matchEnd h1,#leagueEnd h1,#settlement h1{font-family:Georgia,"Times New Roman",serif;font-size:64px;letter-spacing:3px;
+    color:#8fe28a;text-shadow:0 3px 0 #14330f,0 0 34px rgba(120,255,140,0.25);}
+  #matchEnd h1.rob,#leagueEnd h1.rob,#settlement h1.rob{color:#ff8a70;text-shadow:0 3px 0 #3a0e06,0 0 34px rgba(255,80,40,0.3);}
+  #meStats{font-size:18px;line-height:2.1;color:#f3e3c2;margin:20px 0 6px;letter-spacing:1px;
+    font-variant-numeric:tabular-nums;}
+  #meHint{margin-top:24px;font-size:22px;letter-spacing:2px;color:var(--cream);
+    animation:pulse 1.5s ease-in-out infinite;}
+  #meLeague{margin-top:16px;min-width:380px;text-align:left;}
+  #meNext{margin-top:14px;font-size:15px;letter-spacing:2px;color:var(--amber);}
+  #leTable{margin:4px 0 0;min-width:380px;text-align:left;}
+  #settleStats{font-size:18px;line-height:2.1;color:#f3e3c2;margin:20px 0 6px;letter-spacing:1px;
+    font-variant-numeric:tabular-nums;}
+  #settleTable{margin:4px 0 0;min-width:380px;text-align:left;}
+  #leDarts{font-size:16px;line-height:1.9;color:#f3e3c2;margin-top:16px;letter-spacing:1px;}
+  #leHint{margin-top:24px;font-size:20px;letter-spacing:2px;color:var(--cream);
+    animation:pulse 1.5s ease-in-out infinite;}
+  #leagueLine{top:14px;right:16px;font-size:12px;letter-spacing:2px;color:var(--amber);
+    text-shadow:0 1px 2px rgba(0,0,0,0.8);text-align:right;}
+  #leaguePanel{top:50%;left:50%;transform:translate(-50%,-50%);background:var(--panel);
+    border:2px solid var(--line);border-radius:14px;padding:16px 26px;min-width:380px;}
+  .lgTitle{font-size:13px;letter-spacing:3px;color:var(--amber);margin-bottom:8px;text-align:center;}
+  .lgRow{display:flex;gap:14px;font-size:14px;line-height:2;color:#f3e3c2;}
+  .lgRow span:first-child{flex:1;text-align:left;}
+  .lgRow span:nth-child(2){width:64px;text-align:right;font-variant-numeric:tabular-nums;}
+  .lgRow span:nth-child(3){width:44px;text-align:right;font-weight:bold;color:#ffe9bf;}
+  .lgRow.lgHead{font-size:11px;letter-spacing:1px;color:var(--amber);}
+  .lgRow.lgMe span:first-child{color:#ffcf8a;font-weight:bold;}
+  .lgHint{margin-top:10px;font-size:11px;letter-spacing:2px;color:rgba(255,220,170,0.6);text-align:center;}
+
+  #ready{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;
+    background:radial-gradient(ellipse at 50% 40%, rgba(14,7,3,0.62) 0%, rgba(10,5,2,0.86) 100%);}
+  #ready .logo{width:86px;height:86px;border-radius:50%;margin-bottom:22px;
+    background:radial-gradient(circle, #d23a30 0 16%, #f3e7c8 16% 34%, #17713c 34% 56%, #1a1a1c 56% 100%);
+    border:3px solid rgba(255,200,130,0.5);box-shadow:0 0 34px rgba(255,160,60,0.35);}
+  #ready h1{font-family:Georgia,"Times New Roman",serif;font-size:62px;letter-spacing:3px;
+    color:#ffdf9e;text-shadow:0 3px 0 #40200a,0 0 34px rgba(255,160,60,0.35);}
+  #ready .tag{font-size:16px;color:#e8c896;margin:12px 0 26px;letter-spacing:1px;}
+  #ready .controls{font-size:15px;line-height:2.1;color:#f3e3c2;}
+  #ready kbd{display:inline-block;padding:1px 10px;border:1px solid rgba(255,200,130,0.45);
+    border-radius:6px;background:rgba(255,220,160,0.08);font-family:var(--font-ui);
+    font-weight:bold;font-size:13px;margin:0 3px;}
+  #pressEnter{margin-top:30px;font-size:24px;letter-spacing:2px;color:var(--cream);
+    animation:pulse 1.5s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="vignette"></div>
+
+<div id="scoreboard" class="hud hidden">
+  <div class="sbTitle">Match Scoreboard — 501 · Double Out</div>
+  <div class="sbCols">
+    <div class="sbCol" id="sbYou"></div>
+    <div class="sbCol" id="sbRob"></div>
+  </div>
+</div>
+
+<div id="topbar" class="hud">
+  <div class="panel">
+    <div class="lbl">Turn</div>
+    <div class="val" id="turnNum">–</div>
+    <div class="sub">DART <span id="dartNum">–</span>/3</div>
+  </div>
+  <div class="panel panel-big">
+    <div class="lbl">You</div>
+    <div class="val" id="remaining">501</div>
+    <div class="sub">DARTS USED <span id="dartsUsed">0</span></div>
+  </div>
+  <div class="panel panel-big">
+    <div class="lbl">Rookie Rob</div>
+    <div class="val" id="aiRemaining">501</div>
+    <div class="sub">ROB'S DARTS <span id="aiDartsUsed">0</span></div>
+  </div>
+  <div class="panel">
+    <div class="lbl">Turn Score</div>
+    <div class="val" id="turnTotal">0</div>
+  </div>
+</div>
+<div id="throwerBar" class="hud hidden">YOUR THROW</div>
+<div id="leagueLine" class="hud hidden"></div>
+<div id="leaguePanel" class="hud hidden">
+  <div class="lgTitle">LEAGUE NIGHT</div>
+  <div id="leaguePanelBody"></div>
+  <div class="lgHint">PRESS L TO CLOSE</div>
+</div>
+
+<div id="meterWrap" class="hud">
+  <div class="meterLabel">POWER <b><span id="powerVal">0</span></b></div>
+  <div id="meterBar"><div id="meterFill"></div></div>
+  <div id="scatterVal">SCATTER ±3.0 mm</div>
+</div>
+
+<div id="popup" class="hud"></div>
+<div id="banner" class="hud hidden">TURN TOTAL<small>ROB TO THROW…</small></div>
+<div id="breathLine" class="hud">BREATH: READY</div>
+<div id="hint" class="hud">← → ↑ ↓ AIM &nbsp;·&nbsp; HOLD SPACE THROW &nbsp;·&nbsp; B BREATH &nbsp;·&nbsp; L LEAGUE &nbsp;·&nbsp; R RESET</div>
+
+<div id="matchEnd" class="hidden">
+  <h1 id="meTitle">YOU WIN</h1>
+  <div id="meStats"></div>
+  <div id="meLeague"></div>
+  <div id="meNext"></div>
+  <div id="meHint">— PRESS ENTER TO CONTINUE —</div>
+</div>
+
+<div id="leagueEnd" class="hidden">
+  <h1>LEAGUE COMPLETE</h1>
+  <div id="leTable"></div>
+  <div id="leDarts"></div>
+  <div id="leHint">— NEXT: THE CHAMPIONSHIP FINAL —</div>
+</div>
+
+<div id="settlement" class="hidden">
+  <h1 id="settleTitle">YOU ARE THE CHAMPION!</h1>
+  <div id="settleStats"></div>
+  <div id="settleTable"></div>
+  <div id="leHint">— PRESS R FOR THE PUB —</div>
+</div>
+
+<div id="ready">
+  <div class="logo"></div>
+  <h1>BULLS &amp; BULLSEYES</h1>
+  <div class="tag">League Night — three 501 matches against Rookie Rob, Veteran Val, and Champion Chelsea, then the best-of-three Championship Final. Bust, and the turn is void.</div>
+  <div class="controls">
+    <div><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> Aim the crosshair (5 mm per press)</div>
+    <div><kbd>HOLD SPACE</kbd> Charge the power meter — release to throw</div>
+    <div><kbd>B</kbd> Hold your breath — freezes the sway for 3.0 s · 8 s cooldown</div>
+    <div><kbd>L</kbd> Show the league table during play</div>
+    <div>DISTRACTIONS: lights flicker 1.5s into your turns 2, 4, 6 — sway doubles for 0.5s</div>
+    <div><kbd>R</kbd> Reset to the title screen</div>
+  </div>
+  <div id="pressEnter">— Press Enter to Start League Night —</div>
+</div>
+
+<script src="./assets/_shared/three/build/three.min.js"></script>
+<script>
+
+/* ============================================================
+   BULLS & BULLSEYES — deterministic 3D pub darts.
+   No Math.random, no Date.now: all timing flows through the
+   internal fixed-step game clock that starts at 0.
+   ============================================================ */
+
+/* ---------- deterministic helpers ---------- */
+function lcg(seed){ let s = seed % 2147483647; if (s <= 0) s += 2147483646;
+  return () => (s = s * 16807 % 2147483647) / 2147483647; }
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
+
+/* ---------- hardcoded game constants ---------- */
+const BOARD = {
+  R: 0.170, BULL_IN: 0.00635, BULL_OUT: 0.0159,
+  TRI_IN: 0.099, TRI_OUT: 0.107, DBL_IN: 0.162, DBL_OUT: 0.170,
+  NUMBERS: [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5],
+  CENTER_Y: 1.73, FACE_Z: 0.035, BODY_R: 0.228,
+};
+const AIM = { STEP_MM: 5, CLAMP_MM: 170 };
+const POWER = { SPEED: 80, PERFECT: 70, VERT_GAIN: 1.2, SCATTER_GAIN: 2.0, SCATTER_MIN: 3 };
+const SWAY = { PERIOD_X: 1.6, PERIOD_Y: 2.2, PHASE_Y: 0.9, BASE_MM: 5.2, GROWTH: 2.6, MAX_MM: 20.8 };
+const BREATH = { HOLD_S: 3.0, COOLDOWN_S: 8.0 };
+const FLICKER = { AT_S: 1.5, DUR_S: 0.5, AMPLITUDE_MULT: 2, TURNS: [2, 4, 6] };
+const THROW = { FLIGHT_S: 0.6, SPAWN_DELAY_S: 0.07 };
+const TURN = { DARTS: 3, BANNER_DELAY_S: 0.55, BANNER_S: 1.2, BANNER_180_S: 1.5, POPUP_S: 0.95 };
+const SNAP_S = 0.14;
+const FIXED_DT = 1 / 120;
+const CAM = {
+  FOV: 66, EASE: 3.5,
+  DEF_POS: new THREE.Vector3(0.62, 2.02, 4.55),
+  DEF_LOOK: new THREE.Vector3(0, 1.10, 0.30),
+  ROB_POS: new THREE.Vector3(1.9, 1.9, 3.2),
+  ROB_LOOK: new THREE.Vector3(0.1, 1.55, 0.1),
+};
+const ROB = {
+  DART_INTERVAL_S: 1.5, FLIGHT_S: 0.6, FIRST_DELAY_S: 0.9, WINDUP_S: 0.5, MATCH_END_DELAY_S: 0.9,
+};
+
+/* ---------- DOM ---------- */
+const $ = id => document.getElementById(id);
+const el = {
+  turnNum: $('turnNum'), dartNum: $('dartNum'), turnTotal: $('turnTotal'),
+  remaining: $('remaining'), dartsUsed: $('dartsUsed'),
+  scoreboard: $('scoreboard'), sbYou: $('sbYou'), sbRob: $('sbRob'),
+  meterWrap: $('meterWrap'), meterFill: $('meterFill'),
+  powerVal: $('powerVal'), scatterVal: $('scatterVal'), popup: $('popup'),
+  banner: $('banner'), ready: $('ready'), breathLine: $('breathLine'),
+  throwerBar: $('throwerBar'),
+  aiRemaining: $('aiRemaining'), aiDartsUsed: $('aiDartsUsed'),
+  matchEnd: $('matchEnd'), meTitle: $('meTitle'), meStats: $('meStats'),
+  meLeague: $('meLeague'), meNext: $('meNext'),
+  leagueLine: $('leagueLine'), leaguePanel: $('leaguePanel'), leaguePanelBody: $('leaguePanelBody'),
+  leagueEnd: $('leagueEnd'), leTable: $('leTable'), leDarts: $('leDarts'),
+  settlement: $('settlement'), settleTitle: $('settleTitle'), settleStats: $('settleStats'), settleTable: $('settleTable'),
+};
+
+/* ---------- renderer / scene / camera ---------- */
+const renderer = new THREE.WebGLRenderer({ canvas: $('gl'), antialias: true, powerPreference: 'high-performance' });
+if ('useLegacyLights' in renderer) renderer.useLegacyLights = true; // classic intensity model for this build
+if (THREE.SRGBColorSpace && 'outputColorSpace' in renderer) renderer.outputColorSpace = THREE.SRGBColorSpace;
+else if (THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const ANISO = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+const srgbTex = t => {
+  if (THREE.SRGBColorSpace && 'colorSpace' in t) t.colorSpace = THREE.SRGBColorSpace;
+  else if (THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
+  return t;
+};
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d0704);
+const camera = new THREE.PerspectiveCamera(CAM.FOV, window.innerWidth / window.innerHeight, 0.05, 40);
+camera.position.copy(CAM.DEF_POS);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* ---------- materials ---------- */
+const std = (color, roughness = 0.8, metalness = 0, extra = {}) =>
+  new THREE.MeshStandardMaterial({ color, roughness, metalness, ...extra });
+const MAT = {
+  woodDark: std(0x2a1a0e, 0.85), woodMid: std(0x5a3a20, 0.8),
+  woodWarm: std(0x8a5a30, 0.72), woodDeep: std(0x1f1208, 0.55),
+  brass: std(0xc9973f, 0.35, 0.8), steel: std(0xb9bec6, 0.3, 0.9),
+  wire: std(0xd8d4cc, 0.35, 0.85),
+  shirt: std(0xdcd2b8, 0.9), denim: std(0x3c5a80, 0.92),
+  skin: std(0xe6b28a, 0.75), hair: std(0x33241a, 0.88),
+  shoe: std(0x4a3020, 0.7),
+  boardBody: std(0x151210, 0.9), boardBack: std(0x101010, 0.9),
+  segBlack: std(0x1a1a1c, 0.55), segCream: std(0xe8dcbf, 0.55),
+  segRed: std(0xc22a32, 0.5), segGreen: std(0x17713c, 0.5),
+  bullRed: std(0xd23a30, 0.5), bullGreen: std(0x1a8a48, 0.5),
+  glass: new THREE.MeshStandardMaterial({ color: 0xffe6b8, transparent: true, opacity: 0.35, roughness: 0.15 }),
+  beer: std(0xd98a2b, 0.3),
+  bottleGreen: std(0x2f5d3a, 0.35), bottleAmber: std(0x8a4b1f, 0.35),
+  bottleClear: std(0xb9c8b2, 0.2), bottleDark: std(0x2a2118, 0.4),
+  gold: std(0xd7a83c, 0.3, 0.85), silver: std(0xc8ccd2, 0.3, 0.9), bronze: std(0xa8663a, 0.4, 0.8),
+  rug: std(0x5d2c22, 0.95), rugEdge: std(0xcaa46a, 0.9),
+  oche: std(0xd8c49c, 0.85), ocheEdge: std(0x8a6a40, 0.8),
+  shade: new THREE.MeshStandardMaterial({ color: 0x8a6430, roughness: 0.45, metalness: 0.55, side: THREE.DoubleSide }),
+  wall: std(0x46281c, 0.95), wainscot: std(0x2c1a10, 0.9), sideWall: std(0x3d2318, 0.95),
+  ceiling: std(0x201209, 0.95), beam: std(0x241407, 0.9),
+};
+
+/* ============================================================
+   AUDIO — synthesized with WebAudio, fixed frequencies only.
+   ============================================================ */
+let actx = null, masterGain = null;
+function initAudio() {
+  if (actx) { if (actx.state === 'suspended') actx.resume(); return; }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  actx = new AC();
+  masterGain = actx.createGain();
+  masterGain.gain.value = 0.5;
+  masterGain.connect(actx.destination);
+}
+function noiseBuffer(dur) {
+  const n = Math.floor(actx.sampleRate * dur);
+  const buf = actx.createBuffer(1, n, actx.sampleRate);
+  const d = buf.getChannelData(0);
+  const rnd = lcg(1234567); // deterministic noise, never Math.random
+  for (let i = 0; i < n; i++) d[i] = rnd() * 2 - 1;
+  return buf;
+}
+function sfxWhoosh() {
+  if (!actx) return; const t0 = actx.currentTime;
+  const src = actx.createBufferSource(); src.buffer = noiseBuffer(0.3);
+  const bp = actx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.1;
+  bp.frequency.setValueAtTime(500, t0);
+  bp.frequency.exponentialRampToValueAtTime(2400, t0 + 0.22);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.5, t0 + 0.05);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28);
+  src.connect(bp).connect(g).connect(masterGain);
+  src.start(t0); src.stop(t0 + 0.3);
+}
+function sfxThud() {
+  if (!actx) return; const t0 = actx.currentTime;
+  const o = actx.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(94, t0);
+  o.frequency.exponentialRampToValueAtTime(52, t0 + 0.14);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.9, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.17);
+  o.connect(g).connect(masterGain); o.start(t0); o.stop(t0 + 0.2);
+  const src = actx.createBufferSource(); src.buffer = noiseBuffer(0.05);
+  const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+  const g2 = actx.createGain();
+  g2.gain.setValueAtTime(0.5, t0);
+  g2.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.05);
+  src.connect(lp).connect(g2).connect(masterGain); src.start(t0); src.stop(t0 + 0.06);
+}
+function sfxChime() {
+  if (!actx) return; const t0 = actx.currentTime;
+  [[880, 0.30, 0.38], [1318.5, 0.12, 0.30]].forEach(([f, gv, dur]) => {
+    const o = actx.createOscillator(); o.type = 'triangle'; o.frequency.value = f;
+    const g = actx.createGain();
+    g.gain.setValueAtTime(gv, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g).connect(masterGain); o.start(t0); o.stop(t0 + dur + 0.02);
+  });
+}
+function sfxBuzz() {
+  if (!actx) return; const t0 = actx.currentTime;
+  const o = actx.createOscillator(); o.type = 'sawtooth';
+  o.frequency.setValueAtTime(138, t0);
+  o.frequency.linearRampToValueAtTime(96, t0 + 0.4);
+  const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 620;
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.34, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.45);
+  o.connect(lp).connect(g).connect(masterGain); o.start(t0); o.stop(t0 + 0.5);
+}
+function sfxBust() { // harsh descending two-tone buzz
+  if (!actx) return; const t0 = actx.currentTime;
+  [[110, 0, 0.28], [78, 0.22, 0.42]].forEach(([f, dt, dur]) => {
+    const o = actx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+    const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 500;
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, t0 + dt);
+    g.gain.exponentialRampToValueAtTime(0.42, t0 + dt + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + dur);
+    o.connect(lp).connect(g).connect(masterGain);
+    o.start(t0 + dt); o.stop(t0 + dt + dur + 0.05);
+  });
+}
+function sfxLegScore() { // short rising figure on the winning dart
+  if (!actx) return; const t0 = actx.currentTime;
+  [[523.25, 0, 0.22], [659.25, 0.13, 0.22], [783.99, 0.26, 0.3], [1046.5, 0.4, 0.55]].forEach(([f, dt, dur]) => {
+    const o = actx.createOscillator(); o.type = 'triangle'; o.frequency.value = f;
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, t0 + dt);
+    g.gain.exponentialRampToValueAtTime(0.3, t0 + dt + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + dur);
+    o.connect(g).connect(masterGain); o.start(t0 + dt); o.stop(t0 + dt + dur + 0.05);
+  });
+}
+function sfx180() { // rising three-note fanfare for the golden 180 banner
+  if (!actx) return; const t0 = actx.currentTime;
+  [[659.25, 0, 0.28], [783.99, 0.14, 0.28], [1046.5, 0.28, 0.6]].forEach(([f, dt, dur]) => {
+    const o = actx.createOscillator(); o.type = 'triangle'; o.frequency.value = f;
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, t0 + dt);
+    g.gain.exponentialRampToValueAtTime(0.34, t0 + dt + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + dur);
+    o.connect(g).connect(masterGain); o.start(t0 + dt); o.stop(t0 + dt + dur + 0.05);
+  });
+}
+function sfxCrowd() { // rowdy-crowd burst during the lights flicker (fixed character)
+  if (!actx) return; const t0 = actx.currentTime;
+  const src = actx.createBufferSource(); src.buffer = noiseBuffer(0.6);
+  const bp = actx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.8;
+  bp.frequency.setValueAtTime(500, t0);
+  bp.frequency.exponentialRampToValueAtTime(900, t0 + 0.25);
+  bp.frequency.exponentialRampToValueAtTime(420, t0 + 0.5);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.4, t0 + 0.06);
+  g.gain.setValueAtTime(0.4, t0 + 0.34);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.52);
+  src.connect(bp).connect(g).connect(masterGain); src.start(t0); src.stop(t0 + 0.55);
+  // a couple of rowdy voice-ish tones under the rumble
+  [[196, 0.32], [233.08, 0.26]].forEach(([f, gv], idx) => {
+    const o = actx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+    const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
+    const g2 = actx.createGain();
+    g2.gain.setValueAtTime(0.0001, t0 + 0.04 * idx);
+    g2.gain.exponentialRampToValueAtTime(gv * 0.35, t0 + 0.12 + 0.04 * idx);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.5);
+    o.connect(lp).connect(g2).connect(masterGain); o.start(t0); o.stop(t0 + 0.55);
+  });
+}
+function sfxBreathIn() { // soft inhale-hold cue on breath activation
+  if (!actx) return; const t0 = actx.currentTime;
+  const o = actx.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(196, t0);
+  o.frequency.exponentialRampToValueAtTime(370, t0 + 0.26);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.09);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.34);
+  o.connect(g).connect(masterGain); o.start(t0); o.stop(t0 + 0.36);
+  const src = actx.createBufferSource(); src.buffer = noiseBuffer(0.32);
+  const bp = actx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.2;
+  bp.frequency.setValueAtTime(500, t0);
+  bp.frequency.exponentialRampToValueAtTime(1300, t0 + 0.28);
+  const g2 = actx.createGain();
+  g2.gain.setValueAtTime(0.0001, t0);
+  g2.gain.exponentialRampToValueAtTime(0.1, t0 + 0.1);
+  g2.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.3);
+  src.connect(bp).connect(g2).connect(masterGain); src.start(t0); src.stop(t0 + 0.32);
+}
+function sfxBreathOut() { // soft release cue when the freeze ends
+  if (!actx) return; const t0 = actx.currentTime;
+  const o = actx.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(330, t0);
+  o.frequency.exponentialRampToValueAtTime(180, t0 + 0.32);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.14, t0 + 0.07);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.38);
+  o.connect(g).connect(masterGain); o.start(t0); o.stop(t0 + 0.4);
+  const src = actx.createBufferSource(); src.buffer = noiseBuffer(0.36);
+  const bp = actx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.0;
+  bp.frequency.setValueAtTime(1200, t0);
+  bp.frequency.exponentialRampToValueAtTime(420, t0 + 0.32);
+  const g2 = actx.createGain();
+  g2.gain.setValueAtTime(0.0001, t0);
+  g2.gain.exponentialRampToValueAtTime(0.09, t0 + 0.08);
+  g2.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.34);
+  src.connect(bp).connect(g2).connect(masterGain); src.start(t0); src.stop(t0 + 0.36);
+}
+
+/* ============================================================
+   CANVAS TEXTURES (all drawn deterministically)
+   ============================================================ */
+function plankTexture() {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 512;
+  const g = c.getContext('2d'); const rnd = lcg(20240915);
+  g.fillStyle = '#8a5a32'; g.fillRect(0, 0, 512, 512);
+  const rows = 8, h = 512 / rows;
+  for (let r = 0; r < rows; r++) {
+    g.fillStyle = `hsl(${26 + rnd() * 6} ${38 + rnd() * 10}% ${38 + rnd() * 14}%)`;
+    g.fillRect(0, r * h, 512, h);
+    g.strokeStyle = 'rgba(60,35,15,0.18)'; g.lineWidth = 1.5;
+    for (let i = 0; i < 7; i++) {
+      g.beginPath();
+      const y = r * h + 4 + rnd() * (h - 8);
+      g.moveTo(0, y);
+      for (let x = 0; x <= 512; x += 64) g.lineTo(x, y + Math.sin(x * 0.02 + rnd() * 6) * 2);
+      g.stroke();
+    }
+    g.fillStyle = 'rgba(30,16,6,0.85)';
+    g.fillRect(0, r * h - 1.5, 512, 3);
+    let x = (r % 2) * 128 + rnd() * 64;
+    for (let i = 0; i < 3; i++) { g.fillRect(x, r * h, 3, h); x += 150 + rnd() * 130; }
+  }
+  const t = srgbTex(new THREE.CanvasTexture(c));
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 3);
+  t.anisotropy = ANISO;
+  return t;
+}
+function numberTexture(n) {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 128;
+  const g = c.getContext('2d');
+  g.font = '700 78px Georgia,"Times New Roman",serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.lineWidth = 10; g.strokeStyle = 'rgba(18,12,6,0.95)';
+  g.strokeText(String(n), 64, 68);
+  g.fillStyle = '#f3e7c8';
+  g.fillText(String(n), 64, 68);
+  const t = srgbTex(new THREE.CanvasTexture(c));
+  t.anisotropy = ANISO;
+  return t;
+}
+function plaqueTexture() {
+  const c = document.createElement('canvas'); c.width = 640; c.height = 430;
+  const g = c.getContext('2d'); const rnd = lcg(777);
+  g.fillStyle = '#243129'; g.fillRect(0, 0, 640, 430);
+  g.fillStyle = 'rgba(255,255,255,0.03)';
+  for (let i = 0; i < 40; i++) { g.beginPath(); g.arc(rnd() * 640, rnd() * 430, 8 + rnd() * 26, 0, 7); g.fill(); }
+  g.textAlign = 'center';
+  g.fillStyle = '#eef3e6';
+  g.font = '700 50px "Comic Sans MS","Chalkboard SE","Segoe Print",cursive';
+  g.fillText('BULLS & BULLSEYES', 320, 90);
+  g.font = '28px "Comic Sans MS",cursive'; g.fillStyle = '#cfdcc8';
+  g.fillText('~ house rules ~', 320, 148);
+  g.fillText('3 DARTS A TURN · STRAIGHT IN', 320, 218);
+  g.fillText('STRIKE THE BULL — BUY A ROUND', 320, 268);
+  g.strokeStyle = 'rgba(238,243,230,0.6)'; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(120, 176); g.lineTo(520, 176); g.stroke();
+  g.beginPath(); g.arc(320, 370, 30, 0, 7); g.stroke();
+  g.beginPath(); g.arc(320, 370, 13, 0, 7); g.stroke();
+  g.beginPath(); g.arc(320, 370, 4, 0, 7); g.fill();
+  const t = srgbTex(new THREE.CanvasTexture(c));
+  t.anisotropy = ANISO;
+  return t;
+}
+
+/* ============================================================
+   SCENE — the pub
+   ============================================================ */
+function buildRoom() {
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(9, 8), std(0xffffff, 0.85, 0, { map: plankTexture() }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(0, 0, 2.2);
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(9, 3.1), MAT.wall);
+  back.position.set(0, 1.55, -0.08);
+  back.receiveShadow = true;
+  scene.add(back);
+
+  const wain = new THREE.Mesh(new THREE.PlaneGeometry(9, 1.05), MAT.wainscot);
+  wain.position.set(0, 0.525, -0.075);
+  scene.add(wain);
+  const rail = new THREE.Mesh(new THREE.BoxGeometry(9, 0.045, 0.025), MAT.woodWarm);
+  rail.position.set(0, 1.06, -0.07);
+  scene.add(rail);
+
+  for (const s of [-1, 1]) {
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(8, 3.1), MAT.sideWall);
+    wall.position.set(3.6 * s, 1.55, 2.2);
+    wall.rotation.y = -Math.PI / 2 * s;
+    wall.receiveShadow = true;
+    scene.add(wall);
+  }
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(9, 8), MAT.ceiling);
+  ceil.rotation.x = Math.PI / 2;
+  ceil.position.set(0, 3.02, 2.2);
+  scene.add(ceil);
+  for (const z of [0.4, 2.2, 4.0]) {
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(9, 0.12, 0.14), MAT.beam);
+    beam.position.set(0, 2.94, z);
+    scene.add(beam);
+  }
+  // oche line + rug
+  const oche = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.016, 0.055), MAT.oche);
+  oche.position.set(0, 0.008, 2.37);
+  oche.receiveShadow = true;
+  scene.add(oche);
+  const ocheEdge = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.008, 0.014), MAT.ocheEdge);
+  ocheEdge.position.set(0, 0.019, 2.348);
+  scene.add(ocheEdge);
+  const rug = new THREE.Mesh(new THREE.CircleGeometry(1.15, 40), MAT.rug);
+  rug.rotation.x = -Math.PI / 2; rug.position.set(0, 0.004, 2.75); rug.receiveShadow = true;
+  scene.add(rug);
+  const rugEdge = new THREE.Mesh(new THREE.RingGeometry(1.0, 1.15, 40), MAT.rugEdge);
+  rugEdge.rotation.x = -Math.PI / 2; rugEdge.position.set(0, 0.0045, 2.75);
+  scene.add(rugEdge);
+}
+
+function buildBar() {
+  const g = new THREE.Group();
+  const counter = new THREE.Mesh(new THREE.BoxGeometry(0.72, 1.0, 3.9), MAT.woodMid);
+  counter.position.set(-2.62, 0.5, 2.5); counter.castShadow = true; counter.receiveShadow = true;
+  g.add(counter);
+  const top = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.05, 4.05), MAT.woodDeep);
+  top.position.set(-2.62, 1.025, 2.5); top.castShadow = true;
+  g.add(top);
+  for (const z of [1.3, 2.5, 3.7]) {
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.7, 0.03), MAT.woodDark);
+    strip.position.set(-2.25, 0.5, z);
+    g.add(strip);
+  }
+  const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 3.8, 10), MAT.brass);
+  rail.rotation.x = Math.PI / 2; rail.position.set(-2.2, 0.18, 2.5);
+  g.add(rail);
+
+  for (let i = 0; i < 4; i++) {
+    const s = new THREE.Group(); s.position.set(-1.95, 0, 1.1 + i * 0.95);
+    const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.07, 20), std(0x7a2f28, 0.7));
+    seat.position.y = 0.70; seat.castShadow = true;
+    const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.66, 10), MAT.woodDark);
+    ped.position.y = 0.35;
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.035, 20), MAT.woodDark);
+    base.position.y = 0.02;
+    s.add(seat, ped, base); g.add(s);
+  }
+
+  const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.045, 3.9), MAT.woodMid);
+  shelf.position.set(-3.42, 1.78, 2.5);
+  g.add(shelf);
+  const bottleCols = [MAT.bottleGreen, MAT.bottleAmber, MAT.bottleClear, MAT.bottleDark];
+  for (let i = 0; i < 8; i++) {
+    const h = 0.2 + (i % 3) * 0.045;
+    const b = new THREE.Group();
+    b.position.set(-3.42, 1.80, 0.85 + i * 0.45);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.038, h, 12), bottleCols[i % 4]);
+    body.position.y = h / 2;
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.021, 0.07, 10), bottleCols[i % 4]);
+    neck.position.y = h + 0.033;
+    b.add(body, neck); g.add(b);
+  }
+  for (let i = 0; i < 6; i++) {
+    const gl = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.028, 0.12, 14), MAT.glass);
+    gl.position.set(-2.45, 1.11, 1.2 + i * 0.5);
+    g.add(gl);
+    if (i % 2 === 0) {
+      const beer = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.023, 0.085, 12), MAT.beer);
+      beer.position.set(-2.45, 1.105, 1.2 + i * 0.5);
+      g.add(beer);
+    }
+  }
+  scene.add(g);
+}
+
+const lamps = [];
+function buildLamps() {
+  const positions = [[-2.2, 1.3], [-2.2, 3.4], [0.1, 3.5]];
+  positions.forEach((p, i) => {
+    const grp = new THREE.Group();
+    grp.position.set(p[0], 2.98, p[1]);
+    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.78, 6), MAT.woodDark);
+    cord.position.y = -0.39;
+    const shade = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.14, 20, 1, true), MAT.shade);
+    shade.position.y = -0.76;
+    const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfff2cf, emissive: 0xffd9a0, emissiveIntensity: 1.9 });
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 10), bulbMat);
+    bulb.position.y = -0.83;
+    const light = new THREE.PointLight(0xffb066, 0.85, 7, 2);
+    light.position.y = -0.85;
+    grp.add(cord, shade, bulb, light);
+    scene.add(grp);
+    lamps.push({ grp, bulbMat, light, p1: i * 2.1, p2: i * 1.7 + 1.0, p3: i * 2.6 + 0.5 });
+  });
+}
+
+function buildDecor() {
+  // chalk plaque
+  const plaque = new THREE.Group();
+  plaque.position.set(-1.35, 1.95, -0.05);
+  plaque.rotation.z = 0.015;
+  const pf = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.46, 0.025), MAT.woodMid);
+  const pb = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.4), std(0xffffff, 0.9, 0, { map: plaqueTexture() }));
+  pb.position.z = 0.014;
+  plaque.add(pf, pb);
+  scene.add(plaque);
+
+  // trophy shelf
+  const ts = new THREE.Group();
+  ts.position.set(1.32, 0, 0);
+  const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.05, 0.26), MAT.woodMid);
+  shelf.position.set(0, 1.9, 0.0); shelf.castShadow = true;
+  ts.add(shelf);
+  const trophyCols = [MAT.gold, MAT.silver, MAT.bronze];
+  const tx = [-0.24, 0.02, 0.26], tsc = [1, 0.85, 0.72];
+  for (let i = 0; i < 3; i++) {
+    const tg = new THREE.Group();
+    tg.position.set(tx[i], 1.925, 0);
+    tg.scale.setScalar(tsc[i]);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.058, 0.028, 14), MAT.woodDark);
+    base.position.y = 0.014;
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.018, 0.06, 10), trophyCols[i]);
+    stem.position.y = 0.058;
+    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.028, 0.088, 16), trophyCols[i]);
+    cup.position.y = 0.13;
+    for (const sgn of [-1, 1]) {
+      const handle = new THREE.Mesh(new THREE.TorusGeometry(0.024, 0.006, 8, 14, Math.PI), trophyCols[i]);
+      handle.position.set(sgn * 0.06, 0.135, 0);
+      handle.rotation.z = sgn > 0 ? -Math.PI / 2 : Math.PI / 2;
+      tg.add(handle);
+    }
+    tg.add(base, stem, cup);
+    ts.add(tg);
+  }
+  scene.add(ts);
+}
+
+/* ---------- cabinet + board ---------- */
+const board = new THREE.Group();
+function buildCabinetAndBoard() {
+  // cabinet
+  const cab = new THREE.Mesh(new THREE.BoxGeometry(1.56, 1.78, 0.06), MAT.woodDeep);
+  cab.position.set(0, BOARD.CENTER_Y, -0.045);
+  cab.receiveShadow = true;
+  scene.add(cab);
+  const frameMat = MAT.woodMid;
+  const frTop = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.09, 0.035), frameMat);
+  frTop.position.set(0, BOARD.CENTER_Y + 0.925, -0.012);
+  const frBot = frTop.clone(); frBot.position.y = BOARD.CENTER_Y - 0.925;
+  const frL = new THREE.Mesh(new THREE.BoxGeometry(0.09, 1.78, 0.035), frameMat);
+  frL.position.set(-0.825, BOARD.CENTER_Y, -0.012);
+  const frR = frL.clone(); frR.position.x = 0.825;
+  scene.add(frTop, frBot, frL, frR);
+
+  // board lamp above
+  const shade = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.13, 22, 1, true), MAT.shade);
+  shade.position.set(0, 2.33, 0.14);
+  scene.add(shade);
+  const boardLight = new THREE.PointLight(0xffd7a8, 0.9, 4, 2);
+  boardLight.position.set(0, 2.24, 0.35);
+  scene.add(boardLight);
+
+  // board group
+  board.position.set(0, BOARD.CENTER_Y, BOARD.FACE_Z);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(BOARD.BODY_R, BOARD.BODY_R, 0.05, 72), MAT.boardBody);
+  body.geometry.rotateX(Math.PI / 2);
+  body.position.z = -0.025;
+  body.receiveShadow = true;
+  board.add(body);
+  const backing = new THREE.Mesh(new THREE.CircleGeometry(0.1715, 64), MAT.boardBack);
+  backing.position.z = 0.0003;
+  board.add(backing);
+
+  const N = BOARD.NUMBERS.length, span = 18;
+  for (let i = 0; i < N; i++) {
+    const even = i % 2 === 0;
+    const singleMat = even ? MAT.segBlack : MAT.segCream;
+    const markMat = even ? MAT.segRed : MAT.segGreen;
+    const a = i * span - 9; // clockwise start of this segment
+    const thetaStart = THREE.MathUtils.degToRad(90 - (a + span));
+    const thetaLen = THREE.MathUtils.degToRad(span);
+    const zones = [
+      [BOARD.BULL_OUT, BOARD.TRI_IN, singleMat, 0.0008],
+      [BOARD.TRI_IN, BOARD.TRI_OUT, markMat, 0.0011],
+      [BOARD.TRI_OUT, BOARD.DBL_IN, singleMat, 0.0008],
+      [BOARD.DBL_IN, BOARD.DBL_OUT, markMat, 0.0011],
+    ];
+    for (const [r0, r1, m, z] of zones) {
+      const seg = new THREE.Mesh(new THREE.RingGeometry(r0, r1, 28, 1, thetaStart, thetaLen), m);
+      seg.position.z = z;
+      board.add(seg);
+    }
+    // wire spoke on each segment boundary
+    const b = THREE.MathUtils.degToRad(i * span + 9);
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.0014, BOARD.DBL_OUT - BOARD.BULL_OUT, 0.0022), MAT.wire);
+    spoke.position.set(Math.sin(b) * 0.09295, Math.cos(b) * 0.09295, 0.0028);
+    spoke.rotation.z = -b;
+    board.add(spoke);
+    // number at segment center, radial orientation
+    const c = THREE.MathUtils.degToRad(i * span);
+    const num = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.06, 0.06),
+      new THREE.MeshBasicMaterial({ map: numberTexture(BOARD.NUMBERS[i]), transparent: true, depthWrite: false })
+    );
+    num.position.set(Math.sin(c) * 0.196, Math.cos(c) * 0.196, 0.0016);
+    num.rotation.z = -c;
+    num.renderOrder = 2;
+    board.add(num);
+  }
+  // bull + bull wires
+  const bullIn = new THREE.Mesh(new THREE.CircleGeometry(BOARD.BULL_IN, 32), MAT.bullRed);
+  bullIn.position.z = 0.0016; board.add(bullIn);
+  const bullOut = new THREE.Mesh(new THREE.RingGeometry(BOARD.BULL_IN, BOARD.BULL_OUT, 32), MAT.bullGreen);
+  bullOut.position.z = 0.0013; board.add(bullOut);
+  // ring wires at every scoring radius
+  for (const r of [BOARD.BULL_IN, BOARD.BULL_OUT, BOARD.TRI_IN, BOARD.TRI_OUT, BOARD.DBL_IN, BOARD.DBL_OUT]) {
+    const w = new THREE.Mesh(new THREE.TorusGeometry(r, 0.0011, 6, 72), MAT.wire);
+    w.position.z = 0.0028;
+    board.add(w);
+  }
+  scene.add(board);
+}
+
+/* ---------- crosshair ---------- */
+const crosshair = new THREE.Group();
+{
+  const cm = new THREE.MeshBasicMaterial({ color: 0xffd76a, transparent: true, opacity: 0.95, depthTest: false });
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.013, 0.0011, 6, 32), cm);
+  crosshair.add(ring);
+  for (const [x, y] of [[0.019, 0], [-0.019, 0], [0, 0.019], [0, -0.019]]) {
+    const tick = new THREE.Mesh(new THREE.BoxGeometry(0.0075, 0.0016, 0.001), cm);
+    tick.position.set(x, y, 0);
+    if (y !== 0) tick.rotation.z = Math.PI / 2;
+    crosshair.add(tick);
+  }
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.0022, 8, 8), cm);
+  crosshair.add(dot);
+  crosshair.renderOrder = 3;
+  crosshair.visible = false;
+  scene.add(crosshair);
+}
+
+/* ---------- darts ---------- */
+const dartGeos = (() => {
+  const tip = new THREE.ConeGeometry(0.0028, 0.03, 8); tip.rotateX(-Math.PI / 2);
+  const barrel = new THREE.CylinderGeometry(0.0034, 0.0034, 0.048, 10); barrel.rotateX(Math.PI / 2);
+  const shaft = new THREE.CylinderGeometry(0.0016, 0.0016, 0.05, 8); shaft.rotateX(Math.PI / 2);
+  const flight = new THREE.PlaneGeometry(0.017, 0.03); flight.rotateX(Math.PI / 2);
+  return { tip, barrel, shaft, flight };
+})();
+const dartMats = {
+  tip: MAT.steel, barrel: MAT.brass, shaft: MAT.woodDark,
+  flightA: std(0xd8402f, 0.7, 0, { side: THREE.DoubleSide }),
+  flightB: std(0xf3e7c8, 0.7, 0, { side: THREE.DoubleSide }),
+};
+function makeDart() {
+  const g = new THREE.Group();
+  const tip = new THREE.Mesh(dartGeos.tip, dartMats.tip); tip.position.z = -0.013;
+  const barrel = new THREE.Mesh(dartGeos.barrel, dartMats.barrel); barrel.position.z = 0.026;
+  const shaft = new THREE.Mesh(dartGeos.shaft, dartMats.shaft); shaft.position.z = 0.072;
+  g.add(tip, barrel, shaft);
+  for (let i = 0; i < 3; i++) {
+    const th = i * Math.PI * 2 / 3;
+    const f = new THREE.Mesh(dartGeos.flight, i % 2 ? dartMats.flightA : dartMats.flightB);
+    f.position.set(Math.cos(th) * 0.006, Math.sin(th) * 0.006, 0.088);
+    f.rotation.z = th;
+    g.add(f);
+  }
+  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  return g;
+}
+
+/* ---------- League opponents: hardcoded landing tables ----------
+   One legal 501 route per opponent ending on a double, identical on every reload.
+   Board dart: [zone, number, radiusMm, angleOffsetDeg]; off-board: ['OFF', angleDeg, radiusMm].
+   Angle 0 is straight up on the board, growing clockwise; offsets stay clear of the wires.
+   Every landing is scored by the same scoreAt() geometry the player's darts use. */
+const OPPONENTS = [
+  { name: 'ROOKIE ROB', palette: { sweater: 0x2f7a44, trouser: 0x474d57, skin: 0xd9a278, cap: 0x234a30 } },
+  { name: 'VETERAN VAL', palette: { sweater: 0x3a63a8, trouser: 0x3d2f24, skin: 0xe0b08a, cap: 0x27406e } },
+  { name: 'CHAMPION CHELSEA', palette: { sweater: 0xb03030, trouser: 0x22222a, skin: 0xc98f6a, cap: 0x7a1f1f } },
+];
+const OPPONENT_SCRIPTS = [
+  [ // Rookie Rob — 12 turns, 41.75/turn average
+    [['S', 20, 88, -2], ['S', 20, 129, 2.5], ['OFF', 167, 182]],
+    [['S', 20, 93, 1.5], ['S', 5, 90, -2], ['S', 12, 133, 2]],
+    [['S', 19, 87, 2], ['OFF', 13, 181], ['S', 17, 91, -1.5]],
+    [['S', 20, 95, -2.5], ['S', 20, 126, 1], ['S', 18, 88, 2.5]],
+    [['S', 18, 92, -2], ['S', 7, 94, 1.5], ['S', 20, 130, -1]],
+    [['S', 19, 89, 1], ['S', 16, 93, -2.5], ['S', 1, 128, 2]],
+    [['S', 20, 91, 2.5], ['S', 14, 87, -1], ['S', 18, 131, 1.5]],
+    [['S', 20, 94, -1.5], ['S', 19, 90, 2], ['OFF', 193, 183]],
+    [['S', 20, 86, 1], ['S', 17, 92, -2], ['S', 13, 89, 2.5]],
+    [['S', 20, 92, -2.5], ['S', 16, 88, 1.5], ['S', 8, 130, -1]],
+    [['S', 16, 91, -1.5], ['S', 16, 95, 2], ['D', 8, 166, 0]],
+    [['S', 4, 89, 1.5], ['S', 2, 92, -1], ['D', 5, 166, 0]],
+  ],
+  [ // Veteran Val — 5 turns (stronger route, closes on a 2-dart turn)
+    [['T', 19, 101, -2], ['T', 19, 105, 2], ['S', 19, 90, 1.5]],
+    [['T', 20, 103, 0], ['S', 20, 90, -1.5], ['S', 20, 92, 1.5]],
+    [['T', 20, 102, 0], ['S', 20, 89, 2], ['S', 18, 130, -1.5]],
+    [['T', 18, 101, -2], ['T', 18, 105, 2], ['S', 14, 91, 1.5]],
+    [['S', 16, 90, 1], ['D', 16, 166, 0]],
+  ],
+  [ // Champion Chelsea — 4 turns (stronger route, opens with a 180)
+    [['T', 20, 101, 0], ['T', 20, 105, 0], ['T', 20, 103, 0]],
+    [['T', 20, 103, 0], ['T', 20, 101, 0], ['S', 17, 90, 1.5]],
+    [['S', 20, 92, -1.5], ['T', 20, 104, 0], ['T', 16, 103, 0]],
+    [['S', 8, 89, 1.5], ['S', 16, 91, -1], ['D', 16, 166, 0]],
+  ],
+];
+function buildLandings(script) {
+  const landings = [];
+  for (const turn of script) {
+    for (const d of turn) {
+      let x, y, code;
+      if (d[0] === 'OFF') {
+        const th = THREE.MathUtils.degToRad(d[1]);
+        x = Math.sin(th) * d[2]; y = Math.cos(th) * d[2];
+        code = 'OFF';
+      } else {
+        const idx = BOARD.NUMBERS.indexOf(d[1]);
+        const th = THREE.MathUtils.degToRad(idx * 18 + d[3]);
+        x = Math.sin(th) * d[2]; y = Math.cos(th) * d[2];
+        code = d[0] + d[1];
+      }
+      landings.push({ code, x, y });
+    }
+  }
+  return landings;
+}
+const OPPONENT_LANDINGS = OPPONENT_SCRIPTS.map(buildLandings);
+
+/* ---------- the player ---------- */
+const POSE = {
+  idle: { shX: 0.55, shZ: -0.10, elX: 1.65, lean: 0.00 },
+  draw: { shX: 0.30, shZ: 0.38, elX: 2.90, lean: 0.07 },
+  snap: { shX: 1.50, shZ: -0.06, elX: -0.10, lean: -0.05 },
+};
+let player, torsoG, shoulderR, elbowR, handR, handL, inHandDart;
+const leftDarts = [];
+let robGroup, robTorsoG, robShoulderR, robElbowR, robHandR, robInHandDart;
+let opShirtMat, opTrouserMat, opSkinMat, opCapMat;
+const robLeftDarts = [];
+const robPose = { shX: POSE.idle.shX, shZ: POSE.idle.shZ, elX: POSE.idle.elX, lean: 0 };
+const POSE_WATCH = { shX: POSE.idle.shX, shZ: POSE.idle.shZ, elX: POSE.idle.elX, lean: -0.12 };
+function buildPlayer() {
+  player = new THREE.Group();
+  player.position.set(0, 0, 2.52);
+
+  const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.055, 0.88, 10), MAT.denim);
+  legL.position.set(-0.10, 0.44, 0);
+  const legR = legL.clone(); legR.position.x = 0.10;
+  const shoeGeo = new THREE.BoxGeometry(0.11, 0.066, 0.22);
+  const shoeL = new THREE.Mesh(shoeGeo, MAT.shoe); shoeL.position.set(-0.10, 0.033, -0.02);
+  const shoeR = shoeL.clone(); shoeR.position.x = 0.10;
+  player.add(legL, legR, shoeL, shoeR);
+
+  torsoG = new THREE.Group();
+  torsoG.position.set(0, 0.95, 0);
+  const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.135, 0.2, 14), MAT.denim);
+  hips.position.y = 0.03;
+  const chest = new THREE.Mesh(new THREE.CylinderGeometry(0.165, 0.14, 0.5, 14), MAT.shirt);
+  chest.position.y = 0.28;
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.1, 10), MAT.skin);
+  neck.position.y = 0.56;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.115, 20, 16), MAT.skin);
+  head.position.y = 0.735;
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.12, 20, 16), MAT.hair);
+  hair.scale.set(1, 0.72, 1); hair.position.set(0, 0.775, 0.012);
+  const eyeGeo = new THREE.SphereGeometry(0.011, 8, 8);
+  const eyeMat = std(0x201510, 0.4);
+  const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.036, 0.75, -0.104);
+  const eyeR = eyeL.clone(); eyeR.position.x = 0.036;
+  torsoG.add(hips, chest, neck, head, hair, eyeL, eyeR);
+
+  function buildArm(side) { // side: +1 right, -1 left
+    const sh = new THREE.Group();
+    sh.position.set(0.19 * side, 0.485, 0);
+    const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.048, 0.27, 10), MAT.skin);
+    upper.position.y = -0.135;
+    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.058, 0.1, 10), MAT.shirt);
+    sleeve.position.y = -0.05;
+    sh.add(upper, sleeve);
+    const elb = new THREE.Group();
+    elb.position.y = -0.27;
+    const fore = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.042, 0.25, 10), MAT.skin);
+    fore.position.y = -0.125;
+    elb.add(fore);
+    const hand = new THREE.Group();
+    hand.position.y = -0.25;
+    const palm = new THREE.Mesh(new THREE.SphereGeometry(0.047, 12, 10), MAT.skin);
+    hand.add(palm);
+    elb.add(hand);
+    sh.add(elb);
+    torsoG.add(sh);
+    return { sh, elb, hand };
+  }
+  const armR = buildArm(1);
+  shoulderR = armR.sh; elbowR = armR.elb; handR = armR.hand;
+  const armL = buildArm(-1);
+  armL.sh.rotation.set(0.42, 0, -0.28);
+  armL.elb.rotation.x = 1.5;
+  handL = armL.hand;
+  player.add(torsoG);
+  for (let i = 0; i < 2; i++) {
+    const d = makeDart(); d.scale.setScalar(0.85);
+    d.position.set(0, 0.012, -0.004 + i * 0.02);
+    d.rotation.x = Math.PI / 2;
+    handL.add(d); leftDarts.push(d);
+  }
+
+  player.traverse(o => { if (o.isMesh) { o.castShadow = true; } });
+  scene.add(player);
+
+  inHandDart = makeDart();
+  scene.add(inHandDart);
+}
+
+/* ---------- League opponents: one rig, recolored per match ----------
+   Rob wears a green sweater, Val a blue waistcoat, Chelsea a red jacket. */
+function buildOpponent() {
+  robGroup = new THREE.Group();
+  robGroup.position.set(0.85, 0, 2.52);
+
+  opShirtMat = std(0x2f7a44, 0.85);   // Rob's green sweater by default
+  opTrouserMat = std(0x474d57, 0.9);
+  opSkinMat = std(0xd9a278, 0.75);
+  opCapMat = std(0x234a30, 0.8);
+  const shoeM = std(0x2b2b30, 0.7);
+  const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.055, 0.88, 10), opTrouserMat);
+  legL.position.set(-0.10, 0.44, 0);
+  const legR = legL.clone(); legR.position.x = 0.10;
+  const shoeGeo = new THREE.BoxGeometry(0.11, 0.066, 0.22);
+  const shoeL = new THREE.Mesh(shoeGeo, shoeM); shoeL.position.set(-0.10, 0.033, -0.02);
+  const shoeR = shoeL.clone(); shoeR.position.x = 0.10;
+  robGroup.add(legL, legR, shoeL, shoeR);
+
+  robTorsoG = new THREE.Group();
+  robTorsoG.position.set(0, 0.95, 0);
+  const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.135, 0.2, 14), opTrouserMat);
+  hips.position.y = 0.03;
+  const chest = new THREE.Mesh(new THREE.CylinderGeometry(0.165, 0.14, 0.5, 14), opShirtMat);
+  chest.position.y = 0.28;
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.1, 10), opSkinMat);
+  neck.position.y = 0.56;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.115, 20, 16), opSkinMat);
+  head.position.y = 0.735;
+  const capCrown = new THREE.Mesh(new THREE.CylinderGeometry(0.118, 0.123, 0.085, 16), opCapMat);
+  capCrown.position.y = 0.8;
+  const capBrim = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.02, 0.09), opCapMat);
+  capBrim.position.set(0, 0.762, -0.115);
+  const eyeGeo = new THREE.SphereGeometry(0.011, 8, 8);
+  const eyeMat = std(0x201510, 0.4);
+  const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.036, 0.75, -0.104);
+  const eyeR = eyeL.clone(); eyeR.position.x = 0.036;
+  robTorsoG.add(hips, chest, neck, head, capCrown, capBrim, eyeL, eyeR);
+
+  function buildRobArm(side) {
+    const sh = new THREE.Group();
+    sh.position.set(0.19 * side, 0.485, 0);
+    const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.048, 0.27, 10), opSkinMat);
+    upper.position.y = -0.135;
+    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.058, 0.1, 10), opShirtMat);
+    sleeve.position.y = -0.05;
+    sh.add(upper, sleeve);
+    const elb = new THREE.Group();
+    elb.position.y = -0.27;
+    const fore = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.042, 0.25, 10), opSkinMat);
+    fore.position.y = -0.125;
+    elb.add(fore);
+    const hand = new THREE.Group();
+    hand.position.y = -0.25;
+    const palm = new THREE.Mesh(new THREE.SphereGeometry(0.047, 12, 10), opSkinMat);
+    hand.add(palm);
+    elb.add(hand);
+    sh.add(elb);
+    robTorsoG.add(sh);
+    return { sh, elb, hand };
+  }
+  const armR = buildRobArm(1);
+  robShoulderR = armR.sh; robElbowR = armR.elb; robHandR = armR.hand;
+  const armL = buildRobArm(-1);
+  armL.sh.rotation.set(0.42, 0, -0.28);
+  armL.elb.rotation.x = 1.5;
+  for (let i = 0; i < 2; i++) {
+    const d = makeDart(); d.scale.setScalar(0.85);
+    d.position.set(0, 0.012, -0.004 + i * 0.02);
+    d.rotation.x = Math.PI / 2;
+    armL.hand.add(d); robLeftDarts.push(d);
+  }
+
+  robGroup.add(robTorsoG);
+  robGroup.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  scene.add(robGroup);
+
+  robInHandDart = makeDart();
+  robInHandDart.visible = false;
+  scene.add(robInHandDart);
+}
+function applyOpponentPalette(i) {
+  const p = OPPONENTS[i].palette;
+  opShirtMat.color.setHex(p.sweater);
+  opTrouserMat.color.setHex(p.trouser);
+  opSkinMat.color.setHex(p.skin);
+  opCapMat.color.setHex(p.cap);
+}
+
+/* ---------- lights ---------- */
+function buildLights() {
+  scene.add(new THREE.HemisphereLight(0xffe3b8, 0x2a1a10, 0.62));
+  scene.add(new THREE.AmbientLight(0x2c1c10, 0.6));
+  const spot = new THREE.SpotLight(0xffe0b8, 1.35, 9, 0.55, 0.6, 2);
+  spot.position.set(0.7, 2.95, 3.8);
+  spot.target.position.set(0, 1.0, 2.4);
+  spot.castShadow = true;
+  spot.shadow.mapSize.set(1024, 1024);
+  spot.shadow.bias = -0.0003;
+  spot.shadow.normalBias = 0.02;
+  scene.add(spot, spot.target);
+  const fill = new THREE.PointLight(0xffd9ae, 0.5, 5, 2);
+  fill.position.set(0.55, 2.05, 3.2);
+  scene.add(fill);
+}
+
+/* ============================================================
+   GAME STATE
+   ============================================================ */
+let phase = 'READY', turnNumber = 0, dartInTurn = 0;
+let aimX = 0, aimY = 0; // mm from board center
+let charging = false, chargeStart = 0, curPower = 0;
+let pendingChargeStart = false, pendingRelease = false;
+let releaseT = 0, flight = null;
+let turnScores = [], cumulativeTotal = 0, lastDart = null;
+let popupUntil = -1, bannerShowAt = -1, bannerEnd = -1, bannerShown = false;
+let camZoom = 0, camZoomTarget = 0, gameTime = 0;
+const stuckDarts = [];
+/* --- 501 leg state --- */
+let remaining = 501, turnStartRemaining = 501;
+let bustThisTurn = false, dartsUsed = 0, legComplete = false;
+let turnCodes = [], turnHistory = [];
+let bustShowAt = -1, bustEndAt = -1, bustShown = false;
+/* --- breathing sway + breath hold --- */
+let swayClock = 0, swayAmplitude = SWAY.BASE_MM;
+let swayOffsetX = 0, swayOffsetY = 0;   // current effective offset (mm)
+let frozenOffsetX = 0, frozenOffsetY = 0; // offset captured when the breath is held
+let breathState = 'READY', breathHoldEnd = -1, breathCooldownEnd = -1;
+let pendingBreathHold = false;
+/* --- pub distractions: fixed, public timetable --- */
+let turnControlStart = 0, flickerActive = false, flickerWasActive = false;
+/* --- championship final: best of three legs --- */
+let finalActive = false, legNumber = 0, legsWonPlayer = 0, legsWonOpponent = 0;
+let finalOpponentIdx = -1, opponentIdx = 0;
+let finalLegDarts = [], finalHighestTurn = 0, finalBusts = 0, finalRating = null;
+let leagueEndShowAt = -1;
+let legOverShowAt = -1, legOverEnd = -1, legOverShown = false, legOverWinner = null;
+/* --- match vs Rookie Rob --- */
+let activeThrower = 'PLAYER';
+let aiRemaining = 501, aiTurnNumber = 0, aiDartInTurn = 0, aiScriptIndex = 0;
+let aiTurnScores = [], aiTurnCodes = [], aiTurnHistory = [];
+let matchOver = false, winner = null;
+let bannerNextThrower = 'ROB', bannerTier = null, matchEndShowAt = -1, matchEndShown = false;
+let robFlight = null, robNextReleaseAt = Infinity;
+/* --- league night --- */
+let matchIndex = -1, opponentName = null;
+const leagueWins = [0, 0, 0, 0], leagueLosses = [0, 0, 0, 0];
+let leagueDarts = [];
+let leaguePanelShown = false;
+
+const armPose = { shX: POSE.idle.shX, shZ: POSE.idle.shZ, elX: POSE.idle.elX, lean: 0 };
+
+const TIP_DIR = new THREE.Vector3(0, 0, -1);
+const TMP_V1 = new THREE.Vector3(), TMP_V2 = new THREE.Vector3(), TMP_V3 = new THREE.Vector3();
+const TMP_LOOK = new THREE.Vector3();
+const ZP = new THREE.Vector3(), ZL = new THREE.Vector3();
+const qTilt = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.18, 0, 0));
+
+function meterAt(tau) {
+  const x = (tau * POWER.SPEED) % 200;
+  return x > 100 ? 200 - x : x;
+}
+/* ---- landing attribution: the auditable boundary spec ----
+   scoreAt is the single attribution function: the zone pop-up, the scoreboard
+   rows, the 501 arithmetic (including bust evaluation), Rob's table scoring and
+   the state export all read from it — no duplicated boundary logic anywhere.
+   Hardcoded rules:
+   · Ring boundaries are closed toward the bullseye — the ring owns its wire:
+     the inner bull owns 6.35 mm, the outer bull owns 15.9 mm, the triple ring
+     owns both 99 mm and 107 mm, the double ring owns both 162 mm and 170 mm
+     (a dart at exactly 170.0 mm still scores double and is on the board).
+   · Spoke boundaries are half-open in clockwise order: measured clockwise from
+     the spoke immediately counter-clockwise of the 20 segment, segment k of the
+     standard order owns [k*18, (k+1)*18) degrees. */
+const ZONES = {
+  BULL_IN_MM: 6.35, BULL_OUT_MM: 15.9,
+  TRI_IN_MM: 99, TRI_OUT_MM: 107,
+  DBL_IN_MM: 162, DBL_OUT_MM: 170,
+  SEG_SPAN_DEG: 18,
+};
+function scoreAt(x, y) { // mm from board center
+  const d = Math.hypot(x, y);
+  const a = Math.atan2(x, y) * 180 / Math.PI; // clockwise from the top of the board
+  const ang = normAngle(a);
+  if (d > ZONES.DBL_OUT_MM) return { ring: 'OFF_BOARD', segment: null, value: 0, code: 'OFF', angleDeg: ang };
+  if (d <= ZONES.BULL_IN_MM) return { ring: 'BULL', segment: null, value: 50, code: 'BULL', angleDeg: ang };
+  if (d <= ZONES.BULL_OUT_MM) return { ring: 'OUTER_BULL', segment: null, value: 25, code: '25', angleDeg: ang };
+  const idx = Math.floor(((a + ZONES.SEG_SPAN_DEG / 2 + 360) % 360) / ZONES.SEG_SPAN_DEG);
+  const seg = BOARD.NUMBERS[idx];
+  if (d >= ZONES.TRI_IN_MM && d <= ZONES.TRI_OUT_MM) return { ring: 'TRIPLE', segment: seg, value: 3 * seg, code: 'T' + seg, angleDeg: ang };
+  if (d >= ZONES.DBL_IN_MM) return { ring: 'DOUBLE', segment: seg, value: 2 * seg, code: 'D' + seg, angleDeg: ang };
+  return { ring: d < ZONES.TRI_IN_MM ? 'SINGLE_INNER' : 'SINGLE_OUTER', segment: seg, value: seg, code: 'S' + seg, angleDeg: ang };
+}
+function normAngle(a) { // normalize to [0, 360) clockwise from the top, 4-decimal audit precision
+  return Math.round((((a % 360) + 360) % 360) * 10000) / 10000;
+}
+function turnTier(sum) { // big-turn banner tier for a completed turn
+  if (sum === 180) return 180;
+  if (sum >= 140) return 140;
+  if (sum >= 100) return 100;
+  return null;
+}
+function dartLabel(sc) {
+  if (sc.ring === 'BULL') return 'BULL — 50';
+  if (sc.ring === 'OUTER_BULL') return 'OUTER BULL — 25';
+  if (sc.ring === 'OFF_BOARD') return 'OFF BOARD — 0';
+  if (sc.ring === 'TRIPLE') return `T${sc.segment} — ${sc.value}`;
+  if (sc.ring === 'DOUBLE') return `D${sc.segment} — ${sc.value}`;
+  return `${sc.segment} — ${sc.value}`;
+}
+function showPopup(sc) {
+  el.popup.textContent = dartLabel(sc);
+  el.popup.classList.toggle('zero', sc.value === 0);
+  el.popup.classList.add('visible');
+  popupUntil = gameTime + TURN.POPUP_S;
+}
+function updateLeftDarts() {
+  const count = clamp(TURN.DARTS - Math.max(dartInTurn, 0), 0, 2);
+  leftDarts.forEach((d, i) => { d.visible = i < count; });
+}
+
+/* ---------- throwing ---------- */
+function doRelease() {
+  const P = meterAt(gameTime - chargeStart);
+  const shift = (P - POWER.PERFECT) * POWER.VERT_GAIN;
+  flight = {
+    spawnT: gameTime + THROW.SPAWN_DELAY_S, spawned: false, mesh: null,
+    landX: aimX + swayOffsetX, landY: aimY + swayOffsetY + shift,
+    P0: new THREE.Vector3(), P1: new THREE.Vector3(), P2: new THREE.Vector3(),
+  };
+  phase = 'FLIGHT'; releaseT = gameTime; charging = false; camZoomTarget = 1;
+  swayAmplitude = SWAY.BASE_MM; // growth resets immediately after a release
+  sfxWhoosh();
+}
+function bezPoint(f, u, out) {
+  const w = 1 - u;
+  out.set(
+    w * w * f.P0.x + 2 * w * u * f.P1.x + u * u * f.P2.x,
+    w * w * f.P0.y + 2 * w * u * f.P1.y + u * u * f.P2.y,
+    w * w * f.P0.z + 2 * w * u * f.P1.z + u * u * f.P2.z
+  );
+  return out;
+}
+function bezDir(f, u, out) {
+  out.subVectors(f.P1, f.P0).multiplyScalar(2 * (1 - u));
+  TMP_V3.subVectors(f.P2, f.P1).multiplyScalar(2 * u);
+  out.add(TMP_V3).normalize();
+  return out;
+}
+function updateFlight() {
+  if (!flight) return;
+  if (!flight.spawned) {
+    if (gameTime >= flight.spawnT) {
+      handR.getWorldPosition(flight.P0);
+      flight.P2.set(flight.landX / 1000, BOARD.CENTER_Y + flight.landY / 1000, BOARD.FACE_Z);
+      flight.P1.copy(flight.P0).lerp(flight.P2, 0.55);
+      flight.P1.y += 0.16; flight.P1.z += 0.05;
+      flight.mesh = makeDart();
+      flight.mesh.position.copy(flight.P0);
+      flight.mesh.quaternion.setFromUnitVectors(TIP_DIR, bezDir(flight, 0, TMP_V2));
+      scene.add(flight.mesh);
+      inHandDart.visible = false;
+      flight.spawned = true;
+    }
+    return;
+  }
+  const u = (gameTime - flight.spawnT) / (THROW.FLIGHT_S - THROW.SPAWN_DELAY_S);
+  if (u >= 1) { stickDart(); return; }
+  bezPoint(flight, u, TMP_V1);
+  bezDir(flight, u, TMP_V2);
+  flight.mesh.position.copy(TMP_V1);
+  flight.mesh.quaternion.setFromUnitVectors(TIP_DIR, TMP_V2);
+}
+function snapshotTurn(bust, remainingAfter) {
+  return {
+    turn: turnNumber,
+    darts: turnCodes.map((c, i) => ({ code: c, value: turnScores[i] })),
+    total: turnScores.reduce((a, b) => a + b, 0),
+    bust, remainingAfter,
+  };
+}
+/* 501 rules, evaluated dart by dart the instant a dart sticks */
+function resolveDartAtStick(landX, landY) {
+  const sc = scoreAt(landX, landY);
+  dartsUsed++;
+  lastDart = {
+    x: landX, y: landY,
+    distanceFromCenter: Math.round(Math.hypot(landX, landY) * 10) / 10,
+    angleDeg: sc.angleDeg,
+    segment: sc.segment, ring: sc.ring, value: sc.value,
+  };
+  turnScores.push(sc.value);
+  turnCodes.push(sc.code);
+  showPopup(sc);
+  sfxThud();
+  const newRemaining = remaining - sc.value;
+  const isDoubleOut = sc.ring === 'DOUBLE' || sc.ring === 'BULL';
+  if (newRemaining < 0 || newRemaining === 1 || (newRemaining === 0 && !isDoubleOut)) {
+    bustThisTurn = true;
+    if (finalActive) finalBusts++;
+    remaining = turnStartRemaining; // whole turn voided, score reverts
+    cumulativeTotal = 501 - remaining;
+    turnHistory.push(snapshotTurn(true, remaining));
+    sfxBust();
+    renderScoreboard();
+    camZoomTarget = 0;
+    phase = 'BUST';
+    bustShowAt = gameTime + 0.35;
+    bustEndAt = bustShowAt + 1.3;
+    bustShown = false;
+    return;
+  }
+  remaining = newRemaining;
+  cumulativeTotal = 501 - remaining;
+  if (newRemaining === 0) {
+    legComplete = true;
+    turnHistory.push(snapshotTurn(false, 0));
+    sfxLegScore();
+    renderScoreboard();
+    camZoomTarget = 0;
+    inHandDart.visible = false;
+    el.banner.classList.add('hidden');
+    if (finalActive) { settleFinalLeg('PLAYER'); return; }
+    matchOver = true;
+    winner = 'PLAYER';
+    recordMatchResult();
+    phase = 'MATCH_OVER';
+    matchEndShowAt = gameTime + ROB.MATCH_END_DELAY_S;
+    matchEndShown = false;
+    return;
+  }
+  if (sc.value > 0) sfxChime(); else sfxBuzz();
+  if (dartInTurn >= TURN.DARTS) {
+    turnHistory.push(snapshotTurn(false, remaining));
+    renderScoreboard();
+    camZoomTarget = 0;
+    if (finalActive) {
+      const sum = turnScores.reduce((a, b) => a + b, 0);
+      if (sum > finalHighestTurn) finalHighestTurn = sum;
+    }
+    bannerNextThrower = 'ROB';
+    bannerTier = turnTier(turnScores.reduce((a, b) => a + b, 0));
+    phase = 'BANNER';
+    bannerShowAt = gameTime + TURN.BANNER_DELAY_S;
+    bannerEnd = bannerShowAt + (bannerTier === 180 ? TURN.BANNER_180_S : TURN.BANNER_S);
+    bannerShown = false;
+  } else {
+    dartInTurn++;
+    phase = 'AIM';
+    inHandDart.visible = true;
+    updateLeftDarts();
+    renderScoreboard();
+  }
+}
+function stickDart() {
+  const d = flight; flight = null;
+  bezDir(d, 1, TMP_V2);
+  const r = Math.hypot(d.landX, d.landY) / 1000;
+  d.mesh.position.set(d.landX / 1000, BOARD.CENTER_Y + d.landY / 1000, r <= BOARD.BODY_R ? 0.042 : 0.014);
+  d.mesh.quaternion.setFromUnitVectors(TIP_DIR, TMP_V2);
+  stuckDarts.push(d.mesh);
+  resolveDartAtStick(d.landX, d.landY);
+}
+function snapshotAiTurn(bust, remainingAfter) {
+  return {
+    turn: aiTurnNumber,
+    darts: aiTurnCodes.map((c, i) => ({ code: c, value: aiTurnScores[i] })),
+    total: aiTurnScores.reduce((a, b) => a + b, 0),
+    bust, remainingAfter,
+  };
+}
+function beginPlayerTurn() {
+  activeThrower = 'PLAYER';
+  turnControlStart = gameTime; // the distraction timetable runs from here
+  turnNumber++;
+  dartInTurn = 1;
+  turnScores = [];
+  turnCodes = [];
+  bustThisTurn = false;
+  turnStartRemaining = remaining;
+  for (const m of stuckDarts) scene.remove(m);
+  stuckDarts.length = 0;
+  el.banner.classList.add('hidden');
+  el.banner.classList.remove('bust', 'tier180', 'tier140', 'tier100');
+  phase = 'AIM';
+  inHandDart.visible = true;
+  updateLeftDarts();
+  updateRobLeftDarts();
+  camZoomTarget = 0;
+  renderScoreboard();
+}
+function beginRobTurn() {
+  activeThrower = 'ROB';
+  aiTurnNumber++;
+  aiDartInTurn = 0;
+  aiTurnScores = [];
+  aiTurnCodes = [];
+  for (const m of stuckDarts) scene.remove(m);
+  stuckDarts.length = 0;
+  el.banner.classList.add('hidden');
+  el.banner.classList.remove('bust', 'tier180', 'tier140', 'tier100');
+  phase = 'ROB_TURN';
+  robNextReleaseAt = gameTime + ROB.FIRST_DELAY_S;
+  robInHandDart.visible = false;
+  updateRobLeftDarts();
+  camZoomTarget = 0;
+  renderScoreboard();
+}
+/* Rob throws his next scripted dart: released from his hand, real 0.6 s flight */
+function robReleaseDart() {
+  const scr = OPPONENT_LANDINGS[opponentIdx][aiScriptIndex];
+  aiScriptIndex++;
+  robHandR.getWorldPosition(TMP_V1);
+  robFlight = {
+    spawnT: gameTime, mesh: makeDart(),
+    P0: TMP_V1.clone(), P1: new THREE.Vector3(),
+    P2: new THREE.Vector3(scr.x / 1000, BOARD.CENTER_Y + scr.y / 1000, BOARD.FACE_Z),
+  };
+  robFlight.P1.copy(robFlight.P0).lerp(robFlight.P2, 0.55);
+  robFlight.P1.y += 0.16; robFlight.P1.z += 0.05;
+  robFlight.mesh.position.copy(robFlight.P0);
+  robFlight.mesh.quaternion.setFromUnitVectors(TIP_DIR, bezDir(robFlight, 0, TMP_V2));
+  scene.add(robFlight.mesh);
+  robInHandDart.visible = false;
+  robNextReleaseAt += ROB.DART_INTERVAL_S;
+  sfxWhoosh();
+}
+function updateRobFlight() {
+  const u = (gameTime - robFlight.spawnT) / ROB.FLIGHT_S;
+  if (u >= 1) { stickRobDart(); return; }
+  bezPoint(robFlight, u, TMP_V1);
+  bezDir(robFlight, u, TMP_V2);
+  robFlight.mesh.position.copy(TMP_V1);
+  robFlight.mesh.quaternion.setFromUnitVectors(TIP_DIR, TMP_V2);
+}
+function stickRobDart() {
+  const d = robFlight; robFlight = null;
+  bezDir(d, 1, TMP_V2);
+  const lx = d.P2.x * 1000, ly = (d.P2.y - BOARD.CENTER_Y) * 1000;
+  const r = Math.hypot(lx, ly) / 1000;
+  d.mesh.position.set(d.P2.x, d.P2.y, r <= BOARD.BODY_R ? 0.042 : 0.014);
+  d.mesh.quaternion.setFromUnitVectors(TIP_DIR, TMP_V2);
+  stuckDarts.push(d.mesh);
+  resolveRobDart(lx, ly);
+}
+/* Rob's dart is scored by the same board geometry; his table never busts */
+function resolveRobDart(landX, landY) {
+  const sc = scoreAt(landX, landY);
+  aiTurnScores.push(sc.value);
+  aiTurnCodes.push(sc.code);
+  showPopup(sc);
+  sfxThud();
+  aiRemaining -= sc.value;
+  if (aiRemaining === 0) {
+    aiTurnHistory.push(snapshotAiTurn(false, 0));
+    sfxBust();
+    renderScoreboard();
+    camZoomTarget = 0;
+    if (finalActive) { settleFinalLeg('ROB'); return; }
+    matchOver = true;
+    winner = 'ROB';
+    recordMatchResult();
+    phase = 'MATCH_OVER';
+    matchEndShowAt = gameTime + ROB.MATCH_END_DELAY_S;
+    matchEndShown = false;
+    return;
+  }
+  if (sc.value > 0) sfxChime(); else sfxBuzz();
+  aiDartInTurn++;
+  renderScoreboard();
+  if (aiDartInTurn >= TURN.DARTS) {
+    aiTurnHistory.push(snapshotAiTurn(false, aiRemaining));
+    bannerNextThrower = 'PLAYER';
+    bannerTier = turnTier(aiTurnScores.reduce((a, b) => a + b, 0));
+    phase = 'BANNER';
+    bannerShowAt = gameTime + TURN.BANNER_DELAY_S;
+    bannerEnd = bannerShowAt + (bannerTier === 180 ? TURN.BANNER_180_S : TURN.BANNER_S);
+    bannerShown = false;
+  }
+}
+function updateRobLeftDarts() {
+  const count = phase === 'ROB_TURN' ? clamp(TURN.DARTS - aiDartInTurn - 1, 0, 2) : 2;
+  robLeftDarts.forEach((d, i) => { d.visible = i < count; });
+}
+function recordMatchResult() { // league bookkeeping: a win earns 2 points, a loss 0
+  leagueDarts.push(dartsUsed);
+  if (winner === 'PLAYER') { leagueWins[0]++; leagueLosses[matchIndex + 1]++; }
+  else { leagueLosses[0]++; leagueWins[matchIndex + 1]++; }
+}
+function showMatchEnd() {
+  const pAvg = dartsUsed > 0 ? (501 / dartsUsed).toFixed(1) : '—';
+  const rAvg = aiScriptIndex > 0 ? (501 / aiScriptIndex).toFixed(1) : '—';
+  el.meTitle.textContent = winner === 'PLAYER' ? 'YOU WIN' : `${opponentName} WINS THE MATCH`;
+  el.meTitle.classList.toggle('rob', winner === 'ROB');
+  el.meStats.innerHTML =
+    `YOU — ${dartsUsed} DARTS · ${pAvg} AVG<br>${opponentName} — ${aiScriptIndex} DARTS · ${rAvg} AVG`;
+  el.meLeague.innerHTML = leagueTableHTML();
+  el.meNext.textContent = matchIndex < OPPONENTS.length - 1
+    ? `PRESS ENTER — MATCH ${matchIndex + 2}: ${OPPONENTS[matchIndex + 1].name}`
+    : 'PRESS ENTER — FINAL LEAGUE TABLE';
+  el.matchEnd.classList.remove('hidden');
+}
+function leagueTableHTML() {
+  const row = (name, i) =>
+    `<div class="lgRow${i === 0 ? ' lgMe' : ''}"><span>${name}</span><span>${leagueWins[i]}-${leagueLosses[i]}</span><span>${leagueWins[i] * 2}</span></div>`;
+  return '<div class="lgRow lgHead"><span>PLAYER</span><span>W-L</span><span>PTS</span></div>' +
+    row('YOU', 0) +
+    OPPONENTS.map((o, i) => row(o.name, i + 1)).join('');
+}
+function startLeague() {
+  matchIndex = 0;
+  leagueWins.fill(0); leagueLosses.fill(0);
+  leagueDarts = [];
+  el.ready.classList.add('hidden');
+  el.leagueEnd.classList.add('hidden');
+  showMatchIntro();
+}
+function showMatchIntro() {
+  startGame(); // each match starts fresh: 501s, cleared scoreboard
+  opponentIdx = matchIndex;
+  opponentName = OPPONENTS[opponentIdx].name;
+  applyOpponentPalette(opponentIdx);
+  phase = 'MATCH_INTRO';
+  inHandDart.visible = true;
+  camZoomTarget = 0;
+  el.banner.innerHTML = `MATCH ${matchIndex + 1}<small>${opponentName} · PRESS ENTER TO THROW</small>`;
+  el.banner.classList.remove('hidden');
+  renderScoreboard();
+}
+function beginMatch() {
+  el.banner.classList.add('hidden');
+  phase = 'AIM';
+  inHandDart.visible = true;
+  updateLeftDarts();
+  renderScoreboard();
+}
+function advanceLeague() {
+  el.matchEnd.classList.add('hidden');
+  el.meTitle.classList.remove('rob');
+  if (matchIndex < OPPONENTS.length - 1) {
+    matchIndex++;
+    showMatchIntro();
+  } else {
+    showLeagueComplete();
+  }
+}
+function showLeagueComplete() {
+  phase = 'LEAGUE_COMPLETE';
+  leagueEndShowAt = gameTime + 2; // the final table stays up for 2 seconds
+  el.leTable.innerHTML = leagueTableHTML();
+  el.leDarts.innerHTML = 'YOUR DARTS — ' +
+    leagueDarts.map((d, i) => `MATCH ${i + 1}: ${d}`).join(' · ');
+  el.leagueEnd.classList.remove('hidden');
+}
+function leagueFinalist() { // most league points; ties: Chelsea, then Val, then Rob
+  let best = 3;
+  for (const i of [2, 1]) if (leagueWins[i] > leagueWins[best]) best = i;
+  return best;
+}
+function showFinalIntro() {
+  finalOpponentIdx = leagueFinalist(); // league index: 1 Rob, 2 Val, 3 Chelsea
+  finalActive = true;
+  legNumber = 0; legsWonPlayer = 0; legsWonOpponent = 0;
+  finalLegDarts = []; finalHighestTurn = 0; finalBusts = 0; finalRating = null;
+  opponentIdx = finalOpponentIdx - 1; // OPPONENTS array index
+  opponentName = OPPONENTS[opponentIdx].name;
+  applyOpponentPalette(opponentIdx);
+  phase = 'FINAL_INTRO';
+  for (const m of stuckDarts) scene.remove(m);
+  stuckDarts.length = 0;
+  el.leagueEnd.classList.add('hidden');
+  el.banner.innerHTML = `CHAMPIONSHIP FINAL<small>${opponentName} · FIRST TO 2 LEGS · PRESS ENTER</small>`;
+  el.banner.classList.remove('hidden');
+  renderScoreboard();
+}
+function beginFinalLeg() {
+  startGame(); // every leg starts fresh at 501
+  legNumber++;
+  if (legNumber === 2) {
+    beginRobTurn(); // the opponent throws first in leg 2
+  } else {
+    inHandDart.visible = true;
+    updateLeftDarts();
+  }
+  renderScoreboard();
+}
+function settleFinalLeg(side) {
+  if (side === 'PLAYER') {
+    legsWonPlayer++;
+    const turnSum = turnScores.reduce((a, b) => a + b, 0);
+    if (turnSum > finalHighestTurn) finalHighestTurn = turnSum;
+  } else {
+    legsWonOpponent++;
+  }
+  finalLegDarts.push(dartsUsed);
+  legOverWinner = side;
+  phase = 'LEG_END';
+  legOverShowAt = gameTime + 0.4;
+  legOverEnd = legOverShowAt + 1.2;
+  legOverShown = false;
+  el.banner.classList.add('hidden');
+}
+function showSettlement() {
+  phase = 'SETTLEMENT';
+  const won = legsWonPlayer === 2;
+  const legsPlayed = finalLegDarts.length;
+  const totalDarts = finalLegDarts.reduce((a, b) => a + b, 0);
+  const dartsPerLeg = legsPlayed > 0 ? Math.round(totalDarts / legsPlayed * 10) / 10 : 0;
+  if (!won) finalRating = 'RUNNER-UP';
+  else if (finalBusts === 0 && finalHighestTurn >= 140) finalRating = 'PUB LEGEND';
+  else if (finalBusts === 0) finalRating = 'SHARPSHOOTER';
+  else finalRating = 'CHAMPION';
+  el.settleTitle.textContent = won ? 'YOU ARE THE CHAMPION!' : `${opponentName} WINS THE FINAL`;
+  el.settleTitle.classList.toggle('rob', !won);
+  el.settleStats.innerHTML =
+    `DARTS PER LEG — ${dartsPerLeg.toFixed(1)}<br>HIGHEST TURN — ${finalHighestTurn}<br>BUSTS — ${finalBusts}<br>RATING — ${finalRating}`;
+  el.settleTable.innerHTML = leagueTableHTML();
+  el.settlement.classList.remove('hidden');
+}
+function hideLeaguePanel() {
+  leaguePanelShown = false;
+  el.leaguePanel.classList.add('hidden');
+}
+function inMatchPhase() {
+  return phase === 'AIM' || phase === 'CHARGE' || phase === 'FLIGHT' ||
+    phase === 'ROB_TURN' || phase === 'BANNER' || phase === 'BUST';
+}
+
+/* ---------- state transitions ---------- */
+function startGame() {
+  phase = 'AIM'; turnNumber = 1; dartInTurn = 1;
+  turnControlStart = gameTime; // turn-1 control starts the per-match timetable
+  flickerActive = false; flickerWasActive = false;
+  turnScores = []; turnCodes = []; turnHistory = [];
+  remaining = 501; turnStartRemaining = 501;
+  bustThisTurn = false; dartsUsed = 0; legComplete = false;
+  cumulativeTotal = 0; lastDart = null;
+  swayClock = 0; swayAmplitude = SWAY.BASE_MM; // sway clock runs from the start of the leg
+  swayOffsetX = 0; swayOffsetY = 0;
+  frozenOffsetX = 0; frozenOffsetY = 0;
+  breathState = 'READY'; breathHoldEnd = -1; breathCooldownEnd = -1;
+  pendingBreathHold = false;
+  activeThrower = 'PLAYER';
+  aiRemaining = 501; aiTurnNumber = 0; aiDartInTurn = 0; aiScriptIndex = 0;
+  aiTurnScores = []; aiTurnCodes = []; aiTurnHistory = [];
+  matchOver = false; winner = null;
+  bannerNextThrower = 'ROB'; bannerTier = null; matchEndShowAt = -1; matchEndShown = false;
+  if (robFlight && robFlight.mesh) scene.remove(robFlight.mesh);
+  robFlight = null; robNextReleaseAt = Infinity;
+  robInHandDart.visible = false;
+  updateRobLeftDarts();
+  for (const m of stuckDarts) scene.remove(m);
+  stuckDarts.length = 0;
+  el.ready.classList.add('hidden');
+  el.matchEnd.classList.add('hidden');
+  el.meTitle.classList.remove('rob');
+  el.leagueEnd.classList.add('hidden');
+  el.leaguePanel.classList.add('hidden');
+  leaguePanelShown = false;
+  el.banner.classList.add('hidden');
+  el.banner.classList.remove('bust', 'gameshot', 'tier180', 'tier140', 'tier100');
+  updateLeftDarts();
+  renderScoreboard();
+}
+function resetToReady() {
+  phase = 'READY'; turnNumber = 0; dartInTurn = 0;
+  turnControlStart = gameTime; flickerActive = false; flickerWasActive = false;
+  aimX = 0; aimY = 0; charging = false; curPower = 0;
+  pendingChargeStart = false; pendingRelease = false;
+  if (flight && flight.mesh) scene.remove(flight.mesh);
+  flight = null;
+  for (const m of stuckDarts) scene.remove(m);
+  stuckDarts.length = 0;
+  turnScores = []; turnCodes = []; turnHistory = [];
+  remaining = 501; turnStartRemaining = 501;
+  bustThisTurn = false; dartsUsed = 0; legComplete = false;
+  cumulativeTotal = 0; lastDart = null;
+  swayClock = 0; swayAmplitude = SWAY.BASE_MM;
+  swayOffsetX = 0; swayOffsetY = 0;
+  frozenOffsetX = 0; frozenOffsetY = 0;
+  breathState = 'READY'; breathHoldEnd = -1; breathCooldownEnd = -1;
+  pendingBreathHold = false;
+  if (robFlight && robFlight.mesh) scene.remove(robFlight.mesh);
+  robFlight = null; robNextReleaseAt = Infinity;
+  activeThrower = 'PLAYER';
+  aiRemaining = 501; aiTurnNumber = 0; aiDartInTurn = 0; aiScriptIndex = 0;
+  aiTurnScores = []; aiTurnCodes = []; aiTurnHistory = [];
+  matchOver = false; winner = null;
+  bannerNextThrower = 'ROB'; bannerTier = null; matchEndShowAt = -1; matchEndShown = false;
+  matchIndex = -1; opponentName = null;
+  leagueWins.fill(0); leagueLosses.fill(0);
+  leagueDarts = [];
+  hideLeaguePanel();
+  el.leagueEnd.classList.add('hidden');
+  el.settlement.classList.add('hidden');
+  finalActive = false; legNumber = 0; legsWonPlayer = 0; legsWonOpponent = 0;
+  finalOpponentIdx = -1; opponentIdx = 0;
+  finalLegDarts = []; finalHighestTurn = 0; finalBusts = 0; finalRating = null;
+  leagueEndShowAt = -1;
+  legOverShowAt = -1; legOverEnd = -1; legOverShown = false; legOverWinner = null;
+  robInHandDart.visible = false;
+  updateRobLeftDarts();
+  el.matchEnd.classList.add('hidden');
+  el.meTitle.classList.remove('rob');
+  popupUntil = -1; bannerShown = false;
+  el.popup.textContent = '';
+  el.popup.classList.remove('visible');
+  el.banner.textContent = '';
+  el.banner.classList.remove('bust', 'gameshot', 'tier180', 'tier140', 'tier100');
+  el.banner.classList.add('hidden');
+  el.ready.classList.remove('hidden');
+  camZoomTarget = 0;
+  gameTime = 0;
+  inHandDart.visible = true;
+  updateLeftDarts();
+  renderScoreboard();
+}
+
+/* ---------- per-step updates ---------- */
+function stepArm() {
+  let t = POSE.idle, k = 6;
+  if (phase === 'CHARGE') { t = POSE.draw; k = 10; }
+  else if (phase === 'FLIGHT') {
+    const th = gameTime - releaseT;
+    if (th < SNAP_S) { t = POSE.snap; k = 26; } else { t = POSE.idle; k = 6; }
+  }
+  const f = 1 - Math.exp(-k * FIXED_DT);
+  armPose.shX += (t.shX - armPose.shX) * f;
+  armPose.shZ += (t.shZ - armPose.shZ) * f;
+  armPose.elX += (t.elX - armPose.elX) * f;
+  armPose.lean += (t.lean - armPose.lean) * f;
+  shoulderR.rotation.set(armPose.shX, 0, armPose.shZ);
+  elbowR.rotation.x = armPose.elX;
+  torsoG.rotation.x = armPose.lean + 0.012 * Math.sin(gameTime * 1.4);
+  torsoG.rotation.y = 0.02 * Math.sin(gameTime * 0.9);
+}
+function stepRob() {
+  let t = POSE.idle, k = 6;
+  if (phase === 'ROB_TURN' && aiDartInTurn < TURN.DARTS && !robFlight &&
+      robNextReleaseAt - gameTime <= ROB.WINDUP_S) { t = POSE.draw; k = 10; }
+  else if (robFlight) { t = POSE.snap; k = 22; }
+  else if (phase === 'FLIGHT') { t = POSE_WATCH; k = 5; } // leans in to watch your dart
+  const f = 1 - Math.exp(-k * FIXED_DT);
+  robPose.shX += (t.shX - robPose.shX) * f;
+  robPose.shZ += (t.shZ - robPose.shZ) * f;
+  robPose.elX += (t.elX - robPose.elX) * f;
+  robPose.lean += (t.lean - robPose.lean) * f;
+  robShoulderR.rotation.set(robPose.shX, 0, robPose.shZ);
+  robElbowR.rotation.x = robPose.elX;
+  robTorsoG.rotation.x = robPose.lean;
+  robTorsoG.rotation.z = 0.035 * Math.sin(gameTime * 0.7);
+  robTorsoG.rotation.y = 0.03 * Math.sin(gameTime * 0.5 + 1.3);
+  robGroup.position.x = 0.85 + 0.01 * Math.sin(gameTime * 0.45);
+}
+function updateInHandDart() {
+  if (!inHandDart.visible) return;
+  handR.getWorldPosition(TMP_V1);
+  TMP_V2.set(0, 0, -1).applyQuaternion(qTilt);
+  inHandDart.quaternion.setFromUnitVectors(TIP_DIR, TMP_V2);
+  inHandDart.position.copy(TMP_V1).addScaledVector(TMP_V2, 0.015);
+  inHandDart.position.y += 0.005;
+  // the throwing hand breathes with the sway
+  inHandDart.position.x += swayOffsetX / 1000;
+  inHandDart.position.y += swayOffsetY / 1000;
+}
+function updateRobInHandDart() {
+  if (!robInHandDart.visible) return;
+  robHandR.getWorldPosition(TMP_V1);
+  TMP_V2.set(0, 0, -1).applyQuaternion(qTilt);
+  robInHandDart.quaternion.setFromUnitVectors(TIP_DIR, TMP_V2);
+  robInHandDart.position.copy(TMP_V1).addScaledVector(TMP_V2, 0.015);
+  robInHandDart.position.y += 0.005;
+}
+function updateAmbient() {
+  for (const L of lamps) {
+    L.grp.rotation.x = 0.05 * Math.sin(gameTime * 1.05 + L.p1);
+    L.grp.rotation.z = 0.04 * Math.sin(gameTime * 0.75 + L.p2);
+    if (flickerActive) {
+      // hard strobe and dim while the distraction window is open
+      const strobe = Math.sin(gameTime * 2 * Math.PI * 16) > 0 ? 1 : 0.1;
+      L.bulbMat.emissiveIntensity = (1.9 + 0.35 * Math.sin(gameTime * 1.3 + L.p3)) * 0.3 * strobe;
+      L.light.intensity = 0.85 * 0.3 * strobe;
+    } else {
+      L.bulbMat.emissiveIntensity = 1.9 + 0.35 * Math.sin(gameTime * 1.3 + L.p3);
+      L.light.intensity = 0.85;
+    }
+  }
+}
+function updateCameraStep() {
+  const anchor = phase === 'ROB_TURN' ? 'ROB' : (camZoomTarget > 0.5 ? 'PLAYER' : 'WIDE');
+  const target = anchor === 'WIDE' ? 0 : 1;
+  camZoom += (target - camZoom) * (1 - Math.exp(-CAM.EASE * FIXED_DT));
+  let apos = CAM.DEF_POS, alook = CAM.DEF_LOOK;
+  if (anchor === 'PLAYER') {
+    const ax = aimX / 1000, ay = aimY / 1000;
+    ZP.set(0.42 + ax * 0.5, 1.86 + ay * 0.35, 1.18);
+    ZL.set(ax * 0.55, BOARD.CENTER_Y + ay * 0.55, BOARD.FACE_Z);
+    apos = ZP; alook = ZL;
+  } else if (anchor === 'ROB') {
+    apos = CAM.ROB_POS; alook = CAM.ROB_LOOK;
+  }
+  camera.position.lerpVectors(CAM.DEF_POS, apos, camZoom);
+  TMP_LOOK.lerpVectors(CAM.DEF_LOOK, alook, camZoom);
+  camera.lookAt(TMP_LOOK);
+}
+function updateCrosshair() {
+  crosshair.visible = phase === 'AIM' || phase === 'CHARGE' || phase === 'FLIGHT';
+  // the crosshair rides the breathing sway: it is the point the dart follows
+  crosshair.position.set((aimX + swayOffsetX) / 1000, BOARD.CENTER_Y + (aimY + swayOffsetY) / 1000, 0.055);
+  const s = phase === 'CHARGE' ? 1 + 0.12 * Math.sin(gameTime * 9) : 1;
+  crosshair.scale.setScalar(s);
+}
+
+function step(dt) {
+  gameTime += dt;
+  if (pendingChargeStart) {
+    pendingChargeStart = false;
+    if (phase === 'AIM') { phase = 'CHARGE'; charging = true; chargeStart = gameTime; }
+  }
+  if (pendingRelease) {
+    pendingRelease = false;
+    if (phase === 'CHARGE') doRelease();
+  }
+  if (pendingBreathHold) {
+    pendingBreathHold = false;
+    if ((phase === 'AIM' || phase === 'CHARGE') && breathState === 'READY') {
+      breathState = 'HELD';
+      breathHoldEnd = gameTime + BREATH.HOLD_S;
+      breathCooldownEnd = gameTime + BREATH.COOLDOWN_S;
+      frozenOffsetX = swayOffsetX; // freeze the sway at its current offset
+      frozenOffsetY = swayOffsetY;
+      sfxBreathIn();
+    }
+  }
+  if (breathState === 'HELD' && gameTime >= breathHoldEnd) {
+    breathState = 'COOLDOWN'; // cooldown keeps counting from activation
+    sfxBreathOut();
+  }
+  if (breathState === 'COOLDOWN' && gameTime >= breathCooldownEnd) breathState = 'READY';
+  // pub distractions: on the player's turns 2, 4, 6 the lights flicker 1.5 s into the
+  // turn for exactly 0.5 s — the timetable is identical in every league match
+  flickerActive = FLICKER.TURNS.indexOf(turnNumber) >= 0 &&
+    (phase === 'AIM' || phase === 'CHARGE' || phase === 'FLIGHT') &&
+    gameTime >= turnControlStart + FLICKER.AT_S &&
+    gameTime < turnControlStart + FLICKER.AT_S + FLICKER.DUR_S;
+  if (flickerActive && !flickerWasActive) sfxCrowd();
+  flickerWasActive = flickerActive;
+  // the sway clock pauses while the breath is held and resumes where it froze
+  if (breathState !== 'HELD') swayClock += dt;
+  // charge-time amplitude growth is paused during a breath hold
+  if (phase === 'CHARGE' && breathState !== 'HELD') {
+    swayAmplitude = Math.min(SWAY.MAX_MM, swayAmplitude + SWAY.GROWTH * dt);
+  }
+  if (breathState === 'HELD') {
+    swayOffsetX = frozenOffsetX; // freeze takes precedence: no doubling on frozen offsets
+    swayOffsetY = frozenOffsetY;
+  } else {
+    // flicker doubling applies after the base, charging growth, and cap computation
+    const amp = flickerActive ? swayAmplitude * FLICKER.AMPLITUDE_MULT : swayAmplitude;
+    swayOffsetX = amp * Math.sin(2 * Math.PI * swayClock / SWAY.PERIOD_X);
+    swayOffsetY = amp * Math.sin(2 * Math.PI * swayClock / SWAY.PERIOD_Y + SWAY.PHASE_Y);
+  }
+  if (phase === 'CHARGE') curPower = meterAt(gameTime - chargeStart);
+  stepArm();
+  stepRob();
+  if (phase === 'FLIGHT') updateFlight();
+  if (phase === 'ROB_TURN') {
+    if (aiDartInTurn < TURN.DARTS && !robFlight && gameTime >= robNextReleaseAt) robReleaseDart();
+    if (robFlight) updateRobFlight();
+    if (aiDartInTurn < TURN.DARTS && !robFlight && robNextReleaseAt - gameTime <= ROB.WINDUP_S) {
+      robInHandDart.visible = true;
+      updateRobLeftDarts();
+    }
+  }
+  if (phase === 'BANNER') {
+    if (!bannerShown && gameTime >= bannerShowAt) {
+      bannerShown = true;
+      el.banner.classList.remove('tier180', 'tier140', 'tier100');
+      if (bannerNextThrower === 'ROB') {
+        const sum = turnScores.reduce((a, b) => a + b, 0);
+        if (bannerTier === 180) {
+          el.banner.innerHTML = `ONE HUNDRED AND EIGHTY!<small>TURN ${turnNumber} TOTAL — ${sum} · ROB TO THROW…</small>`;
+          el.banner.classList.add('tier180');
+          sfx180();
+        } else if (bannerTier === 140) {
+          el.banner.innerHTML = `BIG TON!<small>TURN ${turnNumber} TOTAL — ${sum} · ROB TO THROW…</small>`;
+          el.banner.classList.add('tier140');
+        } else if (bannerTier === 100) {
+          el.banner.innerHTML = `TON!<small>TURN ${turnNumber} TOTAL — ${sum} · ROB TO THROW…</small>`;
+          el.banner.classList.add('tier100');
+        } else {
+          el.banner.innerHTML = `TURN ${turnNumber} TOTAL — ${sum}<small>ROB TO THROW…</small>`;
+        }
+      } else {
+        const sum = aiTurnScores.reduce((a, b) => a + b, 0);
+        if (bannerTier === 180) {
+          el.banner.innerHTML = `ONE HUNDRED AND EIGHTY!<small>ROB'S TURN ${aiTurnNumber} TOTAL — ${sum} · YOUR THROW…</small>`;
+          el.banner.classList.add('tier180');
+          sfx180();
+        } else if (bannerTier === 140) {
+          el.banner.innerHTML = `BIG TON!<small>ROB'S TURN ${aiTurnNumber} TOTAL — ${sum} · YOUR THROW…</small>`;
+          el.banner.classList.add('tier140');
+        } else if (bannerTier === 100) {
+          el.banner.innerHTML = `TON!<small>ROB'S TURN ${aiTurnNumber} TOTAL — ${sum} · YOUR THROW…</small>`;
+          el.banner.classList.add('tier100');
+        } else {
+          el.banner.innerHTML = `ROB'S TURN TOTAL — ${sum}<small>YOUR THROW…</small>`;
+        }
+      }
+      el.banner.classList.remove('hidden');
+    }
+    if (gameTime >= bannerEnd) {
+      if (bannerNextThrower === 'ROB') beginRobTurn(); else beginPlayerTurn();
+    }
+  }
+  if (phase === 'BUST') {
+    if (!bustShown && gameTime >= bustShowAt) {
+      bustShown = true;
+      el.banner.innerHTML = `BUST<small>TURN VOID — SCORE REVERTS TO ${remaining} · ROB TO THROW…</small>`;
+      el.banner.classList.add('bust');
+      el.banner.classList.remove('hidden');
+    }
+    if (gameTime >= bustEndAt) beginRobTurn();
+  }
+  if (phase === 'MATCH_OVER' && !matchEndShown && gameTime >= matchEndShowAt) {
+    matchEndShown = true;
+    showMatchEnd();
+  }
+  if (phase === 'LEAGUE_COMPLETE' && leagueEndShowAt >= 0 && gameTime >= leagueEndShowAt) showFinalIntro();
+  if (phase === 'LEG_END') {
+    if (!legOverShown && gameTime >= legOverShowAt) {
+      legOverShown = true;
+      el.banner.classList.remove('bust', 'tier180', 'tier140', 'tier100');
+      el.banner.innerHTML = legOverWinner === 'PLAYER'
+        ? `LEG ${legNumber} — YOU WIN<small>LEGS ${legsWonPlayer}–${legsWonOpponent}</small>`
+        : `LEG ${legNumber} — ${opponentName} WINS<small>LEGS ${legsWonPlayer}–${legsWonOpponent}</small>`;
+      el.banner.classList.remove('hidden');
+    }
+    if (gameTime >= legOverEnd) {
+      el.banner.classList.add('hidden');
+      if (legsWonPlayer === 2 || legsWonOpponent === 2) showSettlement();
+      else beginFinalLeg();
+    }
+  }
+  updateAmbient();
+  updateCameraStep();
+  updateCrosshair();
+  updateInHandDart();
+  updateRobInHandDart();
+}
+
+/* ---------- HUD + state export ---------- */
+function updateHUD() {
+  const robActive = activeThrower === 'ROB';
+  el.turnNum.textContent = robActive ? aiTurnNumber : (turnNumber > 0 ? turnNumber : '–');
+  el.dartNum.textContent = robActive
+    ? Math.min(aiDartInTurn + 1, TURN.DARTS)
+    : (turnNumber > 0 ? dartInTurn : '–');
+  el.turnTotal.textContent = phase === 'BUST' ? 0
+    : (robActive ? aiTurnScores : turnScores).reduce((a, b) => a + b, 0);
+  el.remaining.textContent = remaining;
+  el.remaining.classList.toggle('busted', phase === 'BUST');
+  el.aiRemaining.textContent = aiRemaining;
+  el.dartsUsed.textContent = dartsUsed;
+  el.aiDartsUsed.textContent = aiScriptIndex;
+  const showMeter = phase === 'CHARGE';
+  el.meterWrap.classList.toggle('visible', showMeter);
+  if (showMeter) {
+    el.meterFill.style.width = curPower.toFixed(1) + '%';
+    el.powerVal.textContent = Math.round(curPower);
+    const sc = Math.max(POWER.SCATTER_MIN, POWER.SCATTER_GAIN * Math.abs(curPower - POWER.PERFECT));
+    el.scatterVal.textContent = `SCATTER ±${sc.toFixed(1)} mm`;
+  }
+  if (el.popup.classList.contains('visible') && gameTime > popupUntil) {
+    el.popup.classList.remove('visible');
+  }
+  let bTxt = 'BREATH: READY';
+  if (breathState === 'HELD') bTxt = `BREATH: HELD ${Math.max(0, breathHoldEnd - gameTime).toFixed(1)}s`;
+  else if (breathState === 'COOLDOWN') bTxt = `BREATH: COOLDOWN ${Math.max(0, breathCooldownEnd - gameTime).toFixed(1)}s`;
+  el.breathLine.textContent = bTxt;
+  el.breathLine.classList.toggle('held', breathState === 'HELD');
+  el.breathLine.classList.toggle('cool', breathState === 'COOLDOWN');
+  const matchLive = phase === 'AIM' || phase === 'CHARGE' || phase === 'FLIGHT' ||
+    phase === 'ROB_TURN' || phase === 'BANNER' || phase === 'BUST';
+  el.throwerBar.classList.toggle('hidden', !matchLive);
+  el.throwerBar.textContent = robActive ? "ROB'S THROW" : 'YOUR THROW';
+  el.throwerBar.classList.toggle('rob', robActive);
+  const leagueLive = matchIndex >= 0 && phase !== 'LEAGUE_COMPLETE';
+  el.leagueLine.classList.toggle('hidden', !leagueLive);
+  if (leagueLive) {
+    el.leagueLine.textContent = !finalActive
+      ? `MATCH ${matchIndex + 1}/3 · VS ${opponentName}`
+      : (legNumber >= 1 && phase !== 'FINAL_INTRO'
+          ? `FINAL · LEG ${legNumber} · LEGS ${legsWonPlayer}–${legsWonOpponent}`
+          : `CHAMPIONSHIP FINAL · ${opponentName}`);
+  }
+}
+function exportState() {
+  window.__arena_state = Object.freeze({
+    phase,
+    turnNumber,
+    dartInTurn,
+    aimX,
+    aimY,
+    swayOffsetX,
+    swayOffsetY,
+    swayAmplitude,
+    swayClock,
+    turnControlTime: Math.max(0, gameTime - turnControlStart),
+    flickerActive,
+    breath: Object.freeze({
+      state: breathState,
+      holdRemaining: breathState === 'HELD' ? Math.max(0, breathHoldEnd - gameTime) : 0,
+      cooldownRemaining: breathState === 'COOLDOWN' ? Math.max(0, breathCooldownEnd - gameTime) : 0,
+    }),
+    charging,
+    matchIndex,
+    opponentName,
+    leagueStandings: Object.freeze({
+      YOU: Object.freeze({ wins: leagueWins[0], losses: leagueLosses[0], points: leagueWins[0] * 2 }),
+      'ROOKIE ROB': Object.freeze({ wins: leagueWins[1], losses: leagueLosses[1], points: leagueWins[1] * 2 }),
+      'VETERAN VAL': Object.freeze({ wins: leagueWins[2], losses: leagueLosses[2], points: leagueWins[2] * 2 }),
+      'CHAMPION CHELSEA': Object.freeze({ wins: leagueWins[3], losses: leagueLosses[3], points: leagueWins[3] * 2 }),
+    }),
+    leagueDartsUsed: Object.freeze([0, 1, 2].map(i =>
+      i < leagueDarts.length ? leagueDarts[i] : (i === matchIndex && inMatchPhase() ? dartsUsed : 0))),
+    legNumber,
+    legsWonPlayer,
+    legsWonOpponent,
+    finalOpponent: finalActive || phase === 'SETTLEMENT' ? opponentName : null,
+    dartsPerLeg: finalLegDarts.length > 0
+      ? Math.round(finalLegDarts.reduce((a, b) => a + b, 0) / finalLegDarts.length * 10) / 10
+      : 0,
+    highestTurn: finalHighestTurn,
+    busts: finalBusts,
+    rating: finalRating,
+    power: charging ? curPower : null,
+    scatterMm: charging
+      ? Math.max(POWER.SCATTER_MIN, POWER.SCATTER_GAIN * Math.abs(curPower - POWER.PERFECT))
+      : null,
+    lastDart: lastDart ? Object.freeze({ ...lastDart }) : null,
+    turnScores: Object.freeze([...turnScores]),
+    cumulativeTotal,
+    remaining,
+    turnStartRemaining,
+    bustThisTurn,
+    dartsUsed,
+    legComplete,
+    turnHistory: Object.freeze(turnHistory.map(h => Object.freeze({
+      turn: h.turn,
+      total: h.total,
+      bust: h.bust,
+      remainingAfter: h.remainingAfter,
+      darts: Object.freeze(h.darts.map(d => Object.freeze({ ...d }))),
+    }))),
+    activeThrower,
+    aiRemaining,
+    aiScriptIndex,
+    matchOver,
+    winner,
+    aiTurnHistory: Object.freeze(aiTurnHistory.map(h => Object.freeze({
+      turn: h.turn,
+      total: h.total,
+      bust: h.bust,
+      remainingAfter: h.remainingAfter,
+      darts: Object.freeze(h.darts.map(d => Object.freeze({ ...d }))),
+    }))),
+  });
+}
+function sbColumn(title, hist, liveScores, liveCodes, liveTurn, liveRemaining, showLive) {
+  const rows = [`<div class="sbTitle">${title}</div>`];
+  rows.push('<div class="sbRow sbHead"><span>TURN</span><span class="sbD">DARTS</span><span>TOT</span><span>LEFT</span></div>');
+  for (const h of hist.slice(-8)) {
+    const darts = h.darts.map(d => d.code).join(' ');
+    const win = !h.bust && h.remainingAfter === 0;
+    rows.push(
+      `<div class="sbRow${h.bust ? ' sbBust' : ''}${win ? ' sbWin' : ''}">` +
+      `<span>${h.turn}</span><span class="sbD${h.bust ? ' void' : ''}">${darts}</span>` +
+      `<span>${h.bust ? 'BUST' : h.total}</span><span>${h.remainingAfter}</span></div>`);
+  }
+  if (showLive) {
+    const slots = liveCodes.concat(Array(Math.max(0, TURN.DARTS - liveCodes.length)).fill('·'));
+    rows.push(
+      `<div class="sbRow sbLive"><span>${liveTurn}</span><span class="sbD">${slots.join(' ')}</span>` +
+      `<span>${liveScores.reduce((a, b) => a + b, 0)}</span><span>${liveRemaining}</span></div>`);
+  }
+  return rows.join('');
+}
+function renderScoreboard() {
+  if (phase === 'READY') { el.scoreboard.classList.add('hidden'); return; }
+  el.scoreboard.classList.remove('hidden');
+  el.sbYou.innerHTML = sbColumn('YOU', turnHistory, turnScores, turnCodes, turnNumber, remaining,
+    phase === 'AIM' || phase === 'CHARGE' || phase === 'FLIGHT');
+  el.sbRob.innerHTML = sbColumn('ROOKIE ROB', aiTurnHistory, aiTurnScores, aiTurnCodes, aiTurnNumber, aiRemaining,
+    phase === 'ROB_TURN');
+}
+
+/* ---------- input ---------- */
+window.addEventListener('keydown', e => {
+  if (e.code === 'Enter') {
+    e.preventDefault();
+    if (phase === 'READY') { initAudio(); startLeague(); }
+    else if (phase === 'MATCH_INTRO') { beginMatch(); }
+    else if (phase === 'MATCH_OVER') { advanceLeague(); }
+    else if (phase === 'FINAL_INTRO') { beginFinalLeg(); }
+    else if (phase === 'SETTLEMENT') { resetToReady(); }
+    return;
+  }
+  if (e.code === 'KeyL') {
+    e.preventDefault();
+    if (e.repeat) return;
+    if (phase !== 'READY' && phase !== 'LEAGUE_COMPLETE') {
+      leaguePanelShown = !leaguePanelShown;
+      el.leaguePanel.classList.toggle('hidden', !leaguePanelShown);
+      if (leaguePanelShown) el.leaguePanelBody.innerHTML = leagueTableHTML();
+    }
+    return;
+  }
+  if (e.code === 'KeyR') {
+    e.preventDefault();
+    resetToReady();
+    return;
+  }
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (e.repeat) return;
+    if (phase === 'AIM' && !pendingChargeStart) pendingChargeStart = true;
+    return;
+  }
+  if (e.code === 'KeyB') {
+    e.preventDefault();
+    if (e.repeat) return;
+    if ((phase === 'AIM' || phase === 'CHARGE') && breathState === 'READY') pendingBreathHold = true;
+    return;
+  }
+  if (e.code.startsWith('Arrow')) {
+    e.preventDefault();
+    if (phase === 'AIM' || phase === 'CHARGE') {
+      if (e.code === 'ArrowLeft') aimX = clamp(aimX - AIM.STEP_MM, -AIM.CLAMP_MM, AIM.CLAMP_MM);
+      else if (e.code === 'ArrowRight') aimX = clamp(aimX + AIM.STEP_MM, -AIM.CLAMP_MM, AIM.CLAMP_MM);
+      else if (e.code === 'ArrowUp') aimY = clamp(aimY + AIM.STEP_MM, -AIM.CLAMP_MM, AIM.CLAMP_MM);
+      else if (e.code === 'ArrowDown') aimY = clamp(aimY - AIM.STEP_MM, -AIM.CLAMP_MM, AIM.CLAMP_MM);
+    }
+  }
+});
+window.addEventListener('keyup', e => {
+  if (e.code !== 'Space') return;
+  if (pendingChargeStart && phase === 'AIM') { pendingChargeStart = false; return; }
+  if (phase === 'CHARGE') pendingRelease = true;
+});
+
+/* ---------- boot + main loop ---------- */
+buildRoom();
+buildBar();
+buildLamps();
+buildDecor();
+buildCabinetAndBoard();
+buildPlayer();
+buildOpponent();
+applyOpponentPalette(0);
+buildLights();
+updateLeftDarts();
+updateRobLeftDarts();
+
+let lastRaf = null, acc = 0;
+function loop(now) {
+  requestAnimationFrame(loop);
+  if (lastRaf === null) lastRaf = now;
+  let delta = (now - lastRaf) / 1000;
+  lastRaf = now;
+  if (delta > 0.1) delta = 0.1;
+  acc += delta;
+  while (acc >= FIXED_DT) { step(FIXED_DT); acc -= FIXED_DT; }
+  exportState();
+  updateHUD();
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

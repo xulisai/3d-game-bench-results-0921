@@ -1,0 +1,3841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ridgeflag Assault</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0b0c10;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    #game-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Crosshair */
+    #crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 14px;
+      height: 14px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 10;
+    }
+    #crosshair::before, #crosshair::after {
+      content: '';
+      position: absolute;
+      background-color: rgba(255, 255, 255, 0.85);
+      box-shadow: 0 0 2px rgba(0,0,0,0.8);
+    }
+    #crosshair::before {
+      top: 6px;
+      left: 0;
+      width: 14px;
+      height: 2px;
+    }
+    #crosshair::after {
+      top: 0;
+      left: 6px;
+      width: 2px;
+      height: 14px;
+    }
+    .hit-crosshair {
+      filter: drop-shadow(0 0 4px #ff3333) !important;
+    }
+
+    /* HUD overlay */
+    #hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    /* Top bar: Flag status & Mission clock */
+    .top-panel {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      background: rgba(15, 20, 25, 0.82);
+      border: 1px solid rgba(255, 200, 100, 0.3);
+      border-radius: 6px;
+      padding: 10px 24px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+      color: #f0f4f8;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+    .flag-status-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .flag-badge {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+    }
+    .flag-blue { background-color: #3b82f6; box-shadow: 0 0 6px #3b82f6; }
+    .flag-red { background-color: #ef4444; box-shadow: 0 0 6px #ef4444; }
+    .status-text {
+      color: #94a3b8;
+    }
+    .status-val {
+      color: #ffffff;
+      font-weight: bold;
+    }
+    .clock-display {
+      font-family: monospace;
+      font-size: 18px;
+      color: #fbbf24;
+      min-width: 65px;
+      text-align: center;
+    }
+    .round-info-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .round-counter-badge {
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      padding: 2px 7px;
+      color: #e2e8f0;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+    }
+    .round-score-pips {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: #cbd5e1;
+      font-size: 13px;
+    }
+    .round-score-pips strong {
+      font-family: monospace;
+      font-size: 15px;
+    }
+
+    /* Carrying flag penalty indicator */
+    #carry-penalty-badge {
+      position: absolute;
+      top: 68px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(239, 68, 68, 0.88);
+      color: #ffffff;
+      font-weight: 800;
+      font-size: 13px;
+      letter-spacing: 1.5px;
+      padding: 5px 16px;
+      border-radius: 20px;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.6);
+      display: none;
+    }
+
+    /* Bottom left: Health & Stats */
+    .bottom-left-panel {
+      position: absolute;
+      bottom: 25px;
+      left: 25px;
+      background: rgba(15, 20, 25, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      padding: 14px 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+      min-width: 220px;
+    }
+    .hp-label {
+      display: flex;
+      justify-content: space-between;
+      color: #94a3b8;
+      font-size: 13px;
+      font-weight: bold;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .hp-val {
+      color: #10b981;
+      font-size: 16px;
+    }
+    .hp-bar-bg {
+      width: 100%;
+      height: 12px;
+      background: #1f2937;
+      border-radius: 3px;
+      overflow: hidden;
+      border: 1px solid #374151;
+    }
+    .hp-bar-fill {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, #10b981, #34d399);
+      transition: width 0.1s ease;
+    }
+    .stats-row {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 12px;
+      font-size: 13px;
+      color: #cbd5e1;
+      font-weight: 500;
+    }
+    .stats-num {
+      color: #fbbf24;
+      font-weight: bold;
+    }
+
+    /* Squad row for Teammate WREN */
+    .squad-divider {
+      margin: 12px 0 10px 0;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.12);
+    }
+    .squad-row-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 5px;
+      font-size: 12px;
+      font-weight: bold;
+      letter-spacing: 0.8px;
+    }
+    .squad-name-order {
+      color: #60a5fa;
+    }
+    .squad-hp-val {
+      color: #93c5fd;
+      font-size: 12px;
+    }
+    .squad-hp-bar-bg {
+      width: 100%;
+      height: 8px;
+      background: #1f2937;
+      border-radius: 2px;
+      overflow: hidden;
+      border: 1px solid #374151;
+    }
+    .squad-hp-bar-fill {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #60a5fa);
+      transition: width 0.1s ease;
+    }
+
+    /* Bottom right: Ammo & Reload */
+    .bottom-right-panel {
+      position: absolute;
+      bottom: 25px;
+      right: 25px;
+      background: rgba(15, 20, 25, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      padding: 14px 22px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+      text-align: right;
+      min-width: 180px;
+    }
+    .ammo-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #94a3b8;
+      margin-bottom: 4px;
+    }
+    .ammo-display {
+      font-family: monospace;
+      font-size: 28px;
+      font-weight: bold;
+      color: #ffffff;
+      letter-spacing: 1px;
+    }
+    .ammo-reserve {
+      font-size: 18px;
+      color: #94a3b8;
+    }
+    .reload-bar-container {
+      margin-top: 8px;
+      height: 6px;
+      background: #1f2937;
+      border-radius: 3px;
+      overflow: hidden;
+      border: 1px solid #374151;
+      display: none;
+    }
+    .reload-bar-fill {
+      width: 0%;
+      height: 100%;
+      background: #f59e0b;
+    }
+    .reload-text {
+      color: #f59e0b;
+      font-size: 12px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      margin-top: 4px;
+      display: none;
+    }
+
+    /* Damage vignette */
+    #damage-vignette {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      box-shadow: inset 0 0 100px rgba(220, 38, 38, 0);
+      transition: box-shadow 0.15s ease-out;
+      z-index: 8;
+    }
+
+    /* Fullscreen Screen Overlays */
+    .screen-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(10, 12, 16, 0.88);
+      backdrop-filter: blur(4px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: #ffffff;
+      z-index: 50;
+      text-align: center;
+    }
+    .overlay-hidden {
+      display: none !important;
+    }
+    .game-title {
+      font-size: 48px;
+      font-weight: 800;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, #f59e0b, #ef4444);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 12px;
+      text-shadow: 0 4px 20px rgba(245, 158, 11, 0.3);
+    }
+    .game-subtitle {
+      font-size: 18px;
+      color: #94a3b8;
+      max-width: 640px;
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+    .brief-box {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 18px 28px;
+      max-width: 580px;
+      margin-bottom: 28px;
+      text-align: left;
+      font-size: 14px;
+      color: #e2e8f0;
+      line-height: 1.7;
+    }
+    .controls-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 6px 16px;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+    .key-badge {
+      display: inline-block;
+      background: #334155;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: monospace;
+      color: #38bdf8;
+      font-weight: bold;
+    }
+    .start-prompt {
+      font-size: 20px;
+      font-weight: bold;
+      color: #fbbf24;
+      animation: pulse 1.6s infinite ease-in-out;
+      letter-spacing: 2px;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.6; transform: scale(0.98); }
+      50% { opacity: 1.0; transform: scale(1.02); }
+    }
+
+    /* KIA overlay */
+    #kia-screen h1 {
+      font-size: 64px;
+      font-weight: 900;
+      color: #ef4444;
+      letter-spacing: 4px;
+      margin-bottom: 16px;
+      text-shadow: 0 0 30px rgba(239, 68, 68, 0.6);
+    }
+    #kia-screen p {
+      font-size: 20px;
+      color: #cbd5e1;
+    }
+
+    /* Victory overlay */
+    #victory-screen h1 {
+      font-size: 64px;
+      font-weight: 900;
+      color: #10b981;
+      letter-spacing: 4px;
+      margin-bottom: 8px;
+      text-shadow: 0 0 35px rgba(16, 185, 129, 0.6);
+    }
+    .banner-captured {
+      font-size: 28px;
+      font-weight: bold;
+      color: #fbbf24;
+      letter-spacing: 3px;
+      margin-bottom: 24px;
+    }
+
+    /* Defeat overlay */
+    #defeat-screen h1 {
+      font-size: 64px;
+      font-weight: 900;
+      color: #ef4444;
+      letter-spacing: 4px;
+      margin-bottom: 8px;
+      text-shadow: 0 0 35px rgba(239, 68, 68, 0.6);
+    }
+    .banner-defeat {
+      font-size: 28px;
+      font-weight: bold;
+      color: #f87171;
+      letter-spacing: 3px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 20px 40px;
+      display: flex;
+      gap: 30px;
+      margin-bottom: 30px;
+    }
+    .stat-entry {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .stat-entry span {
+      font-size: 13px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .stat-entry strong {
+      font-size: 32px;
+      color: #f8fafc;
+      font-family: monospace;
+      margin-top: 4px;
+    }
+
+    /* Banner announcement */
+    #center-banner {
+      position: absolute;
+      top: 25%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 36px;
+      font-weight: 900;
+      color: #fbbf24;
+      letter-spacing: 3px;
+      text-shadow: 0 0 20px rgba(251, 191, 36, 0.8), 0 4px 10px rgba(0,0,0,0.8);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: 15;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container"></div>
+  <div id="crosshair"></div>
+  <div id="damage-vignette"></div>
+  <div id="center-banner">CAPTURED!</div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="top-panel">
+      <div class="round-info-item">
+        <span id="ui-round-counter" class="round-counter-badge">ROUND 1/3</span>
+        <span id="ui-round-pips" class="round-score-pips">YOU <strong style="color: #60a5fa;">0</strong> — <strong style="color: #f87171;">0</strong> FOE</span>
+      </div>
+      <div style="width: 1px; height: 18px; background: rgba(255,255,255,0.2);"></div>
+      <div class="flag-status-item">
+        <span class="flag-badge flag-blue"></span>
+        <span class="status-text">YOUR FLAG:</span>
+        <span id="ui-blue-status" class="status-val">HOME</span>
+      </div>
+      <div style="width: 1px; height: 18px; background: rgba(255,255,255,0.2);"></div>
+      <div class="flag-status-item">
+        <span class="flag-badge flag-red"></span>
+        <span class="status-text">ENEMY FLAG:</span>
+        <span id="ui-red-status" class="status-val">HOME</span>
+      </div>
+      <div style="width: 1px; height: 18px; background: rgba(255,255,255,0.2);"></div>
+      <div class="clock-display" id="ui-clock">00:00</div>
+    </div>
+
+    <!-- Carry penalty badge -->
+    <div id="carry-penalty-badge">CARRYING — SPEED REDUCED</div>
+
+    <div class="bottom-left-panel">
+      <div class="hp-label">
+        <span>Vital Signs</span>
+        <span id="ui-hp-val" class="hp-val">100 HP</span>
+      </div>
+      <div class="hp-bar-bg">
+        <div id="ui-hp-fill" class="hp-bar-fill"></div>
+      </div>
+      <div class="stats-row">
+        <span>ENEMIES NEUTRALIZED</span>
+        <span id="ui-kills-val" class="stats-num">0</span>
+      </div>
+      <div class="squad-divider"></div>
+      <div class="squad-row-header">
+        <span id="ui-wren-status" class="squad-name-order">WREN — GUARD</span>
+        <span id="ui-wren-hp-val" class="squad-hp-val">60 HP</span>
+      </div>
+      <div class="squad-hp-bar-bg">
+        <div id="ui-wren-hp-fill" class="squad-hp-bar-fill"></div>
+      </div>
+    </div>
+
+    <div class="bottom-right-panel">
+      <div class="ammo-title">Assault Rifle</div>
+      <div class="ammo-display">
+        <span id="ui-mag-val">24</span>
+        <span class="ammo-reserve">/ <span id="ui-res-val">96</span></span>
+      </div>
+      <div id="ui-smoke-badge" style="margin-top: 6px; font-size: 13px; font-weight: bold; color: #94a3b8; font-family: monospace; letter-spacing: 1px;">SMOKE 1</div>
+      <div class="reload-bar-container" id="ui-reload-bar">
+        <div class="reload-bar-fill" id="ui-reload-fill"></div>
+      </div>
+      <div class="reload-text" id="ui-reload-text">RELOADING...</div>
+    </div>
+  </div>
+
+  <!-- Ready Screen -->
+  <div id="ready-screen" class="screen-overlay">
+    <div class="game-title">Ridgeflag Assault</div>
+    <div class="game-subtitle">A tactical Twilight Canyon first-person duel. Infiltrate the enemy east base, seize their flag, and bring it safely home.</div>
+    <div class="brief-box">
+      <strong>MISSION OBJECTIVES:</strong><br>
+      • Infiltrate the enemy east base at x = +52, grab their red flag, and carry it home.<br>
+      • Defend your blue flag! At +10s, enemy Runner E3 departs to steal your blue flag.<br>
+      • Intercept Runner E3 before it delivers your flag to the enemy base.<br>
+      • Score by entering your ring with the red flag while your blue flag is safely HOME.<br>
+      • Dropped flags return automatically after 30s or on friendly touch.<br>
+      • Flag carriers suffer a mobility penalty: 2.6 m/s (0.65x) with sprinting disabled.<br>
+      • Face the CHAMPION SQUAD: CHAMP-1 (guard with 8m leash), CHAMP-2 & CHAMP-3 (coordinated alternating stealer pair).<br>
+      • Teammate WREN provides fire support (60 HP, 10 dmg judged bursts). Press T to switch orders (GUARD / ASSAULT).<br>
+      • Pure foot tactical warfare: All movement is on foot. Teleport gates are decommissioned.<br>
+      • Match format: BEST OF THREE rounds (first to 2 wins). Teams change ends each round!<br>
+      <br>
+      <strong>CONTROLS:</strong>
+      <div class="controls-grid">
+        <div><span class="key-badge">W / A / S / D</span></div><div>Move (4 m/s; 2.6 m/s when carrying)</div>
+        <div><span class="key-badge">Shift</span></div><div>Sprint (7 m/s; disabled when carrying)</div>
+        <div><span class="key-badge">Mouse Look</span></div><div>Aim (Click to lock pointer)</div>
+        <div><span class="key-badge">Left Click</span></div><div>Automatic Fire (5 rounds/sec)</div>
+        <div><span class="key-badge">R</span></div><div>Tactical Reload (1.8 s)</div>
+        <div><span class="key-badge">T</span></div><div>Switch WREN Order (GUARD / ASSAULT)</div>
+        <div><span class="key-badge">G</span></div><div>Deploy Smoke Canister (1/round, 4m radius, 5s LoS block)</div>
+        <div><span class="key-badge">Esc</span></div><div>Pause / Resume</div>
+      </div>
+    </div>
+    <div class="start-prompt">PRESS ENTER TO START</div>
+  </div>
+
+  <!-- Pause Screen -->
+  <div id="pause-screen" class="screen-overlay overlay-hidden">
+    <div class="game-title" style="font-size: 44px; margin-bottom: 20px;">PAUSED</div>
+    <div class="game-subtitle" style="font-size: 22px; color: #fbbf24; font-weight: bold; letter-spacing: 1px;">PAUSED — click to resume</div>
+  </div>
+
+  <!-- KIA Screen -->
+  <div id="kia-screen" class="screen-overlay overlay-hidden">
+    <h1>KILLED IN ACTION</h1>
+    <p>Reinforcing battlefield position in <span id="kia-timer" style="color: #ef4444; font-weight: bold;">3</span> seconds...</p>
+  </div>
+
+  <!-- Victory Screen: RIDGEFLAG CHAMPION Results Page -->
+  <div id="victory-screen" class="screen-overlay overlay-hidden">
+    <div id="vic-banner" class="banner-captured">CHAMPIONSHIP CONCLUDED</div>
+    <h1 id="vic-title">RIDGEFLAG CHAMPION</h1>
+    <div id="vic-sub" style="font-size: 20px; color: #fbbf24; font-weight: bold; margin-bottom: 16px; letter-spacing: 1px;">YOU TAKE THE MATCH 2–0</div>
+    <div class="stat-card" style="grid-template-columns: 1fr 1fr; gap: 10px 20px; min-width: 380px;">
+      <div class="stat-entry">
+        <span>Your Captures</span>
+        <strong id="vic-caps" style="color: #10b981;">2</strong>
+      </div>
+      <div class="stat-entry">
+        <span>Your Deaths</span>
+        <strong id="vic-deaths" style="color: #f87171;">0</strong>
+      </div>
+      <div class="stat-entry">
+        <span>Ally Order Switches</span>
+        <strong id="vic-switches" style="color: #60a5fa;">0</strong>
+      </div>
+      <div class="stat-entry">
+        <span>Total Match Time</span>
+        <strong id="vic-time">00:00</strong>
+      </div>
+      <div class="stat-entry" style="grid-column: span 2; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 8px;">
+        <span style="font-size: 15px; color: #f8fafc;">SCORE</span>
+        <strong id="vic-score" style="font-size: 22px; color: #fbbf24;">3000</strong>
+      </div>
+      <div class="stat-entry" style="grid-column: span 2;">
+        <span style="font-size: 15px; color: #f8fafc;">RATING</span>
+        <strong id="vic-rating" style="font-size: 20px; color: #38bdf8;">S (FLAGMASTER)</strong>
+      </div>
+    </div>
+    <div class="start-prompt" style="color: #f59e0b; margin-top: 18px;">PRESS R TO PLAY AGAIN</div>
+  </div>
+
+  <!-- Defeat Screen: MATCH DEFEAT Results Page -->
+  <div id="defeat-screen" class="screen-overlay overlay-hidden">
+    <div id="def-banner" class="banner-defeat">CHAMPIONSHIP CONCLUDED</div>
+    <h1 id="def-title">MATCH DEFEAT</h1>
+    <div id="def-sub" style="font-size: 20px; color: #ef4444; font-weight: bold; margin-bottom: 16px; letter-spacing: 1px;">CHAMPION SQUAD WINS 2–0</div>
+    <div class="stat-card" style="grid-template-columns: 1fr 1fr; gap: 10px 20px; min-width: 380px;">
+      <div class="stat-entry">
+        <span>Your Captures</span>
+        <strong id="def-caps" style="color: #10b981;">0</strong>
+      </div>
+      <div class="stat-entry">
+        <span>Your Deaths</span>
+        <strong id="def-deaths" style="color: #f87171;">0</strong>
+      </div>
+      <div class="stat-entry">
+        <span>Ally Order Switches</span>
+        <strong id="def-switches" style="color: #60a5fa;">0</strong>
+      </div>
+      <div class="stat-entry">
+        <span>Total Match Time</span>
+        <strong id="def-time">00:00</strong>
+      </div>
+      <div class="stat-entry" style="grid-column: span 2; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 8px;">
+        <span style="font-size: 15px; color: #f8fafc;">SCORE</span>
+        <strong id="def-score" style="font-size: 22px; color: #fbbf24;">0</strong>
+      </div>
+      <div class="stat-entry" style="grid-column: span 2;">
+        <span style="font-size: 15px; color: #f8fafc;">RATING</span>
+        <strong id="def-rating" style="font-size: 20px; color: #ef4444;">D (DRAGGED)</strong>
+      </div>
+    </div>
+    <div class="start-prompt" style="color: #f59e0b; margin-top: 18px;">PRESS R TO PLAY AGAIN</div>
+  </div>
+
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+  <script>
+  (function() {
+    'use strict';
+
+    /* =========================================================================
+       AUDIO SYNTHESIS (Deterministic WebAudio API, zero external assets)
+       ========================================================================= */
+    var audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) {
+        var AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtx = new AudioContextClass();
+        }
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playGunshotSound() {
+      if (!audioCtx) return;
+      var now = audioCtx.currentTime;
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(320, now);
+      osc.frequency.exponentialRampToValueAtTime(40, now + 0.12);
+
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.12);
+    }
+
+    function playDryClickSound() {
+      if (!audioCtx) return;
+      var now = audioCtx.currentTime;
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(800, now);
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.04);
+    }
+
+    function playHitTickSound() {
+      if (!audioCtx) return;
+      var now = audioCtx.currentTime;
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1100, now);
+      osc.frequency.exponentialRampToValueAtTime(1400, now + 0.06);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.06);
+    }
+
+    function playPlayerHurtSound() {
+      if (!audioCtx) return;
+      var now = audioCtx.currentTime;
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(180, now);
+      osc.frequency.exponentialRampToValueAtTime(50, now + 0.2);
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.2);
+    }
+
+    function playReloadStartSound() {
+      if (!audioCtx) return;
+      var now = audioCtx.currentTime;
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(450, now);
+      osc.frequency.setValueAtTime(600, now + 0.1);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.25);
+    }
+
+    function playReloadDoneSound() {
+      if (!audioCtx) return;
+      var now = audioCtx.currentTime;
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(550, now);
+      osc.frequency.setValueAtTime(850, now + 0.08);
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.18);
+    }
+
+    function playFlagPickupSound() {
+      if (!audioCtx) return;
+      var now = audioCtx.currentTime;
+      [523.25, 659.25, 783.99].forEach(function(freq, i) {
+        var osc = audioCtx.createOscillator();
+        var gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + i * 0.09);
+        gain.gain.setValueAtTime(0.2, now + i * 0.09);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.09 + 0.18);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now + i * 0.09);
+        osc.stop(now + i * 0.09 + 0.18);
+      });
+    }
+
+    function playFlagReturnSound() {
+      if (!audioCtx) return;
+      var now = audioCtx.currentTime;
+      [783.99, 659.25, 523.25].forEach(function(freq, i) {
+        var osc = audioCtx.createOscillator();
+        var gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + i * 0.08);
+        gain.gain.setValueAtTime(0.18, now + i * 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.16);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now + i * 0.08);
+        osc.stop(now + i * 0.08 + 0.16);
+      });
+    }
+
+    function playVictoryFanfare() {
+      if (!audioCtx) return;
+      var now = audioCtx.currentTime;
+      var notes = [
+        { f: 440, t: 0.0, d: 0.18 },
+        { f: 554.37, t: 0.2, d: 0.18 },
+        { f: 659.25, t: 0.4, d: 0.22 },
+        { f: 880, t: 0.65, d: 0.6 }
+      ];
+      notes.forEach(function(n) {
+        var osc = audioCtx.createOscillator();
+        var gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(n.f, now + n.t);
+        gain.gain.setValueAtTime(0.25, now + n.t);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + n.t + n.d);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now + n.t);
+        osc.stop(now + n.t + n.d);
+      });
+    }
+
+    function playDefeatSound() {
+      if (!audioCtx) return;
+      var now = audioCtx.currentTime;
+      var notes = [
+        { f: 330, t: 0.0, d: 0.2 },
+        { f: 311.13, t: 0.22, d: 0.2 },
+        { f: 293.66, t: 0.44, d: 0.25 },
+        { f: 220, t: 0.7, d: 0.7 }
+      ];
+      notes.forEach(function(n) {
+        var osc = audioCtx.createOscillator();
+        var gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(n.f, now + n.t);
+        gain.gain.setValueAtTime(0.25, now + n.t);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + n.t + n.d);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now + n.t);
+        osc.stop(now + n.t + n.d);
+      });
+    }
+
+    /* =========================================================================
+       GAME CONSTANTS & CONFIGURATION
+       ========================================================================= */
+    var CANYON_MIN_X = -65;
+    var CANYON_MAX_X = 65;
+    var CANYON_MIN_Z = -40;
+    var CANYON_MAX_Z = 40;
+
+    var WEST_BASE_X = -52;
+    var WEST_BASE_Z = 0;
+    var EAST_BASE_X = 52;
+    var EAST_BASE_Z = 0;
+
+    var PLAYER_SPAWN_X = -58;
+    var PLAYER_SPAWN_Y = 1.7;
+    var PLAYER_SPAWN_Z = 0;
+    var PLAYER_RESPAWN_TIME = 3.0; // Round 6 change: 3s respawn
+
+    var BASE_WALK_SPEED = 4.0;
+    var BASE_SPRINT_SPEED = 7.0;
+    var CARRY_SPEED_MULTIPLIER = 0.65; // C10: 0.65x carry speed multiplier
+    var CARRY_WALK_SPEED = 2.6; // 4.0 * 0.65 = 2.6 m/s
+    var RUNNER_RUN_SPEED = 4.0;
+    var RUNNER_CARRY_SPEED = 2.6; // 4.0 * 0.65 = 2.6 m/s
+    var PLAYER_RADIUS = 0.45;
+
+    var FIRE_INTERVAL = 0.2; // 5 rounds/sec
+    var RELOAD_TIME = 1.8;
+    var BULLET_DAMAGE = 25;
+    var FLAG_RETURN_TIMEOUT = 30.0; // 30.0 s dropped return timer
+    var RUNNER_START_DELAY = 10.0;  // 10s wait before starting steal run
+    var PURSUIT_SPEED = 3.5;        // 3.5 m/s pursuer chase speed
+    var PURSUIT_DURATION = 10.0;    // C10: 10.0 s pursuit window
+    var RECOVER_DURATION = 4.0;     // 4.0 s recover duration
+    var RECOVER_SPEED = 2.5;        // 2.5 m/s recover return speed
+    var PURSUIT_TRIGGER_WINDOW = 1.0; // 1.0 s trigger window for flank split
+
+    /* =========================================================================
+       THREE.JS SCENE SETUP
+       ========================================================================= */
+    var container = document.getElementById('game-container');
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x231828);
+    scene.fog = new THREE.FogExp2(0x231828, 0.012);
+
+    var camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 300);
+    var renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+    } catch (e) {
+      console.warn('WebGL context unavailable, using headless fallback renderer:', e);
+      var dummyCanvas = document.createElement('canvas');
+      container.appendChild(dummyCanvas);
+      renderer = {
+        domElement: dummyCanvas,
+        shadowMap: { enabled: false, type: 0 },
+        setSize: function() {},
+        setPixelRatio: function() {},
+        render: function() {}
+      };
+    }
+
+    // Dusk twilight lighting
+    var hemiLight = new THREE.HemisphereLight(0xffb87a, 0x221b33, 0.65);
+    scene.add(hemiLight);
+
+    var dirLight = new THREE.DirectionalLight(0xffa756, 1.1);
+    dirLight.position.set(-40, 50, -30);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.near = 10;
+    dirLight.shadow.camera.far = 160;
+    var d = 60;
+    dirLight.shadow.camera.left = -d;
+    dirLight.shadow.camera.right = d;
+    dirLight.shadow.camera.top = d;
+    dirLight.shadow.camera.bottom = -d;
+    scene.add(dirLight);
+
+    /* =========================================================================
+       COLLIDERS & SOLID GEOMETRY LIST
+       ========================================================================= */
+    var colliders = [];
+    var raycastTargets = [];
+    var coverObjectsForLoS = [];
+
+    function addBoxCollider(mesh, minX, maxX, minZ, maxZ, minY, maxY) {
+      var col = {
+        minX: minX, maxX: maxX,
+        minZ: minZ, maxZ: maxZ,
+        minY: minY !== undefined ? minY : -1,
+        maxY: maxY !== undefined ? maxY : 10,
+        mesh: mesh
+      };
+      colliders.push(col);
+      if (mesh) {
+        raycastTargets.push(mesh);
+        coverObjectsForLoS.push(mesh);
+      }
+      return col;
+    }
+
+    /* =========================================================================
+       PROCEDURAL TEXTURES
+       ========================================================================= */
+    function createGroundTexture() {
+      var c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 512;
+      var ctx = c.getContext('2d');
+      ctx.fillStyle = '#453833';
+      ctx.fillRect(0, 0, 512, 512);
+
+      for (var y = 0; y < 512; y += 4) {
+        var shade = ((y * 13) % 25) - 12;
+        ctx.fillStyle = 'rgba(' + (75 + shade) + ',' + (60 + shade) + ',' + (52 + shade) + ', 0.35)';
+        ctx.fillRect(0, y, 512, 4);
+      }
+      for (var i = 0; i < 200; i++) {
+        var px = (i * 37) % 512;
+        var py = (i * 73) % 512;
+        var psz = ((i * 7) % 5) + 2;
+        ctx.fillStyle = (i % 2 === 0) ? '#382e2a' : '#574840';
+        ctx.fillRect(px, py, psz, psz);
+      }
+      var tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(26, 16);
+      return tex;
+    }
+
+    function createCrateTexture() {
+      var c = document.createElement('canvas');
+      c.width = 128;
+      c.height = 128;
+      var ctx = c.getContext('2d');
+      ctx.fillStyle = '#8a5e38';
+      ctx.fillRect(0, 0, 128, 128);
+
+      ctx.fillStyle = '#734d2c';
+      for (var y = 0; y < 128; y += 32) {
+        ctx.fillRect(0, y, 128, 2);
+      }
+      ctx.strokeStyle = '#54371e';
+      ctx.lineWidth = 8;
+      ctx.strokeRect(4, 4, 120, 120);
+      ctx.beginPath();
+      ctx.moveTo(8, 8);
+      ctx.lineTo(120, 120);
+      ctx.stroke();
+
+      return new THREE.CanvasTexture(c);
+    }
+
+    function createStoneTexture() {
+      var c = document.createElement('canvas');
+      c.width = 128;
+      c.height = 128;
+      var ctx = c.getContext('2d');
+      ctx.fillStyle = '#64748b';
+      ctx.fillRect(0, 0, 128, 128);
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 3;
+      for (var row = 0; row < 128; row += 22) {
+        ctx.strokeRect(0, row, 128, 22);
+        var offset = (row / 22) % 2 === 0 ? 0 : 32;
+        for (var col = offset; col < 128; col += 64) {
+          ctx.beginPath();
+          ctx.moveTo(col, row);
+          ctx.lineTo(col, row + 22);
+          ctx.stroke();
+        }
+      }
+      return new THREE.CanvasTexture(c);
+    }
+
+    var groundTex = createGroundTexture();
+    var crateTex = createCrateTexture();
+    var stoneTex = createStoneTexture();
+
+    /* =========================================================================
+       ENVIRONMENT & BOUNDARY CANYON WALLS
+       ========================================================================= */
+    var floorGeo = new THREE.PlaneGeometry(130, 80);
+    var floorMat = new THREE.MeshStandardMaterial({
+      map: groundTex,
+      roughness: 0.9,
+      metalness: 0.1
+    });
+    var floorMesh = new THREE.Mesh(floorGeo, floorMat);
+    floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.receiveShadow = true;
+    scene.add(floorMesh);
+    raycastTargets.push(floorMesh);
+
+    var wallMat = new THREE.MeshStandardMaterial({
+      color: 0x3d302b,
+      roughness: 0.95,
+      metalness: 0.05
+    });
+
+    function createRockSegment(x, z, width, length, height) {
+      var geo = new THREE.BoxGeometry(width, height, length);
+      var mesh = new THREE.Mesh(geo, wallMat);
+      mesh.position.set(x, height / 2, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+      addBoxCollider(mesh, x - width/2, x + width/2, z - length/2, z + length/2, 0, height);
+      return mesh;
+    }
+
+    var WALL_HEIGHT = 16;
+    createRockSegment(0, -42, 140, 4, WALL_HEIGHT);
+    createRockSegment(0, 42, 140, 4, WALL_HEIGHT);
+    createRockSegment(-67, 0, 4, 88, WALL_HEIGHT);
+    createRockSegment(67, 0, 4, 88, WALL_HEIGHT);
+
+    var cornerCoords = [
+      [-62, -37], [-62, 37], [62, -37], [62, 37],
+      [-40, -39], [-20, -39], [20, -39], [40, -39],
+      [-40, 39], [-20, 39], [20, 39], [40, 39]
+    ];
+    cornerCoords.forEach(function(pt) {
+      var rockGeo = new THREE.CylinderGeometry(2.5, 3.8, 14, 7);
+      var rockMesh = new THREE.Mesh(rockGeo, wallMat);
+      rockMesh.position.set(pt[0], 7, pt[1]);
+      rockMesh.castShadow = true;
+      rockMesh.receiveShadow = true;
+      scene.add(rockMesh);
+      addBoxCollider(rockMesh, pt[0] - 2.8, pt[0] + 2.8, pt[1] - 2.8, pt[1] + 2.8, 0, 14);
+    });
+
+    /* =========================================================================
+       COVER PIECES: Crates, Stone Walls, Sandbags
+       ========================================================================= */
+    var crateMat = new THREE.MeshStandardMaterial({
+      map: crateTex,
+      roughness: 0.8,
+      metalness: 0.1
+    });
+
+    var stoneWallMat = new THREE.MeshStandardMaterial({
+      map: stoneTex,
+      roughness: 0.85,
+      metalness: 0.15
+    });
+
+    var sandbagMat = new THREE.MeshStandardMaterial({
+      color: 0x9c855e,
+      roughness: 0.95,
+      metalness: 0.05
+    });
+
+    function spawnCrateStack(x, z, rotY) {
+      rotY = rotY || 0;
+      var group = new THREE.Group();
+      group.position.set(x, 0, z);
+      group.rotation.y = rotY;
+
+      var cGeo = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+      var m1 = new THREE.Mesh(cGeo, crateMat);
+      m1.position.set(-0.45, 0.45, 0);
+      m1.castShadow = true;
+      m1.receiveShadow = true;
+      group.add(m1);
+
+      var m2 = new THREE.Mesh(cGeo, crateMat);
+      m2.position.set(0.45, 0.45, 0);
+      m2.castShadow = true;
+      m2.receiveShadow = true;
+      group.add(m2);
+
+      var m3 = new THREE.Mesh(cGeo, crateMat);
+      m3.position.set(0, 1.25, 0);
+      m3.castShadow = true;
+      m3.receiveShadow = true;
+      group.add(m3);
+
+      scene.add(group);
+      addBoxCollider(group, x - 1.0, x + 1.0, z - 0.7, z + 0.7, 0, 1.7);
+      return group;
+    }
+
+    function spawnLowCrate(x, z) {
+      var geo = new THREE.BoxGeometry(1.0, 0.8, 1.0);
+      var mesh = new THREE.Mesh(geo, crateMat);
+      mesh.position.set(x, 0.4, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+      addBoxCollider(mesh, x - 0.6, x + 0.6, z - 0.6, z + 0.6, 0, 0.9);
+      return mesh;
+    }
+
+    function spawnStoneWall(x, z, length, rotY) {
+      rotY = rotY || 0;
+      var height = 1.25;
+      var thickness = 0.6;
+      var geo = new THREE.BoxGeometry(thickness, height, length);
+      var mesh = new THREE.Mesh(geo, stoneWallMat);
+      mesh.position.set(x, height / 2, z);
+      mesh.rotation.y = rotY;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+
+      var halfW = (rotY === 0) ? (thickness / 2 + 0.1) : (length / 2 + 0.1);
+      var halfL = (rotY === 0) ? (length / 2 + 0.1) : (thickness / 2 + 0.1);
+      addBoxCollider(mesh, x - halfW, x + halfW, z - halfL, z + halfL, 0, height);
+      return mesh;
+    }
+
+    function spawnSandbagEmplacement(x, z, rotY) {
+      rotY = rotY || 0;
+      var group = new THREE.Group();
+      group.position.set(x, 0, z);
+      group.rotation.y = rotY;
+
+      var bagGeo = new THREE.BoxGeometry(0.75, 0.3, 0.45);
+      for (var layer = 0; layer < 3; layer++) {
+        var count = 3 - (layer % 2);
+        var startZ = -((count - 1) * 0.45) / 2;
+        for (var i = 0; i < count; i++) {
+          var bag = new THREE.Mesh(bagGeo, sandbagMat);
+          bag.position.set(0, 0.15 + layer * 0.28, startZ + i * 0.45);
+          bag.castShadow = true;
+          bag.receiveShadow = true;
+          group.add(bag);
+        }
+      }
+      scene.add(group);
+      var width = 0.9;
+      var length = 1.6;
+      var halfX = (rotY === 0) ? width / 2 : length / 2;
+      var halfZ = (rotY === 0) ? length / 2 : width / 2;
+      addBoxCollider(group, x - halfX, x + halfX, z - halfZ, z + halfZ, 0, 1.0);
+      return group;
+    }
+
+    // Midfield Cover Belt: x = -18 to +18
+    spawnStoneWall(-15, -6, 5.0, 0);
+    spawnCrateStack(-12, 12, 0);
+    spawnSandbagEmplacement(-10, -16, Math.PI / 2);
+    spawnStoneWall(-6, 4, 4.0, 0.3);
+    spawnCrateStack(-4, -8, 0);
+    spawnSandbagEmplacement(0, 14, 0);
+    spawnStoneWall(0, -2, 6.0, 0);
+    spawnCrateStack(4, -14, 0.2);
+    spawnStoneWall(6, 8, 4.5, -0.2);
+    spawnSandbagEmplacement(10, -8, 0);
+    spawnCrateStack(12, 10, 0);
+    spawnStoneWall(15, -4, 5.0, 0);
+
+    // Flank Corridors (z ≈ -28 and z ≈ +28)
+    spawnLowCrate(-30, -28);
+    spawnLowCrate(0, -28);
+    spawnLowCrate(30, -28);
+
+    spawnLowCrate(-30, 28);
+    spawnLowCrate(0, 28);
+    spawnLowCrate(30, 28);
+
+    /* =========================================================================
+       FLAG SHADER & STANDS
+       ========================================================================= */
+    var clothShader = {
+      vertexShader: [
+        'uniform float uTime;',
+        'varying vec2 vUv;',
+        'varying vec3 vNormal;',
+        'void main() {',
+        '  vUv = uv;',
+        '  vNormal = normal;',
+        '  vec3 pos = position;',
+        '  float wave = sin(uv.x * 6.28 - uTime * 4.0) * 0.15 * uv.x;',
+        '  pos.z += wave;',
+        '  gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);',
+        '}'
+      ].join('\n'),
+      fragmentShader: [
+        'uniform vec3 uColor;',
+        'varying vec2 vUv;',
+        'varying vec3 vNormal;',
+        'void main() {',
+        '  float shade = 0.8 + 0.2 * sin(vUv.x * 6.28);',
+        '  gl_FragColor = vec4(uColor * shade, 1.0);',
+        '}'
+      ].join('\n')
+    };
+
+    function createFlagStand(x, z, isBlue) {
+      var group = new THREE.Group();
+      group.position.set(x, 0, z);
+
+      var ringGeo = new THREE.RingGeometry(1.85, 2.0, 48);
+      var ringColor = isBlue ? 0x3b82f6 : 0xef4444;
+      var ringMat = new THREE.MeshBasicMaterial({
+        color: ringColor,
+        side: THREE.DoubleSide
+      });
+      var ringMesh = new THREE.Mesh(ringGeo, ringMat);
+      ringMesh.rotation.x = -Math.PI / 2;
+      ringMesh.position.y = 0.03;
+      group.add(ringMesh);
+
+      var standLight = new THREE.PointLight(ringColor, 0.8, 8);
+      standLight.position.set(0, 1.5, 0);
+      group.add(standLight);
+
+      var poleGeo = new THREE.CylinderGeometry(0.08, 0.08, 6.0, 12);
+      var poleMat = new THREE.MeshStandardMaterial({
+        color: 0xd1d5db,
+        metalness: 0.8,
+        roughness: 0.2
+      });
+      var pole = new THREE.Mesh(poleGeo, poleMat);
+      pole.position.set(0, 3.0, 0);
+      pole.castShadow = true;
+      group.add(pole);
+      addBoxCollider(pole, x - 0.2, x + 0.2, z - 0.2, z + 0.2, 0, 6.0);
+
+      var flagGeo = new THREE.PlaneGeometry(2.0, 1.2, 20, 10);
+      flagGeo.translate(1.0, 0, 0);
+      var flagUniforms = {
+        uTime: { value: 0 },
+        uColor: { value: isBlue ? new THREE.Color(0x2563eb) : new THREE.Color(0xdc2626) }
+      };
+      var flagMat = new THREE.ShaderMaterial({
+        uniforms: flagUniforms,
+        vertexShader: clothShader.vertexShader,
+        fragmentShader: clothShader.fragmentShader,
+        side: THREE.DoubleSide
+      });
+      var flagMesh = new THREE.Mesh(flagGeo, flagMat);
+      flagMesh.position.set(0, 5.2, 0);
+      flagMesh.castShadow = true;
+      group.add(flagMesh);
+
+      if (isBlue) {
+        spawnSandbagEmplacement(x - 3.2, z - 1.8, 0.3);
+        spawnSandbagEmplacement(x - 3.2, z + 1.8, -0.3);
+        spawnStoneWall(x + 3.4, z, 3.2, 0);
+      } else {
+        spawnSandbagEmplacement(x + 3.2, z - 1.8, -0.3);
+        spawnSandbagEmplacement(x + 3.2, z + 1.8, 0.3);
+        spawnStoneWall(x - 3.4, z, 3.2, 0);
+      }
+
+      scene.add(group);
+      return {
+        group: group,
+        pole: pole,
+        flagMesh: flagMesh,
+        uniforms: flagUniforms,
+        ringMat: ringMat,
+        standLight: standLight,
+        x: x,
+        z: z,
+        isBlue: isBlue
+      };
+    }
+
+    var westStand = createFlagStand(WEST_BASE_X, WEST_BASE_Z, true);
+    var eastStand = createFlagStand(EAST_BASE_X, EAST_BASE_Z, false);
+
+    /* =========================================================================
+       DROPPED FLAG 3D ENTITY BUILDER
+       ========================================================================= */
+    function createDroppedFlagEntity(isBlue) {
+      var root = new THREE.Group();
+
+      var pGeo = new THREE.CylinderGeometry(0.04, 0.04, 1.8, 8);
+      pGeo.rotateZ(Math.PI / 2);
+      var pMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.6 });
+      var pole = new THREE.Mesh(pGeo, pMat);
+      pole.position.set(0, 0.05, 0);
+      root.add(pole);
+
+      var cGeo = new THREE.PlaneGeometry(1.4, 0.8, 10, 6);
+      cGeo.rotateX(-Math.PI / 2);
+      var colorHex = isBlue ? 0x2563eb : 0xdc2626;
+      var cMat = new THREE.MeshStandardMaterial({
+        color: colorHex,
+        roughness: 0.7,
+        side: THREE.DoubleSide
+      });
+      var cloth = new THREE.Mesh(cGeo, cMat);
+      cloth.position.set(0.6, 0.07, 0.3);
+      root.add(cloth);
+
+      var beaconGeo = new THREE.CylinderGeometry(0.2, 0.2, 3.0, 12, 1, true);
+      var beaconMat = new THREE.MeshBasicMaterial({
+        color: isBlue ? 0x60a5fa : 0xf87171,
+        transparent: true,
+        opacity: 0.3,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      var beacon = new THREE.Mesh(beaconGeo, beaconMat);
+      beacon.position.y = 1.5;
+      root.add(beacon);
+
+      var pointLight = new THREE.PointLight(colorHex, 0.9, 6.0);
+      pointLight.position.set(0, 0.8, 0);
+      root.add(pointLight);
+
+      root.visible = false;
+      scene.add(root);
+      return {
+        root: root,
+        beacon: beacon,
+        light: pointLight
+      };
+    }
+
+    var droppedBlueEntity = createDroppedFlagEntity(true);
+    var droppedRedEntity = createDroppedFlagEntity(false);
+
+    /* =========================================================================
+       FLAGS THREE-STATE MACHINE (HOME, CARRIED, DROPPED)
+       ========================================================================= */
+    var flags = {
+      blue: {
+        id: 'blue',
+        state: 'HOME',
+        carrierId: null,
+        standX: WEST_BASE_X,
+        standZ: WEST_BASE_Z,
+        standMesh: westStand.flagMesh,
+        droppedEntity: droppedBlueEntity,
+        dropPos: null,
+        returnTimer: 0.0,
+        position: { x: WEST_BASE_X, y: 5.2, z: WEST_BASE_Z }
+      },
+      red: {
+        id: 'red',
+        state: 'HOME',
+        carrierId: null,
+        standX: EAST_BASE_X,
+        standZ: EAST_BASE_Z,
+        standMesh: eastStand.flagMesh,
+        droppedEntity: droppedRedEntity,
+        dropPos: null,
+        returnTimer: 0.0,
+        position: { x: EAST_BASE_X, y: 5.2, z: EAST_BASE_Z }
+      }
+    };
+
+    // Flag on Player's back when red flag is carried
+    var playerBackpackFlag = new THREE.Group();
+    var bpPoleGeo = new THREE.CylinderGeometry(0.04, 0.04, 2.2, 8);
+    var bpPole = new THREE.Mesh(bpPoleGeo, new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.6 }));
+    bpPole.position.set(0, 0.8, 0);
+    playerBackpackFlag.add(bpPole);
+
+    var bpClothGeo = new THREE.PlaneGeometry(1.2, 0.7, 12, 6);
+    bpClothGeo.translate(0.6, 0, 0);
+    var bpFlagUniforms = {
+      uTime: { value: 0 },
+      uColor: { value: new THREE.Color(0xdc2626) }
+    };
+    var bpClothMat = new THREE.ShaderMaterial({
+      uniforms: bpFlagUniforms,
+      vertexShader: clothShader.vertexShader,
+      fragmentShader: clothShader.fragmentShader,
+      side: THREE.DoubleSide
+    });
+    var bpCloth = new THREE.Mesh(bpClothGeo, bpClothMat);
+    bpCloth.position.set(0, 1.5, 0);
+    playerBackpackFlag.add(bpCloth);
+    playerBackpackFlag.visible = false;
+    scene.add(playerBackpackFlag);
+
+    // Flag on Runner E3's back when blue flag is stolen
+    var runnerBackpackFlag = new THREE.Group();
+    var rbpPole = new THREE.Mesh(bpPoleGeo, new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.6 }));
+    rbpPole.position.set(0, 0.8, 0);
+    runnerBackpackFlag.add(rbpPole);
+
+    var rbpClothGeo = new THREE.PlaneGeometry(1.2, 0.7, 12, 6);
+    rbpClothGeo.translate(0.6, 0, 0);
+    var rbpFlagUniforms = {
+      uTime: { value: 0 },
+      uColor: { value: new THREE.Color(0x2563eb) }
+    };
+    var rbpClothMat = new THREE.ShaderMaterial({
+      uniforms: rbpFlagUniforms,
+      vertexShader: clothShader.vertexShader,
+      fragmentShader: clothShader.fragmentShader,
+      side: THREE.DoubleSide
+    });
+    var rbpCloth = new THREE.Mesh(rbpClothGeo, rbpClothMat);
+    rbpCloth.position.set(0, 1.5, 0);
+    runnerBackpackFlag.add(rbpCloth);
+    runnerBackpackFlag.visible = false;
+    scene.add(runnerBackpackFlag);
+
+    /* =========================================================================
+       FIRST PERSON VIEWMODEL & RIFLE
+       ========================================================================= */
+    var viewmodelGroup = new THREE.Group();
+    var rifleBodyGeo = new THREE.BoxGeometry(0.08, 0.12, 0.7);
+    var rifleBodyMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5, metalness: 0.8 });
+    var rifleBody = new THREE.Mesh(rifleBodyGeo, rifleBodyMat);
+
+    var barrelGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.45, 8);
+    barrelGeo.rotateX(Math.PI / 2);
+    var barrelMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.3, metalness: 0.9 });
+    var barrel = new THREE.Mesh(barrelGeo, barrelMat);
+    barrel.position.set(0, 0.03, -0.45);
+
+    var magGeo = new THREE.BoxGeometry(0.05, 0.22, 0.1);
+    var magMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6 });
+    var magMesh = new THREE.Mesh(magGeo, magMat);
+    magMesh.position.set(0, -0.14, -0.05);
+    magMesh.rotation.x = 0.2;
+
+    var stockGeo = new THREE.BoxGeometry(0.07, 0.14, 0.25);
+    var stockMat = new THREE.MeshStandardMaterial({ color: 0x5a3825, roughness: 0.8 });
+    var stockMesh = new THREE.Mesh(stockGeo, stockMat);
+    stockMesh.position.set(0, -0.02, 0.38);
+
+    viewmodelGroup.add(rifleBody);
+    viewmodelGroup.add(barrel);
+    viewmodelGroup.add(magMesh);
+    viewmodelGroup.add(stockMesh);
+
+    var VM_REST_POS = new THREE.Vector3(0.24, -0.22, -0.45);
+    var vmRecoilOffset = 0;
+    var vmReloadOffset = 0;
+    viewmodelGroup.position.copy(VM_REST_POS);
+    camera.add(viewmodelGroup);
+    scene.add(camera);
+
+    /* =========================================================================
+       SOLDIER & SQUAD DEFINITIONS (Enemies & Teammate WREN)
+       ========================================================================= */
+    function createSoldierModel(isRunner, isAllied) {
+      var root = new THREE.Group();
+
+      var uniformColor = isAllied ? 0x223344 : (isRunner ? 0x4a3b33 : 0x334a3e);
+      var vestColor = isAllied ? 0x1e3a8a : (isRunner ? 0x33261f : 0x223328);
+      var helmetColor = isAllied ? 0x2563eb : (isRunner ? 0x331f18 : 0x1f2e24);
+
+      var uniformMat = new THREE.MeshStandardMaterial({ color: uniformColor, roughness: 0.7 });
+      var vestMat = new THREE.MeshStandardMaterial({ color: vestColor, roughness: 0.8 });
+      var skinMat = new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.6 });
+      var helmetMat = new THREE.MeshStandardMaterial({ color: helmetColor, roughness: 0.5, metalness: 0.2 });
+      var rifleMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.4, metalness: 0.8 });
+
+      var torsoGeo = new THREE.BoxGeometry(0.55, 0.7, 0.35);
+      var torso = new THREE.Mesh(torsoGeo, uniformMat);
+      torso.position.y = 1.05;
+      torso.castShadow = true;
+      root.add(torso);
+
+      var vestGeo = new THREE.BoxGeometry(0.58, 0.45, 0.38);
+      var vest = new THREE.Mesh(vestGeo, vestMat);
+      vest.position.y = 1.05;
+      vest.castShadow = true;
+      root.add(vest);
+
+      var headGeo = new THREE.BoxGeometry(0.28, 0.3, 0.28);
+      var head = new THREE.Mesh(headGeo, skinMat);
+      head.position.y = 1.55;
+      head.castShadow = true;
+      root.add(head);
+
+      var helmetGeo = new THREE.BoxGeometry(0.36, 0.2, 0.36);
+      var helmet = new THREE.Mesh(helmetGeo, helmetMat);
+      helmet.position.y = 1.7;
+      helmet.castShadow = true;
+      root.add(helmet);
+
+      var legGeo = new THREE.BoxGeometry(0.2, 0.7, 0.22);
+      var leftLeg = new THREE.Mesh(legGeo, uniformMat);
+      leftLeg.position.set(-0.16, 0.35, 0);
+      leftLeg.castShadow = true;
+      root.add(leftLeg);
+
+      var rightLeg = new THREE.Mesh(legGeo, uniformMat);
+      rightLeg.position.set(0.16, 0.35, 0);
+      rightLeg.castShadow = true;
+      root.add(rightLeg);
+
+      var armGeo = new THREE.BoxGeometry(0.16, 0.6, 0.18);
+      var leftArm = new THREE.Mesh(armGeo, uniformMat);
+      leftArm.position.set(-0.35, 1.05, 0.1);
+      leftArm.rotation.x = -Math.PI / 4;
+      leftArm.castShadow = true;
+      root.add(leftArm);
+
+      var rightArm = new THREE.Mesh(armGeo, uniformMat);
+      rightArm.position.set(0.35, 1.05, 0.1);
+      rightArm.rotation.x = -Math.PI / 3;
+      rightArm.castShadow = true;
+      root.add(rightArm);
+
+      var gunGeo = new THREE.BoxGeometry(0.08, 0.1, 0.7);
+      var gun = new THREE.Mesh(gunGeo, rifleMat);
+      gun.position.set(0.18, 0.95, -0.3);
+      gun.castShadow = true;
+      root.add(gun);
+
+      return {
+        root: root,
+        torso: torso,
+        head: head,
+        leftLeg: leftLeg,
+        rightLeg: rightLeg,
+        leftArm: leftArm,
+        rightArm: rightArm,
+        gun: gun
+      };
+    }
+
+    /* =========================================================================
+       MATCH STRUCTURE & SIDE SWAP (Round 1: West, Round 2: East, Round 3: West)
+       ========================================================================= */
+    var currentRoundNumber = 1;
+    var playerRoundWins = 0;
+    var enemyRoundWins = 0;
+    var roundFreezeTimer = 0.0;
+    var matchDecidedResult = null; // 'VICTORY' or 'DEFEAT'
+
+    // Cumulative stats across all rounds in match
+    var totalMatchTime = 0.0;
+    var totalKills = 0;
+    var totalDeaths = 0;
+    var totalCaptures = 0;
+
+    // Fixed base coordinates
+    var BASE_COORDS = {
+      west: { x: -52, z: 0 },
+      east: { x: 52, z: 0 }
+    };
+
+    // Hardcoded waypoint routes and cover chains for West Defense (defending West, attacking East)
+    // North and south corridor waypoint routes across the field (130m length):
+    // West to East corridors:
+    var CORRIDOR_NORTH_W2E = [
+      { x: -52, z: 0 },
+      { x: -35, z: -28 },
+      { x: 0, z: -28 },
+      { x: 35, z: -28 },
+      { x: 52, z: 0 }
+    ];
+    var CORRIDOR_SOUTH_W2E = [
+      { x: -52, z: 0 },
+      { x: -35, z: 28 },
+      { x: 0, z: 28 },
+      { x: 35, z: 28 },
+      { x: 52, z: 0 }
+    ];
+
+    // East to West corridors:
+    var CORRIDOR_NORTH_E2W = [
+      { x: 52, z: 0 },
+      { x: 35, z: -28 },
+      { x: 0, z: -28 },
+      { x: -35, z: -28 },
+      { x: -52, z: 0 }
+    ];
+    var CORRIDOR_SOUTH_E2W = [
+      { x: 52, z: 0 },
+      { x: 35, z: 28 },
+      { x: 0, z: 28 },
+      { x: -35, z: 28 },
+      { x: -52, z: 0 }
+    ];
+
+    function mirrorRoute(arr) {
+      return arr.map(function(pt) {
+        return { x: -pt.x, z: pt.z };
+      });
+    }
+
+    // Hardcoded waypoint routes and squad configurations for West Defense
+    var BASE_ROUTES_WEST = {
+      champ1: {
+        standPos: { x: 52, z: 0 },
+        guardRing: [
+          { x: 52 + 6.0, z: 0 },
+          { x: 52, z: 6.0 },
+          { x: 52 - 6.0, z: 0 },
+          { x: 52, z: -6.0 }
+        ],
+        spawnPos: { x: 52 + 6.0, z: 0 },
+        baseRespawnPos: { x: 52, z: 0 }
+      },
+      champ2: {
+        spawnPos: { x: 48, z: -6 },
+        baseRespawnPos: { x: 48, z: -6 }
+      },
+      champ3: {
+        spawnPos: { x: 48, z: 6 },
+        baseRespawnPos: { x: 48, z: 6 }
+      },
+      wren: {
+        guardWaypoints: [
+          { x: -52 + 6.0, z: 0 },
+          { x: -52, z: 6.0 },
+          { x: -52 - 6.0, z: 0 },
+          { x: -52, z: -6.0 }
+        ],
+        spawnPos: { x: -54.0, z: 2.0 }
+      },
+      player: {
+        spawnPos: { x: -58.0, y: 1.7, z: 0.0 },
+        yaw: 0.0 // facing east (+x)
+      }
+    };
+
+    var BASE_ROUTES_EAST = {
+      champ1: {
+        standPos: { x: -52, z: 0 },
+        guardRing: [
+          { x: -52 - 6.0, z: 0 },
+          { x: -52, z: -6.0 },
+          { x: -52 + 6.0, z: 0 },
+          { x: -52, z: 6.0 }
+        ],
+        spawnPos: { x: -52 - 6.0, z: 0 },
+        baseRespawnPos: { x: -52, z: 0 }
+      },
+      champ2: {
+        spawnPos: { x: -48, z: -6 },
+        baseRespawnPos: { x: -48, z: -6 }
+      },
+      champ3: {
+        spawnPos: { x: -48, z: 6 },
+        baseRespawnPos: { x: -48, z: 6 }
+      },
+      wren: {
+        guardWaypoints: mirrorRoute(BASE_ROUTES_WEST.wren.guardWaypoints),
+        spawnPos: { x: -BASE_ROUTES_WEST.wren.spawnPos.x, z: BASE_ROUTES_WEST.wren.spawnPos.z }
+      },
+      player: {
+        spawnPos: { x: 58.0, y: 1.7, z: 0.0 },
+        yaw: Math.PI // facing west (-x)
+      }
+    };
+
+    function getDefendingSide(roundNum) {
+      return (roundNum === 2) ? 'east' : 'west';
+    }
+
+    var WREN_GUARD_WAYPOINTS = BASE_ROUTES_WEST.wren.guardWaypoints;
+
+    var enemies = [
+      {
+        id: 'CHAMP-1',
+        name: 'Champion Guard',
+        role: 'GUARD',
+        baseSpeed: 2.5,
+        standPos: BASE_ROUTES_WEST.champ1.standPos,
+        waypoints: BASE_ROUTES_WEST.champ1.guardRing,
+        spawnPos: BASE_ROUTES_WEST.champ1.spawnPos,
+        baseRespawnPos: BASE_ROUTES_WEST.champ1.baseRespawnPos,
+        leashMaxDist: 8.0,
+        currentLeashDist: 0.0,
+        dutyPhase: 'guarding'
+      },
+      {
+        id: 'CHAMP-2',
+        name: 'Champion Stealer 2',
+        role: 'STEALER',
+        baseSpeed: 4.0,
+        spawnPos: BASE_ROUTES_WEST.champ2.spawnPos,
+        baseRespawnPos: BASE_ROUTES_WEST.champ2.baseRespawnPos,
+        dutyPhase: 'waiting',
+        initialWait: 5.0,
+        waitTimer: 5.0,
+        respawnWaitDuration: 8.0,
+        currentCorridor: 'north',
+        routeWaypoints: [],
+        routeIdx: 0,
+        carriedFlag: null
+      },
+      {
+        id: 'CHAMP-3',
+        name: 'Champion Stealer 3',
+        role: 'STEALER',
+        baseSpeed: 4.0,
+        spawnPos: BASE_ROUTES_WEST.champ3.spawnPos,
+        baseRespawnPos: BASE_ROUTES_WEST.champ3.baseRespawnPos,
+        dutyPhase: 'waiting',
+        initialWait: 12.0,
+        waitTimer: 12.0,
+        respawnWaitDuration: 8.0,
+        currentCorridor: 'south',
+        routeWaypoints: [],
+        routeIdx: 0,
+        carriedFlag: null
+      }
+    ];
+
+    var lastFlagTouchEvent = null; // { time, unit_id, flag_id, result: 'picked up' | 'returned' }
+
+    enemies.forEach(function(e) {
+      e.model = createSoldierModel(e.role === 'STEALER');
+      e.position = new THREE.Vector3(e.spawnPos.x, 0, e.spawnPos.z);
+      e.model.root.position.copy(e.position);
+      scene.add(e.model.root);
+
+      var hitGeo = new THREE.CylinderGeometry(0.5, 0.5, 1.8, 8);
+      var hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
+      var hitMesh = new THREE.Mesh(hitGeo, hitMat);
+      hitMesh.position.y = 0.9;
+      hitMesh.userData = { enemyId: e.id };
+      e.model.root.add(hitMesh);
+      e.hitMesh = hitMesh;
+      raycastTargets.push(hitMesh);
+
+      e.hp = 50;
+      e.state = 'PATROL';
+      e.waypointIdx = 0;
+      e.pauseTimer = 0;
+      e.losLostTimer = 0;
+      e.burstTimer = 0;
+      e.burstShotsFired = 0;
+      e.respawnTimer = 0;
+      e.walkCycle = 0;
+    });
+
+    /* =========================================================================
+       TEAMMATE WREN DEFINITION (Allied Soldier)
+       ========================================================================= */
+    var orderSwitches = 0;
+
+    var wren = {
+      name: 'WREN',
+      id: 'WREN',
+      hp: 60,
+      maxHp: 60,
+      order: 'GUARD',
+      state: 'ALIVE',
+      respawnTimer: 0.0,
+      position: new THREE.Vector3(BASE_ROUTES_WEST.wren.spawnPos.x, 0, BASE_ROUTES_WEST.wren.spawnPos.z),
+      spawnPos: BASE_ROUTES_WEST.wren.spawnPos,
+      waypointIdx: 0,
+      pauseTimer: 0.0,
+      burstTimer: 0.0,
+      burstShotsFired: 0,
+      walkCycle: 0.0,
+      targetEnemy: null
+    };
+
+    wren.model = createSoldierModel(false, true);
+    wren.model.root.position.copy(wren.position);
+    scene.add(wren.model.root);
+
+    /* =========================================================================
+       SMOKE CANISTER & SMOKE CLOUDS SYSTEM (C9)
+       ========================================================================= */
+    var SMOKE_THROW_SPEED = 12.0;    // 12 m/s launch speed
+    var SMOKE_GRAVITY = 9.8;         // 9.8 m/s^2 gravity
+    var SMOKE_CLOUD_RADIUS = 4.0;    // 4.0 m radius
+    var SMOKE_CLOUD_DURATION = 5.0;  // 5.0 s duration
+
+    var smokeCanisterCount = 1;      // 1 canister per round
+    var activeSmokeCanisters = [];   // airborne canisters: { mesh, pos, vel }
+    var activeSmokeClouds = [];      // grounded clouds: { mesh, position, timer, maxDuration }
+
+    var smokeCanisterGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.22, 10);
+    var smokeCanisterMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.6, roughness: 0.4 });
+
+    var smokeSphereGeo = new THREE.SphereGeometry(SMOKE_CLOUD_RADIUS, 16, 12);
+    var smokeSphereMat = new THREE.MeshStandardMaterial({
+      color: 0x94a3b8,
+      transparent: true,
+      opacity: 0.82,
+      roughness: 0.9,
+      metalness: 0.1,
+      depthWrite: false
+    });
+
+    function spawnSmokeCloud(x, z) {
+      var cloudGroup = new THREE.Group();
+      cloudGroup.position.set(x, 1.8, z);
+
+      var mainMesh = new THREE.Mesh(smokeSphereGeo, smokeSphereMat.clone());
+      cloudGroup.add(mainMesh);
+
+      // Secondary slightly offset billowing puffs for soft shape
+      var puff1 = new THREE.Mesh(smokeSphereGeo, smokeSphereMat.clone());
+      puff1.position.set(1.2, 0.4, -0.8);
+      puff1.scale.set(0.85, 0.85, 0.85);
+      cloudGroup.add(puff1);
+
+      var puff2 = new THREE.Mesh(smokeSphereGeo, smokeSphereMat.clone());
+      puff2.position.set(-1.0, 0.2, 1.0);
+      puff2.scale.set(0.85, 0.85, 0.85);
+      cloudGroup.add(puff2);
+
+      scene.add(cloudGroup);
+
+      activeSmokeClouds.push({
+        group: cloudGroup,
+        position: new THREE.Vector3(x, 0, z),
+        timer: SMOKE_CLOUD_DURATION,
+        maxDuration: SMOKE_CLOUD_DURATION
+      });
+    }
+
+    function throwSmokeCanister() {
+      if (smokeCanisterCount <= 0) {
+        playDryClickSound();
+        return;
+      }
+      smokeCanisterCount--;
+      updateUI();
+
+      // Launch from camera along aim direction at 12 m/s
+      var aimDir = new THREE.Vector3();
+      camera.getWorldDirection(aimDir);
+
+      var startPos = new THREE.Vector3().copy(camera.position);
+      startPos.addScaledVector(aimDir, 0.5);
+
+      var mesh = new THREE.Mesh(smokeCanisterGeo, smokeCanisterMat);
+      mesh.position.copy(startPos);
+      scene.add(mesh);
+
+      var vel = aimDir.clone().multiplyScalar(SMOKE_THROW_SPEED);
+
+      activeSmokeCanisters.push({
+        mesh: mesh,
+        pos: startPos,
+        vel: vel
+      });
+    }
+
+    function stepSmokeSystem(dt) {
+      // 1. Step airborne canisters
+      for (var ci = activeSmokeCanisters.length - 1; ci >= 0; ci--) {
+        var can = activeSmokeCanisters[ci];
+        can.vel.y -= SMOKE_GRAVITY * dt;
+        can.pos.x += can.vel.x * dt;
+        can.pos.y += can.vel.y * dt;
+        can.pos.z += can.vel.z * dt;
+        can.mesh.position.copy(can.pos);
+        can.mesh.rotation.x += dt * 8.0;
+        can.mesh.rotation.z += dt * 6.0;
+
+        // Ground contact (y <= 0.1)
+        if (can.pos.y <= 0.1) {
+          scene.remove(can.mesh);
+          activeSmokeCanisters.splice(ci, 1);
+          spawnSmokeCloud(can.pos.x, can.pos.z);
+        }
+      }
+
+      // 2. Step active smoke clouds
+      for (var si = activeSmokeClouds.length - 1; si >= 0; si--) {
+        var c = activeSmokeClouds[si];
+        c.timer -= dt;
+
+        // Billowing and gentle dissipation fade
+        var progress = 1.0 - (c.timer / c.maxDuration);
+        var scale = 0.95 + 0.1 * Math.sin(progress * Math.PI);
+        c.group.scale.set(scale, scale, scale);
+
+        var fade = (c.timer < 1.0) ? (c.timer / 1.0) : 1.0;
+        c.group.children.forEach(function(child) {
+          if (child.material) {
+            child.material.opacity = 0.82 * fade;
+          }
+        });
+
+        if (c.timer <= 0) {
+          scene.remove(c.group);
+          activeSmokeClouds.splice(si, 1);
+        }
+      }
+    }
+
+    // Line segment vs sphere intersection to block AI line of sight
+    function doesLineIntersectSmoke(fromPos, toPos) {
+      if (activeSmokeClouds.length === 0) return false;
+      var dX = toPos.x - fromPos.x;
+      var dY = toPos.y - fromPos.y;
+      var dZ = toPos.z - fromPos.z;
+      var segLenSq = dX * dX + dY * dY + dZ * dZ;
+      if (segLenSq < 0.0001) return false;
+
+      for (var i = 0; i < activeSmokeClouds.length; i++) {
+        var cloud = activeSmokeClouds[i];
+        // Cloud center at ground + 1.8m
+        var cx = cloud.position.x;
+        var cy = 1.8;
+        var cz = cloud.position.z;
+        var r = SMOKE_CLOUD_RADIUS;
+
+        // Projection of sphere center onto segment: t = dot(C - A, B - A) / |B - A|^2
+        var t = ((cx - fromPos.x) * dX + (cy - fromPos.y) * dY + (cz - fromPos.z) * dZ) / segLenSq;
+        var clampedT = Math.max(0, Math.min(1, t));
+
+        var closestX = fromPos.x + clampedT * dX;
+        var closestY = fromPos.y + clampedT * dY;
+        var closestZ = fromPos.z + clampedT * dZ;
+
+        var distSq = (closestX - cx) * (closestX - cx) + (closestY - cy) * (closestY - cy) + (closestZ - cz) * (closestZ - cz);
+        if (distSq <= r * r) {
+          return true; // Line of sight is blocked by this smoke cloud
+        }
+      }
+      return false;
+    }
+
+    /* =========================================================================
+       TRACERS & PARTICLES
+       ========================================================================= */
+    var tracers = [];
+    var sparks = [];
+
+    var tracerMat = new THREE.MeshBasicMaterial({ color: 0xffe066 });
+    var tracerGeo = new THREE.CylinderGeometry(0.025, 0.025, 1.0, 4);
+    tracerGeo.rotateX(Math.PI / 2);
+
+    function spawnTracer(start, end) {
+      var dir = new THREE.Vector3().subVectors(end, start);
+      var dist = dir.length();
+      var mesh = new THREE.Mesh(tracerGeo, tracerMat);
+      mesh.scale.set(1, 1, dist);
+      mesh.position.copy(start).addScaledVector(dir, 0.5);
+      mesh.lookAt(end);
+      scene.add(mesh);
+      tracers.push({ mesh: mesh, life: 0.08, maxLife: 0.08 });
+    }
+
+    var sparkMat = new THREE.MeshBasicMaterial({ color: 0xffaa22 });
+    var sparkGeo = new THREE.BoxGeometry(0.04, 0.04, 0.04);
+
+    function spawnImpactSparks(point) {
+      var dirs = [
+        new THREE.Vector3(1.2, 2.0, 0.8),
+        new THREE.Vector3(-1.0, 2.2, -0.6),
+        new THREE.Vector3(0.5, 2.5, -1.2),
+        new THREE.Vector3(-0.8, 1.8, 1.0)
+      ];
+      dirs.forEach(function(v) {
+        var p = new THREE.Mesh(sparkGeo, sparkMat);
+        p.position.copy(point);
+        scene.add(p);
+        sparks.push({ mesh: p, vel: v.clone(), life: 0.2, maxLife: 0.2 });
+      });
+    }
+
+    /* =========================================================================
+       PLAYER STATE & INPUTS
+       ========================================================================= */
+    var player = {
+      pos: new THREE.Vector3(PLAYER_SPAWN_X, PLAYER_SPAWN_Y, PLAYER_SPAWN_Z),
+      yaw: 0,
+      pitch: 0,
+      hp: 100,
+      mag: 24,
+      reserve: 96,
+      reloading: false,
+      reloadTimer: 0,
+      carriedFlag: null,
+      speedMultiplier: 1.0,
+      fireCooldown: 0,
+      kiaTimer: 0
+    };
+
+    var input = {
+      forward: false,
+      backward: false,
+      left: false,
+      right: false,
+      sprint: false,
+      fire: false,
+      turnLeft: false,
+      turnRight: false,
+      lookUp: false,
+      lookDown: false
+    };
+
+    var isPointerLocked = false;
+    var phase = 'READY'; // 'READY', 'PLAYING', 'PAUSED', 'KIA', 'VICTORY', 'DEFEAT'
+    var missionResult = null; // null, 'VICTORY', 'DEFEAT'
+    var missionTime = 0.0;
+    var kills = 0;
+    var deaths = 0;
+    var captures = 0;
+
+    renderer.domElement.addEventListener('click', function() {
+      initAudio();
+      if (phase === 'READY') {
+        startGame();
+      } else if (phase === 'PAUSED') {
+        resumeGame();
+      } else if (phase === 'PLAYING') {
+        if (!isPointerLocked) {
+          renderer.domElement.requestPointerLock();
+        }
+      }
+    });
+
+    document.addEventListener('pointerlockchange', function() {
+      isPointerLocked = (document.pointerLockElement === renderer.domElement);
+    });
+
+    document.addEventListener('mousemove', function(e) {
+      if (!isPointerLocked || phase !== 'PLAYING') return;
+      var sensitivity = 0.0022;
+      player.yaw -= e.movementX * sensitivity;
+      player.pitch -= e.movementY * sensitivity;
+      player.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, player.pitch));
+    });
+
+    document.addEventListener('mousedown', function(e) {
+      if (e.button === 0) input.fire = true;
+    });
+
+    document.addEventListener('mouseup', function(e) {
+      if (e.button === 0) input.fire = false;
+    });
+
+    document.addEventListener('keydown', function(e) {
+      initAudio();
+      if (e.code === 'Enter' && phase === 'READY') {
+        startGame();
+        return;
+      }
+      if (e.code === 'KeyR') {
+        if (phase === 'VICTORY' || phase === 'DEFEAT') {
+          resetGameToReady();
+          return;
+        } else if (phase === 'PLAYING') {
+          triggerReload();
+        }
+      }
+      if (e.code === 'KeyT') {
+        if (phase === 'PLAYING' || phase === 'READY' || phase === 'PAUSED' || phase === 'KIA') {
+          wren.order = (wren.order === 'GUARD') ? 'ASSAULT' : 'GUARD';
+          orderSwitches++;
+        }
+        return;
+      }
+      if (e.code === 'KeyG') {
+        if (phase === 'PLAYING') {
+          throwSmokeCanister();
+        }
+        return;
+      }
+      if (e.code === 'Escape') {
+        if (phase === 'PLAYING') {
+          pauseGame();
+        } else if (phase === 'PAUSED') {
+          resumeGame();
+        }
+        return;
+      }
+
+      if (e.code === 'KeyW') input.forward = true;
+      if (e.code === 'KeyS') input.backward = true;
+      if (e.code === 'KeyA') input.left = true;
+      if (e.code === 'KeyD') input.right = true;
+      if (e.shiftKey) input.sprint = true;
+
+      if (e.code === 'ArrowLeft') input.turnLeft = true;
+      if (e.code === 'ArrowRight') input.turnRight = true;
+      if (e.code === 'ArrowUp') input.lookUp = true;
+      if (e.code === 'ArrowDown') input.lookDown = true;
+    });
+
+    document.addEventListener('keyup', function(e) {
+      if (e.code === 'KeyW') input.forward = false;
+      if (e.code === 'KeyS') input.backward = false;
+      if (e.code === 'KeyA') input.left = false;
+      if (e.code === 'KeyD') input.right = false;
+      if (!e.shiftKey) input.sprint = false;
+
+      if (e.code === 'ArrowLeft') input.turnLeft = false;
+      if (e.code === 'ArrowRight') input.turnRight = false;
+      if (e.code === 'ArrowUp') input.lookUp = false;
+      if (e.code === 'ArrowDown') input.lookDown = false;
+    });
+
+    /* =========================================================================
+       PHASE FLOW & RELOADING
+       ========================================================================= */
+    var readyScreen = document.getElementById('ready-screen');
+    var pauseScreen = document.getElementById('pause-screen');
+    var kiaScreen = document.getElementById('kia-screen');
+    var victoryScreen = document.getElementById('victory-screen');
+    var defeatScreen = document.getElementById('defeat-screen');
+    var kiaTimerEl = document.getElementById('kia-timer');
+
+    function startGame() {
+      phase = 'PLAYING';
+      missionResult = null;
+      readyScreen.classList.add('overlay-hidden');
+      pauseScreen.classList.add('overlay-hidden');
+      kiaScreen.classList.add('overlay-hidden');
+      victoryScreen.classList.add('overlay-hidden');
+      defeatScreen.classList.add('overlay-hidden');
+      renderer.domElement.requestPointerLock();
+    }
+
+    function pauseGame() {
+      phase = 'PAUSED';
+      pauseScreen.classList.remove('overlay-hidden');
+      if (document.exitPointerLock) {
+        document.exitPointerLock();
+      }
+    }
+
+    function resumeGame() {
+      phase = 'PLAYING';
+      pauseScreen.classList.add('overlay-hidden');
+      renderer.domElement.requestPointerLock();
+    }
+
+    function triggerReload() {
+      if (player.reloading || player.mag === 24 || player.reserve <= 0) return;
+      player.reloading = true;
+      player.reloadTimer = RELOAD_TIME;
+      playReloadStartSound();
+      document.getElementById('ui-reload-bar').style.display = 'block';
+      document.getElementById('ui-reload-text').style.display = 'block';
+    }
+
+    function returnFlagToStand(flagObj) {
+      flagObj.state = 'HOME';
+      flagObj.carrierId = null;
+      flagObj.dropPos = null;
+      flagObj.returnTimer = 0.0;
+      flagObj.standMesh.visible = true;
+      flagObj.droppedEntity.root.visible = false;
+      flagObj.position.x = flagObj.standX;
+      flagObj.position.y = 5.2;
+      flagObj.position.z = flagObj.standZ;
+      playFlagReturnSound();
+    }
+
+    function dropFlagAtPosition(flagObj, x, y, z) {
+      flagObj.state = 'DROPPED';
+      flagObj.carrierId = null;
+      flagObj.dropPos = { x: x, y: 0, z: z };
+      flagObj.returnTimer = FLAG_RETURN_TIMEOUT;
+      flagObj.position.x = x;
+      flagObj.position.y = 0.1;
+      flagObj.position.z = z;
+
+      flagObj.standMesh.visible = false;
+      flagObj.droppedEntity.root.position.set(x, 0, z);
+      flagObj.droppedEntity.root.visible = true;
+    }
+
+    function getStealerInboundRoute(side, corridor) {
+      if (side === 'west') {
+        return (corridor === 'north') ? CORRIDOR_NORTH_W2E : CORRIDOR_SOUTH_W2E;
+      } else {
+        return (corridor === 'north') ? CORRIDOR_NORTH_E2W : CORRIDOR_SOUTH_E2W;
+      }
+    }
+
+    function getStealerOutboundRoute(side, corridor) {
+      if (side === 'west') {
+        return (corridor === 'north') ? CORRIDOR_NORTH_E2W : CORRIDOR_SOUTH_E2W;
+      } else {
+        return (corridor === 'north') ? CORRIDOR_NORTH_W2E : CORRIDOR_SOUTH_W2E;
+      }
+    }
+
+    function configureRoundForSide(roundNum) {
+      var side = getDefendingSide(roundNum);
+      var routes = (side === 'east') ? BASE_ROUTES_EAST : BASE_ROUTES_WEST;
+
+      WREN_GUARD_WAYPOINTS = routes.wren.guardWaypoints;
+
+      if (side === 'west') {
+        flags.blue.standX = -52;
+        flags.blue.standZ = 0;
+        flags.blue.standMesh = westStand.flagMesh;
+
+        flags.red.standX = 52;
+        flags.red.standZ = 0;
+        flags.red.standMesh = eastStand.flagMesh;
+
+        westStand.uniforms.uColor.value.setHex(0x2563eb);
+        westStand.ringMat.color.setHex(0x3b82f6);
+        westStand.standLight.color.setHex(0x3b82f6);
+
+        eastStand.uniforms.uColor.value.setHex(0xdc2626);
+        eastStand.ringMat.color.setHex(0xef4444);
+        eastStand.standLight.color.setHex(0xef4444);
+      } else {
+        flags.blue.standX = 52;
+        flags.blue.standZ = 0;
+        flags.blue.standMesh = eastStand.flagMesh;
+
+        flags.red.standX = -52;
+        flags.red.standZ = 0;
+        flags.red.standMesh = westStand.flagMesh;
+
+        eastStand.uniforms.uColor.value.setHex(0x2563eb);
+        eastStand.ringMat.color.setHex(0x3b82f6);
+        eastStand.standLight.color.setHex(0x3b82f6);
+
+        westStand.uniforms.uColor.value.setHex(0xdc2626);
+        westStand.ringMat.color.setHex(0xef4444);
+        westStand.standLight.color.setHex(0xef4444);
+      }
+
+      PLAYER_SPAWN_X = routes.player.spawnPos.x;
+      PLAYER_SPAWN_Y = routes.player.spawnPos.y;
+      PLAYER_SPAWN_Z = routes.player.spawnPos.z;
+
+      player.pos.set(PLAYER_SPAWN_X, PLAYER_SPAWN_Y, PLAYER_SPAWN_Z);
+      player.yaw = routes.player.yaw;
+      player.pitch = 0;
+      player.hp = 100;
+      player.mag = 24;
+      player.reserve = 96;
+      player.reloading = false;
+      player.reloadTimer = 0;
+      player.carriedFlag = null;
+      player.speedMultiplier = 1.0;
+      player.fireCooldown = 0;
+      player.kiaTimer = 0;
+
+      returnFlagToStand(flags.blue);
+      returnFlagToStand(flags.red);
+      playerBackpackFlag.visible = false;
+      runnerBackpackFlag.visible = false;
+
+      wren.hp = 60;
+      wren.state = 'ALIVE';
+      wren.respawnTimer = 0.0;
+      wren.position.set(routes.wren.spawnPos.x, 0, routes.wren.spawnPos.z);
+      wren.model.root.position.copy(wren.position);
+      wren.model.root.visible = true;
+      wren.model.root.rotation.set(0, routes.player.yaw, 0);
+      wren.waypointIdx = 0;
+      wren.pauseTimer = 0.0;
+      wren.burstTimer = 0.0;
+      wren.burstShotsFired = 0;
+      wren.walkCycle = 0.0;
+      wren.targetEnemy = null;
+
+      // Configure CHAMP-1 (GUARD)
+      enemies[0].standPos = routes.champ1.standPos;
+      enemies[0].waypoints = routes.champ1.guardRing;
+      enemies[0].spawnPos = routes.champ1.spawnPos;
+      enemies[0].baseRespawnPos = routes.champ1.baseRespawnPos;
+      enemies[0].dutyPhase = 'guarding';
+      enemies[0].currentLeashDist = 0.0;
+
+      // Configure CHAMP-2 (STEALER)
+      enemies[1].spawnPos = routes.champ2.spawnPos;
+      enemies[1].baseRespawnPos = routes.champ2.baseRespawnPos;
+      enemies[1].dutyPhase = 'waiting';
+      enemies[1].waitTimer = 5.0; // sets off at +5.0 s
+      enemies[1].currentCorridor = 'north';
+      enemies[1].routeWaypoints = getStealerOutboundRoute(side, 'north');
+      enemies[1].routeIdx = 0;
+      enemies[1].carriedFlag = null;
+
+      // Configure CHAMP-3 (STEALER)
+      enemies[2].spawnPos = routes.champ3.spawnPos;
+      enemies[2].baseRespawnPos = routes.champ3.baseRespawnPos;
+      enemies[2].dutyPhase = 'waiting';
+      enemies[2].waitTimer = 12.0; // sets off at +12.0 s
+      enemies[2].currentCorridor = 'south';
+      enemies[2].routeWaypoints = getStealerOutboundRoute(side, 'south');
+      enemies[2].routeIdx = 0;
+      enemies[2].carriedFlag = null;
+
+      enemies.forEach(function(e) {
+        e.hp = 50;
+        e.state = 'PATROL';
+        e.waypointIdx = 0;
+        e.pauseTimer = 0;
+        e.losLostTimer = 0;
+        e.burstTimer = 0;
+        e.burstShotsFired = 0;
+        e.respawnTimer = 0;
+        e.position.set(e.spawnPos.x, 0, e.spawnPos.z);
+        e.model.root.position.copy(e.position);
+        e.model.root.visible = true;
+        e.model.root.rotation.set(0, (side === 'east') ? 0 : Math.PI, 0);
+        e.hitMesh.visible = true;
+      });
+
+      smokeCanisterCount = 1; // Refills to 1 at start of every new round
+      activeSmokeCanisters.forEach(function(c) { scene.remove(c.mesh); });
+      activeSmokeCanisters = [];
+      activeSmokeClouds.forEach(function(c) { scene.remove(c.group); });
+      activeSmokeClouds = [];
+
+      document.getElementById('center-banner').style.opacity = '0';
+      document.getElementById('ui-reload-bar').style.display = 'none';
+      document.getElementById('ui-reload-text').style.display = 'none';
+      document.getElementById('carry-penalty-badge').style.display = 'none';
+    }
+
+    function resetGameToReady() {
+      currentRoundNumber = 1;
+      playerRoundWins = 0;
+      enemyRoundWins = 0;
+      roundFreezeTimer = 0.0;
+      matchDecidedResult = null;
+
+      totalMatchTime = 0.0;
+      totalKills = 0;
+      totalDeaths = 0;
+      totalCaptures = 0;
+
+      kills = 0;
+      deaths = 0;
+      captures = 0;
+      orderSwitches = 0;
+
+      phase = 'READY';
+      missionResult = null;
+      missionTime = 0.0;
+
+      configureRoundForSide(1);
+
+      readyScreen.classList.remove('overlay-hidden');
+      pauseScreen.classList.add('overlay-hidden');
+      kiaScreen.classList.add('overlay-hidden');
+      victoryScreen.classList.add('overlay-hidden');
+      defeatScreen.classList.add('overlay-hidden');
+    }
+
+    /* =========================================================================
+       COLLISION RESOLUTION
+       ========================================================================= */
+    function checkWallCollision(px, pz, radius) {
+      if (px - radius < CANYON_MIN_X) px = CANYON_MIN_X + radius;
+      if (px + radius > CANYON_MAX_X) px = CANYON_MAX_X - radius;
+      if (pz - radius < CANYON_MIN_Z) pz = CANYON_MIN_Z + radius;
+      if (pz + radius > CANYON_MAX_Z) pz = CANYON_MAX_Z - radius;
+
+      for (var i = 0; i < colliders.length; i++) {
+        var b = colliders[i];
+        var nearestX = Math.max(b.minX, Math.min(px, b.maxX));
+        var nearestZ = Math.max(b.minZ, Math.min(pz, b.maxZ));
+        var dx = px - nearestX;
+        var dz = pz - nearestZ;
+        var distSq = dx * dx + dz * dz;
+
+        if (distSq < radius * radius) {
+          var dist = Math.sqrt(distSq);
+          if (dist > 0.0001) {
+            var overlap = radius - dist;
+            px += (dx / dist) * overlap;
+            pz += (dz / dist) * overlap;
+          } else {
+            var pushLeft = px - b.minX;
+            var pushRight = b.maxX - px;
+            var pushDown = pz - b.minZ;
+            var pushUp = b.maxZ - pz;
+            var minPush = Math.min(pushLeft, pushRight, pushDown, pushUp);
+            if (minPush === pushLeft) px = b.minX - radius;
+            else if (minPush === pushRight) px = b.maxX + radius;
+            else if (minPush === pushDown) pz = b.minZ - radius;
+            else pz = b.maxZ + radius;
+          }
+        }
+      }
+
+      for (var k = 0; k < enemies.length; k++) {
+        var en = enemies[k];
+        if (en.state !== 'DEAD') {
+          var edx = px - en.position.x;
+          var edz = pz - en.position.z;
+          var eDistSq = edx * edx + edz * edz;
+          var minEDist = radius + 0.45;
+          if (eDistSq < minEDist * minEDist) {
+            var eDist = Math.sqrt(eDistSq);
+            if (eDist > 0.0001) {
+              var eOverlap = minEDist - eDist;
+              px += (edx / eDist) * eOverlap;
+              pz += (edz / eDist) * eOverlap;
+            }
+          }
+        }
+      }
+
+      return { x: px, z: pz };
+    }
+
+    /* =========================================================================
+       INSTANT-HIT RAYCAST FIRING
+       ========================================================================= */
+    var raycaster = new THREE.Raycaster();
+
+    function firePlayerRifle() {
+      if (player.mag <= 0) {
+        playDryClickSound();
+        return;
+      }
+      player.mag--;
+      playGunshotSound();
+      vmRecoilOffset = 0.05;
+
+      var aimDir = new THREE.Vector3();
+      camera.getWorldDirection(aimDir);
+      raycaster.set(camera.position, aimDir);
+
+      var hits = raycaster.intersectObjects(raycastTargets, true);
+      var muzzlePos = new THREE.Vector3();
+      rifleBody.getWorldPosition(muzzlePos);
+      muzzlePos.addScaledVector(aimDir, 0.4);
+
+      var hitPoint = new THREE.Vector3().copy(camera.position).addScaledVector(aimDir, 80);
+
+      if (hits.length > 0) {
+        var firstHit = hits[0];
+        hitPoint.copy(firstHit.point);
+        spawnImpactSparks(hitPoint);
+
+        var obj = firstHit.object;
+        var hitEnemyId = null;
+        while (obj) {
+          if (obj.userData && obj.userData.enemyId) {
+            hitEnemyId = obj.userData.enemyId;
+            break;
+          }
+          obj = obj.parent;
+        }
+
+        if (hitEnemyId) {
+          damageEnemy(hitEnemyId, BULLET_DAMAGE);
+          playHitTickSound();
+          var cross = document.getElementById('crosshair');
+          cross.classList.add('hit-crosshair');
+          setTimeout(function() { cross.classList.remove('hit-crosshair'); }, 80);
+        }
+      }
+
+      spawnTracer(muzzlePos, hitPoint);
+    }
+
+    function damageEnemy(enemyId, dmg) {
+      for (var i = 0; i < enemies.length; i++) {
+        var e = enemies[i];
+        if (e.id === enemyId && e.state !== 'DEAD') {
+          e.hp -= dmg;
+          if (e.hp <= 0) {
+            e.hp = 0;
+            e.state = 'DEAD';
+            e.pursuitState = 'none';
+            e.pursuitTimer = 0;
+            e.assignedChainId = null;
+            e.recoverTimer = 0;
+            e.respawnTimer = 6.0;
+            e.hitMesh.visible = false;
+            kills++;
+            totalKills++;
+            e.model.root.rotation.x = Math.PI / 2;
+            e.model.root.position.y = 0.2;
+
+            if (e.isRunner) {
+              e.dutyPhase = 'returning after respawn';
+            }
+            if (e.carriedFlag === 'blue') {
+              dropFlagAtPosition(flags.blue, e.position.x, e.position.y, e.position.z);
+              e.carriedFlag = null;
+              runnerBackpackFlag.visible = false;
+            }
+          }
+          break;
+        }
+      }
+    }
+
+    /* =========================================================================
+       LINE OF SIGHT & ENEMY BURST FIRING
+       ========================================================================= */
+    function hasLineOfSight(fromPos, toPos) {
+      if (doesLineIntersectSmoke(fromPos, toPos)) {
+        return false; // Blocked by smoke cloud
+      }
+
+      var dir = new THREE.Vector3().subVectors(toPos, fromPos);
+      var dist = dir.length();
+      if (dist < 0.001) return true;
+      dir.normalize();
+
+      raycaster.set(fromPos, dir);
+      raycaster.far = dist;
+      var hits = raycaster.intersectObjects(coverObjectsForLoS, true);
+      raycaster.far = Infinity;
+      return hits.length === 0;
+    }
+
+    function stepEnemies(dt) {
+      var currentSide = getDefendingSide(currentRoundNumber);
+      var enemyStandPos = { x: flags.red.standX, z: flags.red.standZ };
+
+      enemies.forEach(function(e) {
+        // Handle death & respawn (6.0 s)
+        if (e.state === 'DEAD') {
+          e.respawnTimer -= dt;
+          if (e.respawnTimer <= 0) {
+            e.hp = 50;
+            e.state = 'PATROL';
+            e.waypointIdx = 0;
+            e.pauseTimer = 0;
+            e.position.set(e.baseRespawnPos.x, 0, e.baseRespawnPos.z);
+            e.model.root.position.copy(e.position);
+            e.model.root.rotation.set(0, 0, 0);
+            e.hitMesh.visible = true;
+
+            if (e.role === 'GUARD') {
+              e.dutyPhase = 'guarding';
+            } else if (e.role === 'STEALER') {
+              // Waits 8.0 s, then alternates corridor
+              e.dutyPhase = 'waiting';
+              e.waitTimer = e.respawnWaitDuration || 8.0;
+              e.currentCorridor = (e.currentCorridor === 'north') ? 'south' : 'north';
+              e.routeWaypoints = getStealerOutboundRoute(currentSide, e.currentCorridor);
+              e.routeIdx = 0;
+              e.carriedFlag = null;
+            }
+          }
+          return;
+        }
+
+        // =====================================================================
+        // CHAMP-1: GUARD BEHAVIOR (8m leash around own stand pole)
+        // =====================================================================
+        if (e.role === 'GUARD') {
+          var polePos = e.standPos || enemyStandPos;
+          var distFromPole = Math.hypot(e.position.x - polePos.x, e.position.z - polePos.z);
+          e.currentLeashDist = distFromPole;
+
+          var guardHostile = getNearestVisibleHostile(e.position, 18.0);
+
+          if (guardHostile) {
+            // Engage hostile: turn to face
+            var toHostile = new THREE.Vector3(guardHostile.targetPos.x - e.position.x, 0, guardHostile.targetPos.z - e.position.z);
+            e.model.root.rotation.y = Math.atan2(toHostile.x, toHostile.z);
+            e.model.leftArm.rotation.x = -Math.PI / 2.5;
+            e.model.rightArm.rotation.x = -Math.PI / 2.3;
+
+            // May chase an intruder, but never moves farther than 8.0m from pole
+            if (distFromPole < 8.0) {
+              toHostile.normalize();
+              var stepChase = Math.min(e.baseSpeed * dt, 8.0 - distFromPole);
+              e.position.x += toHostile.x * stepChase;
+              e.position.z += toHostile.z * stepChase;
+              e.model.root.position.copy(e.position);
+
+              e.walkCycle += dt * 8.0;
+              e.model.leftLeg.rotation.x = Math.sin(e.walkCycle) * 0.5;
+              e.model.rightLeg.rotation.x = -Math.sin(e.walkCycle) * 0.5;
+            } else {
+              // At leash boundary: stop and fire from there
+              e.model.leftLeg.rotation.x = 0;
+              e.model.rightLeg.rotation.x = 0;
+            }
+
+            e.burstTimer += dt;
+            if (e.burstTimer >= 2.5) {
+              e.burstTimer = 0;
+              e.burstShotsFired = 0;
+            }
+
+            if (e.burstShotsFired === 0 && e.burstTimer >= 0.0) {
+              enemyFireShot(e, 1);
+              e.burstShotsFired = 1;
+            } else if (e.burstShotsFired === 1 && e.burstTimer >= 0.3) {
+              enemyFireShot(e, 2); // JUDGED SHOT
+              e.burstShotsFired = 2;
+            } else if (e.burstShotsFired === 2 && e.burstTimer >= 0.6) {
+              enemyFireShot(e, 3);
+              e.burstShotsFired = 3;
+            }
+          } else {
+            // Normal 6.0m ring patrol around own flag stand
+            e.model.leftArm.rotation.x = 0;
+            e.model.rightArm.rotation.x = 0;
+            e.burstTimer = 0;
+            e.burstShotsFired = 0;
+
+            if (e.pauseTimer > 0) {
+              e.pauseTimer -= dt;
+              e.model.leftLeg.rotation.x = 0;
+              e.model.rightLeg.rotation.x = 0;
+            } else {
+              var targetWP = e.waypoints[e.waypointIdx];
+              var toWP = new THREE.Vector3(targetWP.x - e.position.x, 0, targetWP.z - e.position.z);
+              var distWP = toWP.length();
+              if (distWP < 0.15) {
+                e.pauseTimer = 1.0;
+                e.waypointIdx = (e.waypointIdx + 1) % e.waypoints.length;
+              } else {
+                toWP.normalize();
+                var moveStep = Math.min(e.baseSpeed * dt, distWP);
+                e.position.x += toWP.x * moveStep;
+                e.position.z += toWP.z * moveStep;
+                e.model.root.position.copy(e.position);
+                e.model.root.rotation.y = Math.atan2(toWP.x, toWP.z);
+
+                e.walkCycle += dt * 8.0;
+                e.model.leftLeg.rotation.x = Math.sin(e.walkCycle) * 0.5;
+                e.model.rightLeg.rotation.x = -Math.sin(e.walkCycle) * 0.5;
+              }
+            }
+          }
+          return;
+        }
+
+        // =====================================================================
+        // CHAMP-2 & CHAMP-3: STEALERS BEHAVIOR
+        // =====================================================================
+        if (e.role === 'STEALER') {
+          // 1. Waiting at base
+          if (e.dutyPhase === 'waiting') {
+            e.waitTimer -= dt;
+            e.model.leftLeg.rotation.x = 0;
+            e.model.rightLeg.rotation.x = 0;
+            if (e.waitTimer <= 0) {
+              e.dutyPhase = 'running in';
+              e.routeWaypoints = getStealerOutboundRoute(currentSide, e.currentCorridor);
+              e.routeIdx = 0;
+            }
+            return;
+          }
+
+          // 2. Running in towards blue flag along corridor route (4.0 m/s, no firing)
+          if (e.dutyPhase === 'running in') {
+            var targetWPO = e.routeWaypoints[e.routeIdx];
+            var toWPO = new THREE.Vector3(targetWPO.x - e.position.x, 0, targetWPO.z - e.position.z);
+            var distWPO = toWPO.length();
+
+            if (distWPO < 0.2) {
+              if (e.routeIdx < e.routeWaypoints.length - 1) {
+                e.routeIdx++;
+              }
+            } else {
+              toWPO.normalize();
+              var stepO = Math.min(4.0 * dt, distWPO);
+              e.position.x += toWPO.x * stepO;
+              e.position.z += toWPO.z * stepO;
+              e.model.root.position.copy(e.position);
+              e.model.root.rotation.y = Math.atan2(toWPO.x, toWPO.z);
+
+              e.walkCycle += dt * 9.0;
+              e.model.leftLeg.rotation.x = Math.sin(e.walkCycle) * 0.55;
+              e.model.rightLeg.rotation.x = -Math.sin(e.walkCycle) * 0.55;
+            }
+
+            // Check if reached blue flag stand (within 2.0m of blue pole)
+            var distToBluePole = Math.hypot(e.position.x - flags.blue.standX, e.position.z - flags.blue.standZ);
+            if (distToBluePole <= 2.0 && flags.blue.state === 'HOME') {
+              flags.blue.state = 'CARRIED';
+              flags.blue.carrierId = e.id;
+              e.carriedFlag = 'blue';
+              e.dutyPhase = 'carrying';
+              // Return along OPPOSITE corridor route
+              var returnCorridor = (e.currentCorridor === 'north') ? 'south' : 'north';
+              e.routeWaypoints = getStealerInboundRoute(currentSide, returnCorridor);
+              e.routeIdx = 0;
+              flags.blue.standMesh.visible = false;
+              runnerBackpackFlag.visible = true;
+              playFlagPickupSound();
+              lastFlagTouchEvent = {
+                time: missionTime,
+                unit_id: e.id,
+                unitId: e.id,
+                flag_id: 'blue',
+                flagId: 'blue',
+                result: 'picked up'
+              };
+            }
+            return;
+          }
+
+          // 3. Carrying blue flag back along opposite corridor (carrier speed 0.65x = 2.6 m/s, no sprint)
+          if (e.dutyPhase === 'carrying' || e.carriedFlag === 'blue') {
+            var distToEnemyStand = Math.hypot(e.position.x - flags.red.standX, e.position.z - flags.red.standZ);
+
+            // If reached enemy stand while red flag is NOT HOME: wait near stand holding blue flag
+            if (distToEnemyStand <= 2.5 && flags.red.state !== 'HOME') {
+              e.model.leftLeg.rotation.x = 0;
+              e.model.rightLeg.rotation.x = 0;
+              runnerBackpackFlag.position.set(e.position.x, 0.2, e.position.z);
+              runnerBackpackFlag.rotation.y = e.model.root.rotation.y;
+              flags.blue.position.x = e.position.x;
+              flags.blue.position.y = 1.6;
+              flags.blue.position.z = e.position.z;
+              return; // Waits near the stand holding the blue flag until red returns
+            }
+
+            // If reached enemy stand while red flag IS HOME -> enemy scores!
+            if (distToEnemyStand <= 2.0 && flags.red.state === 'HOME' && flags.blue.state === 'CARRIED') {
+              triggerRoundScore('enemy');
+              return;
+            }
+
+            // Normal carry movement along inbound route
+            if (e.routeWaypoints && e.routeWaypoints.length > 0) {
+              var targetWPI = e.routeWaypoints[e.routeIdx];
+              var toWPI = new THREE.Vector3(targetWPI.x - e.position.x, 0, targetWPI.z - e.position.z);
+              var distWPI = toWPI.length();
+
+              if (distWPI < 0.2) {
+                if (e.routeIdx < e.routeWaypoints.length - 1) {
+                  e.routeIdx++;
+                }
+              } else {
+                toWPI.normalize();
+                var stepI = Math.min(CARRY_WALK_SPEED * dt, distWPI);
+                e.position.x += toWPI.x * stepI;
+                e.position.z += toWPI.z * stepI;
+                e.model.root.position.copy(e.position);
+                e.model.root.rotation.y = Math.atan2(toWPI.x, toWPI.z);
+
+                e.walkCycle += dt * 7.5;
+                e.model.leftLeg.rotation.x = Math.sin(e.walkCycle) * 0.5;
+                e.model.rightLeg.rotation.x = -Math.sin(e.walkCycle) * 0.5;
+              }
+            }
+
+            runnerBackpackFlag.position.set(e.position.x, 0.2, e.position.z);
+            runnerBackpackFlag.rotation.y = e.model.root.rotation.y;
+            flags.blue.position.x = e.position.x;
+            flags.blue.position.y = 1.6;
+            flags.blue.position.z = e.position.z;
+
+            // Re-check deliver
+            if (distToEnemyStand <= 2.0 && flags.red.state === 'HOME' && flags.blue.state === 'CARRIED') {
+              triggerRoundScore('enemy');
+            }
+            return;
+          }
+        }
+      });
+    }
+
+    function getNearestVisibleHostile(fromPos, maxDist) {
+      var eyePos = new THREE.Vector3(fromPos.x, 1.5, fromPos.z);
+      var candidates = [];
+
+      // Candidate 1: Player
+      if (player.hp > 0) {
+        var pTarget = new THREE.Vector3(player.pos.x, player.pos.y - 0.5, player.pos.z);
+        var pDist = eyePos.distanceTo(pTarget);
+        if (pDist <= maxDist && hasLineOfSight(eyePos, pTarget)) {
+          candidates.push({ type: 'player', dist: pDist, targetPos: pTarget });
+        }
+      }
+
+      // Candidate 2: Standing WREN
+      if (wren.state === 'ALIVE' && wren.hp > 0) {
+        var wTarget = new THREE.Vector3(wren.position.x, 1.0, wren.position.z);
+        var wDist = eyePos.distanceTo(wTarget);
+        if (wDist <= maxDist && hasLineOfSight(eyePos, wTarget)) {
+          candidates.push({ type: 'wren', dist: wDist, targetPos: wTarget });
+        }
+      }
+
+      if (candidates.length === 0) return null;
+      if (candidates.length === 1) return candidates[0];
+      return (candidates[0].dist <= candidates[1].dist) ? candidates[0] : candidates[1];
+    }
+
+    function enemyFireShot(enemy, shotIndex) {
+      playGunshotSound();
+      var muzzle = new THREE.Vector3(enemy.position.x, 1.2, enemy.position.z);
+      var hostile = getNearestVisibleHostile(enemy.position, 40.0);
+      var targetPos = hostile ? hostile.targetPos : new THREE.Vector3(player.pos.x, player.pos.y - 0.5, player.pos.z);
+      var isTargetWren = hostile && hostile.type === 'wren';
+
+      if (shotIndex === 2) {
+        var hasLoS = hasLineOfSight(muzzle, targetPos);
+        if (hasLoS) {
+          spawnTracer(muzzle, targetPos);
+          spawnImpactSparks(targetPos);
+          if (isTargetWren) {
+            wrenTakeDamage(8);
+          } else if (player.hp > 0) {
+            playerTakeDamage(8);
+          }
+        } else {
+          var dir = new THREE.Vector3().subVectors(targetPos, muzzle).normalize();
+          raycaster.set(muzzle, dir);
+          var hits = raycaster.intersectObjects(coverObjectsForLoS, true);
+          if (hits.length > 0) {
+            spawnTracer(muzzle, hits[0].point);
+            spawnImpactSparks(hits[0].point);
+          } else {
+            spawnTracer(muzzle, targetPos);
+          }
+        }
+      } else {
+        var offsetZ = (shotIndex === 1) ? 1.5 : -1.5;
+        var missTarget = targetPos.clone().add(new THREE.Vector3(0, 0.4, offsetZ));
+        spawnTracer(muzzle, missTarget);
+      }
+    }
+
+    function playerTakeDamage(dmg) {
+      if (player.hp <= 0) return;
+      player.hp = Math.max(0, player.hp - dmg);
+      playPlayerHurtSound();
+
+      var vignette = document.getElementById('damage-vignette');
+      vignette.style.boxShadow = 'inset 0 0 100px rgba(239, 68, 68, 0.7)';
+      setTimeout(function() {
+        vignette.style.boxShadow = 'inset 0 0 100px rgba(220, 38, 38, 0)';
+      }, 180);
+
+      if (player.hp === 0) {
+        onPlayerDeath();
+      }
+    }
+
+    function wrenTakeDamage(dmg) {
+      if (wren.state === 'DEAD' || wren.hp <= 0) return;
+      wren.hp = Math.max(0, wren.hp - dmg);
+      playHitSound();
+
+      if (wren.hp === 0) {
+        onWrenDeath();
+      }
+    }
+
+    function onWrenDeath() {
+      wren.hp = 0;
+      wren.state = 'DEAD';
+      wren.respawnTimer = 8.0; // Respawns at west base after 8.0s at full HP
+      wren.model.root.rotation.x = Math.PI / 2;
+      wren.model.root.position.y = 0.2;
+      wren.targetEnemy = null;
+    }
+
+    function wrenFireShot(targetEnemy, shotIndex) {
+      playGunshotSound();
+      var muzzle = new THREE.Vector3(wren.position.x, 1.2, wren.position.z);
+      var enemyTarget = new THREE.Vector3(targetEnemy.position.x, 1.0, targetEnemy.position.z);
+
+      if (shotIndex === 2) {
+        // 2nd shot is judged shot: deals 10 damage if LoS clear, sparks on cover if blocked
+        var hasLoS = hasLineOfSight(muzzle, enemyTarget);
+        if (hasLoS && targetEnemy.hp > 0 && targetEnemy.state !== 'DEAD') {
+          spawnTracer(muzzle, enemyTarget);
+          spawnImpactSparks(enemyTarget);
+          playHitSound();
+          damageEnemy(targetEnemy.id, 10);
+        } else {
+          var dir = new THREE.Vector3().subVectors(enemyTarget, muzzle).normalize();
+          raycaster.set(muzzle, dir);
+          var hits = raycaster.intersectObjects(coverObjectsForLoS, true);
+          if (hits.length > 0) {
+            spawnTracer(muzzle, hits[0].point);
+            spawnImpactSparks(hits[0].point);
+          } else {
+            spawnTracer(muzzle, enemyTarget);
+          }
+        }
+      } else {
+        // Cosmetic shot (1st and 3rd)
+        var offsetZ = (shotIndex === 1) ? 1.0 : -1.0;
+        var missTarget = enemyTarget.clone().add(new THREE.Vector3(0, 0.3, offsetZ));
+        spawnTracer(muzzle, missTarget);
+      }
+    }
+
+    function stepWren(dt) {
+      // Handle WREN death & respawn countdown (8.0s)
+      if (wren.state === 'DEAD') {
+        wren.respawnTimer -= dt;
+        if (wren.respawnTimer <= 0) {
+          wren.hp = 60;
+          wren.state = 'ALIVE';
+          wren.respawnTimer = 0.0;
+          wren.position.set(WREN_SPAWN_X, 0, WREN_SPAWN_Z);
+          wren.model.root.position.copy(wren.position);
+          wren.model.root.rotation.set(0, 0, 0);
+          wren.waypointIdx = 0;
+          wren.pauseTimer = 0.0;
+          wren.burstTimer = 0.0;
+          wren.burstShotsFired = 0;
+          wren.targetEnemy = null;
+        }
+        return;
+      }
+
+      // Find nearest living enemy within 18m that WREN can see
+      var wrenEyePos = new THREE.Vector3(wren.position.x, 1.5, wren.position.z);
+      var closestEnemy = null;
+      var closestEnemyDist = Infinity;
+
+      for (var i = 0; i < enemies.length; i++) {
+        var e = enemies[i];
+        if (e.state !== 'DEAD' && e.hp > 0) {
+          var eTarget = new THREE.Vector3(e.position.x, 1.0, e.position.z);
+          var distE = wrenEyePos.distanceTo(eTarget);
+          if (distE <= 18.0 && hasLineOfSight(wrenEyePos, eTarget)) {
+            if (distE < closestEnemyDist) {
+              closestEnemyDist = distE;
+              closestEnemy = e;
+            }
+          }
+        }
+      }
+      wren.targetEnemy = closestEnemy;
+
+      // ORDER LOGIC
+      if (wren.order === 'GUARD') {
+        // Ring of exactly 6.0m radius around west blue flag stand (-52, 0)
+        // Walks at 2.5 m/s, pausing 1.0s at each waypoint
+        if (wren.pauseTimer > 0) {
+          wren.pauseTimer -= dt;
+          wren.model.leftLeg.rotation.x = 0;
+          wren.model.rightLeg.rotation.x = 0;
+        } else {
+          var targetWP = WREN_GUARD_WAYPOINTS[wren.waypointIdx];
+          var toWP = new THREE.Vector3(targetWP.x - wren.position.x, 0, targetWP.z - wren.position.z);
+          var distWP = toWP.length();
+          if (distWP < 0.15) {
+            wren.pauseTimer = 1.0;
+            wren.waypointIdx = (wren.waypointIdx + 1) % WREN_GUARD_WAYPOINTS.length;
+          } else {
+            toWP.normalize();
+            var moveStep = Math.min(2.5 * dt, distWP);
+            wren.position.x += toWP.x * moveStep;
+            wren.position.z += toWP.z * moveStep;
+            wren.model.root.position.copy(wren.position);
+
+            if (!closestEnemy) {
+              wren.model.root.rotation.y = Math.atan2(toWP.x, toWP.z);
+            }
+
+            wren.walkCycle += dt * 8.0;
+            wren.model.leftLeg.rotation.x = Math.sin(wren.walkCycle) * 0.5;
+            wren.model.rightLeg.rotation.x = -Math.sin(wren.walkCycle) * 0.5;
+          }
+        }
+      } else if (wren.order === 'ASSAULT') {
+        // Follows player: 2m behind and 1.5m left of the player, staying within 5m
+        // Forward vector of player: (cos(yaw), 0, sin(yaw))
+        var fwdX = Math.cos(player.yaw);
+        var fwdZ = Math.sin(player.yaw);
+        // Left vector: (-sin(yaw), 0, cos(yaw))
+        var leftX = -fwdZ;
+        var leftZ = fwdX;
+
+        // Desired position: player.pos - 2.0 * fwd + 1.5 * left
+        var desiredX = player.pos.x - 2.0 * fwdX + 1.5 * leftX;
+        var desiredZ = player.pos.z - 2.0 * fwdZ + 1.5 * leftZ;
+
+        var toDesired = new THREE.Vector3(desiredX - wren.position.x, 0, desiredZ - wren.position.z);
+        var distToDesired = toDesired.length();
+        var distToPlayer = Math.hypot(player.pos.x - wren.position.x, player.pos.z - wren.position.z);
+
+        // Match player walk/sprint speed (WREN never carries flag, so no carry penalty)
+        var wrenSpeed = input.sprint ? BASE_SPRINT_SPEED : BASE_WALK_SPEED; // 7 m/s or 4 m/s
+        if (distToPlayer > 5.0) {
+          // Beyond 5m: catch up quickly
+          wrenSpeed = BASE_SPRINT_SPEED;
+        }
+
+        if (distToDesired > 0.25) {
+          toDesired.normalize();
+          var stepA = Math.min(wrenSpeed * dt, distToDesired);
+          wren.position.x += toDesired.x * stepA;
+          wren.position.z += toDesired.z * stepA;
+          wren.model.root.position.copy(wren.position);
+
+          if (!closestEnemy) {
+            wren.model.root.rotation.y = Math.atan2(toDesired.x, toDesired.z);
+          }
+
+          var animRate = (wrenSpeed >= 6.0) ? 12.0 : 8.0;
+          wren.walkCycle += dt * animRate;
+          wren.model.leftLeg.rotation.x = Math.sin(wren.walkCycle) * 0.5;
+          wren.model.rightLeg.rotation.x = -Math.sin(wren.walkCycle) * 0.5;
+        } else {
+          wren.model.leftLeg.rotation.x = 0;
+          wren.model.rightLeg.rotation.x = 0;
+          if (!closestEnemy) {
+            wren.model.root.rotation.y = player.yaw;
+          }
+        }
+      }
+
+      // ENGAGEMENT & FIRING LOGIC
+      // 3 tracer shots spaced 0.3s apart, one burst every 2.0s
+      if (closestEnemy) {
+        var faceEnemy = new THREE.Vector3(closestEnemy.position.x - wren.position.x, 0, closestEnemy.position.z - wren.position.z).normalize();
+        wren.model.root.rotation.y = Math.atan2(faceEnemy.x, faceEnemy.z);
+
+        wren.model.leftArm.rotation.x = -Math.PI / 2.5;
+        wren.model.rightArm.rotation.x = -Math.PI / 2.3;
+
+        wren.burstTimer += dt;
+        if (wren.burstTimer >= 2.0) {
+          wren.burstTimer = 0.0;
+          wren.burstShotsFired = 0;
+        }
+
+        if (wren.burstShotsFired === 0 && wren.burstTimer >= 0.0) {
+          wrenFireShot(closestEnemy, 1);
+          wren.burstShotsFired = 1;
+        } else if (wren.burstShotsFired === 1 && wren.burstTimer >= 0.3) {
+          wrenFireShot(closestEnemy, 2); // JUDGED SHOT
+          wren.burstShotsFired = 2;
+        } else if (wren.burstShotsFired === 2 && wren.burstTimer >= 0.6) {
+          wrenFireShot(closestEnemy, 3);
+          wren.burstShotsFired = 3;
+        }
+      } else {
+        wren.model.leftArm.rotation.x = 0;
+        wren.model.rightArm.rotation.x = 0;
+        wren.burstTimer = 0.0;
+        wren.burstShotsFired = 0;
+      }
+    }
+
+    function onPlayerDeath() {
+      deaths++;
+      totalDeaths++;
+      phase = 'KIA';
+      player.kiaTimer = PLAYER_RESPAWN_TIME; // 3.0 s
+      kiaScreen.classList.remove('overlay-hidden');
+
+      if (player.carriedFlag === 'red') {
+        dropFlagAtPosition(flags.red, player.pos.x, player.pos.y, player.pos.z);
+        playerBackpackFlag.visible = false;
+        player.carriedFlag = null;
+        player.speedMultiplier = 1.0;
+        document.getElementById('carry-penalty-badge').style.display = 'none';
+      }
+
+      if (document.exitPointerLock) {
+        document.exitPointerLock();
+      }
+    }
+
+    /* =========================================================================
+       FLAG INTERACTIONS, RETURN TIMERS & SCORING
+       ========================================================================= */
+    function updateFlagState(dt) {
+      // 1. Tick return timers on DROPPED flags (30.0s countdown)
+      ['blue', 'red'].forEach(function(fid) {
+        var f = flags[fid];
+        if (f.state === 'DROPPED') {
+          f.returnTimer -= dt;
+          if (f.returnTimer <= 0) {
+            returnFlagToStand(f);
+          }
+        }
+      });
+
+      if (phase !== 'PLAYING' || player.hp <= 0) return;
+
+      var px = player.pos.x;
+      var pz = player.pos.z;
+
+      var distToBlueStand = Math.hypot(px - WEST_BASE_X, pz - WEST_BASE_Z);
+      var distToBlueDropped = (flags.blue.state === 'DROPPED')
+        ? Math.hypot(px - flags.blue.dropPos.x, pz - flags.blue.dropPos.z)
+        : Infinity;
+
+      var distToRedStand = Math.hypot(px - EAST_BASE_X, pz - EAST_BASE_Z);
+      var distToRedDropped = (flags.red.state === 'DROPPED')
+        ? Math.hypot(px - flags.red.dropPos.x, pz - flags.red.dropPos.z)
+        : Infinity;
+
+      // Player touch resolution first (priority order: player first, then lowest enemy ID)
+      if (flags.blue.state === 'DROPPED' && distToBlueDropped <= 2.0) {
+        returnFlagToStand(flags.blue);
+        lastFlagTouchEvent = {
+          time: missionTime,
+          unit_id: 'player',
+          unitId: 'player',
+          flag_id: 'blue',
+          flagId: 'blue',
+          result: 'returned'
+        };
+      }
+
+      // Rule: Picking up enemy red flag from stand (HOME -> CARRIED)
+      if (flags.red.state === 'HOME' && player.carriedFlag === null && distToRedStand <= 2.0) {
+        flags.red.state = 'CARRIED';
+        flags.red.carrierId = 'player';
+        player.carriedFlag = 'red';
+        flags.red.standMesh.visible = false;
+        playerBackpackFlag.visible = true;
+        playFlagPickupSound();
+        lastFlagTouchEvent = {
+          time: missionTime,
+          unit_id: 'player',
+          unitId: 'player',
+          flag_id: 'red',
+          flagId: 'red',
+          result: 'picked up'
+        };
+      }
+
+      // Rule: Player picking up dropped enemy red flag (DROPPED -> CARRIED)
+      if (flags.red.state === 'DROPPED' && player.carriedFlag === null && distToRedDropped <= 2.0) {
+        flags.red.state = 'CARRIED';
+        flags.red.carrierId = 'player';
+        player.carriedFlag = 'red';
+        flags.red.droppedEntity.root.visible = false;
+        playerBackpackFlag.visible = true;
+        playFlagPickupSound();
+        lastFlagTouchEvent = {
+          time: missionTime,
+          unit_id: 'player',
+          unitId: 'player',
+          flag_id: 'red',
+          flagId: 'red',
+          result: 'picked up'
+        };
+      }
+
+      // Enemy soldier touch resolution for dropped flags (lowest enemy ID order E1..E5):
+      for (var ei = 0; ei < enemies.length; ei++) {
+        var eUnit = enemies[ei];
+        if (eUnit.state === 'DEAD' || eUnit.hp <= 0) continue;
+
+        // Enemy touching their own dropped red flag -> returns it to enemy stand instantly
+        if (flags.red.state === 'DROPPED' && flags.red.dropPos) {
+          var dRed = Math.hypot(eUnit.position.x - flags.red.dropPos.x, eUnit.position.z - flags.red.dropPos.z);
+          if (dRed <= 2.0) {
+            returnFlagToStand(flags.red);
+            playFlagReturnSound();
+            lastFlagTouchEvent = {
+              time: missionTime,
+              unit_id: eUnit.id,
+              unitId: eUnit.id,
+              flag_id: 'red',
+              flagId: 'red',
+              result: 'returned'
+            };
+          }
+        }
+
+        // Enemy touching your dropped blue flag -> picks it up, becomes carrier, runs for enemy stand
+        if (flags.blue.state === 'DROPPED' && flags.blue.dropPos && !eUnit.carriedFlag) {
+          var dBlue = Math.hypot(eUnit.position.x - flags.blue.dropPos.x, eUnit.position.z - flags.blue.dropPos.z);
+          if (dBlue <= 2.0) {
+            flags.blue.state = 'CARRIED';
+            flags.blue.carrierId = eUnit.id;
+            flags.blue.droppedEntity.root.visible = false;
+            eUnit.carriedFlag = 'blue';
+            runnerBackpackFlag.visible = true;
+            playFlagPickupSound();
+            lastFlagTouchEvent = {
+              time: missionTime,
+              unit_id: eUnit.id,
+              unitId: eUnit.id,
+              flag_id: 'blue',
+              flagId: 'blue',
+              result: 'picked up'
+            };
+          }
+        }
+      }
+
+      // Update carry mobility penalty for player
+      if (player.carriedFlag === 'red') {
+        player.speedMultiplier = CARRY_SPEED_MULTIPLIER;
+        document.getElementById('carry-penalty-badge').style.display = 'block';
+
+        playerBackpackFlag.position.set(px, player.pos.y - 0.9, pz);
+        playerBackpackFlag.rotation.y = player.yaw;
+
+        flags.red.position.x = px;
+        flags.red.position.y = player.pos.y;
+        flags.red.position.z = pz;
+      } else {
+        player.speedMultiplier = 1.0;
+        document.getElementById('carry-penalty-badge').style.display = 'none';
+      }
+
+      // Scoring: carrying red flag, enter own defended stand ring (within 2.0m of blue pole) while blue flag is HOME
+      if (player.carriedFlag === 'red' && distToBlueStand <= 2.0 && flags.blue.state === 'HOME') {
+        captures++;
+        totalCaptures++;
+        triggerRoundScore('player');
+      }
+    }
+
+    function triggerRoundScore(winner) {
+      if (phase !== 'PLAYING') return;
+      phase = 'ROUND_OVER';
+
+      if (winner === 'player') {
+        playerRoundWins++;
+        playVictoryFanfare();
+        flags.red.state = 'CAPTURED';
+        flags.red.carrierId = null;
+        player.speedMultiplier = 1.0;
+        document.getElementById('carry-penalty-badge').style.display = 'none';
+      } else {
+        enemyRoundWins++;
+        playDefeatSound();
+        flags.blue.state = 'CAPTURED';
+        flags.blue.carrierId = null;
+        runnerBackpackFlag.visible = false;
+      }
+
+      var banner = document.getElementById('center-banner');
+      var scoreText = ' (YOU ' + playerRoundWins + ' — ' + enemyRoundWins + ' FOE)';
+      if (winner === 'player') {
+        banner.innerText = 'ROUND ' + currentRoundNumber + ' — YOU SCORED' + scoreText;
+        banner.style.color = '#fbbf24';
+      } else {
+        banner.innerText = 'ROUND ' + currentRoundNumber + ' — ENEMY SCORED' + scoreText;
+        banner.style.color = '#ef4444';
+      }
+      banner.style.opacity = '1';
+
+      roundFreezeTimer = 3.0; // Freeze for 3.0 s on round announcement banner
+    }
+
+    function calculateFinalScore(totalSeconds, deathsCount, switchesCount) {
+      // SCORE = max(0, 3000 - 5 * total_match_seconds - 50 * your_deaths - 40 * order_switches)
+      var raw = 3000 - (5 * Math.floor(totalSeconds)) - (50 * deathsCount) - (40 * switchesCount);
+      return Math.max(0, raw);
+    }
+
+    function getRatingTier(score) {
+      if (score >= 2000) return 'S (FLAGMASTER)';
+      if (score >= 1500) return 'A (VETERAN)';
+      if (score >= 1000) return 'B (REGULAR)';
+      if (score >= 400)  return 'C (ROOKIE)';
+      return 'D (DRAGGED)';
+    }
+
+    function onRoundFreezeExpire() {
+      // Check if match decided (first to 2 wins)
+      if (playerRoundWins >= 2 || enemyRoundWins >= 2) {
+        var min = Math.floor(totalMatchTime / 60);
+        var sec = Math.floor(totalMatchTime % 60);
+        var timeStr = (min < 10 ? '0' : '') + min + ':' + (sec < 10 ? '0' : '') + sec;
+        var roundScoreStr = playerRoundWins + '–' + enemyRoundWins;
+
+        var finalScore = calculateFinalScore(totalMatchTime, totalDeaths, orderSwitches);
+        var finalRating = getRatingTier(finalScore);
+
+        if (playerRoundWins >= 2) {
+          phase = 'VICTORY';
+          missionResult = 'VICTORY';
+          matchDecidedResult = 'VICTORY';
+          document.getElementById('vic-sub').innerText = 'YOU TAKE THE MATCH ' + roundScoreStr;
+          document.getElementById('vic-caps').innerText = totalCaptures;
+          document.getElementById('vic-deaths').innerText = totalDeaths;
+          document.getElementById('vic-switches').innerText = orderSwitches;
+          document.getElementById('vic-time').innerText = timeStr;
+          document.getElementById('vic-score').innerText = finalScore;
+          document.getElementById('vic-rating').innerText = finalRating;
+          victoryScreen.classList.remove('overlay-hidden');
+        } else {
+          phase = 'DEFEAT';
+          missionResult = 'DEFEAT';
+          matchDecidedResult = 'DEFEAT';
+          document.getElementById('def-sub').innerText = 'CHAMPION SQUAD WINS ' + roundScoreStr;
+          document.getElementById('def-caps').innerText = totalCaptures;
+          document.getElementById('def-deaths').innerText = totalDeaths;
+          document.getElementById('def-switches').innerText = orderSwitches;
+          document.getElementById('def-time').innerText = timeStr;
+          document.getElementById('def-score').innerText = finalScore;
+          document.getElementById('def-rating').innerText = finalRating;
+          defeatScreen.classList.remove('overlay-hidden');
+        }
+
+        if (document.exitPointerLock) {
+          document.exitPointerLock();
+        }
+      } else {
+        // Advance to next round automatically with side-swap
+        currentRoundNumber++;
+        phase = 'PLAYING';
+        configureRoundForSide(currentRoundNumber);
+        if (renderer.domElement && !isPointerLocked) {
+          renderer.domElement.requestPointerLock();
+        }
+      }
+    }
+
+    /* =========================================================================
+       FIXED SIMULATION STEP
+       ========================================================================= */
+    var FIXED_TIMESTEP = 1.0 / 60.0;
+    var timeAccumulator = 0.0;
+    var lastTimestamp = 0;
+
+    function fixedUpdate(dt) {
+      westStand.uniforms.uTime.value = missionTime;
+      eastStand.uniforms.uTime.value = missionTime;
+      bpFlagUniforms.uTime.value = missionTime;
+      rbpFlagUniforms.uTime.value = missionTime;
+
+      for (var ti = tracers.length - 1; ti >= 0; ti--) {
+        var tr = tracers[ti];
+        tr.life -= dt;
+        if (tr.life <= 0) {
+          scene.remove(tr.mesh);
+          tracers.splice(ti, 1);
+        }
+      }
+
+      for (var si = sparks.length - 1; si >= 0; si--) {
+        var sp = sparks[si];
+        sp.life -= dt;
+        sp.mesh.position.addScaledVector(sp.vel, dt);
+        sp.vel.y -= 9.8 * dt;
+        if (sp.life <= 0) {
+          scene.remove(sp.mesh);
+          sparks.splice(si, 1);
+        }
+      }
+
+      if (phase === 'KIA') {
+        player.kiaTimer -= dt;
+        kiaTimerEl.innerText = Math.ceil(player.kiaTimer);
+        if (player.kiaTimer <= 0) {
+          phase = 'PLAYING';
+          kiaScreen.classList.add('overlay-hidden');
+          player.hp = 100;
+          player.mag = 24;
+          player.reserve = 96;
+          player.pos.set(PLAYER_SPAWN_X, PLAYER_SPAWN_Y, PLAYER_SPAWN_Z);
+          player.yaw = 0;
+          player.pitch = 0;
+          renderer.domElement.requestPointerLock();
+        }
+        stepSmokeSystem(dt);
+        stepWren(dt);
+        stepEnemies(dt);
+        updateFlagState(dt);
+        return;
+      }
+
+      if (phase === 'ROUND_OVER') {
+        roundFreezeTimer -= dt;
+        if (roundFreezeTimer <= 0) {
+          onRoundFreezeExpire();
+        }
+        return;
+      }
+
+      if (phase !== 'PLAYING') return;
+
+      missionTime += dt;
+      totalMatchTime += dt;
+
+      if (player.reloading) {
+        player.reloadTimer -= dt;
+        var reloadProgress = Math.max(0, 1.0 - (player.reloadTimer / RELOAD_TIME));
+        document.getElementById('ui-reload-fill').style.width = (reloadProgress * 100) + '%';
+        vmReloadOffset = Math.sin(reloadProgress * Math.PI) * 0.18;
+
+        if (player.reloadTimer <= 0) {
+          player.reloading = false;
+          var needed = 24 - player.mag;
+          var take = Math.min(needed, player.reserve);
+          player.mag += take;
+          player.reserve -= take;
+          playReloadDoneSound();
+          document.getElementById('ui-reload-bar').style.display = 'none';
+          document.getElementById('ui-reload-text').style.display = 'none';
+        }
+      }
+
+      if (input.turnLeft) player.yaw += 2.0 * dt;
+      if (input.turnRight) player.yaw -= 2.0 * dt;
+      if (input.lookUp) player.pitch = Math.min(Math.PI / 2.2, player.pitch + 1.5 * dt);
+      if (input.lookDown) player.pitch = Math.max(-Math.PI / 2.2, player.pitch - 1.5 * dt);
+
+      var moveX = 0;
+      var moveZ = 0;
+      if (input.forward) moveZ -= 1;
+      if (input.backward) moveZ += 1;
+      if (input.left) moveX -= 1;
+      if (input.right) moveX += 1;
+
+      var isCarrying = (player.carriedFlag !== null);
+      var currentSpeed;
+      if (isCarrying) {
+        currentSpeed = CARRY_WALK_SPEED;
+      } else {
+        currentSpeed = input.sprint ? BASE_SPRINT_SPEED : BASE_WALK_SPEED;
+      }
+
+      if (moveX !== 0 || moveZ !== 0) {
+        var mag = Math.hypot(moveX, moveZ);
+        var nx = moveX / mag;
+        var nz = moveZ / mag;
+
+        var fwdX = Math.cos(player.yaw);
+        var fwdZ = Math.sin(player.yaw);
+        var rightX = -Math.sin(player.yaw);
+        var rightZ = Math.cos(player.yaw);
+
+        var vx = (fwdX * (-nz) + rightX * nx) * currentSpeed;
+        var vz = (fwdZ * (-nz) + rightZ * nx) * currentSpeed;
+
+        var targetX = player.pos.x + vx * dt;
+        var targetZ = player.pos.z + vz * dt;
+
+        var resolved = checkWallCollision(targetX, targetZ, PLAYER_RADIUS);
+        player.pos.x = resolved.x;
+        player.pos.z = resolved.z;
+      }
+
+      player.fireCooldown -= dt;
+      if (input.fire && !player.reloading && player.fireCooldown <= 0) {
+        firePlayerRifle();
+        player.fireCooldown = FIRE_INTERVAL;
+      }
+
+      if (vmRecoilOffset > 0) {
+        vmRecoilOffset = Math.max(0, vmRecoilOffset - dt * 0.4);
+      }
+
+      stepSmokeSystem(dt);
+      stepWren(dt);
+      stepEnemies(dt);
+      updateFlagState(dt);
+    }
+
+    /* =========================================================================
+       UI DISPLAY UPDATE
+       ========================================================================= */
+    var uiBlueStatus = document.getElementById('ui-blue-status');
+    var uiRedStatus = document.getElementById('ui-red-status');
+    var uiClock = document.getElementById('ui-clock');
+    var uiHpVal = document.getElementById('ui-hp-val');
+    var uiHpFill = document.getElementById('ui-hp-fill');
+    var uiKillsVal = document.getElementById('ui-kills-val');
+    var uiMagVal = document.getElementById('ui-mag-val');
+    var uiResVal = document.getElementById('ui-res-val');
+    var uiWrenStatus = document.getElementById('ui-wren-status');
+    var uiWrenHpVal = document.getElementById('ui-wren-hp-val');
+    var uiWrenHpFill = document.getElementById('ui-wren-hp-fill');
+
+    function updateUI() {
+      var uiRoundCounter = document.getElementById('ui-round-counter');
+      if (uiRoundCounter) {
+        uiRoundCounter.innerText = 'ROUND ' + currentRoundNumber + '/3';
+      }
+      var uiRoundPips = document.getElementById('ui-round-pips');
+      if (uiRoundPips) {
+        uiRoundPips.innerHTML = 'YOU <strong style="color: #60a5fa;">' + playerRoundWins + '</strong> — <strong style="color: #f87171;">' + enemyRoundWins + '</strong> FOE';
+      }
+
+      if (flags.blue.state === 'DROPPED') {
+        uiBlueStatus.innerText = 'DROPPED ' + Math.ceil(flags.blue.returnTimer) + 's';
+      } else {
+        uiBlueStatus.innerText = flags.blue.state;
+      }
+
+      if (flags.red.state === 'DROPPED') {
+        uiRedStatus.innerText = 'DROPPED ' + Math.ceil(flags.red.returnTimer) + 's';
+      } else {
+        uiRedStatus.innerText = flags.red.state;
+      }
+
+      var min = Math.floor(missionTime / 60);
+      var sec = Math.floor(missionTime % 60);
+      uiClock.innerText = (min < 10 ? '0' : '') + min + ':' + (sec < 10 ? '0' : '') + sec;
+
+      uiHpVal.innerText = player.hp + ' HP';
+      uiHpFill.style.width = player.hp + '%';
+      if (player.hp > 50) {
+        uiHpFill.style.background = 'linear-gradient(90deg, #10b981, #34d399)';
+        uiHpVal.style.color = '#10b981';
+      } else if (player.hp > 25) {
+        uiHpFill.style.background = 'linear-gradient(90deg, #f59e0b, #fbbf24)';
+        uiHpVal.style.color = '#f59e0b';
+      } else {
+        uiHpFill.style.background = 'linear-gradient(90deg, #ef4444, #f87171)';
+        uiHpVal.style.color = '#ef4444';
+      }
+
+      uiKillsVal.innerText = kills;
+      uiMagVal.innerText = player.mag;
+      uiResVal.innerText = player.reserve;
+
+      var uiSmokeBadge = document.getElementById('ui-smoke-badge');
+      if (uiSmokeBadge) {
+        uiSmokeBadge.innerText = 'SMOKE ' + smokeCanisterCount;
+        uiSmokeBadge.style.color = (smokeCanisterCount > 0) ? '#94a3b8' : '#64748b';
+      }
+
+      // Update WREN status & HP
+      if (uiWrenStatus) {
+        if (wren.state === 'DEAD') {
+          uiWrenStatus.innerText = 'WREN — DOWN (' + Math.ceil(wren.respawnTimer) + 's)';
+          uiWrenStatus.style.color = '#ef4444';
+          uiWrenHpVal.innerText = '0 / 60 HP';
+          uiWrenHpFill.style.width = '0%';
+        } else {
+          uiWrenStatus.innerText = 'WREN — ' + wren.order;
+          uiWrenStatus.style.color = '#60a5fa';
+          uiWrenHpVal.innerText = wren.hp + ' / 60 HP';
+          var wrenPct = Math.max(0, Math.min(100, (wren.hp / 60) * 100));
+          uiWrenHpFill.style.width = wrenPct + '%';
+          if (wren.hp > 30) {
+            uiWrenHpFill.style.background = 'linear-gradient(90deg, #3b82f6, #60a5fa)';
+          } else if (wren.hp > 15) {
+            uiWrenHpFill.style.background = 'linear-gradient(90deg, #f59e0b, #fbbf24)';
+          } else {
+            uiWrenHpFill.style.background = 'linear-gradient(90deg, #ef4444, #f87171)';
+          }
+        }
+      }
+    }
+
+    /* =========================================================================
+       EXPORT DEBUG STATE (window.__arena_state)
+       ========================================================================= */
+    function exportArenaState() {
+      var blueDropPos = flags.blue.dropPos ? { x: flags.blue.dropPos.x, y: flags.blue.dropPos.y, z: flags.blue.dropPos.z } : null;
+      var redDropPos = flags.red.dropPos ? { x: flags.red.dropPos.x, y: flags.red.dropPos.y, z: flags.red.dropPos.z } : null;
+
+      var blueReturnTime = flags.blue.state === 'DROPPED' ? flags.blue.returnTimer : 0;
+      var redReturnTime = flags.red.state === 'DROPPED' ? flags.red.returnTimer : 0;
+
+      var blueObj = {
+        id: 'blue',
+        state: flags.blue.state,
+        carrier_id: flags.blue.carrierId,
+        carrierId: flags.blue.carrierId,
+        drop_position: blueDropPos,
+        dropPosition: blueDropPos,
+        return_timer: blueReturnTime,
+        returnTimer: blueReturnTime,
+        seconds_remaining: blueReturnTime,
+        position: { x: flags.blue.position.x, y: flags.blue.position.y, z: flags.blue.position.z }
+      };
+
+      var redObj = {
+        id: 'red',
+        state: flags.red.state,
+        carrier_id: flags.red.carrierId,
+        carrierId: flags.red.carrierId,
+        drop_position: redDropPos,
+        dropPosition: redDropPos,
+        return_timer: redReturnTime,
+        returnTimer: redReturnTime,
+        seconds_remaining: redReturnTime,
+        position: { x: flags.red.position.x, y: flags.red.position.y, z: flags.red.position.z }
+      };
+
+      var flagsArray = [blueObj, redObj];
+      flagsArray.blue = blueObj;
+      flagsArray.red = redObj;
+
+      var enemiesList = enemies.map(function(e) {
+        var baseObj = {
+          id: e.id,
+          name: e.name,
+          role: e.role,
+          duty_phase: e.dutyPhase,
+          dutyPhase: e.dutyPhase,
+          position: { x: e.position.x, y: e.position.y, z: e.position.z },
+          hp: e.hp,
+          HP: e.hp,
+          state: e.state,
+          burst_timer: e.burstTimer,
+          burstTimer: e.burstTimer
+        };
+        if (e.role === 'GUARD') {
+          baseObj.leash_distance = e.currentLeashDist || 0;
+          baseObj.leashDistance = e.currentLeashDist || 0;
+          baseObj.max_leash = e.leashMaxDist || 8.0;
+        } else if (e.role === 'STEALER') {
+          baseObj.current_corridor = e.currentCorridor;
+          baseObj.currentCorridor = e.currentCorridor;
+          baseObj.carried_flag = e.carriedFlag;
+          baseObj.carriedFlag = e.carriedFlag;
+        }
+        return baseObj;
+      });
+      enemies.forEach(function(e, idx) {
+        enemiesList[e.id] = enemiesList[idx];
+      });
+
+      var currentDefendingSide = getDefendingSide(currentRoundNumber);
+      var currentScoreVal = calculateFinalScore(totalMatchTime, totalDeaths, orderSwitches);
+      var currentRatingTier = getRatingTier(currentScoreVal);
+
+      window.__arena_state = {
+        phase: phase,
+        mission_time: totalMatchTime,
+        missionTime: totalMatchTime,
+        round_time: missionTime,
+        roundTime: missionTime,
+        total_match_time: totalMatchTime,
+        totalMatchTime: totalMatchTime,
+        mission_result: matchDecidedResult || missionResult,
+        missionResult: matchDecidedResult || missionResult,
+        match_result: matchDecidedResult,
+        matchResult: matchDecidedResult,
+        current_round: currentRoundNumber,
+        currentRound: currentRoundNumber,
+        round_number: currentRoundNumber,
+        roundNumber: currentRoundNumber,
+        defending_side: currentDefendingSide,
+        defendingSide: currentDefendingSide,
+        rounds_won_player: playerRoundWins,
+        roundsWonPlayer: playerRoundWins,
+        rounds_won_enemy: enemyRoundWins,
+        roundsWonEnemy: enemyRoundWins,
+        score: {
+          player: playerRoundWins,
+          enemy: enemyRoundWins
+        },
+        round_score: playerRoundWins + '–' + enemyRoundWins,
+        champions: enemiesList,
+        player: {
+          position: { x: player.pos.x, y: player.pos.y, z: player.pos.z },
+          yaw: player.yaw,
+          hp: player.hp,
+          HP: player.hp,
+          mag: player.mag,
+          reserve: player.reserve,
+          reloading: player.reloading,
+          carried_flag_id: player.carriedFlag,
+          carriedFlagId: player.carriedFlag,
+          speed_multiplier: player.speedMultiplier,
+          speedMultiplier: player.speedMultiplier
+        },
+        enemies: enemiesList,
+        flags: flagsArray,
+        wren: {
+          position: { x: wren.position.x, y: wren.position.y, z: wren.position.z },
+          hp: wren.hp,
+          HP: wren.hp,
+          order: wren.order,
+          state: wren.state,
+          respawn_seconds_remaining: Math.max(0, wren.respawnTimer),
+          respawnSecondsRemaining: Math.max(0, wren.respawnTimer)
+        },
+        WREN: {
+          position: { x: wren.position.x, y: wren.position.y, z: wren.position.z },
+          hp: wren.hp,
+          HP: wren.hp,
+          order: wren.order,
+          state: wren.state,
+          respawn_seconds_remaining: Math.max(0, wren.respawnTimer),
+          respawnSecondsRemaining: Math.max(0, wren.respawnTimer)
+        },
+        order_switches: orderSwitches,
+        orderSwitches: orderSwitches,
+        last_flag_touch: lastFlagTouchEvent,
+        lastFlagTouch: lastFlagTouchEvent,
+        smoke_count: smokeCanisterCount,
+        smokeCount: smokeCanisterCount,
+        smoke_canisters: smokeCanisterCount,
+        active_smoke_clouds: activeSmokeClouds.map(function(sc) {
+          return {
+            position: { x: sc.position.x, y: sc.position.y, z: sc.position.z },
+            seconds_remaining: Math.max(0, sc.timer),
+            secondsRemaining: Math.max(0, sc.timer)
+          };
+        }),
+        smoke_clouds: activeSmokeClouds.map(function(sc) {
+          return {
+            position: { x: sc.position.x, y: sc.position.y, z: sc.position.z },
+            seconds_remaining: Math.max(0, sc.timer),
+            secondsRemaining: Math.max(0, sc.timer)
+          };
+        }),
+        respawn_time: PLAYER_RESPAWN_TIME,
+        respawnTime: PLAYER_RESPAWN_TIME,
+        player_respawn_time: PLAYER_RESPAWN_TIME,
+        playerRespawnTime: PLAYER_RESPAWN_TIME,
+        carry_speed_multiplier: CARRY_SPEED_MULTIPLIER,
+        carrySpeedMultiplier: CARRY_SPEED_MULTIPLIER,
+        carry_multiplier: CARRY_SPEED_MULTIPLIER,
+        carryMultiplier: CARRY_SPEED_MULTIPLIER,
+        carry_walk_speed: CARRY_WALK_SPEED,
+        carryWalkSpeed: CARRY_WALK_SPEED,
+        final_score: {
+          seconds: totalMatchTime,
+          deaths: totalDeaths,
+          switches: orderSwitches,
+          score: currentScoreVal,
+          tier: currentRatingTier
+        },
+        finalScore: {
+          seconds: totalMatchTime,
+          deaths: totalDeaths,
+          switches: orderSwitches,
+          score: currentScoreVal,
+          tier: currentRatingTier
+        },
+        stats: {
+          kills: totalKills,
+          deaths: totalDeaths,
+          captures: totalCaptures,
+          round_kills: kills,
+          round_deaths: deaths,
+          round_captures: captures,
+          total_kills: totalKills,
+          total_deaths: totalDeaths,
+          total_captures: totalCaptures,
+          total_match_time: totalMatchTime,
+          order_switches: orderSwitches,
+          orderSwitches: orderSwitches,
+          score: currentScoreVal,
+          rating: currentRatingTier
+        }
+      };
+    }exportArenaState();
+
+    /* =========================================================================
+       MAIN RENDER LOOP
+       ========================================================================= */
+    function animate(timestamp) {
+      requestAnimationFrame(animate);
+
+      if (!lastTimestamp) lastTimestamp = timestamp;
+      var rawDelta = (timestamp - lastTimestamp) / 1000.0;
+      lastTimestamp = timestamp;
+      var delta = Math.min(rawDelta, 0.1);
+
+      timeAccumulator += delta;
+      while (timeAccumulator >= FIXED_TIMESTEP) {
+        fixedUpdate(FIXED_TIMESTEP);
+        timeAccumulator -= FIXED_TIMESTEP;
+      }
+
+      camera.position.set(player.pos.x, player.pos.y, player.pos.z);
+      var euler = new THREE.Euler(player.pitch, player.yaw - Math.PI / 2, 0, 'YXZ');
+      camera.quaternion.setFromEuler(euler);
+
+      viewmodelGroup.position.set(
+        VM_REST_POS.x,
+        VM_REST_POS.y - vmReloadOffset,
+        VM_REST_POS.z + vmRecoilOffset
+      );
+
+      updateUI();
+      exportArenaState();
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', function() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    requestAnimationFrame(animate);
+
+  })();
+  </script>
+</body>
+</html>

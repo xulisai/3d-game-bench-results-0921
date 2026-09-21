@@ -1,0 +1,1917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Castle Under Siege</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0d0b08;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif; user-select: none; -webkit-user-select: none; }
+  #c { display: block; width: 100vw; height: 100vh; cursor: crosshair; touch-action: none; }
+  .vignette { position: fixed; inset: 0; z-index: 5; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(10, 8, 5, 0.38) 100%); }
+
+  #hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; color: #f3e9d2; }
+  .panel { position: absolute; background: rgba(20, 15, 10, 0.74); border: 1px solid rgba(216, 178, 90, 0.38);
+    border-radius: 8px; padding: 10px 14px; font-size: 14px; line-height: 1.55; text-shadow: 0 1px 2px #000; }
+  #hudLeft { top: 12px; left: 12px; min-width: 200px; }
+  #hudEast { top: 12px; right: 12px; text-align: right; }
+  #hudEast .eh { font-weight: bold; color: #e7c877; }
+  #hStanding { font-size: 12px; opacity: 0.85; }
+  #strip { display: flex; gap: 2px; margin-top: 7px; justify-content: flex-end; }
+  #strip .cell { width: 13px; height: 11px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.45); background: #6f9556; }
+  #strip .cell.hot { outline: 1px solid #f0d68a; }
+  #hudReload { bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 16px; padding: 8px 20px; }
+  .ready { color: #9fe08d; }
+  .reloading { color: #f0c060; }
+  #hudHint { bottom: 14px; left: 12px; font-size: 12px; opacity: 0.9; padding: 6px 10px; }
+  #toast { position: absolute; top: 72px; left: 50%; transform: translateX(-50%);
+    background: rgba(20, 15, 10, 0.85); border: 1px solid rgba(216, 178, 90, 0.45);
+    padding: 8px 18px; border-radius: 8px; font-size: 15px; opacity: 0; transition: opacity 0.3s; white-space: nowrap; }
+
+  .overlay { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center;
+    background: rgba(14, 10, 7, 0.72); }
+  .hidden { display: none !important; }
+  .card { background: linear-gradient(180deg, rgba(40, 31, 21, 0.96), rgba(26, 20, 14, 0.96));
+    border: 1px solid #8a6d3f; border-radius: 12px; padding: 26px 40px 30px; color: #efe3c3;
+    text-align: center; max-width: 620px; max-height: 92vh; overflow-y: auto;
+    box-shadow: 0 10px 60px rgba(0, 0, 0, 0.65); }
+  h1.title { font-family: Georgia, "Times New Roman", serif; font-size: 42px; margin: 0 0 4px;
+    color: #e7c877; letter-spacing: 2px; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.75); }
+  h2.sub { font-family: Georgia, serif; font-weight: normal; font-size: 20px; margin: 0 0 12px; color: #cbb98a; }
+  .objective { font-size: 15px; color: #e8dcc0; margin: 6px 0 14px; }
+  .controls { display: inline-block; text-align: left; font-size: 14px; color: #d9cba6; margin: 2px 0 16px; line-height: 1.75; }
+  .controls b { color: #f0d68a; display: inline-block; min-width: 104px; }
+  .btn { font-family: Georgia, serif; font-size: 18px; padding: 10px 28px;
+    background: linear-gradient(180deg, #a3823f, #7c5f2a); color: #fff7e0;
+    border: 1px solid #d9b96a; border-radius: 8px; cursor: pointer; letter-spacing: 1px; }
+  .btn:hover { background: linear-gradient(180deg, #b8934a, #8d6d31); }
+  .notice { margin: 10px auto; padding: 8px 12px; background: rgba(216, 178, 90, 0.14);
+    border: 1px solid rgba(216, 178, 90, 0.5); color: #f2dfae; border-radius: 6px; font-size: 14px; max-width: 460px; }
+  h3.shead { font-family: Georgia, serif; color: #e7c877; margin: 10px 0 6px; font-weight: normal; letter-spacing: 1px; }
+  #wallGrid { display: grid; grid-template-columns: auto repeat(4, 1fr); gap: 4px 8px; margin: 6px 0 18px;
+    font-size: 13px; text-align: left; }
+  #wallGrid .wname { font-weight: bold; color: #e7c877; align-self: center; padding-right: 4px; }
+  #wallGrid .wcell { background: rgba(255, 255, 255, 0.06); border-radius: 4px; padding: 3px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12); white-space: nowrap; }
+  #wallGrid .rowHot { background: rgba(216, 178, 90, 0.18) !important; box-shadow: inset 0 0 0 1px rgba(240, 214, 138, 0.65); }
+  #fatalMsg { color: #f0b0a0; font-size: 14px; max-width: 420px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="vignette"></div>
+
+<div id="hud" class="hidden">
+  <div id="hudLeft" class="panel">
+    <div>Day: <span id="hDay">1</span></div>
+    <div>Time remaining: <span id="hTime">150.0 s</span></div>
+    <div>Wave: <span id="hWave">1 / 3</span></div>
+    <div>Stone: <span id="hStone">500</span></div>
+    <div>Enemies alive: <span id="hEnemies">0</span></div>
+  </div>
+  <div id="hudEast" class="panel">
+    <div class="eh" id="hWallHead">Wall HP (East)</div>
+    <div id="hWall">Seg 4: 100 | Seg 5: 100 | Seg 6: 100 | Seg 7: 100</div>
+    <div id="hOther" style="font-size:12px;opacity:.9;display:none">East: 100/100/100/100</div>
+    <div id="hStanding">Standing on: East Seg 6</div>
+    <div id="strip"></div>
+  </div>
+  <div id="hudReload" class="panel ready">Ready</div>
+  <div id="hudHint" class="panel">WASD move along walls &middot; Left-click shoot &middot; E repair (50 stone) &middot; R restart</div>
+  <div id="toast"></div>
+</div>
+
+<div id="titleScreen" class="overlay">
+  <div class="card">
+    <h1 class="title">Castle Under Siege</h1>
+    <h2 class="sub" id="subtitle">Day 1 — East Wall Defense</h2>
+    <p class="objective" id="objective">Defend the east wall. Survive 3 waves.</p>
+    <div id="saveNotice" class="notice hidden"></div>
+    <div id="titleState" class="notice hidden"></div>
+    <div class="controls">
+      <div><b>W A S D</b> Move along the wall tops</div>
+      <div><b>Left-click</b> Shoot arrow (tap on touch)</div>
+      <div><b>E</b> Repair segment (50 stone)</div>
+      <div><b>R</b> Restart day</div>
+    </div>
+    <p class="objective" style="margin:0 0 14px" id="enterLine">Press <b style="color:#f0d68a">Enter</b> to begin Day 1.</p>
+    <button id="startBtn" class="btn">Begin Day 1 (Enter)</button>
+  </div>
+</div>
+
+<div id="summaryScreen" class="overlay hidden">
+  <div class="card">
+    <h1 class="title" style="font-size:34px" id="summaryTitle">Day 1 Complete</h1>
+    <p id="summaryGrade" class="hidden" style="font-family:Georgia,serif;font-size:30px;color:#e7c877;margin:4px 0;letter-spacing:2px">Grade: S</p>
+    <p id="summaryStats" class="objective"></p>
+    <h3 class="shead" id="wallGridHead">Wall HP remaining (East highlighted)</h3>
+    <div id="wallGrid"></div>
+    <p id="resultMsg" class="hidden" style="font-size:15px;color:#f2dfae;margin:4px 0 12px"></p>
+    <div id="summaryWarnShort" class="notice hidden" style="color:#f2b26a;border-color:rgba(242,178,106,0.55)">Final Day Tomorrow: All four walls will be attacked simultaneously. Repair wisely.</div>
+    <div id="summaryWarnLong" class="notice hidden" style="font-size:13px;line-height:1.5">Warning: Day 5 attacks all four walls simultaneously. You cannot defend everywhere. Segments with 0 HP will let enemies through. Repair critical walls now or save stone for emergency repairs during the final siege.</div>
+    <button id="continueBtn" class="btn">Continue to Day 2</button>
+    <div id="savedMsg" class="notice hidden">Progress saved. Load the game again and continue from Day 2.</div>
+    <button id="restartBtn" class="btn hidden">Restart Campaign</button>
+    <br>
+    <button id="replayBtn" class="btn hidden" style="margin-top:10px;background:linear-gradient(180deg,#5a6b4a,#43512f);border-color:#9ab07a">Replay Day 5</button>
+  </div>
+</div>
+
+<div id="fatal" class="overlay hidden">
+  <div class="card">
+    <h2 style="color:#e7c877; font-family:Georgia,serif;">Failed to start</h2>
+    <p id="fatalMsg"></p>
+  </div>
+</div>
+
+<!-- Primary three.js build bundled with the task; the inline module below falls back to the
+     vendored r185 module build under ./vendor/three if this classic build is unavailable. -->
+<script src="./assets/_shared/three/build/three.min.js"></script>
+<script type="module">
+// ========================= Three.js bootstrap =========================
+let THREE = window.THREE || null;
+if (!THREE || !THREE.Scene) {
+  THREE = null;
+  try {
+    const NS = await import('./assets/_shared/three/build/three.min.js');
+    if (NS && NS.Scene) THREE = NS;
+  } catch (e1) { /* fall through to vendored module build */ }
+  if (!THREE) {
+    try {
+      const NS = await import('./vendor/three/three.module.min.js');
+      if (NS && NS.Scene) THREE = NS;
+    } catch (e2) { THREE = null; }
+  }
+}
+function fatal(msg) {
+  const f = document.getElementById('fatal');
+  const m = document.getElementById('fatalMsg');
+  if (f && m) { f.classList.remove('hidden'); m.textContent = msg; }
+}
+if (!THREE) {
+  fatal('Could not load the Three.js library from the local workspace files. Please make sure the bundled assets are present.');
+  throw new Error('THREE failed to load');
+}
+
+// ========================= Small helpers =========================
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const r3 = v => Math.round(v * 1000) / 1000;
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ========================= DOM refs =========================
+const el = {};
+for (const id of ['hud', 'hDay', 'hTime', 'hWave', 'hStone', 'hEnemies', 'hWallHead', 'hWall', 'hOther',
+  'hStanding', 'strip', 'hudReload', 'toast', 'titleScreen', 'saveNotice', 'titleState', 'subtitle',
+  'objective', 'enterLine', 'startBtn', 'summaryScreen', 'summaryTitle', 'summaryGrade', 'summaryStats',
+  'wallGridHead', 'wallGrid', 'resultMsg', 'summaryWarnShort', 'summaryWarnLong', 'continueBtn',
+  'savedMsg', 'restartBtn', 'replayBtn', 'c']) {
+  el[id] = document.getElementById(id);
+}
+
+// ========================= Config & world data =========================
+const CFG = {
+  walkSpeed: 6,
+  arrowDamage: 40,
+  reloadTime: 1.2,
+  arrowSpeed: 30,
+  arrowRange: 50,
+  repairCost: 50,
+  wallMaxHP: 100,
+  startStone: 500,
+  enemyHP: 80,
+  enemySpeed: 4,
+  enemyDamage: 20,
+  enemyAttackInterval: 2,
+};
+// Walls in loop order: North -> East -> South -> West (closed 160 u loop).
+// dir: how the loop parameter p maps to the wall's local axis.
+const WALL_DEFS = [
+  { name: 'North', fixed: 20,  axis: 'x', dir: 1,  outward: [0, 0, 1]  },
+  { name: 'East',  fixed: 20,  axis: 'z', dir: -1, outward: [1, 0, 0]  },
+  { name: 'South', fixed: -20, axis: 'x', dir: -1, outward: [0, 0, -1] },
+  { name: 'West',  fixed: -20, axis: 'z', dir: 1,  outward: [-1, 0, 0] },
+];
+const WALL_ROT = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
+// Per-day campaign configuration. Day 1 (East wall, kept fully playable for testing) and
+// Day 2 (South wall, loaded from the Day 1 save). March math is axis-general via `s`,
+// the sign of the attacked wall's outer face coordinate.
+const DAY_CFGS = {
+  1: {
+    name: 'East', attackWall: 1, roundTime: 150, startPos: 60, totalEnemies: 15,
+    subtitle: 'Day 1 — East Wall Defense',
+    objective: 'Defend the east wall. Survive 3 waves.',
+    hudHead: 'Wall HP (East)',
+    spawnFixed: 60, marchAxis: 'x', marchDir: -1, s: 1,
+    stopAt: 22.0, innerAt: 20.6, throughAt: -2,
+    approachDir: 'east',
+    waves: [
+      { t: 0,   lanes: [-15, -5, 5, 15] },
+      { t: 50,  lanes: [-18, -9, 0, 9, 18] },
+      { t: 100, lanes: [-18, -10, -2, 6, 14, 18] },
+    ],
+  },
+  2: {
+    name: 'South', attackWall: 2, roundTime: 180, startPos: 100, totalEnemies: 26,
+    subtitle: 'Day 2 — South Wall Defense',
+    objective: 'Defend the south wall. Survive 4 waves.',
+    hudHead: 'Wall HP (South)',
+    spawnFixed: -60, marchAxis: 'z', marchDir: 1, s: -1,
+    stopAt: -22.0, innerAt: -20.6, throughAt: 2,
+    approachDir: 'south',
+    waves: [
+      { t: 0,   lanes: [-18, -9, 0, 9, 18] },
+      { t: 55,  lanes: [-18, -10, -2, 6, 14, 18] },
+      { t: 110, lanes: [-18, -10, -2, 2, 10, 14, 18] },
+      { t: 155, lanes: [-18, -12, -6, 0, 6, 12, 16, 18] },
+    ],
+  },
+  3: {
+    name: 'West', attackWall: 3, roundTime: 210, startPos: 140, totalEnemies: 36,
+    subtitle: 'Day 3 — West Wall Defense',
+    objective: 'Defend the west wall. Survive 5 waves.',
+    hudHead: 'Wall HP (West)',
+    spawnFixed: -60, marchAxis: 'x', marchDir: 1, s: -1,
+    stopAt: -22.0, innerAt: -20.6, throughAt: 2,
+    approachDir: 'west',
+    waves: [
+      { t: 0,   lanes: [-18, -10, -2, 2, 10, 18] },
+      { t: 50,  lanes: [-18, -12, -6, 0, 6, 12, 18] },
+      { t: 100, lanes: [-18, -12, -6, -2, 2, 8, 14, 18] },
+      { t: 150, lanes: [-18, -10, -6, -2, 2, 6, 12, 18] },
+      { t: 190, lanes: [-16, -10, -4, 0, 6, 12, 16] },
+    ],
+  },
+  4: {
+    name: 'North', attackWall: 0, roundTime: 240, startPos: 20, totalEnemies: 51,
+    subtitle: 'Day 4 — North Wall Defense',
+    objective: 'Defend the north wall. Survive 6 waves. The final siege comes tomorrow.',
+    hudHead: 'Wall HP (North)',
+    spawnFixed: 60, marchAxis: 'z', marchDir: -1, s: 1,
+    stopAt: 22.0, innerAt: 20.6, throughAt: 13,
+    approachDir: 'north',
+    waves: [
+      { t: 0,   lanes: [-18, -12, -6, 0, 6, 12, 18] },
+      { t: 45,  lanes: [-18, -12, -6, -2, 2, 8, 14, 18] },
+      { t: 90,  lanes: [-18, -12, -8, -4, 0, 4, 10, 14, 18] },
+      { t: 135, lanes: [-18, -10, -6, -2, 0, 4, 8, 12, 18] },
+      { t: 180, lanes: [-18, -12, -8, -4, 0, 2, 6, 10, 14, 18] },
+      { t: 220, lanes: [-16, -10, -6, -2, 2, 6, 12, 16] },
+    ],
+  },
+  5: {
+    name: 'All', attackWall: -1, roundTime: 180, startPos: 20, totalEnemies: 84,
+    subtitle: 'Day 5 — THE FINAL SIEGE',
+    objective: 'Survive the final siege. Achieve ≥12 of 16 wall segments alive at the end to defend the castle.',
+    hudHead: 'Wall HP (all walls)',
+    allWalls: true,
+    waves: [
+      { t: 0,   lanes: [-16, -10, -2, 4, 10, 16] },
+      { t: 60,  lanes: [-18, -12, -6, 0, 6, 12, 18] },
+      { t: 120, lanes: [-18, -10, -6, -2, 2, 8, 14, 18] },
+    ],
+    // Per-wall spawn specs: 21 enemies per wall, identical lane schedule.
+    wallSpawns: [
+      { attackWall: 0, spawnFixed: 60,  marchAxis: 'z', marchDir: -1, s: 1,  stopAt: 22.0,  innerAt: 20.6,  throughAt: 13 },
+      { attackWall: 1, spawnFixed: 60,  marchAxis: 'x', marchDir: -1, s: 1,  stopAt: 22.0,  innerAt: 20.6,  throughAt: 13 },
+      { attackWall: 2, spawnFixed: -60, marchAxis: 'z', marchDir: 1,  s: -1, stopAt: -22.0, innerAt: -20.6, throughAt: -13 },
+      { attackWall: 3, spawnFixed: -60, marchAxis: 'x', marchDir: 1,  s: -1, stopAt: -22.0, innerAt: -20.6, throughAt: -13 },
+    ],
+  },
+};
+
+// Loop parameter helpers. p in [0,160): North [0,40), East [40,80), South [80,120), West [120,160).
+function loopToWorld(p) {
+  p = ((p % 160) + 160) % 160;
+  const w = Math.min(3, Math.floor(p / 40));
+  const u = p - 40 * w;
+  const def = WALL_DEFS[w];
+  const s = def.dir > 0 ? (u - 20) : (20 - u);
+  const x = def.axis === 'x' ? s : def.fixed;
+  const z = def.axis === 'z' ? s : def.fixed;
+  return { x, z, w, s };
+}
+function segmentAtLoop(p) {
+  const { w, s } = loopToWorld(p);
+  return 4 * w + clamp(Math.floor((s + 20) / 10), 0, 3);
+}
+function segmentSpan(i) {
+  const w = Math.floor(i / 4), k = i % 4;
+  const def = WALL_DEFS[w], base = 40 * w;
+  return def.dir > 0 ? [base + 10 * k, base + 10 * k + 10] : [base + 30 - 10 * k, base + 40 - 10 * k];
+}
+
+// ========================= Game state =========================
+let phase = 'title';           // 'title' | 'playing' | 'daySummary'
+let curDay = 1;                // day to play: 1 (fresh / testing) or 2 (loaded from save)
+let dayStart = null;           // wall HP + stone captured when the day starts; R reloads this
+let dayTime = 0;
+let timeRemaining = 150;
+let stonePool = CFG.startStone;
+const wallHP = new Array(16).fill(CFG.wallMaxHP);
+let kills = 0;
+let currentWave = 1;
+let canShoot = true;
+let reloadLeft = 0;
+let resultGrade = null;        // set when the campaign results are shown; null otherwise
+const enemies = [];
+const enemyHitboxes = [];
+const arrows = [];
+const puffs = [];
+const keys = {};
+const mouseNDC = new THREE.Vector2(0, -0.4);
+const aimPoint = new THREE.Vector3(30, 0, 0);
+let aimEnemy = null;
+const archer = { p: 60, walkPhase: 0, shootT: 9, group: null };
+
+// ========================= Renderer / scene =========================
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas: el.c, antialias: true });
+} catch (err) {
+  fatal('WebGL is not available in this browser, so the 3D scene cannot be created.');
+  throw err;
+}
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+if (THREE.SRGBColorSpace !== undefined && 'outputColorSpace' in renderer) {
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+} else if (THREE.sRGBEncoding !== undefined && 'outputEncoding' in renderer) {
+  renderer.outputEncoding = THREE.sRGBEncoding;
+}
+// Normalize light-intensity semantics across three versions (r150 UMD vs r185 module):
+// physical mode keeps the scene equally bright whichever build loads.
+if ('useLegacyLights' in renderer) renderer.useLegacyLights = false;
+else if ('physicallyCorrectLights' in renderer) renderer.physicallyCorrectLights = true;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+scene.fog = new THREE.Fog(0x87ceeb, 110, 230);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
+const TITLE_POS = new THREE.Vector3(42, 16, 24);
+const TITLE_LOOK = new THREE.Vector3(0, 4, 0);
+const camPos = TITLE_POS.clone();
+const camLook = TITLE_LOOK.clone();
+camera.position.copy(camPos);
+camera.lookAt(camLook);
+
+function srgb(tx) {
+  if (THREE.SRGBColorSpace !== undefined && 'colorSpace' in tx) tx.colorSpace = THREE.SRGBColorSpace;
+  else if (THREE.sRGBEncoding !== undefined && 'encoding' in tx) tx.encoding = THREE.sRGBEncoding;
+  return tx;
+}
+
+// Lights
+const hemi = new THREE.HemisphereLight(0xcfe4ff, 0x8a7a55, 1.15);
+scene.add(hemi);
+const amb = new THREE.AmbientLight(0xffffff, 0.45);
+scene.add(amb);
+const sun = new THREE.DirectionalLight(0xfff2d9, 2.3);
+sun.position.set(70, 100, 45);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -85; sun.shadow.camera.right = 85;
+sun.shadow.camera.top = 85; sun.shadow.camera.bottom = -85;
+sun.shadow.camera.near = 10; sun.shadow.camera.far = 280;
+sun.shadow.bias = -0.0005;
+if ('normalBias' in sun.shadow) sun.shadow.normalBias = 0.02;
+scene.add(sun);
+scene.add(sun.target);
+
+// ========================= Procedural textures =========================
+function makeStoneTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#6e6a61'; g.fillRect(0, 0, 256, 256);
+  const rng = mulberry32(7);
+  const bw = 64, bh = 32;
+  for (let row = 0; row < 8; row++) {
+    const off = (row % 2) * bw / 2;
+    for (let col = -1; col < 5; col++) {
+      const x = col * bw + off + 2, y = row * bh + 2, w = bw - 4, h = bh - 4;
+      const v = 0.86 + rng() * 0.28;
+      const base = [150, 146, 136];
+      g.fillStyle = `rgb(${Math.round(base[0]*v)},${Math.round(base[1]*v)},${Math.round(base[2]*v)})`;
+      g.fillRect(x, y, w, h);
+      g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(x, y, w, 3);
+      g.fillStyle = 'rgba(0,0,0,0.20)'; g.fillRect(x, y + h - 3, w, 3);
+      for (let i = 0; i < 5; i++) {
+        g.fillStyle = `rgba(0,0,0,${0.04 + rng() * 0.07})`;
+        g.fillRect(x + rng() * w, y + rng() * h, 2, 2);
+      }
+    }
+  }
+  const tx = new THREE.CanvasTexture(c);
+  tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
+  return srgb(tx);
+}
+function makeNoiseTexture(base, seed) {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = base; g.fillRect(0, 0, 256, 256);
+  const rng = mulberry32(seed);
+  for (let i = 0; i < 1500; i++) {
+    const dark = rng() > 0.5;
+    g.fillStyle = dark ? `rgba(40,30,18,${0.05 + rng() * 0.12})` : `rgba(235,220,180,${0.04 + rng() * 0.09})`;
+    const s = 1 + rng() * 3;
+    g.fillRect(rng() * 256, rng() * 256, s, s);
+  }
+  const tx = new THREE.CanvasTexture(c);
+  tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
+  return srgb(tx);
+}
+function makeSignTexture(text) {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = '#5d4227'; g.fillRect(0, 0, 512, 128);
+  g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 3;
+  for (let i = 1; i < 4; i++) { g.beginPath(); g.moveTo(0, i * 32); g.lineTo(512, i * 32); g.stroke(); }
+  g.strokeStyle = '#3d2c18'; g.lineWidth = 10; g.strokeRect(5, 5, 502, 118);
+  g.fillStyle = '#f0e2b8';
+  g.font = 'bold 62px Georgia, serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(text, 256, 68);
+  return srgb(new THREE.CanvasTexture(c));
+}
+
+// ========================= Ground & battlefield dressing =========================
+{
+  const groundTex = makeNoiseTexture('#8a7a52', 21); groundTex.repeat.set(14, 14);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(170, 170),
+    new THREE.MeshStandardMaterial({ map: groundTex, roughness: 1, metalness: 0 }));
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  const courtTex = makeNoiseTexture('#7d6e49', 22); courtTex.repeat.set(5, 5);
+  const court = new THREE.Mesh(new THREE.PlaneGeometry(36, 36),
+    new THREE.MeshStandardMaterial({ map: courtTex, roughness: 1, metalness: 0 }));
+  court.rotation.x = -Math.PI / 2; court.position.y = 0.03;
+  court.receiveShadow = true;
+  scene.add(court);
+
+  const roadTex = makeNoiseTexture('#7c6746', 23); roadTex.repeat.set(10, 2);
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(41.5, 8),
+    new THREE.MeshStandardMaterial({ map: roadTex, roughness: 1, metalness: 0 }));
+  road.rotation.x = -Math.PI / 2; road.position.set(41.25, 0.06, 0);
+  road.receiveShadow = true;
+  scene.add(road);
+}
+
+function prop(geo, color, x, y, z, opts = {}) {
+  const mat = new THREE.MeshStandardMaterial({
+    color, roughness: opts.rough !== undefined ? opts.rough : 0.9, metalness: 0,
+    flatShading: !!opts.flat,
+  });
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z);
+  if (opts.rx) m.rotation.x = opts.rx;
+  if (opts.ry) m.rotation.y = opts.ry;
+  if (opts.rz) m.rotation.z = opts.rz;
+  m.castShadow = true; m.receiveShadow = true;
+  scene.add(m);
+  return m;
+}
+
+// Courtyard props: keep, shed, well, flag, weapon rack.
+{
+  const keepTex = makeStoneTexture(); keepTex.repeat.set(2, 1.5);
+  const keep = new THREE.Mesh(new THREE.BoxGeometry(6.5, 5.2, 6.5),
+    new THREE.MeshStandardMaterial({ map: keepTex, roughness: 0.95 }));
+  keep.position.set(-9, 2.6, 9); keep.castShadow = keep.receiveShadow = true;
+  scene.add(keep);
+  for (let i = 0; i < 3; i++) {
+    prop(new THREE.BoxGeometry(0.9, 0.5, 0.4), 0x8f8a80, -10.8 + i * 1.8, 5.45, 5.9);
+    prop(new THREE.BoxGeometry(0.9, 0.5, 0.4), 0x8f8a80, -10.8 + i * 1.8, 5.45, 12.1);
+  }
+  prop(new THREE.BoxGeometry(0.4, 0.5, 0.9), 0x8f8a80, -12.1, 5.45, 7.8);
+  prop(new THREE.BoxGeometry(0.4, 0.5, 0.9), 0x8f8a80, -12.1, 5.45, 10.2);
+  prop(new THREE.BoxGeometry(1.2, 2.2, 0.16), 0x3a2b1c, -5.7, 1.1, 9);
+
+  // Supply shed
+  prop(new THREE.BoxGeometry(3.2, 2.0, 2.4), 0x7a5a3a, 9, 1.0, 10);
+  prop(new THREE.BoxGeometry(3.7, 0.16, 1.7), 0x5a4229, 9, 2.75, 10.75, { rx: 0.55 });
+  prop(new THREE.BoxGeometry(3.7, 0.16, 1.7), 0x5a4229, 9, 2.75, 9.25, { rx: -0.55 });
+  prop(new THREE.BoxGeometry(0.8, 1.4, 0.1), 0x3a2b1c, 9, 0.7, 8.78);
+
+  // Stone well
+  prop(new THREE.CylinderGeometry(1.1, 1.2, 1.0, 14), 0x8f8a80, 4, 0.5, 2);
+  prop(new THREE.CylinderGeometry(0.85, 0.85, 0.1, 14), 0x1d2a33, 4, 1.01, 2);
+  prop(new THREE.BoxGeometry(0.14, 1.7, 0.14), 0x6f5233, 3.2, 1.7, 2);
+  prop(new THREE.BoxGeometry(0.14, 1.7, 0.14), 0x6f5233, 4.8, 1.7, 2);
+  prop(new THREE.BoxGeometry(2.1, 0.12, 0.9), 0x5a4229, 4, 2.6, 2.35, { rx: 0.4 });
+  prop(new THREE.BoxGeometry(2.1, 0.12, 0.9), 0x5a4229, 4, 2.6, 1.65, { rx: -0.4 });
+
+  // Weapon rack
+  prop(new THREE.BoxGeometry(0.14, 1.35, 0.14), 0x6f5233, -4.3, 0.67, 7);
+  prop(new THREE.BoxGeometry(0.14, 1.35, 0.14), 0x6f5233, -1.7, 0.67, 7);
+  prop(new THREE.BoxGeometry(2.8, 0.12, 0.12), 0x5a4229, -3, 1.3, 7);
+  prop(new THREE.CylinderGeometry(0.035, 0.035, 2.0, 6), 0x8a6a42, -3.7, 1.15, 7.15, { rz: 0.22 });
+  prop(new THREE.CylinderGeometry(0.035, 0.035, 2.0, 6), 0x8a6a42, -3.0, 1.15, 7.15, { rz: 0.1 });
+  prop(new THREE.BoxGeometry(0.07, 1.6, 0.03), 0x9aa0a6, -2.3, 1.05, 7.12, { rz: -0.18 });
+}
+
+// Flag pole with waving cloth (vertex-animated each frame).
+let flagMesh = null, flagBase = null;
+{
+  prop(new THREE.CylinderGeometry(0.08, 0.1, 7, 8), 0x6f5233, -8, 3.5, 4);
+  const geo = new THREE.PlaneGeometry(1.7, 1.0, 10, 5);
+  geo.translate(0.85, 0, 0);
+  const mat = new THREE.MeshStandardMaterial({ color: 0xa83232, roughness: 0.85, side: THREE.DoubleSide });
+  flagMesh = new THREE.Mesh(geo, mat);
+  flagMesh.position.set(-8, 6.35, 4);
+  flagMesh.rotation.y = 0.35;
+  flagMesh.castShadow = true;
+  scene.add(flagMesh);
+  flagBase = Float32Array.from(geo.attributes.position.array);
+}
+
+// Exterior props (all clear of enemy lanes |z| <= 18 and of each other).
+{
+  const rockGeos = [new THREE.IcosahedronGeometry(1.6, 0), new THREE.IcosahedronGeometry(1.1, 0), new THREE.DodecahedronGeometry(1.4, 0)];
+  const rockSpots = [[34, -27, 0], [45, 30, 1], [43, 23, 2], [28, -31, 0], [52, -24, 1], [-30, 28, 2], [-36, -24, 0], [30, 38, 1]];
+  const rngR = mulberry32(31);
+  for (const [x, z, gi] of rockSpots) {
+    const m = prop(rockGeos[gi], 0x8d8d86, x, 0.5, z, { flat: true });
+    m.scale.set(1 + rngR() * 0.5, 0.7 + rngR() * 0.5, 1 + rngR() * 0.5);
+    m.rotation.y = rngR() * Math.PI;
+    m.position.y = 0.4;
+  }
+
+  // Wooden siege tower frame (scenery only), north of the approach lanes.
+  const wood = 0x6f5233, woodDark = 0x5a4229;
+  for (const [dx, dz] of [[-1.4, -1.2], [1.4, -1.2], [-1.4, 1.2], [1.4, 1.2]]) {
+    prop(new THREE.BoxGeometry(0.32, 6.5, 0.32), wood, 38 + dx, 3.25, 28 + dz);
+  }
+  prop(new THREE.BoxGeometry(3.4, 0.28, 3.0), woodDark, 38, 6.4, 28);
+  prop(new THREE.BoxGeometry(3.2, 0.2, 0.24), woodDark, 38, 3.4, 26.7, { rx: 0.62 });
+  prop(new THREE.BoxGeometry(3.2, 0.2, 0.24), woodDark, 38, 3.4, 29.3, { rx: -0.62 });
+  prop(new THREE.BoxGeometry(0.24, 0.8, 0.24), wood, 36.7, 6.9, 28);
+  prop(new THREE.BoxGeometry(0.24, 0.8, 0.24), wood, 39.3, 6.9, 28);
+
+  // Signpost near the east spawn area (in a lane gap for the final siege).
+  prop(new THREE.CylinderGeometry(0.09, 0.11, 2.6, 8), 0x6f5233, 57, 1.3, -14);
+  const signG = new THREE.Group();
+  signG.position.set(57, 0, -14);
+  signG.rotation.y = -Math.PI / 2;
+  const board = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.75, 0.1),
+    new THREE.MeshStandardMaterial({ color: 0x5d4227, roughness: 0.9 }));
+  board.position.set(0, 2.2, 0); board.castShadow = true;
+  signG.add(board);
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 0.62),
+    new THREE.MeshBasicMaterial({ map: makeSignTexture('EAST APPROACH') }));
+  face.position.set(0, 2.2, 0.06);
+  signG.add(face);
+  scene.add(signG);
+
+  // ---- South approach dressing (Day 2) ----
+  const roadTexS = makeNoiseTexture('#7c6746', 24); roadTexS.repeat.set(2, 10);
+  const roadS = new THREE.Mesh(new THREE.PlaneGeometry(9, 41.5),
+    new THREE.MeshStandardMaterial({ map: roadTexS, roughness: 1, metalness: 0 }));
+  roadS.rotation.x = -Math.PI / 2; roadS.position.set(0, 0.05, -41.25);
+  roadS.receiveShadow = true;
+  scene.add(roadS);
+
+  // Decorative southern gate arch over the road (pillars clear of every attack lane).
+  const gateTex = makeStoneTexture(); gateTex.repeat.set(1.2, 2);
+  const gateMat = new THREE.MeshStandardMaterial({ map: gateTex, roughness: 0.95 });
+  for (const px of [-5, 5]) {
+    const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.8, 5, 0.8), gateMat);
+    pillar.position.set(px, 2.5, -26);
+    pillar.castShadow = pillar.receiveShadow = true;
+    scene.add(pillar);
+  }
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(10.8, 0.8, 0.9), gateMat);
+  lintel.position.set(0, 5.3, -26);
+  lintel.castShadow = lintel.receiveShadow = true;
+  scene.add(lintel);
+  for (const cx of [-2.6, 0, 2.6]) {
+    prop(new THREE.BoxGeometry(0.7, 0.5, 0.7), 0x8f8a80, cx, 5.95, -26);
+  }
+
+  // Merchant cart west of the approach lanes.
+  const cartG = new THREE.Group();
+  cartG.position.set(-28, 0, -34);
+  cartG.rotation.y = 0.5;
+  function cartPart(geo, color, x, y, z, rx = 0, ry = 0, rz = 0) {
+    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, roughness: 0.9 }));
+    m.position.set(x, y, z); m.rotation.set(rx, ry, rz);
+    m.castShadow = m.receiveShadow = true;
+    cartG.add(m);
+    return m;
+  }
+  cartPart(new THREE.BoxGeometry(2.4, 0.5, 1.5), 0x7a5a3a, 0, 0.95, 0);
+  cartPart(new THREE.BoxGeometry(2.6, 0.12, 1.7), 0x5a4229, 0, 1.25, 0);
+  cartPart(new THREE.CylinderGeometry(0.55, 0.55, 0.12, 10), 0x5a4229, 0, 0.55, 0.8, Math.PI / 2);
+  cartPart(new THREE.CylinderGeometry(0.55, 0.55, 0.12, 10), 0x5a4229, 0, 0.55, -0.8, Math.PI / 2);
+  cartPart(new THREE.BoxGeometry(1.7, 0.1, 0.1), 0x6f5233, 1.9, 0.55, 0.45, 0, 0, -0.12);
+  cartPart(new THREE.BoxGeometry(1.7, 0.1, 0.1), 0x6f5233, 1.9, 0.55, -0.45, 0, 0, -0.12);
+  cartPart(new THREE.BoxGeometry(0.7, 0.55, 0.6), 0x8a6a42, -0.4, 1.55, 0.35);
+  cartPart(new THREE.BoxGeometry(0.6, 0.5, 0.55), 0x8a6a42, -0.35, 1.5, -0.4, 0, 0.3, 0);
+  const sack = cartPart(new THREE.SphereGeometry(0.38, 8, 6), 0xb59a6a, 0.55, 1.5, 0);
+  sack.scale.y = 0.85;
+  scene.add(cartG);
+
+  // Signpost near the south spawn area.
+  prop(new THREE.CylinderGeometry(0.09, 0.11, 2.6, 8), 0x6f5233, 24, 1.3, -52);
+  const signS = new THREE.Group();
+  signS.position.set(24, 0, -52);
+  signS.rotation.y = Math.atan2(-24, 52);
+  const boardS = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.75, 0.1),
+    new THREE.MeshStandardMaterial({ color: 0x5d4227, roughness: 0.9 }));
+  boardS.position.set(0, 2.2, 0); boardS.castShadow = true;
+  signS.add(boardS);
+  const faceS = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 0.62),
+    new THREE.MeshBasicMaterial({ map: makeSignTexture('SOUTH APPROACH') }));
+  faceS.position.set(0, 2.2, 0.06);
+  signS.add(faceS);
+  scene.add(signS);
+
+  // ---- Western battlefield dressing (Day 3) ----
+  // Distant forest treeline, kept west of the spawn line (x = -60) so no lane crosses it.
+  {
+    const rngW = mulberry32(41);
+    for (let i = 0; i < 16; i++) {
+      const x = -80 + rngW() * 16;
+      const z = -48 + rngW() * 96;
+      const sc = 0.8 + rngW() * 0.7;
+      prop(new THREE.CylinderGeometry(0.22, 0.32, 2.2 * sc, 7), 0x5a4229, x, 1.1 * sc, z);
+      prop(new THREE.ConeGeometry(1.35 * sc, 2.6 * sc, 7), 0x3f6b39, x, 3.1 * sc, z, { flat: true });
+      prop(new THREE.ConeGeometry(0.95 * sc, 1.9 * sc, 7), 0x477a40, x, 4.3 * sc, z, { flat: true });
+    }
+    for (const [tx, tz] of [[-50, -28], [-47, 30], [-52, 38], [-46, -40]]) {
+      prop(new THREE.CylinderGeometry(0.22, 0.32, 2.2, 7), 0x5a4229, tx, 1.1, tz);
+      prop(new THREE.ConeGeometry(1.35, 2.6, 7), 0x3f6b39, tx, 3.1, tz, { flat: true });
+      prop(new THREE.ConeGeometry(0.95, 1.9, 7), 0x477a40, tx, 4.3, tz, { flat: true });
+    }
+  }
+
+  // Woodcutter's corner: stump with an axe and scattered logs.
+  prop(new THREE.CylinderGeometry(0.45, 0.5, 0.55, 10), 0x7a5c3a, -45, 0.27, -26);
+  {
+    const axeG = new THREE.Group();
+    axeG.position.set(-45, 0.52, -26);
+    axeG.rotation.z = 0.35;
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.0, 6),
+      new THREE.MeshStandardMaterial({ color: 0x8a6a42, roughness: 0.9 }));
+    handle.position.set(0, 0.5, 0);
+    handle.castShadow = true;
+    axeG.add(handle);
+    const axeHead = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.16, 0.05),
+      new THREE.MeshStandardMaterial({ color: 0x8f979e, roughness: 0.5, metalness: 0.4 }));
+    axeHead.position.set(0.09, 0.95, 0);
+    axeHead.castShadow = true;
+    axeG.add(axeHead);
+    scene.add(axeG);
+  }
+  prop(new THREE.CylinderGeometry(0.22, 0.22, 2.4, 8), 0x7a5c3a, -43.2, 0.22, -27.6, { rz: Math.PI / 2, ry: 0.4 });
+  prop(new THREE.CylinderGeometry(0.18, 0.18, 1.8, 8), 0x6f5233, -43.6, 0.18, -25.4, { rz: Math.PI / 2, ry: -0.3 });
+  prop(new THREE.CylinderGeometry(0.2, 0.2, 2.0, 8), 0x8a6a42, -41.5, 0.2, -25.2, { rz: Math.PI / 2, ry: 0.9 });
+
+  // Signpost near the west spawn area (in a lane gap for the final siege).
+  prop(new THREE.CylinderGeometry(0.09, 0.11, 2.6, 8), 0x6f5233, -56, 1.3, -14);
+  const signW = new THREE.Group();
+  signW.position.set(-56, 0, -14);
+  signW.rotation.y = Math.PI / 2;
+  const boardW = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.75, 0.1),
+    new THREE.MeshStandardMaterial({ color: 0x5d4227, roughness: 0.9 }));
+  boardW.position.set(0, 2.2, 0); boardW.castShadow = true;
+  signW.add(boardW);
+  const faceW = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 0.62),
+    new THREE.MeshBasicMaterial({ map: makeSignTexture('WEST APPROACH') }));
+  faceW.position.set(0, 2.2, 0.06);
+  signW.add(faceW);
+  scene.add(signW);
+
+  // ---- Northern battlefield dressing (Day 4) ----
+  // Distant mountains along the north horizon, behind the spawn line (z >= 78).
+  {
+    const mountainSpots = [[-58, 80, 24, 30], [-20, 82, 30, 36], [18, 80, 26, 33], [52, 81, 22, 27], [-42, 83, 20, 25], [40, 83, 18, 23]];
+    for (let mi = 0; mi < mountainSpots.length; mi++) {
+      const [mx, mz, mr, mh] = mountainSpots[mi];
+      const m1 = new THREE.Mesh(new THREE.ConeGeometry(mr, mh, 5),
+        new THREE.MeshStandardMaterial({ color: 0x8d9298, roughness: 1, flatShading: true }));
+      m1.position.set(mx, mh / 2 - 2, mz);
+      m1.rotation.y = mi * 0.6;
+      scene.add(m1);
+      const cap = new THREE.Mesh(new THREE.ConeGeometry(mr * 0.34, mh * 0.3, 5),
+        new THREE.MeshStandardMaterial({ color: 0xe8edf2, roughness: 0.9, flatShading: true }));
+      cap.position.set(mx, mh - 2 - mh * 0.15, mz);
+      cap.rotation.y = mi * 0.6;
+      scene.add(cap);
+    }
+  }
+  // Frozen pond and snow patches (flat ground paint, clear of every lane).
+  {
+    const pond = new THREE.Mesh(new THREE.CircleGeometry(4, 20),
+      new THREE.MeshStandardMaterial({ color: 0x9fc4d4, roughness: 0.35, metalness: 0.1 }));
+    pond.rotation.x = -Math.PI / 2;
+    pond.position.set(-34, 0.05, 38);
+    pond.receiveShadow = true;
+    scene.add(pond);
+    const snowMat = new THREE.MeshStandardMaterial({ color: 0xe8edf2, roughness: 1 });
+    for (const [sx2, sz2, sr] of [[-24, 48, 3], [24, 50, 3.5], [30, 34, 2.5], [-44, 52, 2.2]]) {
+      const patch = new THREE.Mesh(new THREE.CircleGeometry(sr, 14), snowMat);
+      patch.rotation.x = -Math.PI / 2;
+      patch.position.set(sx2, 0.045, sz2);
+      scene.add(patch);
+    }
+  }
+  // Scattered enemy camp debris: torn tent scraps and broken shields.
+  {
+    const tentG = new THREE.Group();
+    tentG.position.set(-30, 0, 44);
+    tentG.rotation.y = 0.7;
+    const scrap1 = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.8),
+      new THREE.MeshStandardMaterial({ color: 0x7a6a55, roughness: 1, side: THREE.DoubleSide }));
+    scrap1.position.set(0, 0.7, 0);
+    scrap1.rotation.x = -1.1;
+    scrap1.castShadow = true;
+    tentG.add(scrap1);
+    const tentPole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.7, 6),
+      new THREE.MeshStandardMaterial({ color: 0x5a4229 }));
+    tentPole.position.set(0.9, 0.85, -0.4);
+    tentPole.rotation.z = 0.15;
+    tentG.add(tentPole);
+    const scrap2 = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.1),
+      new THREE.MeshStandardMaterial({ color: 0x6a5a45, roughness: 1, side: THREE.DoubleSide }));
+    scrap2.position.set(-1.2, 0.4, 0.8);
+    scrap2.rotation.set(-1.3, 0.4, 0);
+    scrap2.castShadow = true;
+    tentG.add(scrap2);
+    scene.add(tentG);
+    const shieldMat = new THREE.MeshStandardMaterial({ color: 0x8a6a42, roughness: 0.8, side: THREE.DoubleSide });
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0x8f979e, roughness: 0.5, metalness: 0.4, side: THREE.DoubleSide });
+    const sh1 = new THREE.Mesh(new THREE.CircleGeometry(0.55, 12, 0, Math.PI), shieldMat);
+    sh1.position.set(26, 0.4, 42);
+    sh1.rotation.set(-1.0, 0, 0.3);
+    sh1.castShadow = true;
+    scene.add(sh1);
+    const sh2 = new THREE.Mesh(new THREE.CircleGeometry(0.5, 12, 0, Math.PI), rimMat);
+    sh2.position.set(27.6, 0.32, 40.6);
+    sh2.rotation.set(-1.2, 0, -0.2);
+    sh2.castShadow = true;
+    scene.add(sh2);
+  }
+
+  // Signpost near the north spawn area.
+  prop(new THREE.CylinderGeometry(0.09, 0.11, 2.6, 8), 0x6f5233, -14, 1.3, 56);
+  const signN = new THREE.Group();
+  signN.position.set(-14, 0, 56);
+  signN.rotation.y = Math.PI;
+  const boardN = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.75, 0.1),
+    new THREE.MeshStandardMaterial({ color: 0x5d4227, roughness: 0.9 }));
+  boardN.position.set(0, 2.2, 0); boardN.castShadow = true;
+  signN.add(boardN);
+  const faceN = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 0.62),
+    new THREE.MeshBasicMaterial({ map: makeSignTexture('NORTH APPROACH') }));
+  faceN.position.set(0, 2.2, 0.06);
+  signN.add(faceN);
+  scene.add(signN);
+
+  // A few trees for scale.
+  const treeSpots = [[-34, -32], [-38, -14], [-28, -30], [26, 34], [-22, 42], [26, -40]];
+  for (const [x, z] of treeSpots) {
+    prop(new THREE.CylinderGeometry(0.22, 0.32, 2.2, 7), 0x5a4229, x, 1.1, z);
+    prop(new THREE.ConeGeometry(1.35, 2.6, 7), 0x3f6b39, x, 3.1, z, { flat: true });
+    prop(new THREE.ConeGeometry(0.95, 1.9, 7), 0x477a40, x, 4.3, z, { flat: true });
+  }
+
+  // Clouds and a visible sun disc.
+  const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.92 });
+  const cloudSpots = [[-30, 48, -40], [20, 55, -45], [45, 50, 30], [-45, 52, 20], [0, 58, 55], [-10, 46, -20]];
+  for (const [x, y, z] of cloudSpots) {
+    const cg = new THREE.Group();
+    for (let i = 0; i < 3; i++) {
+      const s = new THREE.Mesh(new THREE.SphereGeometry(2.6 + i * 1.1, 10, 8), cloudMat);
+      s.position.set(i * 3.2 - 3.2, (i % 2) * 0.6, (i % 2) * 1.4 - 0.7);
+      s.scale.y = 0.55;
+      cg.add(s);
+    }
+    cg.position.set(x, y, z);
+    scene.add(cg);
+  }
+  const sunDisc = new THREE.Mesh(new THREE.SphereGeometry(5, 16, 12),
+    new THREE.MeshBasicMaterial({ color: 0xfff2b8, fog: false }));
+  sunDisc.position.set(150, 120, 70);
+  scene.add(sunDisc);
+}
+
+// ========================= Castle walls (16 segments) =========================
+const segObjs = [];
+{
+  const stoneTex = makeStoneTexture(); stoneTex.repeat.set(2.5, 1);
+  const walkMat = new THREE.MeshStandardMaterial({ color: 0x8f8a80, roughness: 0.95 });
+  const rubbleMat = new THREE.MeshStandardMaterial({ color: 0x6f6a61, roughness: 1 });
+  const crackMat = new THREE.MeshBasicMaterial({ color: 0x2f2a24 });
+  const crackGeo = new THREE.BoxGeometry(0.07, 1.6, 0.05);
+  const merlonGeo = new THREE.BoxGeometry(1.2, 0.8, 0.28);
+
+  for (let i = 0; i < 16; i++) {
+    const w = Math.floor(i / 4), k = i % 4;
+    const def = WALL_DEFS[w];
+    const sC = -15 + 10 * k;
+    const cx = def.axis === 'x' ? sC : def.fixed;
+    const cz = def.axis === 'z' ? sC : def.fixed;
+    const g = new THREE.Group();
+    g.position.set(cx, 0, cz);
+    g.rotation.y = WALL_ROT[w];
+
+    const mat = new THREE.MeshStandardMaterial({ map: stoneTex, roughness: 0.95, metalness: 0 });
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(10, 4, 1), mat);
+    wall.position.y = 2; wall.castShadow = wall.receiveShadow = true;
+    const walk = new THREE.Mesh(new THREE.BoxGeometry(10, 0.5, 1.7), walkMat);
+    walk.position.y = 4.25; walk.castShadow = walk.receiveShadow = true;
+    g.add(wall, walk);
+
+    const merlons = [];
+    for (let m = 0; m < 5; m++) {
+      const mer = new THREE.Mesh(merlonGeo, walkMat);
+      mer.position.set(-4 + 2 * m, 4.9, 0.36);
+      mer.castShadow = true;
+      g.add(mer); merlons.push(mer);
+    }
+
+    const rng = mulberry32(1000 + i);
+    const cracks = [];
+    for (let ci = 0; ci < 3; ci++) {
+      const cr = new THREE.Mesh(crackGeo, crackMat);
+      cr.position.set((rng() - 0.5) * 7, 0.8 + rng() * 2.4, 0.53);
+      cr.rotation.z = (rng() - 0.5) * 1.6;
+      cr.visible = false;
+      g.add(cr); cracks.push(cr);
+    }
+
+    const rubble = new THREE.Group();
+    for (let r = 0; r < 7; r++) {
+      const sz = 0.45 + rng() * 0.7;
+      const rk = new THREE.Mesh(new THREE.BoxGeometry(sz, sz * 0.7, sz * 0.8), rubbleMat);
+      rk.position.set((rng() - 0.5) * 8.6, sz * 0.3, (rng() - 0.5) * 0.9);
+      rk.rotation.set(rng() * 0.6, rng() * Math.PI, rng() * 0.6);
+      rk.castShadow = rk.receiveShadow = true;
+      rubble.add(rk);
+    }
+    rubble.visible = false;
+    g.add(rubble);
+
+    scene.add(g);
+    segObjs.push({ group: g, wall, walk, mat, merlons, cracks, rubble });
+  }
+
+  // Corner towers the walkway passes over.
+  const towerTex = makeStoneTexture(); towerTex.repeat.set(3, 1.4);
+  const towerMat = new THREE.MeshStandardMaterial({ map: towerTex, roughness: 0.95 });
+  for (const [tx, tz] of [[20, 20], [20, -20], [-20, -20], [-20, 20]]) {
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.8, 4.5, 12), towerMat);
+    t.position.set(tx, 2.25, tz);
+    t.castShadow = t.receiveShadow = true;
+    scene.add(t);
+  }
+}
+
+function applySegmentVisual(i) {
+  const so = segObjs[i];
+  const hp = wallHP[i];
+  if (hp <= 0) {
+    so.wall.visible = false; so.walk.visible = false;
+    so.merlons.forEach(m => m.visible = false);
+    so.cracks.forEach(c => c.visible = false);
+    so.rubble.visible = true;
+  } else {
+    so.wall.visible = true; so.walk.visible = true;
+    so.merlons.forEach(m => m.visible = true);
+    so.rubble.visible = false;
+    const d = 1 - hp / CFG.wallMaxHP;
+    so.mat.color.setRGB(1 - 0.38 * d, 1 - 0.42 * d, 1 - 0.5 * d);
+    so.cracks[0].visible = hp < 66;
+    so.cracks[1].visible = hp < 40;
+    so.cracks[2].visible = hp < 20;
+  }
+}
+
+// ========================= Archer =========================
+{
+  const g = new THREE.Group();
+  const tunic = new THREE.MeshLambertMaterial({ color: 0x46603a });
+  const leather = new THREE.MeshLambertMaterial({ color: 0x5a4632 });
+  const skin = new THREE.MeshLambertMaterial({ color: 0xd8a67b });
+  const woodM = new THREE.MeshLambertMaterial({ color: 0x6b4326 });
+
+  function part(parent, geo, mat, x, y, z) {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    parent.add(m);
+    return m;
+  }
+  const torso = part(g, new THREE.BoxGeometry(0.42, 0.5, 0.26), tunic, 0, 1.32, 0);
+  part(g, new THREE.BoxGeometry(0.36, 0.18, 0.22), leather, 0, 0.98, 0);
+  const head = part(g, new THREE.SphereGeometry(0.17, 10, 8), skin, 0, 1.72, 0);
+  const hood = part(g, new THREE.ConeGeometry(0.2, 0.26, 8), tunic, 0, 1.93, 0);
+  hood.rotation.x = -0.15;
+  part(g, new THREE.CylinderGeometry(0.07, 0.07, 0.5, 6), leather, -0.18, 1.35, -0.2).rotation.z = 0.4;
+
+  const legGeo = new THREE.BoxGeometry(0.17, 0.5, 0.17); legGeo.translate(0, -0.25, 0);
+  const legL = part(g, legGeo, leather, 0.1, 0.95, 0);
+  const legR = part(g, legGeo, leather, -0.1, 0.95, 0);
+
+  const armGeo = new THREE.BoxGeometry(0.12, 0.48, 0.12); armGeo.translate(0, -0.24, 0);
+  const armL = part(g, armGeo, tunic, 0.27, 1.5, 0);
+  const armR = part(g, armGeo, tunic, -0.27, 1.5, 0);
+  armL.rotation.x = -1.35;
+  armR.rotation.x = -0.5;
+
+  // Bow held in the left (forward) hand; belly toward the target (+Z local).
+  const bowG = new THREE.Group();
+  bowG.position.set(0.26, 1.42, 0.5);
+  const bowGeo = new THREE.TorusGeometry(0.34, 0.028, 8, 24, Math.PI);
+  bowGeo.rotateZ(Math.PI / 2);
+  bowGeo.rotateY(Math.PI / 2);
+  const bowMesh = new THREE.Mesh(bowGeo, woodM);
+  bowMesh.castShadow = true;
+  bowG.add(bowMesh);
+  const strGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0.34, 0), new THREE.Vector3(0, 0, -0.03), new THREE.Vector3(0, -0.34, 0),
+  ]);
+  const strLine = new THREE.Line(strGeo, new THREE.LineBasicMaterial({ color: 0xdddccc }));
+  bowG.add(strLine);
+  g.add(bowG);
+
+  archer.group = g;
+  archer.torso = torso;
+  archer.head = head;
+  archer.legL = legL; archer.legR = legR;
+  archer.armL = armL; archer.armR = armR;
+  archer.bow = bowG;
+  archer.strPos = strGeo.attributes.position;
+  archer.nocked = null;
+  scene.add(g);
+}
+{
+  // Nocked arrow (visible briefly during the draw).
+  const g = new THREE.Group();
+  const shaftGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.62, 5);
+  shaftGeo.rotateX(Math.PI / 2);
+  const shaft = new THREE.Mesh(shaftGeo, new THREE.MeshLambertMaterial({ color: 0x8a6a42 }));
+  g.add(shaft);
+  const tipGeo = new THREE.ConeGeometry(0.035, 0.12, 6);
+  tipGeo.rotateX(Math.PI / 2);
+  const tip = new THREE.Mesh(tipGeo, new THREE.MeshLambertMaterial({ color: 0x9aa0a6 }));
+  tip.position.z = 0.36;
+  g.add(tip);
+  g.position.set(0, 0, -0.18);
+  g.visible = false;
+  archer.bow.add(g);
+  archer.nocked = g;
+}
+function makeArrowMesh() {
+  const g = new THREE.Group();
+  const shaftGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.66, 5);
+  shaftGeo.rotateX(Math.PI / 2);
+  const shaft = new THREE.Mesh(shaftGeo, new THREE.MeshLambertMaterial({ color: 0x8a6a42 }));
+  shaft.castShadow = true;
+  g.add(shaft);
+  const tipGeo = new THREE.ConeGeometry(0.04, 0.14, 6);
+  tipGeo.rotateX(Math.PI / 2);
+  const tip = new THREE.Mesh(tipGeo, new THREE.MeshLambertMaterial({ color: 0x9aa0a6 }));
+  tip.position.z = 0.4;
+  g.add(tip);
+  const flGeo = new THREE.BoxGeometry(0.015, 0.09, 0.14);
+  const flMat = new THREE.MeshLambertMaterial({ color: 0xd8d3c4 });
+  const f1 = new THREE.Mesh(flGeo, flMat); f1.position.z = -0.29; f1.rotation.z = 0.5;
+  const f2 = new THREE.Mesh(flGeo, flMat); f2.position.z = -0.29; f2.rotation.z = -0.5;
+  g.add(f1, f2);
+  return g;
+}
+
+// Aim ring on the ground.
+const aimRing = new THREE.Mesh(
+  new THREE.TorusGeometry(0.45, 0.035, 8, 28),
+  new THREE.MeshBasicMaterial({ color: 0xf5ead0, transparent: true, opacity: 0.85, depthWrite: false })
+);
+aimRing.rotation.x = -Math.PI / 2;
+aimRing.position.y = 0.12;
+aimRing.visible = false;
+scene.add(aimRing);
+
+// ========================= Enemies =========================
+let spawnCount = 0;
+function buildEnemy(lane, spawn) {
+  const idx = spawnCount++;
+  let sx, sz;
+  if (spawn.marchAxis === 'x') { sx = spawn.spawnFixed; sz = lane; }
+  else { sx = lane; sz = spawn.spawnFixed; }
+  const segIdx = spawn.attackWall * 4 + clamp(Math.floor((lane + 20) / 10), 0, 3);
+  const g = new THREE.Group();
+  const inner = new THREE.Group();
+  g.add(inner);
+
+  const tunicMat = new THREE.MeshLambertMaterial({ color: idx % 2 === 0 ? 0x7a2f24 : 0x5f3a6e });
+  const leather = new THREE.MeshLambertMaterial({ color: 0x4a3320 });
+  const skin = new THREE.MeshLambertMaterial({ color: 0xcf9a6e });
+  const metal = new THREE.MeshLambertMaterial({ color: 0x8f979e });
+  const woodM = new THREE.MeshLambertMaterial({ color: 0x5a4229 });
+
+  function part(parent, geo, mat, x, y, z) {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    parent.add(m);
+    return m;
+  }
+  part(inner, new THREE.BoxGeometry(0.44, 0.6, 0.28), tunicMat, 0, 1.08, 0);
+  part(inner, new THREE.BoxGeometry(0.48, 0.14, 0.32), leather, 0, 0.82, 0);
+  part(inner, new THREE.SphereGeometry(0.17, 10, 8), skin, 0, 1.56, 0);
+  const helm = part(inner, new THREE.ConeGeometry(0.19, 0.22, 8), metal, 0, 1.75, 0);
+  helm.rotation.x = 0.06;
+
+  const legGeo = new THREE.BoxGeometry(0.18, 0.75, 0.18); legGeo.translate(0, -0.375, 0);
+  const legL = part(inner, legGeo, leather, 0.11, 0.75, 0);
+  const legR = part(inner, legGeo, leather, -0.11, 0.75, 0);
+
+  const armGeo = new THREE.BoxGeometry(0.13, 0.55, 0.13); armGeo.translate(0, -0.275, 0);
+  const armL = part(inner, armGeo, tunicMat, 0.3, 1.32, 0);
+  const armR = part(inner, armGeo, tunicMat, -0.3, 1.32, 0);
+  armL.rotation.x = -0.15;
+  armR.rotation.x = -0.35;
+
+  // Melee weapon in the right hand.
+  if (idx % 2 === 0) {
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.8, 6), woodM);
+    handle.position.set(0, -0.62, 0.05);
+    handle.rotation.x = 0.25;
+    handle.castShadow = true;
+    armR.add(handle);
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.24, 0.05), metal);
+    blade.position.set(0, -0.9, 0.18);
+    blade.castShadow = true;
+    armR.add(blade);
+  } else {
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.78, 0.025), metal);
+    blade.position.set(0, -0.85, 0.06);
+    blade.rotation.x = 0.2;
+    blade.castShadow = true;
+    armR.add(blade);
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.045, 0.05), woodM);
+    guard.position.set(0, -0.46, 0.03);
+    armR.add(guard);
+  }
+
+  // Health bar billboard.
+  const hpBar = new THREE.Group();
+  hpBar.position.set(0, 2.1, 0);
+  const bg = new THREE.Mesh(new THREE.PlaneGeometry(0.92, 0.13),
+    new THREE.MeshBasicMaterial({ color: 0x1d1712, transparent: true, opacity: 0.8, depthWrite: false }));
+  const fg = new THREE.Mesh(new THREE.PlaneGeometry(0.86, 0.075),
+    new THREE.MeshBasicMaterial({ color: 0x66c04a, depthWrite: false }));
+  fg.position.z = 0.001;
+  hpBar.add(bg, fg);
+  hpBar.visible = false;
+  g.add(hpBar);
+
+  // Invisible hitbox for aim assist.
+  const hitbox = new THREE.Mesh(new THREE.BoxGeometry(0.95, 1.9, 0.95),
+    new THREE.MeshBasicMaterial({ visible: false }));
+  hitbox.position.set(0, 1.0, 0);
+  g.add(hitbox);
+
+  g.position.set(sx, 0, sz);
+  g.rotation.y = spawn.marchAxis === 'x'
+    ? (spawn.marchDir < 0 ? -Math.PI / 2 : Math.PI / 2)
+    : (spawn.marchDir > 0 ? 0 : Math.PI);
+  scene.add(g);
+
+  const en = {
+    group: g, inner, legL, legR, armL, armR, tunicMat, hpBar, hpFg: fg, hitbox,
+    spawn,
+    x: sx, z: sz, hp: CFG.enemyHP,
+    segIdx,
+    state: 'march', attackT: 0, walkPhase: idx * 1.7,
+    dead: false, deadT: 0, flash: 0,
+  };
+  hitbox.userData.en = en;
+  enemies.push(en);
+  enemyHitboxes.push(hitbox);
+}
+
+// ========================= Audio (tiny synth, no assets) =========================
+let AC = null;
+function initAudio() {
+  try {
+    if (!AC) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx) AC = new Ctx();
+    }
+    if (AC && AC.state === 'suspended') AC.resume();
+  } catch (e) { /* audio is optional */ }
+}
+function tone(freq, dur, type = 'sine', vol = 0.2, slideTo = null, delay = 0) {
+  if (!AC) return;
+  try {
+    const t0 = AC.currentTime + delay;
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t0);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(30, slideTo), t0 + dur);
+    g.gain.setValueAtTime(vol, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(AC.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  } catch (e) { /* ignore */ }
+}
+function noiseSfx(dur, vol, cutoff) {
+  if (!AC) return;
+  try {
+    const n = Math.floor(AC.sampleRate * dur);
+    const buf = AC.createBuffer(1, n, AC.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const src = AC.createBufferSource(); src.buffer = buf;
+    const f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cutoff;
+    const g = AC.createGain(); g.gain.value = vol;
+    src.connect(f); f.connect(g); g.connect(AC.destination);
+    src.start();
+  } catch (e) { /* ignore */ }
+}
+const sfx = {
+  shoot() { noiseSfx(0.09, 0.16, 2400); tone(700, 0.08, 'triangle', 0.08, 250); },
+  hit() { tone(220, 0.1, 'square', 0.1, 120); },
+  die() { tone(140, 0.3, 'sawtooth', 0.12, 60); },
+  repair() { tone(420, 0.09, 'square', 0.1); tone(560, 0.1, 'square', 0.1, null, 0.09); },
+  deny() { tone(160, 0.18, 'square', 0.1, 110); },
+  crumble() { noiseSfx(0.5, 0.26, 400); tone(90, 0.4, 'triangle', 0.16, 45); },
+  horn() { tone(196, 0.5, 'sawtooth', 0.1); tone(147, 0.7, 'sawtooth', 0.1, null, 0.25); },
+};
+
+// ========================= FX puffs =========================
+const puffGeo = new THREE.SphereGeometry(0.5, 8, 6);
+function spawnPuff(pos, size, color = 0xb9a98c) {
+  const m = new THREE.Mesh(puffGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.75, depthWrite: false }));
+  m.position.copy(pos);
+  m.scale.setScalar(size * 0.5);
+  scene.add(m);
+  puffs.push({ mesh: m, life: 0, max: 0.5, size });
+}
+function updatePuffs(dt) {
+  for (let i = puffs.length - 1; i >= 0; i--) {
+    const p = puffs[i];
+    p.life += dt;
+    const f = p.life / p.max;
+    if (f >= 1) { scene.remove(p.mesh); p.mesh.material.dispose(); puffs.splice(i, 1); continue; }
+    p.mesh.scale.setScalar(p.size * (0.5 + f * 0.9));
+    p.mesh.material.opacity = 0.75 * (1 - f);
+  }
+}
+
+// ========================= Wall damage / repair =========================
+function damageWall(i, dmg, fxPos) {
+  if (wallHP[i] <= 0) return;
+  wallHP[i] = Math.max(0, wallHP[i] - dmg);
+  if (wallHP[i] === 0) {
+    applySegmentVisual(i);
+    spawnPuff(fxPos, 2.0);
+    sfx.crumble();
+    toast('A wall segment has crumbled!');
+    pushArcherOff(i);
+  } else {
+    applySegmentVisual(i);
+    spawnPuff(fxPos, 0.9);
+  }
+}
+function pushArcherOff(i) {
+  if (segmentAtLoop(archer.p) !== i) return;
+  const [a, b] = segmentSpan(i);
+  for (let d = 0.4; d <= 80; d += 0.4) {
+    for (const cand of [b + d, a - d]) {
+      const p2 = ((cand % 160) + 160) % 160;
+      if (wallHP[segmentAtLoop(p2)] > 0) { archer.p = p2; return; }
+    }
+  }
+}
+function tryRepair() {
+  if (phase !== 'playing') return;
+  const cur = segmentAtLoop(archer.p);
+  let target = -1;
+  if (wallHP[cur] < CFG.wallMaxHP) {
+    target = cur;
+  } else {
+    // The archer cannot stand on a broken segment; allow repairing an adjacent
+    // damaged/broken segment within reach along the wall loop.
+    let bestD = 1e9;
+    for (let i = 0; i < 16; i++) {
+      if (i === cur || wallHP[i] >= CFG.wallMaxHP) continue;
+      const [a, b] = segmentSpan(i);
+      let d = Math.min(Math.abs(archer.p - a), Math.abs(archer.p - b));
+      d = Math.min(d, 160 - d);
+      if (archer.p > a && archer.p < b) d = 0;
+      if (d < bestD) { bestD = d; target = i; }
+    }
+    if (bestD > 6.5) target = -1;
+  }
+  if (target < 0) { toast('Nothing to repair here. Stand on a damaged segment.'); sfx.deny(); return; }
+  if (stonePool < CFG.repairCost) { toast('Not enough stone.'); sfx.deny(); return; }
+  stonePool -= CFG.repairCost;
+  wallHP[target] = CFG.wallMaxHP;
+  applySegmentVisual(target);
+  sfx.repair();
+  toast('Segment ' + target + ' fully repaired. (-50 stone)');
+}
+
+// ========================= Archer update =========================
+function moveAlong(from, delta) {
+  const to = from + delta;
+  const lo = Math.min(from, to), hi = Math.max(from, to);
+  let best = to;
+  for (let k = -1; k <= 1; k++) {
+    const off = 160 * k;
+    for (let i = 0; i < 16; i++) {
+      if (wallHP[i] > 0) continue;
+      const [a, b] = segmentSpan(i);
+      const sa = a + off, sb = b + off;
+      if (sa < hi && sb > lo) {
+        if (delta > 0) best = Math.min(best, sa - 0.02);
+        else best = Math.max(best, sb + 0.02);
+      }
+    }
+  }
+  return ((best % 160) + 160) % 160;
+}
+function updateArcher(dt) {
+  const right = ((keys.KeyD || keys.KeyW) ? 1 : 0) - ((keys.KeyA || keys.KeyS) ? 1 : 0);
+  const moving = right !== 0;
+  if (moving) archer.p = moveAlong(archer.p, -right * CFG.walkSpeed * dt);
+
+  if (moving) archer.walkPhase += dt * 9;
+  const sw = moving ? Math.sin(archer.walkPhase) : 0;
+
+  const wp = loopToWorld(archer.p);
+  const bobY = 4.5 + (moving ? Math.abs(Math.cos(archer.walkPhase)) * 0.05 : 0);
+  archer.group.position.set(wp.x, bobY, wp.z);
+  archer.group.rotation.y = WALL_ROT[wp.w];
+
+  const ease = 1 - Math.exp(-12 * dt);
+  archer.legL.rotation.x = lerp(archer.legL.rotation.x, sw * 0.55, ease);
+  archer.legR.rotation.x = lerp(archer.legR.rotation.x, -sw * 0.55, ease);
+
+  // Draw & release animation, then settle back to rest.
+  archer.shootT += dt;
+  const T = archer.shootT;
+  let pull, armRx, nocked;
+  if (T < 0.12) {
+    const f = T / 0.12;
+    pull = f; armRx = lerp(-0.5, -1.15, f); nocked = true;
+  } else if (T < 0.22) {
+    pull = Math.max(0, 1 - (T - 0.12) / 0.06);
+    armRx = lerp(-1.15, -0.55, (T - 0.12) / 0.1);
+    nocked = false;
+  } else {
+    pull = 0;
+    armRx = lerp(-0.55, -0.5, Math.min(1, (T - 0.22) / 0.15));
+    nocked = false;
+  }
+  archer.nocked.visible = nocked;
+  archer.armR.rotation.x = armRx + (moving ? Math.sin(archer.walkPhase + Math.PI) * 0.12 : 0);
+  archer.armL.rotation.x = -1.35 + (T < 0.22 ? Math.sin(Math.min(T / 0.22, 1) * Math.PI) * 0.06 : 0) + (moving ? sw * 0.05 : 0);
+  archer.strPos.setZ(1, -0.03 - pull * 0.22);
+  archer.strPos.needsUpdate = true;
+}
+
+// ========================= Shooting =========================
+const raycaster = new THREE.Raycaster();
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+function updateAim() {
+  raycaster.setFromCamera(mouseNDC, camera);
+  const hits = raycaster.intersectObjects(enemyHitboxes, false);
+  aimEnemy = hits.length ? hits[0].object.userData.en : null;
+  if (aimEnemy) {
+    aimPoint.set(aimEnemy.x, 1.05, aimEnemy.z);
+  } else {
+    const v = new THREE.Vector3();
+    if (raycaster.ray.intersectPlane(groundPlane, v)) aimPoint.copy(v);
+    else aimPoint.copy(raycaster.ray.origin).addScaledVector(raycaster.ray.direction, 40);
+  }
+  aimRing.visible = phase === 'playing';
+  aimRing.position.set(aimPoint.x, 0.06, aimPoint.z);
+  aimRing.material.color.setHex(aimEnemy ? 0xff5544 : 0xf5ead0);
+}
+function shoot() {
+  if (phase !== 'playing' || !canShoot) return;
+  canShoot = false;
+  reloadLeft = CFG.reloadTime;
+  archer.shootT = 0;
+  const origin = new THREE.Vector3();
+  archer.bow.getWorldPosition(origin);
+  const dir = new THREE.Vector3().subVectors(aimPoint, origin);
+  if (dir.lengthSq() < 1e-6) dir.set(1, 0, 0);
+  dir.normalize();
+  const mesh = makeArrowMesh();
+  mesh.position.copy(origin);
+  mesh.lookAt(origin.clone().add(dir));
+  scene.add(mesh);
+  arrows.push({ mesh, pos: origin.clone(), prev: origin.clone(), dir, dist: 0, stuck: 0 });
+  sfx.shoot();
+}
+function updateArrows(dt) {
+  for (let i = arrows.length - 1; i >= 0; i--) {
+    const a = arrows[i];
+    if (a.stuck > 0) {
+      a.stuck += dt;
+      if (a.stuck > 1.2) { scene.remove(a.mesh); arrows.splice(i, 1); }
+      continue;
+    }
+    const step = CFG.arrowSpeed * dt;
+    a.prev.copy(a.pos);
+    a.pos.addScaledVector(a.dir, step);
+    a.dist += step;
+    a.mesh.position.copy(a.pos);
+
+    // Swept sphere test against each living enemy's torso.
+    let hitEnemy = null;
+    for (const en of enemies) {
+      if (en.dead) continue;
+      const cx = en.x, cy = 1.05, cz = en.z;
+      const ex = cx - a.prev.x, ey = cy - a.prev.y, ez = cz - a.prev.z;
+      const dx = a.pos.x - a.prev.x, dy = a.pos.y - a.prev.y, dz = a.pos.z - a.prev.z;
+      const len2 = dx * dx + dy * dy + dz * dz;
+      let t = len2 > 1e-9 ? (ex * dx + ey * dy + ez * dz) / len2 : 0;
+      t = clamp(t, 0, 1);
+      const px = a.prev.x + dx * t, py = a.prev.y + dy * t, pz = a.prev.z + dz * t;
+      const ddx = cx - px, ddy = cy - py, ddz = cz - pz;
+      if (ddx * ddx + ddy * ddy + ddz * ddz <= 0.85 * 0.85) { hitEnemy = en; break; }
+    }
+    if (hitEnemy) {
+      hitEnemy.hp -= CFG.arrowDamage;
+      hitEnemy.flash = 0.18;
+      spawnPuff(new THREE.Vector3(hitEnemy.x, 1.35, hitEnemy.z), 0.55, 0xa32e24);
+      if (hitEnemy.hp <= 0 && !hitEnemy.dead) { hitEnemy.dead = true; hitEnemy.deadT = 0; kills++; sfx.die(); }
+      else sfx.hit();
+      scene.remove(a.mesh);
+      arrows.splice(i, 1);
+      continue;
+    }
+    if (a.pos.y <= 0.05) {
+      a.stuck = 0.001;
+      a.pos.y = 0.05;
+      a.mesh.position.copy(a.pos);
+      continue;
+    }
+    if (a.dist >= CFG.arrowRange) { scene.remove(a.mesh); arrows.splice(i, 1); }
+  }
+}
+
+// ========================= Enemy update =========================
+function aliveCount() {
+  let n = 0;
+  for (const en of enemies) if (!en.dead) n++;
+  return n;
+}
+function updateEnemies(dt) {
+  for (let idx = enemies.length - 1; idx >= 0; idx--) {
+    const en = enemies[idx];
+    const cfg = en.spawn;
+    if (en.dead) {
+      en.deadT += dt;
+      const f = Math.min(1, en.deadT / 0.35);
+      en.inner.rotation.x = (Math.PI / 2) * (f * f * (3 - 2 * f));
+      en.hpBar.visible = false;
+      if (en.deadT >= 1) {
+        scene.remove(en.group);
+        const hi = enemyHitboxes.indexOf(en.hitbox);
+        if (hi >= 0) enemyHitboxes.splice(hi, 1);
+        enemies.splice(idx, 1);
+      }
+      continue;
+    }
+    if (en.flash > 0) {
+      en.flash -= dt;
+      en.tunicMat.emissive.setHex(en.flash > 0 ? 0x7a1010 : 0x000000);
+    }
+
+    let moving = false;
+    if (en.state === 'march') {
+      moving = true;
+      if (cfg.marchAxis === 'x') en.x += cfg.marchDir * CFG.enemySpeed * dt;
+      else en.z += cfg.marchDir * CFG.enemySpeed * dt;
+      const mc = cfg.marchAxis === 'x' ? en.x : en.z;
+      const pastFace = (mc - cfg.innerAt) * cfg.s <= 0;
+      const reachedStop = (mc - cfg.stopAt) * cfg.s <= 0;
+      const passedThrough = (mc - cfg.throughAt) * cfg.marchDir >= 0;
+      if (wallHP[en.segIdx] > 0 && reachedStop && !pastFace) {
+        if (cfg.marchAxis === 'x') en.x = cfg.stopAt; else en.z = cfg.stopAt;
+        en.state = 'attack';
+        en.attackT = 0;
+        moving = false;
+      } else if (pastFace && passedThrough) {
+        if (cfg.marchAxis === 'x') en.x = cfg.throughAt; else en.z = cfg.throughAt;
+        en.state = 'loot';
+        moving = false;
+      }
+    } else if (en.state === 'attack') {
+      en.attackT += dt;
+      if (en.attackT >= CFG.enemyAttackInterval) {
+        en.attackT -= CFG.enemyAttackInterval;
+        const fxPos = cfg.marchAxis === 'x'
+          ? new THREE.Vector3(20.5 * cfg.s, 1.4, en.z)
+          : new THREE.Vector3(en.x, 1.4, 20.5 * cfg.s);
+        damageWall(en.segIdx, CFG.enemyDamage, fxPos);
+      }
+      if (wallHP[en.segIdx] <= 0) en.state = 'march';
+    }
+
+    en.group.position.set(en.x, moving ? Math.abs(Math.sin(en.walkPhase)) * 0.05 : 0, en.z);
+    if (moving) en.walkPhase += dt * 10;
+    const sw = moving ? Math.sin(en.walkPhase) : 0;
+    const ease = 1 - Math.exp(-14 * dt);
+    en.legL.rotation.x = lerp(en.legL.rotation.x, sw * 0.5, ease);
+    en.legR.rotation.x = lerp(en.legR.rotation.x, -sw * 0.5, ease);
+    en.armL.rotation.x = lerp(en.armL.rotation.x, -0.15 - sw * 0.35, ease);
+    if (en.state === 'attack') {
+      const p = en.attackT / CFG.enemyAttackInterval;
+      let rx;
+      if (p < 0.25) rx = lerp(-0.35, -2.2, p / 0.25);
+      else if (p < 0.45) rx = lerp(-2.2, -0.6, (p - 0.25) / 0.2);
+      else rx = lerp(-0.6, -0.35, (p - 0.45) / 0.55);
+      en.armR.rotation.x = rx;
+    } else {
+      en.armR.rotation.x = lerp(en.armR.rotation.x, -0.35 + sw * 0.3, ease);
+    }
+
+    en.hpBar.visible = en.hp < CFG.enemyHP;
+    if (en.hpBar.visible) {
+      en.hpBar.lookAt(camera.position);
+      const frac = Math.max(0, en.hp) / CFG.enemyHP;
+      en.hpFg.scale.x = Math.max(0.001, frac);
+      en.hpFg.position.x = -0.45 * (1 - frac);
+    }
+  }
+}
+
+// ========================= Waves & day flow =========================
+function updateWaves() {
+  const cfg = DAY_CFGS[curDay];
+  for (let wi = 0; wi < cfg.waves.length; wi++) {
+    const wv = cfg.waves[wi];
+    if (!wv.spawned && dayTime >= wv.t) {
+      wv.spawned = true;
+      if (cfg.allWalls) {
+        for (let wall = 0; wall < 4; wall++) {
+          for (const lane of wv.lanes) buildEnemy(lane, cfg.wallSpawns[wall]);
+        }
+        toast('Wave ' + (wi + 1) + ' — the final siege storms all four walls!');
+      } else {
+        for (const lane of wv.lanes) buildEnemy(lane, cfg);
+        toast('Wave ' + (wi + 1) + ' — enemies approaching from the ' + cfg.approachDir + '!');
+      }
+      currentWave = wi + 1;
+      sfx.horn();
+    }
+  }
+}
+const SUMMARY_TITLES = [null, 'Day 1 Complete', 'Day 2 Complete', 'Day 3 Complete', 'Day 4 Complete'];
+const CONTINUE_LABELS = [null, 'Continue to Day 2', 'Continue to Day 3', 'Continue to Day 4', 'Continue to Day 5'];
+const SAVED_MESSAGES = [null,
+  'Progress saved. Load the game again and continue from Day 2.',
+  'Progress saved. Load the game again to continue from Day 3.',
+  'Progress saved. Load the game again to continue from Day 4.',
+  'Progress saved. Load the game again to continue from Day 5.'];
+function computeSegmentsAlive() {
+  let n = 0;
+  for (const h of wallHP) if (h > 0) n++;
+  return n;
+}
+function computeGrade(alive) {
+  return alive >= 15 ? 'S' : alive >= 13 ? 'A' : alive === 12 ? 'B' : 'FAIL';
+}
+function buildWallGridHtml() {
+  const cfg = DAY_CFGS[curDay];
+  let html = '';
+  for (let w = 0; w < 4; w++) {
+    const hot = cfg.attackWall < 0 || w === cfg.attackWall;
+    html += '<div class="wname' + (hot ? ' rowHot' : '') + '">' + WALL_DEFS[w].name + (hot ? ' ★' : '') + '</div>';
+    for (let k = 0; k < 4; k++) {
+      const i = w * 4 + k;
+      const hp = Math.round(wallHP[i]);
+      const col = hp <= 0 ? '#4a3b32' : hp < 34 ? '#8a4a34' : hp < 67 ? '#a3823f' : '#5f7d4a';
+      html += '<div class="wcell' + (hot ? ' rowHot' : '') + '" style="border-color:' + col + '">Seg ' + i + ': ' + hp + '</div>';
+    }
+  }
+  return html;
+}
+function showCampaignResults() {
+  phase = 'campaignResults';
+  aimRing.visible = false;
+  const alive = computeSegmentsAlive();
+  const grade = computeGrade(alive);
+  resultGrade = grade;
+  try {
+    localStorage.setItem('castle_siege_save', JSON.stringify({
+      currentDay: 6,
+      stonePool: Math.round(stonePool),
+      wallHP: wallHP.map(h => Math.round(h)),
+      completedDays: [1, 2, 3, 4, 5],
+      finalGrade: grade,
+      segmentsAlive: alive,
+    }));
+  } catch (e) { /* storage may be unavailable on file:// in some browsers */ }
+  el.summaryTitle.textContent = 'Campaign Complete';
+  el.summaryGrade.textContent = 'Grade: ' + grade;
+  el.summaryGrade.style.color = grade === 'FAIL' ? '#e0705a' : '#e7c877';
+  el.summaryGrade.classList.remove('hidden');
+  el.summaryStats.textContent = 'Segments alive: ' + alive + ' / 16 — Stone remaining: ' + Math.round(stonePool);
+  el.wallGridHead.textContent = 'Final wall state (all 16 segments)';
+  el.wallGrid.innerHTML = buildWallGridHtml();
+  el.resultMsg.textContent = alive >= 12
+    ? 'The castle stands! You have defended it through 5 days of siege.'
+    : 'The castle has fallen. Too many breaches in the walls.';
+  el.resultMsg.classList.remove('hidden');
+  el.summaryWarnShort.classList.add('hidden');
+  el.summaryWarnLong.classList.add('hidden');
+  el.continueBtn.classList.add('hidden');
+  el.savedMsg.classList.add('hidden');
+  el.restartBtn.classList.remove('hidden');
+  el.replayBtn.classList.remove('hidden');
+  el.summaryScreen.classList.remove('hidden');
+}
+function endDay() {
+  aimRing.visible = false;
+  if (curDay >= 5) { showCampaignResults(); return; }
+  phase = 'daySummary';
+  const cfg = DAY_CFGS[curDay];
+  el.summaryTitle.textContent = SUMMARY_TITLES[curDay];
+  el.summaryStats.textContent = 'Stone remaining: ' + Math.round(stonePool) + ' — Enemies slain: ' + kills + ' / ' + cfg.totalEnemies;
+  el.wallGridHead.textContent = 'Wall HP remaining (' + cfg.name + ' highlighted)';
+  el.wallGrid.innerHTML = buildWallGridHtml();
+  el.summaryWarnShort.classList.toggle('hidden', curDay !== 4);
+  el.summaryWarnLong.classList.toggle('hidden', curDay !== 4);
+  el.continueBtn.textContent = CONTINUE_LABELS[curDay];
+  el.savedMsg.textContent = SAVED_MESSAGES[curDay];
+  el.continueBtn.classList.remove('hidden');
+  el.savedMsg.classList.add('hidden');
+  el.summaryScreen.classList.remove('hidden');
+}
+function resetDay() {
+  const cfg = DAY_CFGS[curDay];
+  for (const en of enemies) scene.remove(en.group);
+  enemies.length = 0;
+  enemyHitboxes.length = 0;
+  for (const a of arrows) scene.remove(a.mesh);
+  arrows.length = 0;
+  for (const p of puffs) scene.remove(p.mesh);
+  puffs.length = 0;
+  spawnCount = 0;
+  // First start of this day captures the loaded state; R later restores exactly it
+  // (Day 2 reloads the Day 1 save state, Day 1 reloads the fresh state).
+  if (!dayStart) dayStart = { hp: wallHP.slice(), stone: stonePool };
+  else {
+    for (let i = 0; i < 16; i++) wallHP[i] = dayStart.hp[i];
+    stonePool = dayStart.stone;
+  }
+  for (let i = 0; i < 16; i++) applySegmentVisual(i);
+  dayTime = 0;
+  timeRemaining = cfg.roundTime;
+  kills = 0;
+  currentWave = 1;
+  for (const wv of cfg.waves) wv.spawned = false;
+  canShoot = true;
+  reloadLeft = 0;
+  archer.p = cfg.startPos;
+  archer.walkPhase = 0;
+  archer.shootT = 9;
+  phase = 'playing';
+  resultGrade = null;
+  el.titleScreen.classList.add('hidden');
+  el.summaryScreen.classList.add('hidden');
+  el.hud.classList.remove('hidden');
+  el.summaryGrade.classList.add('hidden');
+  el.resultMsg.classList.add('hidden');
+  el.restartBtn.classList.add('hidden');
+  el.replayBtn.classList.add('hidden');
+  el.savedMsg.classList.add('hidden');
+  toast(cfg.allWalls ? 'Day 5 — the final siege begins. Hold the walls!'
+    : 'Day ' + curDay + ' — defend the ' + cfg.name.toLowerCase() + ' wall!');
+}
+
+// ========================= Camera =========================
+const inwardVecs = WALL_DEFS.map(d => new THREE.Vector3(-d.outward[0], 0, -d.outward[2]));
+function updateCamera(dt) {
+  let tp, tl;
+  if (phase === 'playing') {
+    const wp = loopToWorld(archer.p);
+    tp = new THREE.Vector3(wp.x, 4.5, wp.z)
+      .addScaledVector(inwardVecs[wp.w], 12)
+      .add(new THREE.Vector3(0, 8, 0));
+    tl = new THREE.Vector3(wp.x, 5.8, wp.z);
+  } else if (phase === 'title') {
+    tp = TITLE_POS; tl = TITLE_LOOK;
+  } else {
+    tp = camPos; tl = camLook;
+  }
+  const f = 1 - Math.exp(-4 * dt);
+  camPos.lerp(tp, f);
+  camLook.lerp(tl, f);
+  camera.position.copy(camPos);
+  camera.lookAt(camLook);
+}
+
+// ========================= HUD & toast =========================
+let toastTimer = 0;
+function toast(msg) {
+  el.toast.textContent = msg;
+  el.toast.style.opacity = '1';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.toast.style.opacity = '0'; }, 2600);
+}
+const stripCells = [];
+for (let i = 0; i < 16; i++) {
+  const c = document.createElement('div');
+  c.className = 'cell';
+  c.title = 'Seg ' + i + ' (' + WALL_DEFS[Math.floor(i / 4)].name + ')';
+  el.strip.appendChild(c);
+  stripCells.push(c);
+}
+function updateHUD() {
+  if (phase === 'title') return;
+  const cfg = DAY_CFGS[curDay];
+  el.hDay.textContent = curDay === 5 ? '5 — FINAL SIEGE' : String(curDay);
+  el.hTime.textContent = timeRemaining.toFixed(1) + ' s';
+  el.hWave.textContent = currentWave + ' / ' + cfg.waves.length;
+  el.hStone.textContent = String(Math.round(stonePool));
+  el.hEnemies.textContent = String(aliveCount());
+  el.hWallHead.textContent = cfg.hudHead;
+  if (cfg.allWalls) {
+    let lines = '';
+    for (let w = 0; w < 4; w++) {
+      const b = w * 4;
+      lines += WALL_DEFS[w].name + ': ';
+      for (let k = 0; k < 4; k++) {
+        const hp = Math.round(wallHP[b + k]);
+        const col = hp < 30 ? '#ff7b6a' : '#f3e9d2';
+        lines += (k ? '/' : '') + '<span style="color:' + col + '">' + hp + '</span>';
+      }
+      lines += '<br>';
+    }
+    el.hWall.innerHTML = lines;
+    el.hOther.textContent = 'Segments alive: ' + computeSegmentsAlive() + ' / 16 intact';
+  } else {
+    const base = cfg.attackWall * 4;
+    el.hWall.textContent = 'Seg ' + base + ': ' + Math.round(wallHP[base]) + ' | Seg ' + (base + 1) + ': ' +
+      Math.round(wallHP[base + 1]) + ' | Seg ' + (base + 2) + ': ' + Math.round(wallHP[base + 2]) +
+      ' | Seg ' + (base + 3) + ': ' + Math.round(wallHP[base + 3]);
+    if (curDay >= 2) {
+      // Cumulative damage carried forward from all previously attacked walls.
+      const parts = [];
+      for (let d = 1; d < curDay; d++) {
+        const b = DAY_CFGS[d].attackWall * 4;
+        parts.push(WALL_DEFS[DAY_CFGS[d].attackWall].name + ': ' + Math.round(wallHP[b]) + '/' +
+          Math.round(wallHP[b + 1]) + '/' + Math.round(wallHP[b + 2]) + '/' + Math.round(wallHP[b + 3]));
+      }
+      el.hOther.textContent = parts.join(' | ');
+    }
+  }
+  el.hStanding.textContent = 'Standing on: ' + WALL_DEFS[loopToWorld(archer.p).w].name +
+    ' Seg ' + segmentAtLoop(archer.p);
+  if (canShoot) {
+    el.hudReload.textContent = 'Ready';
+    el.hudReload.className = 'panel ready';
+  } else {
+    el.hudReload.textContent = 'Reloading... ' + Math.max(0, reloadLeft).toFixed(1) + ' s';
+    el.hudReload.className = 'panel reloading';
+  }
+  for (let i = 0; i < 16; i++) {
+    const hp = wallHP[i];
+    stripCells[i].style.background = hp <= 0 ? '#3a2f28' : hp < 34 ? '#a04030' : hp < 67 ? '#b28a3a' : '#6f9556';
+    stripCells[i].className = 'cell' + (cfg.attackWall < 0 || Math.floor(i / 4) === cfg.attackWall ? ' hot' : '');
+  }
+}
+
+// ========================= State export =========================
+function exportState() {
+  const wp = loopToWorld(archer.p);
+  const perWall = { north: 0, east: 0, south: 0, west: 0 };
+  const wallKeys = ['north', 'east', 'south', 'west'];
+  for (const en of enemies) {
+    if (!en.dead) perWall[wallKeys[en.spawn.attackWall]]++;
+  }
+  window.__arena_state = {
+    phase,
+    day: curDay,
+    timeRemaining: r3(timeRemaining),
+    stonePool: Math.round(stonePool),
+    wallHP: wallHP.map(h => Math.round(h)),
+    enemiesAlive: aliveCount(),
+    enemiesAlivePerWall: perWall,
+    archerPosition: { x: r3(archer.group.position.x), y: r3(archer.group.position.y), z: r3(archer.group.position.z) },
+    archerSegment: segmentAtLoop(archer.p),
+    canShoot: canShoot && phase === 'playing',
+    reloadTimeLeft: r3(Math.max(0, reloadLeft)),
+    segmentsAlive: computeSegmentsAlive(),
+    grade: resultGrade,
+  };
+}
+
+// ========================= Input =========================
+window.addEventListener('keydown', e => {
+  initAudio();
+  keys[e.code] = true;
+  if (e.code === 'Enter' && (phase === 'title' || phase === 'campaignResults')) resetDay();
+  if (e.code === 'KeyR' && !e.repeat && (phase === 'playing' || phase === 'daySummary' || phase === 'campaignResults')) {
+    resetDay();
+    toast('Day ' + curDay + ' restarted.');
+  }
+  if (e.code === 'KeyE' && !e.repeat) tryRepair();
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+function pointerNDC(e) {
+  mouseNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouseNDC.y = -(e.clientY / window.innerHeight) * 2 + 1;
+}
+renderer.domElement.addEventListener('pointermove', pointerNDC);
+renderer.domElement.addEventListener('pointerdown', e => {
+  initAudio();
+  if (phase !== 'playing') return;
+  pointerNDC(e);
+  updateAim();
+  shoot();
+});
+el.startBtn.addEventListener('click', () => { initAudio(); resetDay(); });
+el.continueBtn.addEventListener('click', () => {
+  try {
+    const save = {
+      currentDay: [2, 3, 4, 5][curDay - 1],
+      stonePool: Math.round(stonePool),
+      wallHP: wallHP.map(h => Math.round(h)),
+      completedDays: [[1], [1, 2], [1, 2, 3], [1, 2, 3, 4]][curDay - 1],
+    };
+    localStorage.setItem('castle_siege_save', JSON.stringify(save));
+  } catch (e) { /* storage may be unavailable on file:// in some browsers */ }
+  el.continueBtn.classList.add('hidden');
+  el.savedMsg.classList.remove('hidden');
+  sfx.repair();
+});
+el.restartBtn.addEventListener('click', () => {
+  try { localStorage.removeItem('castle_siege_save'); } catch (e) { /* ignore */ }
+  location.reload();
+});
+el.replayBtn.addEventListener('click', () => { initAudio(); resetDay(); });
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ========================= Boot: load save, set up title =========================
+let dayNotice = null;
+let campaignComplete = false;
+try {
+  const raw = localStorage.getItem('castle_siege_save');
+  const s = raw ? JSON.parse(raw) : null;
+  const valid = s && Array.isArray(s.wallHP) && s.wallHP.length === 16 &&
+    s.wallHP.every(v => Number.isFinite(Number(v))) &&
+    Number.isFinite(Number(s.stonePool)) && Number.isFinite(Number(s.currentDay));
+  if (valid) {
+    // Day 5 starts with exactly the wall HP and stone values saved at the end of
+    // Day 4; any valid save is loaded so testing from earlier days keeps its damage.
+    for (let i = 0; i < 16; i++) wallHP[i] = clamp(Math.round(Number(s.wallHP[i])), 0, 100);
+    stonePool = Math.max(0, Math.round(Number(s.stonePool)));
+    const cd = Number(s.currentDay);
+    if (cd < 5) dayNotice = 'Please complete Days 1-4 first.';
+    else if (cd > 5) campaignComplete = true;
+  } else {
+    dayNotice = 'Please complete Days 1-4 first.';
+  }
+} catch (e) {
+  dayNotice = 'Please complete Days 1-4 first.';
+}
+curDay = 5;
+{
+  const cfg = DAY_CFGS[curDay];
+  timeRemaining = cfg.roundTime;
+  el.hDay.textContent = '5 — FINAL SIEGE';
+  document.title = 'Castle Under Siege — Day 5: The Final Siege';
+  // Late-afternoon atmosphere for the climax: darker sky, warmer low sun.
+  scene.background = new THREE.Color(0x9db3c0);
+  scene.fog.color.set(0x9db3c0);
+  sun.intensity = 1.9;
+  sun.color.set(0xffd9a8);
+  // Distant fires with rising smoke columns (decorative, clear of all lanes).
+  for (const [fx, fz] of [[44, -34], [-42, 42], [46, 40], [-46, -38]]) {
+    const fire = new THREE.Mesh(new THREE.SphereGeometry(0.9, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0xd96a2a }));
+    fire.position.set(fx, 0.5, fz);
+    fire.scale.y = 0.6;
+    scene.add(fire);
+    const smokeMat = new THREE.MeshLambertMaterial({ color: 0x6f6a62, transparent: true, opacity: 0.55 });
+    for (let s2 = 0; s2 < 3; s2++) {
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(1.5 + s2 * 0.9, 8, 6), smokeMat);
+      puff.position.set(fx + s2 * 0.6, 2.5 + s2 * 2.2, fz + s2 * 0.3);
+      scene.add(puff);
+    }
+  }
+  archer.p = cfg.startPos;
+  const wp = loopToWorld(archer.p);
+  archer.group.position.set(wp.x, 4.5, wp.z);
+  archer.group.rotation.y = WALL_ROT[wp.w];
+  for (let i = 0; i < 16; i++) applySegmentVisual(i);
+  if (campaignComplete) {
+    // Completed campaign: show the final results immediately, with replay available.
+    el.titleScreen.classList.add('hidden');
+    showCampaignResults();
+    el.savedMsg.textContent = 'Campaign already completed.';
+    el.savedMsg.classList.remove('hidden');
+  } else {
+    if (dayNotice) {
+      el.saveNotice.textContent = dayNotice;
+      el.saveNotice.classList.remove('hidden');
+    }
+    el.subtitle.textContent = cfg.subtitle;
+    el.objective.textContent = cfg.objective;
+    el.enterLine.innerHTML = 'Press <b style="color:#f0d68a">Enter</b> to begin.';
+    el.startBtn.textContent = 'Begin Day ' + curDay + ' (Enter)';
+    if (curDay >= 2) {
+      const attacked = new Set();
+      for (let d = 1; d < curDay; d++) attacked.add(DAY_CFGS[d].attackWall);
+      let lines = 'Stone remaining: ' + Math.round(stonePool);
+      for (let w = 0; w < 4; w++) {
+        if (!attacked.has(w)) continue;
+        const b = w * 4;
+        lines += '<br>' + WALL_DEFS[w].name + ' wall: ' + Math.round(wallHP[b]) + '/' +
+          Math.round(wallHP[b + 1]) + '/' + Math.round(wallHP[b + 2]) + '/' + Math.round(wallHP[b + 3]);
+      }
+      lines += '<br>All four walls will be attacked simultaneously. Defend ≥12 segments to win.';
+      el.titleState.innerHTML = lines;
+      el.titleState.classList.remove('hidden');
+      el.hOther.style.display = 'block';
+    }
+    if (curDay === 2) TITLE_POS.set(24, 16, -42);
+    else if (curDay === 3) TITLE_POS.set(-38, 16, 36);
+    else if (curDay === 4) TITLE_POS.set(38, 16, 38);
+    else TITLE_POS.set(48, 26, 48);
+    camPos.copy(TITLE_POS);
+    camLook.copy(TITLE_LOOK);
+    camera.position.copy(camPos);
+    camera.lookAt(camLook);
+  }
+}
+
+// ========================= Main loop =========================
+let lastT = performance.now();
+let tGlobal = 0;
+function tick(now) {
+  requestAnimationFrame(tick);
+  const dt = Math.min((now - lastT) / 1000, 0.05);
+  lastT = now;
+  tGlobal += dt;
+
+  if (phase === 'playing') {
+    dayTime += dt;
+    timeRemaining = Math.max(0, DAY_CFGS[curDay].roundTime - dayTime);
+    updateWaves();
+    updateArcher(dt);
+    updateEnemies(dt);
+    updateArrows(dt);
+    if (!canShoot) {
+      reloadLeft -= dt;
+      if (reloadLeft <= 0) { reloadLeft = 0; canShoot = true; }
+    }
+    updateAim();
+    // Day 2 ends early once every wave has spawned and no enemy remains.
+    const dcfg = DAY_CFGS[curDay];
+    let allSpawned = true;
+    for (const wv of dcfg.waves) if (!wv.spawned) allSpawned = false;
+    if (timeRemaining <= 0 || (curDay >= 2 && allSpawned && enemies.length === 0)) endDay();
+  }
+  updateCamera(dt);
+  updatePuffs(dt);
+
+  // Flag cloth sway.
+  if (flagMesh) {
+    const pos = flagMesh.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const bx = flagBase[i * 3], by = flagBase[i * 3 + 1];
+      pos.setZ(i, Math.sin(bx * 3.2 - tGlobal * 5) * 0.1 * (bx / 1.7) + Math.sin(by * 4 + tGlobal * 3) * 0.02);
+    }
+    pos.needsUpdate = true;
+    flagMesh.rotation.y = 0.35 + Math.sin(tGlobal * 0.8) * 0.08;
+  }
+
+  updateHUD();
+  exportState();
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

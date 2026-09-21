@@ -1,0 +1,3317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KARST GLIDE &bull; Three Summits Championship</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0b1528;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+    
+    /* HUD overlay */
+    #hud {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 22px 28px;
+      z-index: 10;
+    }
+
+    .hud-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      width: 100%;
+    }
+
+    .brand-wrap {
+      background: linear-gradient(135deg, rgba(14, 26, 48, 0.85) 0%, rgba(8, 16, 32, 0.7) 100%);
+      padding: 12px 18px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 185, 90, 0.35);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      backdrop-filter: blur(6px);
+    }
+
+    .brand-title {
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: 4px;
+      color: #ffe6aa;
+      text-shadow: 0 0 14px rgba(255, 180, 50, 0.65), 0 2px 4px rgba(0,0,0,0.8);
+      text-transform: uppercase;
+      line-height: 1.1;
+    }
+    .brand-sub {
+      font-size: 11px;
+      letter-spacing: 2px;
+      color: #9cb5db;
+      font-weight: 600;
+      margin-top: 3px;
+    }
+    .course-badge {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 3px 8px;
+      background: rgba(255, 180, 50, 0.2);
+      border: 1px solid rgba(255, 180, 50, 0.5);
+      border-radius: 4px;
+      color: #ffd875;
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+
+    .telemetry-card {
+      background: linear-gradient(135deg, rgba(12, 24, 46, 0.85) 0%, rgba(6, 14, 28, 0.8) 100%);
+      border: 1px solid rgba(255, 190, 90, 0.35);
+      border-radius: 8px;
+      padding: 12px 18px;
+      color: #f0f6ff;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      backdrop-filter: blur(6px);
+      min-width: 260px;
+    }
+
+    .telem-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+      font-size: 12.5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .telem-row:last-child { margin-bottom: 0; }
+    .telem-label { color: #8ba5cc; font-weight: 600; letter-spacing: 0.5px; }
+    .telem-val { color: #ffebaa; font-weight: 700; text-shadow: 0 0 6px rgba(255, 200, 100, 0.4); }
+
+    /* Race Status Card (Gates, Wind, Proximity, Trim, Thermal, Delta vs Kestrel) */
+    .race-card {
+      background: linear-gradient(135deg, rgba(16, 32, 54, 0.85) 0%, rgba(8, 18, 36, 0.8) 100%);
+      border: 1px solid rgba(100, 210, 255, 0.4);
+      border-radius: 8px;
+      padding: 10px 16px;
+      color: #e6f3ff;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      backdrop-filter: blur(6px);
+      margin-top: 10px;
+      min-width: 260px;
+    }
+    .race-highlight { color: #4ee3ff; font-weight: bold; }
+    .prox-active { color: #ffc442; text-shadow: 0 0 8px rgba(255, 180, 50, 0.7); }
+    .trim-glide { color: #5ce1e6; font-weight: bold; }
+    .trim-dive { color: #ff5e36; font-weight: bold; text-shadow: 0 0 8px rgba(255, 94, 54, 0.6); }
+    .thermal-active { color: #38ef7d; font-weight: bold; text-shadow: 0 0 8px rgba(56, 239, 125, 0.8); }
+    .wind-val { color: #7ad1ff; font-weight: bold; }
+    .delta-ahead { color: #38ef7d; font-weight: bold; text-shadow: 0 0 6px rgba(56, 239, 125, 0.6); }
+    .delta-behind { color: #ff5e36; font-weight: bold; text-shadow: 0 0 6px rgba(255, 94, 54, 0.6); }
+
+    /* Stall Warning */
+    #stall-warning {
+      position: absolute;
+      top: 18%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(220, 20, 20, 0.9);
+      color: #ffffff;
+      padding: 12px 30px;
+      border-radius: 6px;
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      border: 2px solid #ffaaaa;
+      box-shadow: 0 0 30px rgba(255, 0, 0, 0.8);
+      animation: blink 0.15s infinite alternate;
+      display: none;
+      z-index: 20;
+    }
+
+    /* Thermal Indicator Banner */
+    #thermal-indicator {
+      position: absolute;
+      top: 24%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(20, 140, 70, 0.85);
+      color: #ffffff;
+      padding: 10px 24px;
+      border-radius: 6px;
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      border: 1px solid #77ffaa;
+      box-shadow: 0 0 20px rgba(40, 220, 100, 0.6);
+      display: none;
+      z-index: 20;
+    }
+
+    @keyframes blink {
+      from { opacity: 0.6; transform: translateX(-50%) scale(0.98); }
+      to { opacity: 1.0; transform: translateX(-50%) scale(1.02); }
+    }
+
+    /* Reticle */
+    .flight-reticle {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 44px;
+      height: 44px;
+      pointer-events: none;
+      opacity: 0.7;
+    }
+    .flight-reticle-circle {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border: 1.5px solid rgba(255, 220, 140, 0.7);
+      border-radius: 50%;
+      box-shadow: 0 0 10px rgba(255, 180, 50, 0.3);
+    }
+    .flight-reticle-pip {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 4px; height: 4px;
+      background-color: #ffe6aa;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+    }
+    .flight-reticle-wing-l {
+      position: absolute;
+      top: 50%; left: -14px;
+      width: 12px; height: 2px;
+      background: rgba(255, 220, 140, 0.7);
+      transform: translateY(-50%);
+    }
+    .flight-reticle-wing-r {
+      position: absolute;
+      top: 50%; right: -14px;
+      width: 12px; height: 2px;
+      background: rgba(255, 220, 140, 0.7);
+      transform: translateY(-50%);
+    }
+
+    .target-tag {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(10, 22, 44, 0.8);
+      border: 1px solid rgba(255, 200, 100, 0.35);
+      border-radius: 6px;
+      padding: 8px 16px;
+      color: #c9ddf8;
+      font-size: 13px;
+      font-family: monospace;
+      backdrop-filter: blur(4px);
+    }
+
+    /* Fullscreen Overlay Screens */
+    .screen-overlay {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at center, rgba(16, 30, 56, 0.88) 0%, rgba(6, 12, 24, 0.96) 100%);
+      color: #fff;
+      z-index: 100;
+      pointer-events: auto;
+    }
+
+    .screen-box {
+      background: rgba(14, 26, 48, 0.94);
+      border: 2px solid rgba(255, 180, 80, 0.55);
+      border-radius: 14px;
+      padding: 30px 40px;
+      text-align: center;
+      max-width: 780px;
+      width: 92%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.85), 0 0 28px rgba(255, 160, 50, 0.25);
+    }
+
+    .screen-box h1 {
+      font-size: 38px;
+      letter-spacing: 5px;
+      color: #ffd277;
+      text-shadow: 0 0 20px rgba(255, 160, 30, 0.8);
+      margin-bottom: 4px;
+      font-weight: 900;
+    }
+
+    .screen-box .tagline {
+      font-size: 12px;
+      letter-spacing: 3px;
+      color: #9cb5db;
+      margin-bottom: 18px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .instructions-card {
+      text-align: left;
+      background: rgba(6, 14, 30, 0.75);
+      padding: 16px 20px;
+      border-radius: 8px;
+      border-left: 4px solid #ffae34;
+      margin-bottom: 20px;
+      font-size: 12.5px;
+      line-height: 1.6;
+      color: #d1e2f9;
+    }
+
+    .instructions-card b { color: #ffe6aa; }
+    .instructions-card .rule-highlight {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed rgba(255,255,255,0.15);
+      font-size: 12px;
+      color: #bdd6f4;
+    }
+
+    .course-overview-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin: 12px 0;
+      text-align: left;
+    }
+    .course-card-mini {
+      background: rgba(20, 38, 68, 0.6);
+      border: 1px solid rgba(255, 200, 100, 0.3);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 11.5px;
+    }
+    .course-card-title {
+      color: #ffcc55;
+      font-weight: bold;
+      font-size: 12.5px;
+      margin-bottom: 4px;
+      letter-spacing: 0.5px;
+    }
+    .course-card-detail {
+      color: #a2bdda;
+      line-height: 1.4;
+    }
+
+    .prompt-action {
+      font-size: 16px;
+      letter-spacing: 3px;
+      color: #ffffff;
+      font-weight: 800;
+      animation: pulse-action 1.2s infinite ease-in-out;
+      padding: 13px 32px;
+      background: linear-gradient(90deg, rgba(255, 160, 40, 0.3) 0%, rgba(255, 120, 20, 0.45) 100%);
+      border: 1px solid rgba(255, 190, 80, 0.85);
+      border-radius: 30px;
+      display: inline-block;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+      cursor: pointer;
+    }
+
+    @keyframes pulse-action {
+      0%, 100% { transform: scale(1.0); border-color: rgba(255,190,80,0.9); box-shadow: 0 0 16px rgba(255,160,50,0.45); }
+      50% { transform: scale(1.03); border-color: rgba(255,190,80,0.4); box-shadow: 0 0 6px rgba(255,160,50,0.15); }
+    }
+
+    /* Side-by-side Score Sheet */
+    #result-banner {
+      display: none;
+    }
+    .score-sheet-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 18px 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12.5px;
+      background: rgba(6, 14, 28, 0.75);
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 200, 100, 0.25);
+    }
+    .score-sheet-table th {
+      background: rgba(20, 36, 64, 0.9);
+      color: #ffe099;
+      padding: 8px 12px;
+      text-align: left;
+      font-weight: 700;
+      letter-spacing: 1px;
+      border-bottom: 1px solid rgba(255, 200, 100, 0.3);
+    }
+    .score-sheet-table td {
+      padding: 6px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      color: #d8e5f5;
+    }
+    .score-sheet-table tr:last-child td {
+      border-bottom: none;
+      background: rgba(30, 52, 88, 0.65);
+      font-weight: 900;
+      font-size: 15px;
+      color: #ffd875;
+    }
+    .score-val {
+      text-align: right;
+      font-weight: bold;
+    }
+    .score-val-bonus { color: #38ef7d; }
+    .score-val-penalty { color: #ff5566; }
+
+    .grade-badge {
+      font-size: 34px;
+      font-weight: 900;
+      letter-spacing: 4px;
+      margin: 2px 0 6px 0;
+      text-shadow: 0 0 20px currentColor;
+    }
+    .grade-CLEAN { color: #38ef7d; }
+    .grade-HARD { color: #f1b938; }
+    .grade-MISS { color: #4da6ff; }
+    .grade-CRASH { color: #ff3344; }
+
+    .match-winner-banner {
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      padding: 6px 16px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      display: inline-block;
+    }
+    .winner-you {
+      background: rgba(56, 239, 125, 0.2);
+      border: 1px solid #38ef7d;
+      color: #38ef7d;
+      text-shadow: 0 0 8px rgba(56, 239, 125, 0.6);
+    }
+    .winner-kestrel {
+      background: rgba(255, 94, 54, 0.2);
+      border: 1px solid #ff5e36;
+      color: #ff5e36;
+      text-shadow: 0 0 8px rgba(255, 94, 54, 0.6);
+    }
+
+    /* Podium Ceremony Screen */
+    #podium-screen {
+      display: none;
+    }
+    .podium-display {
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      gap: 20px;
+      margin: 24px 0 20px 0;
+      height: 180px;
+    }
+    .podium-slot {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 140px;
+    }
+    .podium-pilot-name {
+      font-size: 15px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      margin-bottom: 8px;
+    }
+    .podium-pillar {
+      width: 100%;
+      border-radius: 8px 8px 0 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: 10px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+    }
+    .podium-rank {
+      font-size: 26px;
+      font-weight: 900;
+    }
+    .podium-pts {
+      font-size: 13px;
+      font-family: monospace;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+
+    .pos-1 {
+      height: 140px;
+      background: linear-gradient(180deg, #ffd700 0%, #b8860b 100%);
+      color: #2b1f00;
+      border: 2px solid #fff2a3;
+      box-shadow: 0 0 25px rgba(255, 215, 0, 0.5);
+    }
+    .pos-2 {
+      height: 105px;
+      background: linear-gradient(180deg, #d8e2ec 0%, #7d8c9e 100%);
+      color: #1a2530;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 20px rgba(200, 220, 240, 0.35);
+    }
+    .pos-3 {
+      height: 80px;
+      background: linear-gradient(180deg, #cd7f32 0%, #8c4a16 100%);
+      color: #261100;
+      border: 2px solid #e8a86b;
+      box-shadow: 0 0 15px rgba(205, 127, 50, 0.35);
+    }
+
+    .standings-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 20px 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12.5px;
+      background: rgba(6, 14, 28, 0.75);
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 200, 100, 0.25);
+    }
+    .standings-table th {
+      background: rgba(20, 36, 64, 0.9);
+      color: #ffe099;
+      padding: 8px 12px;
+      text-align: left;
+      font-weight: 700;
+    }
+    .standings-table td {
+      padding: 6px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      color: #d8e5f5;
+    }
+    .standings-rank-1 { color: #ffd700; font-weight: 900; }
+    .standings-rank-2 { color: #d8e2ec; font-weight: bold; }
+    .standings-rank-3 { color: #cd7f32; font-weight: bold; }
+    .highlight-you { background: rgba(255, 180, 50, 0.15); color: #fff8e0; font-weight: bold; }
+
+    /* Round 7: Respawn Warning & Reckoning Styles */
+    #respawn-warning {
+      position: absolute;
+      top: 12%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(220, 50, 20, 0.92);
+      color: #ffffff;
+      padding: 10px 26px;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      border: 1px solid #ffaaaa;
+      box-shadow: 0 0 25px rgba(255, 60, 30, 0.75);
+      display: none;
+      z-index: 25;
+      animation: blink 0.15s infinite alternate;
+    }
+
+    #reckoning-screen {
+      display: none;
+    }
+
+    .rating-badge {
+      font-size: 72px;
+      font-weight: 900;
+      letter-spacing: 4px;
+      line-height: 1.0;
+      margin: 6px 0;
+      display: inline-block;
+    }
+    .rating-S { color: #ffd700; text-shadow: 0 0 35px rgba(255, 215, 0, 0.9); }
+    .rating-A { color: #38ef7d; text-shadow: 0 0 30px rgba(56, 239, 125, 0.9); }
+    .rating-B { color: #ffaa33; text-shadow: 0 0 25px rgba(255, 170, 50, 0.8); }
+    .rating-C { color: #5bc0be; text-shadow: 0 0 20px rgba(91, 192, 190, 0.7); }
+
+  </style>
+  <script src="./assets/_shared/three/build/three.min.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div id="hud">
+    <div class="hud-top">
+      <div class="brand-wrap">
+        <div class="brand-title">KARST GLIDE</div>
+        <div class="brand-sub">THREE SUMMITS CHAMPIONSHIP</div>
+        <div class="course-badge" id="hud-course-badge">COURSE 1: TIANMEN GATE</div>
+      </div>
+
+      <div>
+        <div class="telemetry-card">
+          <div class="telem-row"><span class="telem-label">t (TIME)</span><span class="telem-val" id="hud-time">0.0 s</span></div>
+          <div class="telem-row"><span class="telem-label">v (AIRSPEED)</span><span class="telem-val" id="hud-v">18.0 m/s</span></div>
+          <div class="telem-row"><span class="telem-label">γ (PITCH)</span><span class="telem-val" id="hud-gamma">-15.0°</span></div>
+          <div class="telem-row"><span class="telem-label">ψ (HEADING)</span><span class="telem-val" id="hud-psi">0.0°</span></div>
+          <div class="telem-row"><span class="telem-label">φ (BANK)</span><span class="telem-val" id="hud-phi">0.0°</span></div>
+          <div class="telem-row"><span class="telem-label">ALTITUDE</span><span class="telem-val" id="hud-alt">620.0 m</span></div>
+        </div>
+        <div class="race-card">
+          <div class="telem-row">
+            <span class="telem-label">GATES</span>
+            <span class="telem-val race-highlight" id="hud-gates">0/9 (NEXT: G1)</span>
+          </div>
+          <div class="telem-row">
+            <span class="telem-label">WIND VECTOR</span>
+            <span class="telem-val wind-val" id="hud-wind">(-4, 0, -4) m/s</span>
+          </div>
+          <div class="telem-row">
+            <span class="telem-label">TRIM [T]</span>
+            <span class="telem-val trim-glide" id="hud-trim">GLIDE</span>
+          </div>
+          <div class="telem-row">
+            <span class="telem-label">THERMAL</span>
+            <span class="telem-val" id="hud-thermal">NONE (+0 m/s)</span>
+          </div>
+          <div class="telem-row">
+            <span class="telem-label">ROCK DIST (d_rock)</span>
+            <span class="telem-val" id="hud-drock">--</span>
+          </div>
+          <div class="telem-row">
+            <span class="telem-label">PROX BONUS</span>
+            <span class="telem-val" id="hud-prox">0.0 pts</span>
+          </div>
+          <div class="telem-row">
+            <span class="telem-label">DELTA vs KESTREL</span>
+            <span class="telem-val" id="hud-kestrel-delta">--</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="respawn-warning">RESPAWN &bull; CONTROLS FROZEN (3.0s) &bull; -150 PTS</div>
+    <div id="stall-warning">STALL WARNING</div>
+    <div id="thermal-indicator">THERMAL LIFT ACTIVE (+5 m/s)</div>
+
+    <div class="flight-reticle">
+      <div class="flight-reticle-circle"></div>
+      <div class="flight-reticle-pip"></div>
+      <div class="flight-reticle-wing-l"></div>
+      <div class="flight-reticle-wing-r"></div>
+    </div>
+
+    <div class="target-tag" id="hud-target-tag">
+      COURSE 1: TIANMEN GATE &bull; NAVIGATE VIA BEACON &amp; HUD
+    </div>
+  </div>
+
+  <!-- Championship Menu Screen (Replaces free flight Ready screen) -->
+  <div id="ready-screen" class="screen-overlay">
+    <div class="screen-box">
+      <h1>KARST GLIDE</h1>
+      <div class="tagline">Three Summits Championship &bull; Live AI Rival Kestrel</div>
+
+      <div class="course-overview-grid">
+        <div class="course-card-mini">
+          <div class="course-card-title">1. TIANMEN GATE</div>
+          <div class="course-card-detail">9 Gates &bull; Ridge/Cloud Fork<br>12 Pillars &bull; Launch 620m &bull; Pad 24m</div>
+        </div>
+        <div class="course-card-mini">
+          <div class="course-card-title">2. EAGLE CREEK</div>
+          <div class="course-card-detail">8 Gates &bull; 10 Pillars<br>2 Thermals &bull; Launch 560m &bull; Pad 18m</div>
+        </div>
+        <div class="course-card-mini">
+          <div class="course-card-title">3. CLOUD TERRACE</div>
+          <div class="course-card-detail">7 Gates &bull; 8 Pillars<br>Crosswind &bull; Launch 500m &bull; Pad 40m</div>
+        </div>
+      </div>
+
+      <div class="instructions-card">
+        <b>CONTROLS &amp; FLIGHT MODEL:</b><br>
+        &bull; <b>W</b> / <b>S</b> : Pitch Up (+γ flare / climb) / Pitch Down (−γ dive) at 30°/s<br>
+        &bull; <b>A</b> / <b>D</b> : Bank Left / Right at 90°/s (controls heading ψ)<br>
+        &bull; <b>T</b> : Toggle Aerodynamic Trim (<b>GLIDE</b> &harr; <b>DIVE</b>, 0.8s blend)<br>
+        &bull; <b>R</b> : Reset championship anytime to this menu<br>
+        <div class="rule-highlight">
+          <b>CHAMPIONSHIP RULES:</b><br>
+          &bull; <b>Three Courses Back-to-Back</b>: Total score sums all three courses.<br>
+          &bull; <b>Live Rival Kestrel</b>: Competes against you on identical physics (launches +2.0s).<br>
+          &bull; <b>Rivals Lumen &amp; Voley</b>: Hardcoded veteran benchmark scores to beat for the podium!<br>
+          &bull; <b>Clean Landing</b>: Pad touchdown requires |vy| &le; 2.5 m/s and flared pitch &gamma; &ge; +5&deg;.
+        </div>
+      </div>
+      <div class="prompt-action" id="start-btn">PRESS N — THREE SUMMITS CHAMPIONSHIP</div>
+    </div>
+  </div>
+
+  <!-- Side-by-side Score Sheet Screen -->
+  <div id="result-banner" class="screen-overlay">
+    <div class="screen-box" style="max-width: 680px;">
+      <h2 id="result-course-title" style="font-size: 19px; letter-spacing: 3px; color: #9cb5db; text-transform: uppercase;">COURSE 1: TIANMEN GATE RESULT</h2>
+      <div id="result-grade" class="grade-badge grade-CLEAN">CLEAN</div>
+      <div id="result-reason" style="font-size: 13px; color: #c0d4ed; margin-bottom: 8px;">Flawless flared touchdown on target pad!</div>
+
+      <div id="match-winner" class="match-winner-banner winner-you">YOU WIN THIS COURSE!</div>
+
+      <table class="score-sheet-table">
+        <thead>
+          <tr>
+            <th>CATEGORY</th>
+            <th style="text-align: right;">YOU</th>
+            <th style="text-align: right;">KESTREL (AI)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Time</td>
+            <td class="score-val score-val-bonus" id="sheet-you-time">0.0s (+0)</td>
+            <td class="score-val score-val-bonus" id="sheet-kes-time">0.0s (+0)</td>
+          </tr>
+          <tr>
+            <td>Gates</td>
+            <td class="score-val" id="sheet-you-gates">0/9 (+0)</td>
+            <td class="score-val" id="sheet-kes-gates">0/9 (+0)</td>
+          </tr>
+          <tr>
+            <td>Proximity (cap 300)</td>
+            <td class="score-val score-val-bonus" id="sheet-you-prox">+0.0</td>
+            <td class="score-val score-val-bonus" id="sheet-kes-prox">+0.0</td>
+          </tr>
+          <tr>
+            <td>Crashes (-150/ea)</td>
+            <td class="score-val" id="sheet-you-crashes">0 (+0)</td>
+            <td class="score-val" id="sheet-kes-crashes">0 (+0)</td>
+          </tr>
+          <tr>
+            <td>Landing Grade</td>
+            <td class="score-val" id="sheet-you-landing">CLEAN (+300)</td>
+            <td class="score-val" id="sheet-kes-landing">HARD (+100)</td>
+          </tr>
+          <tr>
+            <td>Pad Precision</td>
+            <td class="score-val score-val-bonus" id="sheet-you-precision">+0.0</td>
+            <td class="score-val" id="sheet-kes-precision">+0.0</td>
+          </tr>
+          <tr>
+            <td>COURSE TOTAL</td>
+            <td class="score-val" id="sheet-you-total">0</td>
+            <td class="score-val" id="sheet-kes-total">0</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="prompt-action" id="next-course-btn">PRESS ENTER TO ADVANCE TO COURSE 2</div>
+    </div>
+  </div>
+
+  <!-- Championship Podium Screen -->
+  <div id="podium-screen" class="screen-overlay">
+    <div class="screen-box" style="max-width: 720px;">
+      <h1>THREE SUMMITS PODIUM</h1>
+      <div class="tagline">Official Championship Standings &bull; Season Complete</div>
+
+      <div class="podium-display">
+        <!-- 2nd Place -->
+        <div class="podium-slot">
+          <div class="podium-pilot-name" id="podium-name-2">LUMEN</div>
+          <div class="podium-pillar pos-2">
+            <div class="podium-rank">2</div>
+            <div class="podium-pts" id="podium-pts-2">4855 PTS</div>
+          </div>
+        </div>
+        <!-- 1st Place -->
+        <div class="podium-slot">
+          <div class="podium-pilot-name" id="podium-name-1">YOU</div>
+          <div class="podium-pillar pos-1">
+            <div class="podium-rank">1</div>
+            <div class="podium-pts" id="podium-pts-1">5100 PTS</div>
+          </div>
+        </div>
+        <!-- 3rd Place -->
+        <div class="podium-slot">
+          <div class="podium-pilot-name" id="podium-name-3">KESTREL</div>
+          <div class="podium-pillar pos-3">
+            <div class="podium-rank">3</div>
+            <div class="podium-pts" id="podium-pts-3">4574 PTS</div>
+          </div>
+        </div>
+      </div>
+
+      <table class="standings-table">
+        <thead>
+          <tr>
+            <th>RANK</th>
+            <th>COMPETITOR</th>
+            <th style="text-align: right;">COURSE 1</th>
+            <th style="text-align: right;">COURSE 2</th>
+            <th style="text-align: right;">COURSE 3</th>
+            <th style="text-align: right;">CHAMPIONSHIP TOTAL</th>
+          </tr>
+        </thead>
+        <tbody id="standings-body">
+          <!-- Populated dynamically -->
+        </tbody>
+      </table>
+
+      <div class="prompt-action" id="podium-done-btn">PRESS ENTER FOR FINAL RECKONING &amp; RATINGS</div>
+    </div>
+  </div>
+
+  <!-- Championship Reckoning Screen -->
+  <div id="reckoning-screen" class="screen-overlay">
+    <div class="screen-box" style="max-width: 780px;">
+      <h1>CHAMPIONSHIP RECKONING</h1>
+      <div class="tagline">Official Season Recap &bull; Course Breakdown &bull; Final Rating</div>
+
+      <div style="margin: 10px 0 16px 0;">
+        <div style="font-size: 12px; letter-spacing: 2px; color: #a2bdda; text-transform: uppercase;">PLAYER RATING</div>
+        <div id="reckoning-rating-badge" class="rating-badge rating-S">S</div>
+        <div id="reckoning-rating-desc" style="font-size: 13.5px; font-weight: bold; color: #ffd875;">LEGENDARY &bull; SCORE &ge; 5600</div>
+      </div>
+
+      <table class="score-sheet-table" style="margin-bottom: 14px;">
+        <thead>
+          <tr>
+            <th>COURSE</th>
+            <th style="text-align: right;">TIME</th>
+            <th style="text-align: right;">GATES</th>
+            <th style="text-align: right;">PROX</th>
+            <th style="text-align: right;">LANDING</th>
+            <th style="text-align: right;">CRASHES</th>
+            <th style="text-align: right;">COURSE TOTAL</th>
+          </tr>
+        </thead>
+        <tbody id="reckoning-courses-body">
+          <!-- Populated dynamically -->
+        </tbody>
+      </table>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(20, 36, 64, 0.75); border: 1px solid rgba(255, 200, 100, 0.35); border-radius: 6px; padding: 10px 18px; margin-bottom: 14px;">
+        <span style="font-size: 13px; font-weight: 700; color: #ffd875; letter-spacing: 1px;">CHAMPIONSHIP TOTAL</span>
+        <span id="reckoning-champ-total" style="font-size: 20px; font-weight: 900; color: #38ef7d; font-family: monospace;">0 PTS</span>
+      </div>
+
+      <table class="standings-table" style="margin-bottom: 20px;">
+        <thead>
+          <tr>
+            <th>RANK</th>
+            <th>COMPETITOR</th>
+            <th style="text-align: right;">TOTAL POINTS</th>
+          </tr>
+        </thead>
+        <tbody id="reckoning-standings-body">
+          <!-- Standings -->
+        </tbody>
+      </table>
+
+      <div class="prompt-action" id="reckoning-done-btn">PRESS ENTER TO RETURN TO MENU (OR 'R')</div>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    "use strict";
+
+// --- DETERMINISTIC AUDIO SYNTHESIZER (WebAudio API) ---
+    let audioCtx = null;
+    function getAudioContext() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtx = new AudioContextClass();
+        }
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    let windGain = null;
+    let windFilter = null;
+    let rattleOsc = null;
+    let rattleGain = null;
+
+    function initAudio() {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+
+      if (!windGain) {
+        const bufferSize = ctx.sampleRate * 2;
+        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          output[i] = Math.sin(i * 0.054) * 0.3 + Math.sin(i * 0.173) * 0.25 + Math.sin(i * 0.431) * 0.2;
+        }
+
+        const whiteNoise = ctx.createBufferSource();
+        whiteNoise.buffer = noiseBuffer;
+        whiteNoise.loop = true;
+
+        windFilter = ctx.createBiquadFilter();
+        windFilter.type = 'lowpass';
+        windFilter.frequency.setValueAtTime(220, ctx.currentTime);
+
+        windGain = ctx.createGain();
+        windGain.gain.setValueAtTime(0.01, ctx.currentTime);
+
+        whiteNoise.connect(windFilter);
+        windFilter.connect(windGain);
+        windGain.connect(ctx.destination);
+        whiteNoise.start();
+
+        rattleOsc = ctx.createOscillator();
+        rattleOsc.type = 'sawtooth';
+        rattleOsc.frequency.setValueAtTime(45, ctx.currentTime);
+
+        rattleGain = ctx.createGain();
+        rattleGain.gain.setValueAtTime(0.0, ctx.currentTime);
+
+        rattleOsc.connect(rattleGain);
+        rattleGain.connect(ctx.destination);
+        rattleOsc.start();
+      }
+    }
+
+    function updateAudio(airspeed, isStalling, trimBlend) {
+      if (!windGain || !audioCtx) return;
+      const now = audioCtx.currentTime;
+      const normV = Math.max(0, Math.min(1.0, (airspeed - 10) / 45));
+      windGain.gain.setTargetAtTime(0.05 + normV * 0.28, now, 0.05);
+
+      const baseFreq = 200 + normV * 1200;
+      const trimShift = (trimBlend || 0) * 350;
+      windFilter.frequency.setTargetAtTime(baseFreq + trimShift, now, 0.05);
+
+      if (isStalling) {
+        rattleGain.gain.setTargetAtTime(0.22, now, 0.03);
+      } else {
+        rattleGain.gain.setTargetAtTime(0.0, now, 0.05);
+      }
+    }
+
+    function playSound(type) {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+
+      if (type === 'thud') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(110, now);
+        osc.frequency.exponentialRampToValueAtTime(32, now + 0.35);
+        gain.gain.setValueAtTime(0.7, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.36);
+      } else if (type === 'crash') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.exponentialRampToValueAtTime(25, now + 0.65);
+        gain.gain.setValueAtTime(0.85, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.66);
+      } else if (type === 'gate') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(880, now);
+        osc.frequency.exponentialRampToValueAtTime(1760, now + 0.16);
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.23);
+      } else if (type === 'trim') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(540, now);
+        osc.frequency.setValueAtTime(720, now + 0.06);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.16);
+      } else if (type === 'chime') {
+        const notes = [523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          const startTime = now + idx * 0.12;
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, startTime);
+          gain.gain.setValueAtTime(0.32, startTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.85);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(startTime);
+          osc.stop(startTime + 0.86);
+        });
+      }
+    }
+
+    // --- THREE SUMMITS COURSES DEFINITION ---
+    const COURSES = [
+      {
+        id: 1,
+        name: 'Tianmen Gate',
+        badge: 'COURSE 1: TIANMEN GATE',
+        launch: { x: 0, y: 620, z: 0 },
+        pad: { x: 0, y: 24, z: 1520, radius: 7 },
+        valleyFloorY: 20,
+        pillars: [
+          { x: 60,  z: 200,  topY: 500, radius: 25 },
+          { x: -70, z: 330,  topY: 480, radius: 30 },
+          { x: 30,  z: 460,  topY: 520, radius: 22 },
+          { x: -40, z: 600,  topY: 430, radius: 35 },
+          { x: 90,  z: 720,  topY: 460, radius: 28 },
+          { x: -95, z: 850,  topY: 380, radius: 26 },
+          { x: 20,  z: 980,  topY: 350, radius: 32 },
+          { x: -60, z: 1120, topY: 300, radius: 24 },
+          { x: 70,  z: 1240, topY: 280, radius: 30 },
+          { x: -20, z: 1380, topY: 220, radius: 26 },
+          { x: -75, z: 700,  topY: 420, radius: 30 },
+          { x: -85, z: 840,  topY: 360, radius: 26 }
+        ],
+        gates: [
+          { id: 'G1', x: 0,   y: 560, z: 180, radius: 5 },
+          { id: 'G2', x: 45,  y: 505, z: 320, radius: 5 },
+          { id: 'G3', x: -50, y: 445, z: 470, radius: 5 },
+          { id: 'G4', x: 10,  y: 385, z: 620, radius: 5 },
+          {
+            id: 'G5',
+            isFork: true,
+            variants: [
+              { id: 'G5a', line: 'RIDGE', x: -30, y: 350, z: 700, radius: 5 },
+              { id: 'G5b', line: 'CLOUD', x: 60,  y: 345, z: 720, radius: 5 }
+            ]
+          },
+          {
+            id: 'G6',
+            isFork: true,
+            variants: [
+              { id: 'G6a', line: 'RIDGE', x: -55, y: 300, z: 830, radius: 5 },
+              { id: 'G6b', line: 'CLOUD', x: 95,  y: 290, z: 860, radius: 5 }
+            ]
+          },
+          { id: 'G7', x: 10,  y: 205, z: 1080, radius: 5 },
+          { id: 'G8', x: 55,  y: 140, z: 1250, radius: 5 },
+          { id: 'G9', x: 0,   y: 70,  z: 1430, radius: 5 }
+        ],
+        thermals: [
+          { id: 'T1', x: 30,  z: 520,  yMin: 300, yMax: 480, u: 5.0 },
+          { id: 'T2', x: 85,  z: 760,  yMin: 220, yMax: 400, u: 6.0 },
+          { id: 'T3', x: -40, z: 1010, yMin: 150, yMax: 320, u: 6.0 },
+          { id: 'T4', x: 15,  z: 1300, yMin: 90,  yMax: 240, u: 7.0 }
+        ],
+        getWind: function(y) {
+          if (y > 400) return { x: -4.0, y: 0.0, z: -4.0, band: 0 };
+          if (y > 250) return { x: -7.0, y: 0.0, z: 0.0, band: 1 };
+          if (y > 120) return { x: -4.0, y: 0.0, z: 4.0, band: 2 };
+          return { x: 0.0, y: 0.0, z: 0.0, band: 3 };
+        }
+      },
+      {
+        id: 2,
+        name: 'Eagle Creek',
+        badge: 'COURSE 2: EAGLE CREEK',
+        launch: { x: 0, y: 560, z: 0 },
+        pad: { x: 30, y: 18, z: 1380, radius: 7 },
+        valleyFloorY: 20,
+        pillars: [
+          { x: 50,  z: 180,  topY: 470, radius: 24 },
+          { x: -60, z: 300,  topY: 450, radius: 28 },
+          { x: 20,  z: 430,  topY: 480, radius: 20 },
+          { x: -30, z: 560,  topY: 400, radius: 32 },
+          { x: 70,  z: 680,  topY: 420, radius: 26 },
+          { x: -80, z: 810,  topY: 350, radius: 24 },
+          { x: 10,  z: 950,  topY: 320, radius: 30 },
+          { x: -50, z: 1090, topY: 260, radius: 22 },
+          { x: 60,  z: 1210, topY: 230, radius: 26 },
+          { x: -10, z: 1300, topY: 180, radius: 20 }
+        ],
+        gates: [
+          { id: 'H1', x: 0,   y: 510, z: 160, radius: 5 },
+          { id: 'H2', x: 35,  y: 460, z: 290, radius: 5 },
+          { id: 'H3', x: -45, y: 410, z: 420, radius: 5 },
+          { id: 'H4', x: 5,   y: 355, z: 560, radius: 5 },
+          { id: 'H5', x: 60,  y: 300, z: 700, radius: 5 },
+          { id: 'H6', x: -60, y: 245, z: 850, radius: 5 },
+          { id: 'H7', x: 0,   y: 190, z: 1010, radius: 5 },
+          { id: 'H8', x: 30,  y: 90,  z: 1240, radius: 5 }
+        ],
+        thermals: [
+          { id: 'U1', x: 55,  z: 640,  yMin: 220, yMax: 380, u: 6.0 },
+          { id: 'U2', x: -30, z: 980,  yMin: 130, yMax: 280, u: 6.0 }
+        ],
+        getWind: function(y) {
+          if (y > 350) return { x: 0.0, y: 0.0, z: -8.0, band: 0 };
+          if (y > 200) return { x: 5.0, y: 0.0, z: 0.0, band: 1 };
+          return { x: 0.0, y: 0.0, z: 0.0, band: 2 };
+        }
+      },
+      {
+        id: 3,
+        name: 'Cloud Terrace',
+        badge: 'COURSE 3: CLOUD TERRACE',
+        launch: { x: 0, y: 500, z: 0 },
+        pad: { x: -20, y: 40, z: 1200, radius: 7 },
+        valleyFloorY: 20,
+        pillars: [
+          { x: -40, z: 170,  topY: 420, radius: 26 },
+          { x: 55,  z: 290,  topY: 400, radius: 22 },
+          { x: -15, z: 420,  topY: 440, radius: 30 },
+          { x: -70, z: 540,  topY: 360, radius: 24 },
+          { x: 40,  z: 660,  topY: 380, radius: 28 },
+          { x: -35, z: 800,  topY: 300, radius: 22 },
+          { x: 65,  z: 920,  topY: 270, radius: 26 },
+          { x: 0,   z: 1060, topY: 220, radius: 24 }
+        ],
+        gates: [
+          { id: 'YG1', x: -20, y: 455, z: 150, radius: 5 },
+          { id: 'YG2', x: 40,  y: 410, z: 270, radius: 5 },
+          { id: 'YG3', x: -30, y: 360, z: 410, radius: 5 },
+          { id: 'YG4', x: -55, y: 305, z: 540, radius: 5 },
+          { id: 'YG5', x: 25,  y: 250, z: 690, radius: 5 },
+          { id: 'YG6', x: 50,  y: 190, z: 860, radius: 5 },
+          { id: 'YG7', x: -10, y: 100, z: 1080, radius: 5 }
+        ],
+        thermals: [
+          { id: 'T5', x: 30,  z: 600,  yMin: 180, yMax: 330, u: 6.0 },
+          { id: 'T6', x: -15, z: 950,  yMin: 90,  yMax: 220, u: 7.0 }
+        ],
+        getWind: function(y) {
+          if (y > 250 && y <= 400) return { x: -6.0, y: 0.0, z: 6.0, band: 0 };
+          return { x: 0.0, y: 0.0, z: 0.0, band: 1 };
+        }
+      }
+    ];
+
+    // Precompute normal vectors for all course gates
+    COURSES.forEach(course => {
+      course.gates.forEach((g, idx) => {
+        if (!g.isFork) {
+          const prev = (idx === 0) ? course.launch : (course.gates[idx - 1].isFork ? { x: 0, y: 350, z: 700 } : course.gates[idx - 1]);
+          const vx = g.x - prev.x, vy = g.y - prev.y, vz = g.z - prev.z;
+          const len = Math.hypot(vx, vy, vz) || 1.0;
+          g.normal = { x: vx / len, y: vy / len, z: vz / len };
+        } else {
+          // Forked variants
+          const prev = (idx === 0) ? course.launch : course.gates[idx - 1];
+          g.variants.forEach((v, vIdx) => {
+            let pX = prev.x, pY = prev.y, pZ = prev.z;
+            if (idx === 5 && course.gates[4].isFork) {
+              // Gate 6 variant approaches from corresponding Gate 5 variant
+              pX = course.gates[4].variants[vIdx].x;
+              pY = course.gates[4].variants[vIdx].y;
+              pZ = course.gates[4].variants[vIdx].z;
+            }
+            const vx = v.x - pX, vy = v.y - pY, vz = v.z - pZ;
+            const len = Math.hypot(vx, vy, vz) || 1.0;
+            v.normal = { x: vx / len, y: vy / len, z: vz / len };
+          });
+        }
+      });
+    });
+
+    // --- CHAMPIONSHIP STATE ---
+    const championship = {
+      currentCourseIdx: 0,
+      course_totals: {
+        YOU: [0, 0, 0],
+        KESTREL: [0, 0, 0],
+        LUMEN: [1620, 1555, 1680],
+        VOLEY: [1475, 1505, 1420]
+      },
+      getStandings: function() {
+        const names = ['YOU', 'KESTREL', 'LUMEN', 'VOLEY'];
+        const list = names.map(name => {
+          const totals = championship.course_totals[name] || [0, 0, 0];
+          const sum = totals[0] + totals[1] + totals[2];
+          const c3 = totals[2] || 0;
+          return { name, totals, total: sum, course3: c3 };
+        });
+
+        list.sort((a, b) => {
+          if (b.total !== a.total) return b.total - a.total;
+          if (b.course3 !== a.course3) return b.course3 - a.course3;
+          return a.name.localeCompare(b.name);
+        });
+
+        return list.map((item, idx) => ({
+          rank: idx + 1,
+          name: item.name,
+          c1: item.totals[0],
+          c2: item.totals[1],
+          c3: item.totals[2],
+          total: item.total,
+          course3: item.course3
+        }));
+      }
+    };
+
+    // --- PLAYER STATE ---
+    let currentCourse = COURSES[0];
+    const playerCourseStats = [null, null, null];
+    const state = {
+      phase: 'READY',
+      run_clock: 0.0,
+      x: 0, y: 620, z: 0,
+      v: 18.0,
+      gamma: -15.0 * Math.PI / 180,
+      psi: 0.0,
+      phi: 0.0,
+      stall: false,
+      landing_grade: null,
+      vy: 0.0,
+      crashTumble: 0.0,
+      gates_passed: 0,
+      next_gate_index: 0,
+      d_rock: 999.0,
+      proximity_pts: 0.0,
+      crash_count: 0,
+      respawn_freeze: 0.0,
+      respawn_point_in_use: null,
+      last_passed_variant: null,
+      scores: {
+        time_pts: 0,
+        gate_pts: 0,
+        proximity_pts: 0,
+        landing_pts: 0,
+        precision_pts: 0,
+        crash_penalty: 0,
+        total: 0
+      },
+      trim: 'GLIDE',
+      targetTrim: 'GLIDE',
+      trimBlend: 0.0,
+      current_u: 0.0,
+      wind: { x: -4.0, y: 0.0, z: -4.0 },
+      wind_band_index: 0,
+      chosen_fork_variants: [],
+      gate_timestamps: []
+    };
+
+    function calculatePlayerRating(totalPts) {
+      if (totalPts >= 5600) return 'S';
+      if (totalPts >= 5200) return 'A';
+      if (totalPts >= 4600) return 'B';
+      return 'C';
+    }
+
+    // --- KESTREL AI STATE ---
+    const kestrel = {
+      active: false,
+      launched: false,
+      launchDelay: 2.0,
+      run_clock: 0.0,
+      x: 0, y: 620, z: 0,
+      v: 18.0,
+      gamma: -15.0 * Math.PI / 180,
+      psi: 0.0,
+      phi: 0.0,
+      stall: false,
+      landed: false,
+      landing_grade: null,
+      vy: 0.0,
+      gates_passed: 0,
+      next_gate_index: 0,
+      d_rock: 999.0,
+      proximity_pts: 0.0,
+      mistakeTimer: 0.0,
+      scores: {
+        time_pts: 0,
+        gate_pts: 0,
+        proximity_pts: 0,
+        landing_pts: 0,
+        precision_pts: 0,
+        total: 0
+      },
+      gate_timestamps: []
+    };
+
+    let prevPos = { x: 0, y: 620, z: 0 };
+    let kestrelPrevPos = { x: 0, y: 620, z: 0 };
+
+    // --- EXPORT TO WINDOW.__ARENA_STATE ---
+    const arenaState = {
+      get phase() { return state.phase; },
+      get run_clock() { return state.run_clock; },
+      get 'run clock'() { return state.run_clock; },
+      get runClock() { return state.run_clock; },
+      get t() { return state.run_clock; },
+      get time() { return state.run_clock; },
+      get position() { return { x: state.x, y: state.y, z: state.z }; },
+      get v() { return state.v; },
+      get gamma() { return state.gamma; },
+      get 'γ'() { return state.gamma; },
+      get psi() { return state.psi; },
+      get 'ψ'() { return state.psi; },
+      get phi() { return state.phi; },
+      get 'φ'() { return state.phi; },
+      get stall() { return state.stall; },
+      get 'stall flag'() { return state.stall; },
+      get stall_flag() { return state.stall; },
+      get stallFlag() { return state.stall; },
+      get landing_grade() { return state.landing_grade; },
+      get 'landing grade'() { return state.landing_grade; },
+      get landingGrade() { return state.landing_grade; },
+      get gates_passed() { return state.gates_passed; },
+      get 'gates passed'() { return state.gates_passed; },
+      get gatesPassed() { return state.gates_passed; },
+      get next_gate_index() { return state.next_gate_index; },
+      get 'next gate index'() { return state.next_gate_index; },
+      get nextGateIndex() { return state.next_gate_index; },
+      get d_rock() { return state.d_rock; },
+      get 'd rock'() { return state.d_rock; },
+      get 'current d_rock'() { return state.d_rock; },
+      get current_d_rock() { return state.d_rock; },
+      get accumulated_proximity() { return state.proximity_pts; },
+      get 'accumulated proximity'() { return state.proximity_pts; },
+      get proximity_score() { return state.proximity_pts; },
+      get proximity() { return state.proximity_pts; },
+      get time_pts() { return state.scores.time_pts; },
+      get gate_pts() { return state.scores.gate_pts; },
+      get landing_pts() { return state.scores.landing_pts; },
+      get precision_pts() { return state.scores.precision_pts; },
+      get total() { return state.scores.total; },
+      get score_breakdown() { return Object.assign({}, state.scores); },
+      get scores() { return Object.assign({}, state.scores); },
+      get active_trim() { return state.trimBlend >= 0.5 ? 'DIVE' : 'GLIDE'; },
+      get blend_progress() { return state.trimBlend; },
+      get current_u() { return state.current_u; },
+      get current_wind() { return Object.assign({}, state.wind); },
+      get wind() { return Object.assign({}, state.wind); },
+      get wind_vector() { return Object.assign({}, state.wind); },
+      get wind_band_index() { return state.wind_band_index; },
+      get chosen_fork_variants() { return state.chosen_fork_variants.slice(); },
+      get fork_variants() { return state.chosen_fork_variants.slice(); },
+      // Round 7: Checkpoint Respawns & Ratings
+      get crash_count() { return state.crash_count; },
+      get crashCount() { return state.crash_count; },
+      get crashes() { return state.crash_count; },
+      get remaining_respawn_freeze() { return state.respawn_freeze; },
+      get respawn_freeze() { return state.respawn_freeze; },
+      get remainingRespawnFreeze() { return state.respawn_freeze; },
+      get respawn_point_in_use() {
+        if (state.respawn_point_in_use) return Object.assign({}, state.respawn_point_in_use);
+        return { x: currentCourse.launch.x, y: currentCourse.launch.y, z: currentCourse.launch.z };
+      },
+      get respawn_point() {
+        if (state.respawn_point_in_use) return Object.assign({}, state.respawn_point_in_use);
+        return { x: currentCourse.launch.x, y: currentCourse.launch.y, z: currentCourse.launch.z };
+      },
+      get final_rating() {
+        const sum = championship.course_totals.YOU.reduce((a, b) => a + b, 0);
+        return calculatePlayerRating(sum);
+      },
+      get rating() {
+        const sum = championship.course_totals.YOU.reduce((a, b) => a + b, 0);
+        return calculatePlayerRating(sum);
+      },
+      get finalRating() {
+        const sum = championship.course_totals.YOU.reduce((a, b) => a + b, 0);
+        return calculatePlayerRating(sum);
+      },
+      // Championship exports
+      get current_course_index() { return championship.currentCourseIdx; },
+      get course_index() { return championship.currentCourseIdx; },
+      get courseIndex() { return championship.currentCourseIdx; },
+      get course_totals() {
+        return {
+          YOU: championship.course_totals.YOU.slice(),
+          KESTREL: championship.course_totals.KESTREL.slice(),
+          LUMEN: championship.course_totals.LUMEN.slice(),
+          VOLEY: championship.course_totals.VOLEY.slice()
+        };
+      },
+      get standings() { return championship.getStandings(); },
+      get championship() {
+        return {
+          course_index: championship.currentCourseIdx,
+          course_totals: Object.assign({}, championship.course_totals),
+          standings: championship.getStandings(),
+          phase: state.phase
+        };
+      },
+      get kestrel() {
+        return {
+          phase: kestrel.landed ? 'LANDED' : (kestrel.launched ? 'FLIGHT' : 'WAITING'),
+          position: { x: kestrel.x, y: kestrel.y, z: kestrel.z },
+          v: kestrel.v,
+          gamma: kestrel.gamma,
+          psi: kestrel.psi,
+          phi: kestrel.phi,
+          stall: kestrel.stall,
+          landing_grade: kestrel.landing_grade,
+          gates_passed: kestrel.gates_passed,
+          scores: Object.assign({}, kestrel.scores),
+          score_breakdown: Object.assign({}, kestrel.scores),
+          total: kestrel.scores.total
+        };
+      }
+    };
+    window.__arena_state = arenaState;
+
+    // --- THREE.JS ENGINE SETUP ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xd49b6a);
+    scene.fog = new THREE.FogExp2(0xd69a6c, 0.00065);
+
+    const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.5, 6000);
+    let renderer = null;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.05;
+      container.appendChild(renderer.domElement);
+    } catch (e) {
+      console.warn('WebGLRenderer fallback for headless/no-gpu environment:', e);
+      renderer = {
+        render: function() {},
+        setSize: function() {},
+        setPixelRatio: function() {},
+        shadowMap: {},
+        domElement: document.createElement('canvas')
+      };
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // --- LIGHTING (Warm Sunrise Art Direction) ---
+    const hemiLight = new THREE.HemisphereLight(0xffdfb8, 0x426288, 0.85);
+    scene.add(hemiLight);
+
+    const sunLight = new THREE.DirectionalLight(0xffaa44, 2.4);
+    sunLight.position.set(-600, 480, -400);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.camera.near = 100;
+    sunLight.shadow.camera.far = 4000;
+    const shadowDist = 1200;
+    sunLight.shadow.camera.left = -shadowDist;
+    sunLight.shadow.camera.right = shadowDist;
+    sunLight.shadow.camera.top = shadowDist;
+    sunLight.shadow.camera.bottom = -shadowDist;
+    scene.add(sunLight);
+
+    const ambientLight = new THREE.AmbientLight(0x7088a8, 0.5);
+    scene.add(ambientLight);
+
+    // --- FLAT VALLEY FLOOR (y = 20) ---
+    const floorGeom = new THREE.PlaneGeometry(8000, 8000, 32, 32);
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0x22362c,
+      roughness: 0.9,
+      metalness: 0.05
+    });
+    const valleyFloor = new THREE.Mesh(floorGeom, floorMat);
+    valleyFloor.rotation.x = -Math.PI / 2;
+    valleyFloor.position.y = 20;
+    valleyFloor.receiveShadow = true;
+    scene.add(valleyFloor);
+
+    // --- LAUNCH PLATFORM & FLAGS (Dynamic Position) ---
+    const launchGroup = new THREE.Group();
+    scene.add(launchGroup);
+
+    const launchGeom = new THREE.CylinderGeometry(14, 22, 120, 16);
+    const launchMat = new THREE.MeshStandardMaterial({ color: 0x48525e, roughness: 0.85, flatShading: true });
+    const launchMesh = new THREE.Mesh(launchGeom, launchMat);
+    launchMesh.position.y = -60;
+    launchMesh.castShadow = true;
+    launchGroup.add(launchMesh);
+
+    const padTopGeom = new THREE.CylinderGeometry(14, 14, 1.5, 16);
+    const padTopMat = new THREE.MeshStandardMaterial({ color: 0x2a333d, roughness: 0.6 });
+    const padTopMesh = new THREE.Mesh(padTopGeom, padTopMat);
+    padTopMesh.position.y = 0;
+    launchGroup.add(padTopMesh);
+
+    const plankGeom = new THREE.BoxGeometry(6, 0.8, 18);
+    const plankMat = new THREE.MeshStandardMaterial({ color: 0x8a5a36, roughness: 0.7 });
+    const plankMesh = new THREE.Mesh(plankGeom, plankMat);
+    plankMesh.position.set(0, 0.8, 8);
+    plankMesh.castShadow = true;
+    launchGroup.add(plankMesh);
+
+    const flagMat = new THREE.MeshBasicMaterial({ color: 0xffaa22, side: THREE.DoubleSide });
+    const flagL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3, 2), flagMat);
+    flagL.position.set(-7, 2.5, 14);
+    launchGroup.add(flagL);
+    const flagR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3, 2), flagMat);
+    flagR.position.set(7, 2.5, 14);
+    launchGroup.add(flagR);
+
+    // --- LANDING PAD MESH GROUP ---
+    const padGroup = new THREE.Group();
+    scene.add(padGroup);
+
+    const padBaseGeom = new THREE.CylinderGeometry(7, 8.2, 4, 32);
+    const padBaseMat = new THREE.MeshStandardMaterial({ color: 0x3d444d, roughness: 0.7 });
+    const padBase = new THREE.Mesh(padBaseGeom, padBaseMat);
+    padBase.position.y = -2;
+    padBase.receiveShadow = true;
+    padGroup.add(padBase);
+
+    const padDiscGeom = new THREE.CircleGeometry(7, 36);
+    const padDiscMat = new THREE.MeshBasicMaterial({ color: 0xffb81c, side: THREE.DoubleSide });
+    const padDisc = new THREE.Mesh(padDiscGeom, padDiscMat);
+    padDisc.rotation.x = -Math.PI / 2;
+    padDisc.position.y = 0.02;
+    padGroup.add(padDisc);
+
+    const ringGeom = new THREE.RingGeometry(2.2, 3.4, 36);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xff3b30, side: THREE.DoubleSide });
+    const ringMesh = new THREE.Mesh(ringGeom, ringMat);
+    ringMesh.rotation.x = -Math.PI / 2;
+    ringMesh.position.y = 0.04;
+    padGroup.add(ringMesh);
+
+    const bullseyeGeom = new THREE.CircleGeometry(1.2, 36);
+    const bullseyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+    const bullseye = new THREE.Mesh(bullseyeGeom, bullseyeMat);
+    bullseye.rotation.x = -Math.PI / 2;
+    bullseye.position.y = 0.06;
+    padGroup.add(bullseye);
+
+    for (let f = 0; f < 4; f++) {
+      const bAng = (f / 4) * Math.PI * 2;
+      const bMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.3, 0.3, 3, 8),
+        new THREE.MeshBasicMaterial({ color: 0x222222 })
+      );
+      bMesh.position.set(Math.sin(bAng) * 6.5, 1.5, Math.cos(bAng) * 6.5);
+      padGroup.add(bMesh);
+
+      const beaconLight = new THREE.Mesh(
+        new THREE.SphereGeometry(0.5, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0xff6600 })
+      );
+      beaconLight.position.copy(bMesh.position);
+      beaconLight.position.y += 1.5;
+      padGroup.add(beaconLight);
+    }
+
+    // --- TRANSLUCENT CLOUD DECK WITH HOLE AROUND PAD ---
+    let cloudDeckMesh = null;
+    const cloudMat = new THREE.MeshLambertMaterial({
+      color: 0xffede0,
+      transparent: true,
+      opacity: 0.65,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+
+    function buildCloudDeck(padX, padZ) {
+      if (cloudDeckMesh) scene.remove(cloudDeckMesh);
+
+      const cloudShape = new THREE.Shape();
+      const C_XMIN = -2600, C_XMAX = 2600, C_ZMIN = -600, C_ZMAX = 3600;
+      cloudShape.moveTo(C_XMIN, -C_ZMIN);
+      cloudShape.lineTo(C_XMAX, -C_ZMIN);
+      cloudShape.lineTo(C_XMAX, -C_ZMAX);
+      cloudShape.lineTo(C_XMIN, -C_ZMAX);
+      cloudShape.closePath();
+
+      const cloudHole = new THREE.Path();
+      const cSegments = 36;
+      for (let h = 0; h <= cSegments; h++) {
+        const th = (h / cSegments) * Math.PI * 2;
+        const hx = padX + 120 * Math.cos(th);
+        const hz = -(padZ + 120 * Math.sin(th));
+        if (h === 0) cloudHole.moveTo(hx, hz);
+        else cloudHole.lineTo(hx, hz);
+      }
+      cloudShape.holes = [cloudHole];
+
+      const cloudGeom = new THREE.ShapeGeometry(cloudShape);
+      cloudGeom.rotateX(-Math.PI / 2);
+      cloudDeckMesh = new THREE.Mesh(cloudGeom, cloudMat);
+      cloudDeckMesh.position.set(0, 60, 0);
+      scene.add(cloudDeckMesh);
+    }
+
+    // --- DYNAMIC COURSE ENTITIES (Pillars, Gates, Thermals, Beacons) ---
+    const pillarMeshes = [];
+    const gateMeshes = [];
+    const thermalVisuals = [];
+    const beaconShaftGeom = new THREE.CylinderGeometry(1.2, 3.5, 300, 16, 1, true);
+    const beaconShaftMat = new THREE.MeshBasicMaterial({
+      color: 0xffd23f,
+      transparent: true,
+      opacity: 0.28,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    const beaconShaft = new THREE.Mesh(beaconShaftGeom, beaconShaftMat);
+    scene.add(beaconShaft);
+
+    const gateTorusGeom = new THREE.TorusGeometry(5.2, 0.28, 12, 32);
+    const gateMatActive = new THREE.MeshStandardMaterial({ color: 0x33b5ff, emissive: 0x1177cc, roughness: 0.3, metalness: 0.7 });
+    const gateMatNext = new THREE.MeshStandardMaterial({ color: 0xffd23f, emissive: 0xff9900, roughness: 0.2, metalness: 0.8 });
+    const gateMatPassed = new THREE.MeshStandardMaterial({ color: 0x38ef7d, emissive: 0x189944, roughness: 0.4 });
+    const gateMatFork = new THREE.MeshStandardMaterial({ color: 0xc77dff, emissive: 0x7b2cbf, roughness: 0.3 });
+
+    const birdGeom = new THREE.BufferGeometry();
+    const birdVerts = new Float32Array([
+      -0.9, 0, -0.4,
+       0.0, 0,  0.5,
+       0.0, 0, -0.2,
+       0.9, 0, -0.4,
+       0.0, 0,  0.5,
+       0.0, 0, -0.2
+    ]);
+    birdGeom.setAttribute('position', new THREE.BufferAttribute(birdVerts, 3));
+    birdGeom.computeVertexNormals();
+    const birdMat = new THREE.MeshBasicMaterial({ color: 0x1a2130, side: THREE.DoubleSide });
+
+    function loadCourseEnvironment(course) {
+      currentCourse = course;
+
+      // 1. Clear old pillars
+      pillarMeshes.forEach(m => scene.remove(m));
+      pillarMeshes.length = 0;
+
+      // Create new pillars
+      const pillarMat = new THREE.MeshStandardMaterial({ color: 0x696f78, roughness: 0.85, metalness: 0.05, flatShading: true });
+      const pillarCapMat = new THREE.MeshStandardMaterial({ color: 0x3d4e3d, roughness: 0.9, flatShading: true });
+
+      course.pillars.forEach((p) => {
+        const height = p.topY - course.valleyFloorY;
+        const centerY = course.valleyFloorY + height / 2;
+        const cylGeom = new THREE.CylinderGeometry(p.radius, p.radius, height, 24);
+        const mesh = new THREE.Mesh(cylGeom, pillarMat);
+        mesh.position.set(p.x, centerY, p.z);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        scene.add(mesh);
+        pillarMeshes.push(mesh);
+
+        const capGeom = new THREE.CylinderGeometry(p.radius * 0.98, p.radius, 2, 24);
+        const capMesh = new THREE.Mesh(capGeom, pillarCapMat);
+        capMesh.position.set(p.x, p.topY, p.z);
+        scene.add(capMesh);
+        pillarMeshes.push(capMesh);
+      });
+
+      // 2. Clear old gates
+      gateMeshes.forEach(gm => {
+        if (gm.group) scene.remove(gm.group);
+      });
+      gateMeshes.length = 0;
+
+      // Build gates
+      course.gates.forEach((g, idx) => {
+        if (!g.isFork) {
+          const gateGroup = new THREE.Group();
+          gateGroup.position.set(g.x, g.y, g.z);
+
+          const torusMesh = new THREE.Mesh(gateTorusGeom, idx === 0 ? gateMatNext : gateMatActive);
+          const normalVec = new THREE.Vector3(g.normal.x, g.normal.y, g.normal.z);
+          torusMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normalVec);
+          gateGroup.add(torusMesh);
+
+          const markerGeom = new THREE.SphereGeometry(0.6, 8, 8);
+          const markerMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+          const topMarker = new THREE.Mesh(markerGeom, markerMat);
+          topMarker.position.set(0, 5.2, 0);
+          gateGroup.add(topMarker);
+
+          scene.add(gateGroup);
+          gateMeshes.push({ gate: g, group: gateGroup, torus: torusMesh, isFork: false });
+        } else {
+          // Forked gate: build both variants G5a & G5b, or G6a & G6b
+          const forkItems = [];
+          g.variants.forEach((v) => {
+            const gateGroup = new THREE.Group();
+            gateGroup.position.set(v.x, v.y, v.z);
+
+            const torusMesh = new THREE.Mesh(gateTorusGeom, gateMatActive);
+            const normalVec = new THREE.Vector3(v.normal.x, v.normal.y, v.normal.z);
+            torusMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normalVec);
+            gateGroup.add(torusMesh);
+
+            const markerGeom = new THREE.SphereGeometry(0.6, 8, 8);
+            const markerMat = new THREE.MeshBasicMaterial({ color: 0xffe6aa });
+            const topMarker = new THREE.Mesh(markerGeom, markerMat);
+            topMarker.position.set(0, 5.2, 0);
+            gateGroup.add(topMarker);
+
+            scene.add(gateGroup);
+            forkItems.push({ variant: v, group: gateGroup, torus: torusMesh });
+          });
+          gateMeshes.push({ gate: g, forkItems, isFork: true });
+        }
+      });
+
+      // 3. Clear old thermals
+      thermalVisuals.forEach(tv => scene.remove(tv.group));
+      thermalVisuals.length = 0;
+
+      course.thermals.forEach(th => {
+        const thGroup = new THREE.Group();
+        thGroup.position.set(th.x, 0, th.z);
+
+        const birds = [];
+        const birdCount = 6;
+        for (let b = 0; b < birdCount; b++) {
+          const bMesh = new THREE.Mesh(birdGeom, birdMat);
+          const radius = 6.0 + ((b * 13) % 7);
+          const baseAngle = (b / birdCount) * Math.PI * 2;
+          const altitude = th.yMin + 20 + ((b * 37) % (th.yMax - th.yMin - 40));
+          const speed = 0.6 + ((b * 7) % 5) * 0.1;
+          birds.push({ mesh: bMesh, radius, baseAngle, altitude, speed });
+          thGroup.add(bMesh);
+        }
+
+        const particleCount = 70;
+        const partGeom = new THREE.BufferGeometry();
+        const partPositions = new Float32Array(particleCount * 3);
+        for (let p = 0; p < particleCount; p++) {
+          const pRadius = 2.0 + ((p * 19) % 12);
+          const pAngle = (p / particleCount) * Math.PI * 2 * 3.7;
+          const pY = th.yMin + ((p * 43) % (th.yMax - th.yMin));
+          partPositions[p * 3]     = Math.cos(pAngle) * pRadius;
+          partPositions[p * 3 + 1] = pY;
+          partPositions[p * 3 + 2] = Math.sin(pAngle) * pRadius;
+        }
+        partGeom.setAttribute('position', new THREE.BufferAttribute(partPositions, 3));
+        const partMat = new THREE.PointsMaterial({
+          color: 0xffe0b2,
+          size: 1.8,
+          transparent: true,
+          opacity: 0.45,
+          depthWrite: false
+        });
+        const particlePoints = new THREE.Points(partGeom, partMat);
+        thGroup.add(particlePoints);
+
+        scene.add(thGroup);
+        thermalVisuals.push({ group: thGroup, birds, particlePoints, thermal: th });
+      });
+
+      // 4. Reposition Landing Pad & Launch Platform
+      padGroup.position.set(course.pad.x, course.pad.y, course.pad.z);
+      launchGroup.position.set(course.launch.x, course.launch.y, course.launch.z);
+
+      // 5. Update Cloud Deck Cutout
+      buildCloudDeck(course.pad.x, course.pad.z);
+
+      updateGateVisuals();
+    }
+
+    function updateGateVisuals() {
+      if (!currentCourse) return;
+      const totalGates = currentCourse.gates.length;
+
+      currentCourse.gates.forEach((g, idx) => {
+        const item = gateMeshes[idx];
+        if (!item) return;
+
+        if (!item.isFork) {
+          if (idx < state.gates_passed) {
+            item.torus.material = gateMatPassed;
+          } else if (idx === state.next_gate_index && state.next_gate_index < totalGates) {
+            item.torus.material = gateMatNext;
+          } else {
+            item.torus.material = gateMatActive;
+          }
+        } else {
+          // Forked gate: both variants rendered with shared visual style
+          item.forkItems.forEach(fi => {
+            if (idx < state.gates_passed) {
+              fi.torus.material = gateMatPassed;
+            } else if (idx === state.next_gate_index && state.next_gate_index < totalGates) {
+              fi.torus.material = gateMatNext;
+            } else {
+              fi.torus.material = gateMatFork;
+            }
+          });
+        }
+      });
+
+      if (state.next_gate_index < totalGates && state.phase === 'FLIGHT') {
+        const nextG = currentCourse.gates[state.next_gate_index];
+        beaconShaft.visible = true;
+        if (!nextG.isFork) {
+          beaconShaft.position.set(nextG.x, nextG.y + 150, nextG.z);
+        } else {
+          // Fork beacon at G5a or G6a line
+          beaconShaft.position.set(nextG.variants[0].x, nextG.variants[0].y + 150, nextG.variants[0].z);
+        }
+      } else {
+        beaconShaft.visible = false;
+      }
+    }
+
+    function updateThermalVisuals(simTime) {
+      thermalVisuals.forEach(tv => {
+        const th = tv.thermal;
+        tv.birds.forEach((b, idx) => {
+          const ang = b.baseAngle + simTime * b.speed;
+          b.mesh.position.set(
+            Math.cos(ang) * b.radius,
+            b.altitude + Math.sin(simTime * 2.0 + idx) * 2.5,
+            Math.sin(ang) * b.radius
+          );
+          b.mesh.rotation.y = -ang + Math.PI / 2;
+          b.mesh.rotation.z = Math.sin(simTime * 6.0 + idx) * 0.25;
+        });
+
+        const posArray = tv.particlePoints.geometry.attributes.position.array;
+        const count = posArray.length / 3;
+        for (let p = 0; p < count; p++) {
+          posArray[p * 3 + 1] += 0.25;
+          if (posArray[p * 3 + 1] > th.yMax) {
+            posArray[p * 3 + 1] = th.yMin;
+          }
+        }
+        tv.particlePoints.geometry.attributes.position.needsUpdate = true;
+      });
+    }
+
+    // --- HUMANOID WINGSUIT PILOT BUILDER ---
+    function createWingsuitPilot(suitColor, membraneColor, visorColor, helmetColor) {
+      const group = new THREE.Group();
+
+      const suitMat = new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.5, metalness: 0.2 });
+      const trimMat = new THREE.MeshStandardMaterial({ color: 0x1b2028, roughness: 0.6 });
+      const helmetMat = new THREE.MeshStandardMaterial({ color: helmetColor, roughness: 0.25, metalness: 0.6 });
+      const visorMat = new THREE.MeshStandardMaterial({ color: visorColor, roughness: 0.1, metalness: 0.95 });
+      const membraneMat = new THREE.MeshStandardMaterial({ color: membraneColor, roughness: 0.55, metalness: 0.15, side: THREE.DoubleSide });
+
+      // Torso
+      const torsoMesh = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.24, 0.8), suitMat);
+      torsoMesh.castShadow = true;
+      group.add(torsoMesh);
+
+      // Parachute rig
+      const rigMesh = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.16, 0.46), trimMat);
+      rigMesh.position.set(0, 0.15, -0.05);
+      group.add(rigMesh);
+
+      // Head and helmet
+      const headGroup = new THREE.Group();
+      headGroup.position.set(0, 0.08, 0.55);
+      const helmetMesh = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), helmetMat);
+      helmetMesh.scale.set(1.0, 1.15, 1.25);
+      headGroup.add(helmetMesh);
+
+      const visorMesh = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 12, 0, Math.PI), visorMat);
+      visorMesh.rotation.x = -Math.PI / 10;
+      visorMesh.position.set(0, 0.02, 0.06);
+      headGroup.add(visorMesh);
+      group.add(headGroup);
+
+      // Arms
+      const armL = new THREE.Group();
+      armL.position.set(-0.28, 0, 0.3);
+      const bicepL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.42, 10), suitMat);
+      bicepL.position.set(-0.2, 0, 0);
+      bicepL.rotation.z = Math.PI / 2;
+      armL.add(bicepL);
+      const gloveL = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), trimMat);
+      gloveL.position.set(-0.44, 0, 0);
+      armL.add(gloveL);
+      group.add(armL);
+
+      const armR = new THREE.Group();
+      armR.position.set(0.28, 0, 0.3);
+      const bicepR = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.42, 10), suitMat);
+      bicepR.position.set(0.2, 0, 0);
+      bicepR.rotation.z = -Math.PI / 2;
+      armR.add(bicepR);
+      const gloveR = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), trimMat);
+      gloveR.position.set(0.44, 0, 0);
+      armR.add(gloveR);
+      group.add(armR);
+
+      // Legs
+      const legL = new THREE.Group();
+      legL.position.set(-0.16, 0, -0.42);
+      const thighL = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.075, 0.65, 10), suitMat);
+      thighL.position.set(0, 0, -0.32);
+      thighL.rotation.x = Math.PI / 2;
+      legL.add(thighL);
+      const bootL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.22), trimMat);
+      bootL.position.set(0, 0.02, -0.65);
+      legL.add(bootL);
+      group.add(legL);
+
+      const legR = new THREE.Group();
+      legR.position.set(0.16, 0, -0.42);
+      const thighR = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.075, 0.65, 10), suitMat);
+      thighR.position.set(0, 0, -0.32);
+      thighR.rotation.x = Math.PI / 2;
+      legR.add(thighR);
+      const bootR = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.22), trimMat);
+      bootR.position.set(0, 0.02, -0.65);
+      legR.add(bootR);
+      group.add(legR);
+
+      // Wing membranes
+      function makeWingGeom(isLeft) {
+        const geom = new THREE.BufferGeometry();
+        const sign = isLeft ? -1 : 1;
+        const verts = new Float32Array([
+          sign * 0.25, 0, 0.32,
+          sign * 0.72, 0, 0.28,
+          sign * 0.22, 0, -0.48,
+          sign * 0.22, 0, -0.48,
+          sign * 0.72, 0, 0.28,
+          sign * 0.44, 0, -0.2
+        ]);
+        geom.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+        geom.computeVertexNormals();
+        return geom;
+      }
+
+      const wingMeshL = new THREE.Mesh(makeWingGeom(true), membraneMat);
+      group.add(wingMeshL);
+      const wingMeshR = new THREE.Mesh(makeWingGeom(false), membraneMat);
+      group.add(wingMeshR);
+
+      return {
+        group,
+        headGroup,
+        armL, armR,
+        legL, legR,
+        wingMeshL, wingMeshR,
+        flutterCounter: 0,
+        applyPose: function(pose, airspeed, deltaSec) {
+          this.flutterCounter += deltaSec * (12.0 + airspeed * 0.9);
+          if (pose === 'GLIDE') {
+            armL.rotation.set(0, -0.22, -0.15);
+            armR.rotation.set(0, 0.22, 0.15);
+            legL.rotation.set(0, 0, 0.16);
+            legR.rotation.set(0, 0, -0.16);
+            headGroup.rotation.x = -0.18;
+          } else if (pose === 'DIVE') {
+            armL.rotation.set(0, -0.85, -0.45);
+            armR.rotation.set(0, 0.85, 0.45);
+            legL.rotation.set(0, 0, 0.05);
+            legR.rotation.set(0, 0, -0.05);
+            headGroup.rotation.x = -0.45;
+          } else if (pose === 'FLARE') {
+            armL.rotation.set(0, -0.05, 0.32);
+            armR.rotation.set(0, 0.05, -0.32);
+            legL.rotation.set(0, 0, 0.38);
+            legR.rotation.set(0, 0, -0.38);
+            headGroup.rotation.x = 0.22;
+          } else if (pose === 'BUFFET') {
+            const jitter = Math.sin(this.flutterCounter * 2.8) * 0.22;
+            armL.rotation.set(jitter, -0.3 + jitter * 0.5, -0.2);
+            armR.rotation.set(-jitter, 0.3 - jitter * 0.5, 0.2);
+            legL.rotation.set(jitter * 0.5, 0, 0.2);
+            legR.rotation.set(-jitter * 0.5, 0, -0.2);
+            headGroup.rotation.set(jitter * 0.8, 0, 0);
+          } else if (pose === 'CRASH') {
+            armL.rotation.set(1.4, -0.8, 0.5);
+            armR.rotation.set(-1.1, 0.6, -0.7);
+            legL.rotation.set(-0.6, 0.8, -0.3);
+            legR.rotation.set(1.2, -0.4, 0.6);
+            headGroup.rotation.set(0.6, 0.4, 0.5);
+          }
+
+          const posL = wingMeshL.geometry.attributes.position.array;
+          const posR = wingMeshR.geometry.attributes.position.array;
+          const fDisp = Math.sin(this.flutterCounter * 1.6) * 0.06 * (airspeed / 25);
+          posL[4] = fDisp;
+          posR[4] = -fDisp;
+          wingMeshL.geometry.attributes.position.needsUpdate = true;
+          wingMeshR.geometry.attributes.position.needsUpdate = true;
+        }
+      };
+    }
+
+    // Player wingsuit figure (Red / Orange / Gold)
+    const playerFigure = createWingsuitPilot(0xd62828, 0xf77f00, 0xffaa00, 0x242a36);
+    scene.add(playerFigure.group);
+
+    // Kestrel rival wingsuit figure (Cobalt Navy / Cyan Teal / Emerald Visor)
+    const kestrelFigure = createWingsuitPilot(0x0f4c81, 0x00b4d8, 0x38ef7d, 0x111c2e);
+    scene.add(kestrelFigure.group);
+    kestrelFigure.group.visible = false;
+
+// --- KEYBOARD CONTROLS & LISTENERS ---
+    const keys = { w: false, s: false, a: false, d: false };
+
+    window.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      if (k === 'w') keys.w = true;
+      if (k === 's') keys.s = true;
+      if (k === 'a') keys.a = true;
+      if (k === 'd') keys.d = true;
+
+      // N: Starts Three Summits Championship from Menu
+      if (k === 'n') {
+        if (state.phase === 'READY') {
+          startChampionship();
+        }
+      }
+
+      // Enter: Advances between courses, advances to Reckoning, or returns from Reckoning
+      if (e.key === 'Enter') {
+        if (state.phase === 'LANDED') {
+          advanceToNextCourse();
+        } else if (state.phase === 'PODIUM') {
+          showReckoningPanel();
+        } else if (state.phase === 'RECKONING') {
+          resetToChampionshipMenu();
+        }
+      }
+
+      // R: Reset championship anytime to menu
+      if (k === 'r') {
+        resetToChampionshipMenu();
+      }
+
+      // T: Toggle aerodynamic trim
+      if (k === 't') {
+        if (state.phase === 'FLIGHT') {
+          state.targetTrim = (state.targetTrim === 'GLIDE') ? 'DIVE' : 'GLIDE';
+          playSound('trim');
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const k = e.key.toLowerCase();
+      if (k === 'w') keys.w = false;
+      if (k === 's') keys.s = false;
+      if (k === 'a') keys.a = false;
+      if (k === 'd') keys.d = false;
+    });
+
+    document.getElementById('start-btn').addEventListener('click', () => {
+      if (state.phase === 'READY') startChampionship();
+    });
+    document.getElementById('next-course-btn').addEventListener('click', () => {
+      if (state.phase === 'LANDED') advanceToNextCourse();
+    });
+    document.getElementById('podium-done-btn').addEventListener('click', () => {
+      if (state.phase === 'PODIUM') showReckoningPanel();
+    });
+    document.getElementById('reckoning-done-btn').addEventListener('click', () => {
+      if (state.phase === 'RECKONING') resetToChampionshipMenu();
+    });
+
+    // --- AERODYNAMIC POLAR FUNCTIONS ---
+    function getVeqGlide(gDeg) {
+      if (gDeg <= -60) return 55;
+      if (gDeg <= -30) return 55 + ((gDeg - (-60)) / 30) * (38 - 55);
+      if (gDeg <= 0) return 38 + ((gDeg - (-30)) / 30) * (22 - 38);
+      if (gDeg <= 25) return 22 + (gDeg / 25) * (14 - 22);
+      return 14;
+    }
+
+    function getVeqDive(gDeg) {
+      if (gDeg <= -60) return 68;
+      if (gDeg <= -30) return 68 + ((gDeg - (-60)) / 30) * (48 - 68);
+      if (gDeg <= 0) return 48 + ((gDeg - (-30)) / 30) * (28 - 48);
+      if (gDeg <= 25) return 28 + (gDeg / 25) * (17 - 28);
+      return 17;
+    }
+
+    function getVeqBlended(gammaRad, blend) {
+      const gDeg = gammaRad * 180 / Math.PI;
+      const vGlide = getVeqGlide(gDeg);
+      const vDive = getVeqDive(gDeg);
+      return (1.0 - blend) * vGlide + blend * vDive;
+    }
+
+    const DT = 1 / 120;
+    const PITCH_RATE = 30 * Math.PI / 180;
+    const GAMMA_MIN = -60 * Math.PI / 180;
+    const GAMMA_MAX = 25 * Math.PI / 180;
+    const BANK_DRIVE_RATE = 90 * Math.PI / 180;
+    const BANK_SPRING_RATE = 45 * Math.PI / 180;
+    const BANK_MAX = 60 * Math.PI / 180;
+    const PSI_RATE_MAX = 75 * Math.PI / 180;
+    const STALL_FORCE_DOWN_RATE = 25 * Math.PI / 180;
+
+    // --- PLAYER FLIGHT MODEL SIMULATION (dt = 1/120s) ---
+    function stepPhysics() {
+      if (state.phase !== 'FLIGHT') return;
+
+      state.run_clock += DT;
+
+      // 1. Trim blend progression: linear over 0.8s
+      const blendRate = DT / 0.8;
+      if (state.targetTrim === 'DIVE') {
+        state.trimBlend = Math.min(1.0, state.trimBlend + blendRate);
+      } else {
+        state.trimBlend = Math.max(0.0, state.trimBlend - blendRate);
+      }
+      state.trim = (state.trimBlend >= 0.5) ? 'DIVE' : 'GLIDE';
+
+      // 2. Blended parameters
+      const currentTau = (1.0 - state.trimBlend) * 1.2 + state.trimBlend * 0.9;
+      const stallEnterV = (1.0 - state.trimBlend) * 14.0 + state.trimBlend * 17.0;
+      const stallExitV  = (1.0 - state.trimBlend) * 17.0 + state.trimBlend * 20.0;
+
+      // Stall hysteresis
+      if (!state.stall) {
+        if (state.v < stallEnterV) {
+          state.stall = true;
+        }
+      } else {
+        if (state.v >= stallExitV) {
+          state.stall = false;
+        }
+      }
+
+      // Freeze timer countdown
+      if (state.respawn_freeze > 0) {
+        state.respawn_freeze = Math.max(0.0, state.respawn_freeze - DT);
+      }
+
+      // 3. Pitch control (W / S) - frozen during respawn_freeze
+      if (state.stall) {
+        state.gamma -= STALL_FORCE_DOWN_RATE * DT;
+      } else if (state.respawn_freeze <= 0) {
+        if (keys.w) state.gamma += PITCH_RATE * DT;
+        if (keys.s) state.gamma -= PITCH_RATE * DT;
+      }
+      state.gamma = Math.max(GAMMA_MIN, Math.min(GAMMA_MAX, state.gamma));
+
+      // 4. Airspeed dv/dt - strictly air-relative
+      const veq = getVeqBlended(state.gamma, state.trimBlend);
+      let dvdt = (veq - state.v) / currentTau;
+      if (Math.abs(state.phi) > 30 * Math.PI / 180) {
+        dvdt -= 0.08 * state.v;
+      }
+      state.v += dvdt * DT;
+      if (state.v < 4.0) state.v = 4.0;
+
+      // 5. Thermal Upwash check
+      state.current_u = 0.0;
+      for (let i = 0; i < currentCourse.thermals.length; i++) {
+        const th = currentCourse.thermals[i];
+        if (state.y >= th.yMin && state.y <= th.yMax) {
+          const distAxis = Math.hypot(state.x - th.x, state.z - th.z);
+          if (distAxis <= 15.0) {
+            state.current_u = th.u;
+            break;
+          }
+        }
+      }
+
+      // 6. Vertical air-relative speed vy
+      const s_v = 2.0 + 8.0 * Math.pow(state.v / 40.0, 2);
+      state.vy = state.v * Math.sin(state.gamma) - s_v + state.current_u;
+
+      // 7. Bank and turn - frozen during respawn_freeze
+      if (state.respawn_freeze <= 0) {
+        if (keys.d) {
+          state.phi += BANK_DRIVE_RATE * DT;
+        } else if (keys.a) {
+          state.phi -= BANK_DRIVE_RATE * DT;
+        } else {
+          if (state.phi > 0) {
+            state.phi = Math.max(0, state.phi - BANK_SPRING_RATE * DT);
+          } else if (state.phi < 0) {
+            state.phi = Math.min(0, state.phi + BANK_SPRING_RATE * DT);
+          }
+        }
+      } else {
+        if (state.phi > 0) {
+          state.phi = Math.max(0, state.phi - BANK_SPRING_RATE * DT);
+        } else if (state.phi < 0) {
+          state.phi = Math.min(0, state.phi + BANK_SPRING_RATE * DT);
+        }
+      }
+      state.phi = Math.max(-BANK_MAX, Math.min(BANK_MAX, state.phi));
+
+      const denom = Math.max(state.v, 10.0);
+      let psidot = 9.8 * Math.tan(state.phi) / denom;
+      psidot = Math.max(-PSI_RATE_MAX, Math.min(PSI_RATE_MAX, psidot));
+      state.psi += psidot * DT;
+
+      while (state.psi > Math.PI) state.psi -= Math.PI * 2;
+      while (state.psi < -Math.PI) state.psi += Math.PI * 2;
+
+      // Save previous position for continuous crossing detection
+      prevPos.x = state.x;
+      prevPos.y = state.y;
+      prevPos.z = state.z;
+
+      // 8. Air-relative velocity vector
+      const v_horiz = state.v * Math.cos(state.gamma);
+      const vx_air = v_horiz * Math.sin(state.psi);
+      const vz_air = v_horiz * Math.cos(state.psi);
+      const vy_air = state.vy;
+
+      // 9. Wind ground drift
+      const currentWindInfo = currentCourse.getWind(state.y);
+      state.wind.x = currentWindInfo.x;
+      state.wind.y = currentWindInfo.y;
+      state.wind.z = currentWindInfo.z;
+      state.wind_band_index = currentWindInfo.band;
+
+      const vx_ground = vx_air + state.wind.x;
+      const vy_ground = vy_air + state.wind.y;
+      const vz_ground = vz_air + state.wind.z;
+
+      state.x += vx_ground * DT;
+      state.y += vy_ground * DT;
+      state.z += vz_ground * DT;
+
+      // 10. Gate Crossing Check
+      checkGateCrossing();
+
+      // 11. Rock Proximity Bonus Accumulation (7m window, cap 300)
+      updateRockProximity();
+
+      // 12. Collision & Landing Check
+      checkCollisions();
+    }
+
+    // --- GATE CROSSING CHECK (With Fork Support) ---
+    function checkGateCrossing() {
+      const totalGates = currentCourse.gates.length;
+      if (state.next_gate_index >= totalGates) return;
+
+      const g = currentCourse.gates[state.next_gate_index];
+
+      if (!g.isFork) {
+        // Single Gate
+        const nx = g.normal.x, ny = g.normal.y, nz = g.normal.z;
+        const d_old = (prevPos.x - g.x) * nx + (prevPos.y - g.y) * ny + (prevPos.z - g.z) * nz;
+        const d_new = (state.x - g.x) * nx + (state.y - g.y) * ny + (state.z - g.z) * nz;
+
+        let crossed = false;
+        if (d_old <= 0 && d_new >= 0 && (d_new - d_old) > 0) {
+          const s = -d_old / (d_new - d_old);
+          const cx = prevPos.x + s * (state.x - prevPos.x);
+          const cy = prevPos.y + s * (state.y - prevPos.y);
+          const cz = prevPos.z + s * (state.z - prevPos.z);
+          if (Math.hypot(cx - g.x, cy - g.y, cz - g.z) <= g.radius + 0.5) crossed = true;
+        }
+        if (!crossed) {
+          const distCenter = Math.hypot(state.x - g.x, state.y - g.y, state.z - g.z);
+          if (distCenter <= g.radius + 0.5 && Math.abs(d_new) <= 1.8) crossed = true;
+        }
+
+        if (crossed) {
+          state.gates_passed++;
+          state.gate_timestamps[state.next_gate_index] = state.run_clock;
+          state.next_gate_index++;
+          playSound('gate');
+          updateGateVisuals();
+        }
+      } else {
+        // Forked Gate: satisfy if either variant crossed
+        let passedVariant = null;
+        for (let i = 0; i < g.variants.length; i++) {
+          const v = g.variants[i];
+          const nx = v.normal.x, ny = v.normal.y, nz = v.normal.z;
+          const d_old = (prevPos.x - v.x) * nx + (prevPos.y - v.y) * ny + (prevPos.z - v.z) * nz;
+          const d_new = (state.x - v.x) * nx + (state.y - v.y) * ny + (state.z - v.z) * nz;
+
+          let crossed = false;
+          if (d_old <= 0 && d_new >= 0 && (d_new - d_old) > 0) {
+            const s = -d_old / (d_new - d_old);
+            const cx = prevPos.x + s * (state.x - prevPos.x);
+            const cy = prevPos.y + s * (state.y - prevPos.y);
+            const cz = prevPos.z + s * (state.z - prevPos.z);
+            if (Math.hypot(cx - v.x, cy - v.y, cz - v.z) <= v.radius + 0.5) crossed = true;
+          }
+          if (!crossed) {
+            const distCenter = Math.hypot(state.x - v.x, state.y - v.y, state.z - v.z);
+            if (distCenter <= v.radius + 0.5 && Math.abs(d_new) <= 1.8) crossed = true;
+          }
+          if (crossed) {
+            passedVariant = v;
+            break;
+          }
+        }
+
+        if (passedVariant) {
+          state.gates_passed++;
+          state.chosen_fork_variants.push(passedVariant.line);
+          state.last_passed_variant = passedVariant;
+          state.gate_timestamps[state.next_gate_index] = state.run_clock;
+          state.next_gate_index++;
+          playSound('gate');
+          updateGateVisuals();
+        }
+      }
+    }
+
+    // --- ROCK PROXIMITY BONUS (7m window, cap 300) ---
+    function updateRockProximity() {
+      let minDrock = Infinity;
+
+      for (let i = 0; i < currentCourse.pillars.length; i++) {
+        const p = currentCourse.pillars[i];
+        if (state.y <= p.topY && state.y >= currentCourse.valleyFloorY) {
+          const distAxis = Math.hypot(state.x - p.x, state.z - p.z);
+          const d = distAxis - p.radius;
+          if (d < minDrock) {
+            minDrock = d;
+          }
+        }
+      }
+
+      state.d_rock = (minDrock === Infinity) ? 999.0 : Math.max(0, minDrock);
+
+      if (state.phase === 'FLIGHT' && state.d_rock < 7.0) {
+        const rate = ((7.0 - state.d_rock) / 7.0) * 12.0;
+        state.proximity_pts = Math.min(300.0, state.proximity_pts + rate * DT);
+      }
+    }
+
+
+    // --- ROUND 7: CHECKPOINT RESPAWN (replaces crash before final gate) ---
+    function triggerRespawn() {
+      state.crash_count++;
+      state.respawn_freeze = 3.0;
+
+      let respawnX, respawnY, respawnZ, heading;
+
+      if (state.gates_passed === 0) {
+        // Respawn back on the launch platform with +Z heading
+        respawnX = currentCourse.launch.x;
+        respawnY = currentCourse.launch.y;
+        respawnZ = currentCourse.launch.z;
+        heading = 0.0;
+      } else {
+        // Respawn at the center of the last passed gate
+        const lastGateIdx = state.gates_passed - 1;
+        const lastGate = currentCourse.gates[lastGateIdx];
+
+        if (!lastGate.isFork) {
+          respawnX = lastGate.x;
+          respawnY = lastGate.y;
+          respawnZ = lastGate.z;
+          heading = Math.atan2(lastGate.normal.x, lastGate.normal.z);
+        } else {
+          const v = state.last_passed_variant || lastGate.variants[0];
+          respawnX = v.x;
+          respawnY = v.y;
+          respawnZ = v.z;
+          heading = Math.atan2(v.normal.x, v.normal.z);
+        }
+      }
+
+      state.x = respawnX;
+      state.y = respawnY;
+      state.z = respawnZ;
+      prevPos.x = respawnX;
+      prevPos.y = respawnY;
+      prevPos.z = respawnZ;
+
+      state.v = 20.0;
+      state.gamma = -10.0 * Math.PI / 180;
+      state.psi = heading;
+      state.phi = 0.0;
+      state.stall = false;
+
+      state.respawn_point_in_use = { x: respawnX, y: respawnY, z: respawnZ };
+
+      const s_v = 2.0 + 8.0 * Math.pow(state.v / 40.0, 2);
+      state.vy = state.v * Math.sin(state.gamma) - s_v + state.current_u;
+
+      playSound('crash');
+    }
+
+    // --- COLLISION & TOUCHDOWN JUDGMENT ---
+    function checkCollisions() {
+      const pad = currentCourse.pad;
+      const d_pad = Math.hypot(state.x - pad.x, state.z - pad.z);
+      const isBeforeFinalGate = (state.next_gate_index < currentCourse.gates.length);
+
+      // 1. Pillar collision check
+      for (let i = 0; i < currentCourse.pillars.length; i++) {
+        const p = currentCourse.pillars[i];
+        if (state.y >= currentCourse.valleyFloorY && state.y <= p.topY) {
+          const distToAxis = Math.hypot(state.x - p.x, state.z - p.z);
+          if (distToAxis <= p.radius) {
+            if (isBeforeFinalGate) {
+              triggerRespawn();
+              return;
+            } else {
+              judgeFinalOutcome('CRASH', 'Contact with stone pillar P' + (i + 1) + '!', d_pad);
+              return;
+            }
+          }
+        }
+      }
+
+      // 2. Pad surface contact (only when final gate passed)
+      if (!isBeforeFinalGate && d_pad <= pad.radius) {
+        if (state.y <= pad.y) {
+          state.y = pad.y;
+          judgeTouchdown(d_pad, true);
+          return;
+        }
+      }
+
+      // 3. Valley floor contact
+      if (state.y <= currentCourse.valleyFloorY) {
+        if (isBeforeFinalGate) {
+          triggerRespawn();
+          return;
+        } else {
+          if (d_pad <= pad.radius && currentCourse.pad.y < currentCourse.valleyFloorY) {
+            // Inside recessed pad cylinder on Course 2, continue descending to pad
+          } else {
+            state.y = currentCourse.valleyFloorY;
+            judgeTouchdown(d_pad, false);
+            return;
+          }
+        }
+      }
+    }
+
+    function judgeTouchdown(d_pad, isOnPadSurface) {
+      const absVy = Math.abs(state.vy);
+      const gammaDeg = state.gamma * 180 / Math.PI;
+
+      let grade = 'CRASH';
+      let reason = '';
+
+      if (isOnPadSurface && d_pad <= currentCourse.pad.radius) {
+        if (absVy <= 2.5 && gammaDeg >= 5.0) {
+          grade = 'CLEAN';
+          reason = 'Flawless flared touchdown on target pad (|vy| <= 2.5 m/s)!';
+        } else if (absVy <= 5.0) {
+          grade = 'HARD';
+          if (gammaDeg < 5.0) {
+            reason = 'Touchdown on pad, but missed required flare (γ < +5°)!';
+          } else {
+            reason = 'Touchdown on pad with firm sink rate (|vy| > 2.5 m/s)!';
+          }
+        } else {
+          grade = 'CRASH';
+          reason = 'Smashed into landing pad at excessive sink rate (' + absVy.toFixed(1) + ' m/s)!';
+        }
+      } else {
+        if (absVy <= 5.0) {
+          grade = 'MISS';
+          reason = 'Safe descent speed, but touched down off-target (' + d_pad.toFixed(1) + ' m away)!';
+        } else {
+          grade = 'CRASH';
+          reason = 'Crashed into the valley floor at excessive sink rate (' + absVy.toFixed(1) + ' m/s)!';
+        }
+      }
+
+      judgeFinalOutcome(grade, reason, d_pad);
+    }
+
+    function judgeFinalOutcome(grade, reason, d_pad) {
+      state.phase = 'LANDED';
+      state.landing_grade = grade;
+
+      if (grade === 'CLEAN') {
+        playSound('chime');
+      } else if (grade === 'CRASH') {
+        playSound('crash');
+      } else {
+        playSound('thud');
+      }
+
+      const totalGates = currentCourse.gates.length;
+      const timePts = Math.max(0, 2000 - 10 * state.run_clock);
+      const missedGates = totalGates - state.gates_passed;
+      const gatePts = -50 * missedGates;
+      const proxPts = state.proximity_pts;
+
+      let landingPts = 0;
+      if (grade === 'CLEAN') landingPts = 300;
+      else if (grade === 'HARD') landingPts = 100;
+
+      let precisionPts = 0;
+      if (grade === 'CLEAN') {
+        precisionPts = Math.max(0, (7.0 - d_pad) * 20.0);
+      }
+
+      const crashPenalty = -150 * state.crash_count;
+      const total = timePts + gatePts + proxPts + landingPts + precisionPts + crashPenalty;
+
+      state.scores.time_pts = timePts;
+      state.scores.gate_pts = gatePts;
+      state.scores.proximity_pts = proxPts;
+      state.scores.landing_pts = landingPts;
+      state.scores.precision_pts = precisionPts;
+      state.scores.crash_penalty = crashPenalty;
+      state.scores.total = total;
+
+      playerCourseStats[championship.currentCourseIdx] = {
+        name: currentCourse.name,
+        time: state.run_clock,
+        gates: state.gates_passed + '/' + totalGates,
+        proximity: state.proximity_pts,
+        landingGrade: grade,
+        crashes: state.crash_count,
+        total: Math.round(total)
+      };
+
+      championship.course_totals.YOU[championship.currentCourseIdx] = Math.round(total);
+
+      // Fast-forward Kestrel simulation if not yet landed
+      while (!kestrel.landed && kestrel.run_clock < 120) {
+        stepKestrelPhysics();
+      }
+
+      championship.course_totals.KESTREL[championship.currentCourseIdx] = Math.round(kestrel.scores.total);
+
+      // Update Side-by-Side Score Sheet
+      showScoreSheet(grade, reason, d_pad);
+    }
+
+    // --- KESTREL AI SIMULATION (Runs under exact same physics) ---
+    function stepKestrelPhysics() {
+      if (!kestrel.active || kestrel.landed) return;
+
+      // Launch delay: 2.0s after player launch
+      if (!kestrel.launched) {
+        if (state.run_clock >= kestrel.launchDelay) {
+          kestrel.launched = true;
+          kestrel.run_clock = 0.0;
+          kestrelFigure.group.visible = true;
+        } else {
+          return;
+        }
+      }
+
+      kestrel.run_clock += DT;
+      if (kestrel.mistakeTimer > 0) {
+        kestrel.mistakeTimer -= DT;
+      }
+
+      const cId = currentCourse.id;
+      const pad = currentCourse.pad;
+      let target;
+
+      // Determine waypoint
+      if (kestrel.next_gate_index < currentCourse.gates.length) {
+        const g = currentCourse.gates[kestrel.next_gate_index];
+        if (!g.isFork) {
+          target = g;
+        } else {
+          // Kestrel takes RIDGE line (G5a, G6a)
+          target = g.variants[0];
+        }
+      } else {
+        target = pad;
+      }
+
+      const wind = currentCourse.getWind(kestrel.y);
+      const toX = target.x - kestrel.x;
+      const toY = target.y - kestrel.y;
+      const toZ = target.z - kestrel.z;
+      const distHoriz = Math.hypot(toX, toZ);
+      const isApproachPad = (kestrel.next_gate_index >= currentCourse.gates.length);
+
+      // Desired ground track & crab angle for crosswind
+      const v_h = Math.max(10, kestrel.v * Math.cos(kestrel.gamma));
+      let desiredTrack = Math.atan2(toX, toZ);
+      let crossWind = (wind.x * Math.cos(desiredTrack) - wind.z * Math.sin(desiredTrack)) / v_h;
+      let crabAngle = Math.asin(Math.max(-0.85, Math.min(0.85, crossWind)));
+      let desiredPsi = desiredTrack - crabAngle;
+
+      let diffPsi = desiredPsi - kestrel.psi;
+      while (diffPsi > Math.PI) diffPsi -= 2 * Math.PI;
+      while (diffPsi < -Math.PI) diffPsi += 2 * Math.PI;
+
+      // Scripted mistake: after passing G5a on Course 1, bank limited to +-30 deg for 2.0s
+      let maxBank = (cId === 1 && kestrel.mistakeTimer > 0) ? (30 * Math.PI / 180) : (60 * Math.PI / 180);
+      let targetPhi = diffPsi * 2.5;
+      targetPhi = Math.max(-maxBank, Math.min(maxBank, targetPhi));
+
+      let dPhi = targetPhi - kestrel.phi;
+      if (Math.abs(dPhi) > 0.01) {
+        let phiStep = Math.sign(dPhi) * BANK_DRIVE_RATE * DT;
+        if (Math.abs(phiStep) > Math.abs(dPhi)) phiStep = dPhi;
+        kestrel.phi += phiStep;
+      } else {
+        if (kestrel.phi > 0) kestrel.phi = Math.max(0, kestrel.phi - BANK_SPRING_RATE * DT);
+        else if (kestrel.phi < 0) kestrel.phi = Math.min(0, kestrel.phi + BANK_SPRING_RATE * DT);
+      }
+      kestrel.phi = Math.max(-maxBank, Math.min(maxBank, kestrel.phi));
+
+      const denom = Math.max(kestrel.v, 10.0);
+      let psidot = 9.8 * Math.tan(kestrel.phi) / denom;
+      psidot = Math.max(-PSI_RATE_MAX, Math.min(PSI_RATE_MAX, psidot));
+      kestrel.psi += psidot * DT;
+      while (kestrel.psi > Math.PI) kestrel.psi -= 2 * Math.PI;
+      while (kestrel.psi < -Math.PI) kestrel.psi += 2 * Math.PI;
+
+      // Thermals upwash for Kestrel
+      const s_v = 2.0 + 8.0 * Math.pow(kestrel.v / 40.0, 2);
+      let current_u = 0.0;
+      for (let i = 0; i < currentCourse.thermals.length; i++) {
+        const th = currentCourse.thermals[i];
+        if (kestrel.y >= th.yMin && kestrel.y <= th.yMax && Math.hypot(kestrel.x - th.x, kestrel.z - th.z) <= 15.0) {
+          current_u = th.u;
+          break;
+        }
+      }
+
+      // Vertical speed control & approach
+      let slope = (target.y - kestrel.y) / Math.max(distHoriz, 1.0);
+      let diveBias = (cId === 1) ? 2.0 : 1.5;
+      let desiredVy = slope * v_h - diveBias;
+      if (isApproachPad && distHoriz <= pad.radius) {
+        desiredVy = -4.2; // Touches pad with vy = -4.2 m/s
+      }
+
+      let reqSinG = (desiredVy + s_v - current_u) / Math.max(kestrel.v, 10.0);
+      reqSinG = Math.max(-0.866, Math.min(0.422, reqSinG));
+      let desiredGamma = Math.asin(reqSinG);
+
+      if (kestrel.stall) {
+        kestrel.gamma -= STALL_FORCE_DOWN_RATE * DT;
+      } else {
+        let dGamma = desiredGamma - kestrel.gamma;
+        let gammaStep = Math.sign(dGamma) * PITCH_RATE * DT;
+        if (Math.abs(gammaStep) > Math.abs(dGamma)) gammaStep = dGamma;
+        kestrel.gamma += gammaStep;
+      }
+      kestrel.gamma = Math.max(GAMMA_MIN, Math.min(GAMMA_MAX, kestrel.gamma));
+
+      // Airspeed dv/dt
+      const gDeg = kestrel.gamma * 180 / Math.PI;
+      const veq = getVeqGlide(gDeg);
+      let dvdt = (veq - kestrel.v) / 1.2;
+      if (Math.abs(kestrel.phi) > 30 * Math.PI / 180) dvdt -= 0.08 * kestrel.v;
+      kestrel.v += dvdt * DT;
+      if (kestrel.v < 4.0) kestrel.v = 4.0;
+
+      if (!kestrel.stall && kestrel.v < 14) kestrel.stall = true;
+      else if (kestrel.stall && kestrel.v >= 17) kestrel.stall = false;
+
+      kestrel.vy = kestrel.v * Math.sin(kestrel.gamma) - s_v + current_u;
+
+      kestrelPrevPos.x = kestrel.x;
+      kestrelPrevPos.y = kestrel.y;
+      kestrelPrevPos.z = kestrel.z;
+
+      const v_h_k = kestrel.v * Math.cos(kestrel.gamma);
+      kestrel.x += (v_h_k * Math.sin(kestrel.psi) + wind.x) * DT;
+      kestrel.y += (kestrel.vy + wind.y) * DT;
+      kestrel.z += (v_h_k * Math.cos(kestrel.psi) + wind.z) * DT;
+
+      // Gate passing check
+      if (kestrel.next_gate_index < currentCourse.gates.length) {
+        const g = currentCourse.gates[kestrel.next_gate_index];
+        const gTarget = g.isFork ? g.variants[0] : g;
+        const distCenter = Math.hypot(kestrel.x - gTarget.x, kestrel.y - gTarget.y, kestrel.z - gTarget.z);
+        if (distCenter <= 6.5) {
+          if (cId === 1 && gTarget.id === 'G5a') {
+            kestrel.mistakeTimer = 2.0; // Scripted mistake on Course 1
+          }
+          kestrel.gates_passed++;
+          kestrel.gate_timestamps[kestrel.next_gate_index] = kestrel.run_clock;
+          kestrel.next_gate_index++;
+        }
+      }
+
+      // Proximity
+      let minDrock = Infinity;
+      for (let i = 0; i < currentCourse.pillars.length; i++) {
+        const p = currentCourse.pillars[i];
+        if (kestrel.y <= p.topY && kestrel.y >= currentCourse.valleyFloorY) {
+          const dist = Math.hypot(kestrel.x - p.x, kestrel.z - p.z) - p.radius;
+          if (dist < minDrock) minDrock = dist;
+        }
+      }
+      kestrel.d_rock = (minDrock === Infinity) ? 999.0 : Math.max(0, minDrock);
+      if (kestrel.d_rock < 7.0) {
+        const rate = ((7.0 - kestrel.d_rock) / 7.0) * 12.0;
+        kestrel.proximity_pts = Math.min(300.0, kestrel.proximity_pts + rate * DT);
+      }
+
+      // Landing check: touches pad with vy = -4.2 m/s -> HARD landing
+      const d_pad_k = Math.hypot(kestrel.x - pad.x, kestrel.z - pad.z);
+      if (d_pad_k <= pad.radius && kestrel.y <= pad.y) {
+        kestrel.landed = true;
+        kestrel.y = pad.y;
+        kestrel.vy = -4.2;
+        kestrel.landing_grade = 'HARD';
+      } else if (kestrel.y <= currentCourse.valleyFloorY) {
+        if (d_pad_k <= pad.radius) {
+          // Inside pad cylinder
+        } else {
+          kestrel.landed = true;
+          kestrel.y = currentCourse.valleyFloorY;
+          kestrel.landing_grade = (d_pad_k <= pad.radius) ? 'HARD' : 'MISS';
+        }
+      }
+
+      if (kestrel.landed) {
+        evaluateKestrelScore(d_pad_k);
+      }
+    }
+
+    function evaluateKestrelScore(d_pad) {
+      const totalGates = currentCourse.gates.length;
+      const timePts = Math.max(0, 2000 - 10 * kestrel.run_clock);
+      const missedGates = totalGates - kestrel.gates_passed;
+      const gatePts = -50 * missedGates;
+      const proxPts = kestrel.proximity_pts;
+      const landingPts = (kestrel.landing_grade === 'HARD') ? 100 : (kestrel.landing_grade === 'CLEAN' ? 300 : 0);
+      const precisionPts = 0; // HARD earns 0 precision pts
+      const total = timePts + gatePts + proxPts + landingPts + precisionPts;
+
+      kestrel.scores.time_pts = timePts;
+      kestrel.scores.gate_pts = gatePts;
+      kestrel.scores.proximity_pts = proxPts;
+      kestrel.scores.landing_pts = landingPts;
+      kestrel.scores.precision_pts = precisionPts;
+      kestrel.scores.total = total;
+    }
+
+// --- SCORE SHEET & PODIUM DISPLAY LOGIC ---
+    function showScoreSheet(grade, reason, d_pad) {
+      const banner = document.getElementById('result-banner');
+      const resGrade = document.getElementById('result-grade');
+      const resReason = document.getElementById('result-reason');
+      const courseTitle = document.getElementById('result-course-title');
+      const winnerBanner = document.getElementById('match-winner');
+      const nextBtn = document.getElementById('next-course-btn');
+
+      courseTitle.textContent = currentCourse.badge + ' RESULT';
+      resGrade.className = 'grade-badge grade-' + grade;
+      resGrade.textContent = grade;
+      resReason.textContent = reason;
+
+      const totalGates = currentCourse.gates.length;
+
+      // Player scores
+      document.getElementById('sheet-you-time').textContent = state.run_clock.toFixed(1) + 's (+' + Math.round(state.scores.time_pts) + ')';
+      document.getElementById('sheet-you-gates').textContent = state.gates_passed + '/' + totalGates + ' (' + (state.scores.gate_pts === 0 ? '+0' : Math.round(state.scores.gate_pts)) + ')';
+      document.getElementById('sheet-you-prox').textContent = '+' + state.proximity_pts.toFixed(1);
+      document.getElementById('sheet-you-crashes').textContent = state.crash_count + ' (' + (state.scores.crash_penalty === 0 ? '+0' : state.scores.crash_penalty) + ')';
+      document.getElementById('sheet-kes-crashes').textContent = '0 (+0)';
+      document.getElementById('sheet-you-landing').textContent = grade + ' (+' + state.scores.landing_pts + ')';
+      document.getElementById('sheet-you-precision').textContent = grade === 'CLEAN' ? '+' + state.scores.precision_pts.toFixed(1) : '+0.0';
+      document.getElementById('sheet-you-total').textContent = Math.round(state.scores.total);
+
+      // Kestrel scores
+      document.getElementById('sheet-kes-time').textContent = kestrel.run_clock.toFixed(1) + 's (+' + Math.round(kestrel.scores.time_pts) + ')';
+      document.getElementById('sheet-kes-gates').textContent = kestrel.gates_passed + '/' + totalGates + ' (' + (kestrel.scores.gate_pts === 0 ? '+0' : Math.round(kestrel.scores.gate_pts)) + ')';
+      document.getElementById('sheet-kes-prox').textContent = '+' + kestrel.proximity_pts.toFixed(1);
+      document.getElementById('sheet-kes-landing').textContent = kestrel.landing_grade + ' (+' + kestrel.scores.landing_pts + ')';
+      document.getElementById('sheet-kes-precision').textContent = '+0.0';
+      document.getElementById('sheet-kes-total').textContent = Math.round(kestrel.scores.total);
+
+      // Determine Course Winner
+      let youWon = false;
+      if (state.scores.total > kestrel.scores.total) {
+        youWon = true;
+      } else if (state.scores.total === kestrel.scores.total) {
+        youWon = (state.run_clock <= kestrel.run_clock);
+      }
+
+      if (youWon) {
+        winnerBanner.className = 'match-winner-banner winner-you';
+        winnerBanner.textContent = 'YOU WIN THIS COURSE!';
+      } else {
+        winnerBanner.className = 'match-winner-banner winner-kestrel';
+        winnerBanner.textContent = 'KESTREL WINS THIS COURSE!';
+      }
+
+      if (championship.currentCourseIdx < 2) {
+        const nextCourseNum = championship.currentCourseIdx + 2;
+        const nextCourseName = COURSES[championship.currentCourseIdx + 1].name.toUpperCase();
+        nextBtn.textContent = 'PRESS ENTER TO ADVANCE TO COURSE ' + nextCourseNum + ': ' + nextCourseName;
+      } else {
+        nextBtn.textContent = 'PRESS ENTER FOR PODIUM CEREMONY';
+      }
+
+      banner.style.display = 'flex';
+    }
+
+    function showPodiumCeremony() {
+      state.phase = 'PODIUM';
+      document.getElementById('result-banner').style.display = 'none';
+      const podiumScreen = document.getElementById('podium-screen');
+
+      const standings = championship.getStandings();
+
+      // Top 3 for pedestals
+      const first = standings[0];
+      const second = standings[1];
+      const third = standings[2];
+
+      document.getElementById('podium-name-1').textContent = first.name;
+      document.getElementById('podium-pts-1').textContent = first.total + ' PTS';
+
+      document.getElementById('podium-name-2').textContent = second.name;
+      document.getElementById('podium-pts-2').textContent = second.total + ' PTS';
+
+      document.getElementById('podium-name-3').textContent = third.name;
+      document.getElementById('podium-pts-3').textContent = third.total + ' PTS';
+
+      // Full standings table
+      const tbody = document.getElementById('standings-body');
+      tbody.innerHTML = '';
+      standings.forEach(s => {
+        const tr = document.createElement('tr');
+        if (s.name === 'YOU') tr.className = 'highlight-you';
+        tr.innerHTML = `
+          <td class="standings-rank-${s.rank}">#${s.rank}</td>
+          <td><b>${s.name}</b></td>
+          <td style="text-align: right;">${s.c1}</td>
+          <td style="text-align: right;">${s.c2}</td>
+          <td style="text-align: right;">${s.c3}</td>
+          <td style="text-align: right; font-weight: bold; color: #ffd875;">${s.total} PTS</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      playSound('chime');
+      podiumScreen.style.display = 'flex';
+    }
+
+
+    // --- ROUND 7: RECKONING PANEL & RATINGS ---
+    function showReckoningPanel() {
+      state.phase = 'RECKONING';
+      document.getElementById('podium-screen').style.display = 'none';
+      document.getElementById('reckoning-screen').style.display = 'none';
+      const reckoningScreen = document.getElementById('reckoning-screen');
+
+      const standings = championship.getStandings();
+      const youStanding = standings.find(s => s.name === 'YOU');
+      const champTotal = youStanding ? youStanding.total : 0;
+      const rating = calculatePlayerRating(champTotal);
+
+      const ratingBadge = document.getElementById('reckoning-rating-badge');
+      ratingBadge.className = 'rating-badge rating-' + rating;
+      ratingBadge.textContent = rating;
+
+      const descMap = {
+        'S': 'LEGENDARY &bull; SCORE &ge; 5600',
+        'A': 'EXPERT &bull; SCORE &ge; 5200',
+        'B': 'PROFICIENT &bull; SCORE &ge; 4600',
+        'C': 'NOVICE &bull; SCORE < 4600'
+      };
+      document.getElementById('reckoning-rating-desc').innerHTML = descMap[rating];
+      document.getElementById('reckoning-champ-total').textContent = champTotal + ' PTS';
+
+      // Courses Breakdown Table
+      const cBody = document.getElementById('reckoning-courses-body');
+      cBody.innerHTML = '';
+      for (let i = 0; i < 3; i++) {
+        const stats = playerCourseStats[i] || {
+          name: COURSES[i].name,
+          time: 0,
+          gates: '0/' + COURSES[i].gates.length,
+          proximity: 0,
+          landingGrade: '--',
+          crashes: 0,
+          total: championship.course_totals.YOU[i] || 0
+        };
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><b>${i + 1}. ${stats.name}</b></td>
+          <td style="text-align: right;">${stats.time ? stats.time.toFixed(1) + 's' : '--'}</td>
+          <td style="text-align: right;">${stats.gates}</td>
+          <td style="text-align: right;">+${stats.proximity ? stats.proximity.toFixed(1) : '0.0'}</td>
+          <td style="text-align: right;">${stats.landingGrade}</td>
+          <td style="text-align: right; color: ${stats.crashes > 0 ? '#ff5566' : '#d8e5f5'};">${stats.crashes}</td>
+          <td style="text-align: right; font-weight: bold; color: #ffd875;">${stats.total}</td>
+        `;
+        cBody.appendChild(tr);
+      }
+
+      // Final Standings Table
+      const sBody = document.getElementById('reckoning-standings-body');
+      sBody.innerHTML = '';
+      standings.forEach(s => {
+        const tr = document.createElement('tr');
+        if (s.name === 'YOU') tr.className = 'highlight-you';
+        tr.innerHTML = `
+          <td class="standings-rank-${s.rank}">#${s.rank}</td>
+          <td><b>${s.name}</b></td>
+          <td style="text-align: right; font-weight: bold; color: #ffd875;">${s.total} PTS</td>
+        `;
+        sBody.appendChild(tr);
+      });
+
+      reckoningScreen.style.display = 'flex';
+    }
+
+    function startChampionship() {
+      championship.currentCourseIdx = 0;
+      championship.course_totals.YOU = [0, 0, 0];
+      championship.course_totals.KESTREL = [0, 0, 0];
+      launchCourse(0);
+    }
+
+    function advanceToNextCourse() {
+      if (championship.currentCourseIdx < 2) {
+        launchCourse(championship.currentCourseIdx + 1);
+      } else {
+        showPodiumCeremony();
+      }
+    }
+
+    function launchCourse(courseIdx) {
+      championship.currentCourseIdx = courseIdx;
+      const course = COURSES[courseIdx];
+      loadCourseEnvironment(course);
+
+      state.phase = 'FLIGHT';
+      state.run_clock = 0.0;
+      state.x = course.launch.x;
+      state.y = course.launch.y;
+      state.z = course.launch.z;
+      prevPos = { x: course.launch.x, y: course.launch.y, z: course.launch.z };
+      state.v = 18.0;
+      state.gamma = -15.0 * Math.PI / 180;
+      state.psi = 0.0;
+      state.phi = 0.0;
+      state.stall = false;
+      state.landing_grade = null;
+      state.crashTumble = 0.0;
+      state.gates_passed = 0;
+      state.next_gate_index = 0;
+      state.d_rock = 999.0;
+      state.proximity_pts = 0.0;
+      state.trim = 'GLIDE';
+      state.targetTrim = 'GLIDE';
+      state.trimBlend = 0.0;
+      state.current_u = 0.0;
+      state.chosen_fork_variants = [];
+      state.gate_timestamps = [];
+      state.crash_count = 0;
+      state.respawn_freeze = 0.0;
+      state.respawn_point_in_use = null;
+      state.last_passed_variant = null;
+
+      const initialWind = course.getWind(course.launch.y);
+      state.wind.x = initialWind.x;
+      state.wind.y = initialWind.y;
+      state.wind.z = initialWind.z;
+      state.wind_band_index = initialWind.band;
+
+      state.scores = {
+        time_pts: 0,
+        gate_pts: 0,
+        proximity_pts: 0,
+        landing_pts: 0,
+        precision_pts: 0,
+        total: 0
+      };
+
+      // Reset Kestrel AI
+      kestrel.active = true;
+      kestrel.launched = false;
+      kestrel.run_clock = 0.0;
+      kestrel.x = course.launch.x;
+      kestrel.y = course.launch.y;
+      kestrel.z = course.launch.z;
+      kestrelPrevPos = { x: course.launch.x, y: course.launch.y, z: course.launch.z };
+      kestrel.v = 18.0;
+      kestrel.gamma = -15.0 * Math.PI / 180;
+      kestrel.psi = 0.0;
+      kestrel.phi = 0.0;
+      kestrel.stall = false;
+      kestrel.landed = false;
+      kestrel.landing_grade = null;
+      kestrel.gates_passed = 0;
+      kestrel.next_gate_index = 0;
+      kestrel.d_rock = 999.0;
+      kestrel.proximity_pts = 0.0;
+      kestrel.mistakeTimer = 0.0;
+      kestrel.gate_timestamps = [];
+      kestrel.scores = {
+        time_pts: 0,
+        gate_pts: 0,
+        proximity_pts: 0,
+        landing_pts: 0,
+        precision_pts: 0,
+        total: 0
+      };
+
+      kestrelFigure.group.visible = false;
+
+      document.getElementById('ready-screen').style.display = 'none';
+      document.getElementById('result-banner').style.display = 'none';
+      document.getElementById('podium-screen').style.display = 'none';
+      document.getElementById('reckoning-screen').style.display = 'none';
+
+      document.getElementById('hud-course-badge').textContent = course.badge;
+
+      initAudio();
+    }
+
+    function resetToChampionshipMenu() {
+      state.phase = 'READY';
+      championship.currentCourseIdx = 0;
+      championship.course_totals.YOU = [0, 0, 0];
+      championship.course_totals.KESTREL = [0, 0, 0];
+
+      const course = COURSES[0];
+      loadCourseEnvironment(course);
+
+      state.run_clock = 0.0;
+      state.x = course.launch.x;
+      state.y = course.launch.y;
+      state.z = course.launch.z;
+      prevPos = { x: course.launch.x, y: course.launch.y, z: course.launch.z };
+      state.v = 18.0;
+      state.gamma = -15.0 * Math.PI / 180;
+      state.psi = 0.0;
+      state.phi = 0.0;
+      state.stall = false;
+      state.landing_grade = null;
+      state.crashTumble = 0.0;
+      state.gates_passed = 0;
+      state.next_gate_index = 0;
+      state.d_rock = 999.0;
+      state.proximity_pts = 0.0;
+      state.trim = 'GLIDE';
+      state.targetTrim = 'GLIDE';
+      state.trimBlend = 0.0;
+      state.current_u = 0.0;
+      state.chosen_fork_variants = [];
+      state.gate_timestamps = [];
+      state.crash_count = 0;
+      state.respawn_freeze = 0.0;
+      state.respawn_point_in_use = null;
+      state.last_passed_variant = null;
+
+      const initialWind = course.getWind(course.launch.y);
+      state.wind.x = initialWind.x;
+      state.wind.y = initialWind.y;
+      state.wind.z = initialWind.z;
+      state.wind_band_index = initialWind.band;
+
+      state.scores = {
+        time_pts: 0,
+        gate_pts: 0,
+        proximity_pts: 0,
+        landing_pts: 0,
+        precision_pts: 0,
+        total: 0
+      };
+
+      kestrel.active = false;
+      kestrel.launched = false;
+      kestrelFigure.group.visible = false;
+
+      document.getElementById('ready-screen').style.display = 'flex';
+      document.getElementById('result-banner').style.display = 'none';
+      document.getElementById('podium-screen').style.display = 'none';
+      document.getElementById('reckoning-screen').style.display = 'none';
+      document.getElementById('hud-course-badge').textContent = course.badge;
+    }
+
+    // --- HUD UPDATER ---
+    const hudTime = document.getElementById('hud-time');
+    const hudV = document.getElementById('hud-v');
+    const hudGamma = document.getElementById('hud-gamma');
+    const hudPsi = document.getElementById('hud-psi');
+    const hudPhi = document.getElementById('hud-phi');
+    const hudAlt = document.getElementById('hud-alt');
+    const hudGates = document.getElementById('hud-gates');
+    const hudWind = document.getElementById('hud-wind');
+    const hudTrim = document.getElementById('hud-trim');
+    const hudThermal = document.getElementById('hud-thermal');
+    const hudDrock = document.getElementById('hud-drock');
+    const hudProx = document.getElementById('hud-prox');
+    const hudKestrelDelta = document.getElementById('hud-kestrel-delta');
+    const hudStall = document.getElementById('stall-warning');
+    const hudThermalBanner = document.getElementById('thermal-indicator');
+    const hudTarget = document.getElementById('hud-target-tag');
+
+    function updateHUD() {
+      const totalGates = currentCourse.gates.length;
+
+      hudTime.textContent = state.run_clock.toFixed(1) + ' s';
+      hudV.textContent = state.v.toFixed(1) + ' m/s';
+      hudGamma.textContent = (state.gamma * 180 / Math.PI).toFixed(1) + '°';
+      hudPsi.textContent = (state.psi * 180 / Math.PI).toFixed(1) + '°';
+      hudPhi.textContent = (state.phi * 180 / Math.PI).toFixed(1) + '°';
+      hudAlt.textContent = state.y.toFixed(1) + ' m';
+
+      const nextGateStr = state.next_gate_index < totalGates ? ' (NEXT: G' + (state.next_gate_index + 1) + ')' : ' (ALL CLEARED)';
+      hudGates.textContent = state.gates_passed + '/' + totalGates + nextGateStr;
+
+      // Wind readout
+      const wx = state.wind.x >= 0 ? '+' + state.wind.x.toFixed(0) : state.wind.x.toFixed(0);
+      const wz = state.wind.z >= 0 ? '+' + state.wind.z.toFixed(0) : state.wind.z.toFixed(0);
+      hudWind.textContent = '(' + wx + ', 0, ' + wz + ') m/s';
+
+      // Trim display
+      if (state.trimBlend > 0 && state.trimBlend < 1) {
+        hudTrim.textContent = (state.trimBlend >= 0.5 ? 'DIVE' : 'GLIDE') + ' (' + Math.round(state.trimBlend * 100) + '%)';
+        hudTrim.className = state.trimBlend >= 0.5 ? 'telem-val trim-dive' : 'telem-val trim-glide';
+      } else {
+        hudTrim.textContent = state.trim;
+        hudTrim.className = state.trim === 'DIVE' ? 'telem-val trim-dive' : 'telem-val trim-glide';
+      }
+
+      // Thermal display
+      if (state.current_u > 0) {
+        hudThermal.textContent = 'ACTIVE (+' + state.current_u.toFixed(1) + ' m/s)';
+        hudThermal.className = 'telem-val thermal-active';
+        hudThermalBanner.textContent = 'THERMAL LIFT ACTIVE (+' + state.current_u.toFixed(1) + ' m/s)';
+        hudThermalBanner.style.display = 'block';
+      } else {
+        hudThermal.textContent = 'NONE (+0 m/s)';
+        hudThermal.className = 'telem-val';
+        hudThermalBanner.style.display = 'none';
+      }
+
+      // Proximity readout
+      if (state.d_rock < 900) {
+        hudDrock.textContent = state.d_rock.toFixed(1) + ' m';
+        hudDrock.className = state.d_rock < 7.0 ? 'telem-val prox-active' : 'telem-val';
+      } else {
+        hudDrock.textContent = '--';
+        hudDrock.className = 'telem-val';
+      }
+      hudProx.textContent = state.proximity_pts.toFixed(1) + ' pts';
+
+      // Race Delta vs Kestrel
+      const commonGates = Math.min(state.gates_passed, kestrel.gates_passed);
+      if (commonGates > 0 && state.gate_timestamps[commonGates - 1] !== undefined && kestrel.gate_timestamps[commonGates - 1] !== undefined) {
+        const delta = state.gate_timestamps[commonGates - 1] - kestrel.gate_timestamps[commonGates - 1];
+        if (delta <= 0) {
+          hudKestrelDelta.textContent = delta.toFixed(1) + ' s (AHEAD)';
+          hudKestrelDelta.className = 'telem-val delta-ahead';
+        } else {
+          hudKestrelDelta.textContent = '+' + delta.toFixed(1) + ' s (BEHIND)';
+          hudKestrelDelta.className = 'telem-val delta-behind';
+        }
+      } else {
+        hudKestrelDelta.textContent = '--';
+        hudKestrelDelta.className = 'telem-val';
+      }
+
+
+      const hudRespawn = document.getElementById('respawn-warning');
+      if (state.respawn_freeze > 0 && state.phase === 'FLIGHT') {
+        hudRespawn.textContent = 'CHECKPOINT RESPAWN \u2022 CONTROLS FROZEN (' + state.respawn_freeze.toFixed(1) + 's) \u2022 -150 PTS';
+        hudRespawn.style.display = 'block';
+      } else {
+        hudRespawn.style.display = 'none';
+      }
+
+      if (state.stall && state.phase === 'FLIGHT') {
+        hudStall.style.display = 'block';
+      } else {
+        hudStall.style.display = 'none';
+      }
+
+      if (state.next_gate_index < totalGates) {
+        const ng = currentCourse.gates[state.next_gate_index];
+        const targetPos = ng.isFork ? ng.variants[0] : ng;
+        const distG = Math.hypot(state.x - targetPos.x, state.y - targetPos.y, state.z - targetPos.z);
+        const forkText = ng.isFork ? ' [FORK: RIDGE / CLOUD]' : '';
+        hudTarget.textContent = currentCourse.name.toUpperCase() + ' &bull; GATE ' + (state.next_gate_index + 1) + forkText + ' | DIST: ' + Math.round(distG) + ' m';
+      } else {
+        const d_pad = Math.hypot(state.x - currentCourse.pad.x, state.z - currentCourse.pad.z);
+        hudTarget.textContent = 'ALL GATES CLEARED &bull; LAND ON TARGET PAD | DIST: ' + Math.round(d_pad) + ' m';
+      }
+    }
+
+    // --- CAMERA RIG & SMOOTH CHASE ---
+    const camTarget = new THREE.Vector3();
+    const camPos = new THREE.Vector3(0, currentCourse.launch.y + 3, currentCourse.launch.z - 12);
+    camera.position.copy(camPos);
+
+    function updateCamera(delta) {
+      if (state.phase === 'READY' || state.phase === 'PODIUM' || state.phase === 'RECKONING') {
+        const desiredCamPos = new THREE.Vector3(state.x - 3.2, state.y + 2.0, state.z - 6.0);
+        camera.position.lerp(desiredCamPos, 0.08);
+        camera.lookAt(state.x + 0.4, state.y + 0.6, state.z + 10);
+        return;
+      }
+
+      const forwardX = Math.sin(state.psi);
+      const forwardZ = Math.cos(state.psi);
+
+      const pitchOffset = Math.sin(state.gamma) * 2.8;
+      const desiredX = state.x - forwardX * 10.5;
+      const desiredY = Math.max(currentCourse.valleyFloorY + 1.6, state.y + 3.0 - pitchOffset * 0.4);
+      const desiredZ = state.z - forwardZ * 10.5;
+
+      const lerpSpeed = state.phase === 'LANDED' ? 0.05 : 0.14;
+      camera.position.x += (desiredX - camera.position.x) * lerpSpeed;
+      camera.position.y += (desiredY - camera.position.y) * lerpSpeed;
+      camera.position.z += (desiredZ - camera.position.z) * lerpSpeed;
+
+      camTarget.x = state.x + forwardX * 18.0;
+      camTarget.y = state.y + Math.sin(state.gamma) * 5.5;
+      camTarget.z = state.z + forwardZ * 18.0;
+
+      camera.lookAt(camTarget);
+    }
+
+    // --- MAIN SIMULATION & RENDER TICK ---
+    let lastTime = performance.now();
+    let physicsAccumulator = 0;
+
+    function tick(time) {
+      const deltaSec = Math.min((time - lastTime) / 1000, 0.1);
+      lastTime = time;
+
+      if (state.phase === 'FLIGHT') {
+        physicsAccumulator += deltaSec;
+        while (physicsAccumulator >= DT) {
+          stepPhysics();
+          stepKestrelPhysics();
+          physicsAccumulator -= DT;
+        }
+      }
+
+      // Pilot positioning & rotation
+      playerFigure.group.position.set(state.x, state.y, state.z);
+
+      if (state.phase === 'READY') {
+        playerFigure.group.rotation.set(0, 0, 0);
+        playerFigure.applyPose('GLIDE', 0, 0.2);
+      } else if (state.phase === 'FLIGHT') {
+        const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+        euler.y = state.psi;
+        euler.x = -state.gamma;
+        euler.z = -state.phi;
+        playerFigure.group.quaternion.setFromEuler(euler);
+
+        let activePose = 'GLIDE';
+        if (state.stall) {
+          activePose = 'BUFFET';
+        } else if (state.gamma <= -25 * Math.PI / 180) {
+          activePose = 'DIVE';
+        } else if (state.gamma >= 5 * Math.PI / 180) {
+          activePose = 'FLARE';
+        }
+
+        playerFigure.applyPose(activePose, state.v, deltaSec);
+      } else if (state.phase === 'LANDED') {
+        if (state.landing_grade === 'CRASH') {
+          state.crashTumble += deltaSec;
+          playerFigure.applyPose('CRASH', 0, 0);
+        } else {
+          playerFigure.group.quaternion.identity();
+          playerFigure.group.rotation.y = state.psi;
+          playerFigure.applyPose('GLIDE', 0, 0);
+        }
+      }
+
+      // Kestrel positioning & animation
+      if (kestrel.active && kestrel.launched) {
+        kestrelFigure.group.position.set(kestrel.x, kestrel.y, kestrel.z);
+        const keuler = new THREE.Euler(0, 0, 0, 'YXZ');
+        keuler.y = kestrel.psi;
+        keuler.x = -kestrel.gamma;
+        keuler.z = -kestrel.phi;
+        kestrelFigure.group.quaternion.setFromEuler(keuler);
+
+        let kPose = 'GLIDE';
+        if (kestrel.stall) kPose = 'BUFFET';
+        else if (kestrel.gamma <= -25 * Math.PI / 180) kPose = 'DIVE';
+        else if (kestrel.gamma >= 5 * Math.PI / 180) kPose = 'FLARE';
+
+        kestrelFigure.applyPose(kPose, kestrel.v, deltaSec);
+      }
+
+      // Wind flags rotation
+      const flagAngle = Math.atan2(state.wind.x, state.wind.z || 0.001);
+      flagL.rotation.y = flagAngle;
+      flagR.rotation.y = flagAngle;
+
+      // Cloud deck drift
+      if (cloudDeckMesh) {
+        const driftSpeed = 0.04;
+        cloudDeckMesh.position.x = ((state.wind.x * state.run_clock * driftSpeed) % 80);
+        cloudDeckMesh.position.z = ((state.wind.z * state.run_clock * driftSpeed) % 80);
+      }
+
+      // Thermals visuals
+      updateThermalVisuals(state.run_clock);
+
+      updateCamera(deltaSec);
+      updateHUD();
+      updateAudio(state.v, state.stall && state.phase === 'FLIGHT', state.trimBlend);
+
+      if (renderer.render) {
+        renderer.render(scene, camera);
+      }
+    }
+
+    let lastRafTime = performance.now();
+    function animate(time) {
+      lastRafTime = time;
+      tick(time);
+      requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+
+    setInterval(() => {
+      const now = performance.now();
+      if (now - lastRafTime > 80) {
+        lastRafTime = now;
+        tick(now);
+      }
+    }, 16);
+
+    // Initial environment setup: Course 1
+    loadCourseEnvironment(COURSES[0]);
+
+    // Test API for Headless Automation
+    window.__test_api = {
+      state,
+      kestrel,
+      championship,
+      COURSES,
+      get prevPos() { return prevPos; },
+      set prevPos(p) { prevPos.x = p.x; prevPos.y = p.y; prevPos.z = p.z; },
+      stepPhysics,
+      stepKestrelPhysics,
+      checkGateCrossing,
+      checkCollisions,
+      judgeTouchdown,
+      startChampionship,
+      launchCourse,
+      advanceToNextCourse,
+      resetToChampionshipMenu,
+      showPodiumCeremony,
+      showReckoningPanel,
+      triggerRespawn,
+      playerCourseStats
+    };
+
+  })();
+  </script>
+</body>
+</html>
