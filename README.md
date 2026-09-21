@@ -1,17 +1,21 @@
 # 3D Game Agent Bench — Completed Results (2026-09-21)
 
-Gemini-3.8-Flash: **119** games · GLM-5.3-Flash: **109** games · **228** total.
+Each model is packaged as its own zip:
 
-## Preview locally
+| File | Contents | Size |
+|------|----------|------|
+| [`Gemini-3.8-Flash_results_0921.zip`](./Gemini-3.8-Flash_results_0921.zip) | Gemini-3.8-Flash · **119** games | ~81 MB |
+| [`GLM-5.3-Flash_results_0921.zip`](./GLM-5.3-Flash_results_0921.zip) | GLM-5.3-Flash · **109** games | ~41 MB |
 
-Do **not** open `index.html` via `file://` (ES modules will blank the page).
+## Preview after unzip
 
-**macOS:** double-click `打开.command`
+Do **not** open `index.html` via `file://`.
 
-**Any OS:**
 ```bash
+unzip Gemini-3.8-Flash_results_0921.zip
+cd Gemini-3.8-Flash
 python3 -m http.server 8123
-# then open http://127.0.0.1:8123/
+# open http://127.0.0.1:8123/
 ```
 
-See `清单.csv` for the full inventory.
+Same for the GLM zip (serve from the `GLM-5.3-Flash` folder).
